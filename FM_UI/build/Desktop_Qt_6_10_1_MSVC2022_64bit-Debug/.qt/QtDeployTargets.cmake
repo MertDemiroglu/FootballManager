@@ -1,0 +1,3 @@
+set(__QT_DEPLOY_TARGET_appFM_UI_FILE C:/Users/user/Documents/FM_UI/build/Desktop_Qt_6_10_1_MSVC2022_64bit-Debug/appFM_UI.exe)
+set(__QT_DEPLOY_TARGET_appFM_UI_TYPE EXECUTABLE)
+set(__QT_DEPLOY_TARGET_appFM_UI_RUNTIME_DLLS C:/Qt/6.10.1/msvc2022_64/bin/Qt6Quickd.dll;C:/Qt/6.10.1/msvc2022_64/bin/Qt6OpenGLd.dll;C:/Qt/6.10.1/msvc2022_64/bin/Qt6Guid.dll;C:/Qt/6.10.1/msvc2022_64/bin/Qt6QmlMetad.dll;C:/Qt/6.10.1/msvc2022_64/bin/Qt6QmlModelsd.dll;C:/Qt/6.10.1/msvc2022_64/bin/Qt6QmlWorkerScriptd.dll;C:/Qt/6.10.1/msvc2022_64/bin/Qt6Qmld.dll;C:/Qt/6.10.1/msvc2022_64/bin/Qt6Networkd.dll;C:/Qt/6.10.1/msvc2022_64/bin/Qt6Cored.dll)
