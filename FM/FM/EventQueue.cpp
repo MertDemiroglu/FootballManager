@@ -1,15 +1,12 @@
 #include"EventQueue.h"
 #include"GameEvents.h"
+#include<algorithm>
 
 std::unique_ptr<GameEvents> EventQueue::popEvent() {
     if (events.empty()) return nullptr;
 
-    auto it = std::max_element(
-        events.begin(),
-        events.end(),
-        [](const auto& a, const auto& b) {
-            return static_cast<int>(a->getPriority())
-                < static_cast<int>(b->getPriority());
+    auto it = std::max_element( events.begin(), events.end(), [](const auto& a, const auto& b) {
+    return static_cast<int>(a->getPriority()) < static_cast<int>(b->getPriority());
         }
     );
 

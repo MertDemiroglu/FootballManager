@@ -1,6 +1,11 @@
 #include "Game.h"
 #include "GameEvents.h"
 
+Game::Game() : date(2025, Month::July, 1, 1), league("Super Lig"), transferRoom(league), state(GameState::PreSeason), eventsQueue(), user(), timePaused(false), currentBlockingEvent(nullptr) {
+    updateState();           
+    updateTransferWindow(); 
+}
+
 void Game::updateState() {
     Month m = date.getMonth();
 

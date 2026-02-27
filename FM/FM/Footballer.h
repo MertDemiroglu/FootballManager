@@ -1,8 +1,9 @@
 #pragma once
-
 #include<iostream>
 #include<string>
+#include<memory>
 #include"Contract.h"
+
 class Footballer {
 
 protected:
