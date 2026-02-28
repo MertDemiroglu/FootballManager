@@ -2,12 +2,10 @@
 #include"GameEvents.h"
 
 class Team;
-class Footballer;
-
 
 class MatchEvent : public GameEvents {
 private:
-	bool block = 1;
+	bool block = true;
 	EventPriority priority = EventPriority::Critical;
 	Team* home;
 	Team* away;
@@ -22,6 +20,10 @@ public:
 	void resolve(Game& game) override;
 
 	EventTargetType getTargetType() const override;
+
+	Team* getSendingTeam() const override;
+
+	Team* getReceivingTeam() const override;
 
 	bool affectsTeam(const Team* team) const override;
 };

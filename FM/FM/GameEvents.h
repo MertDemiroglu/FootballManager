@@ -3,7 +3,6 @@
 class Game;
 class Team;
 class Footballer;
-class Types;
 
 enum class EventTargetType {
     League, Team, Player
@@ -12,33 +11,35 @@ enum class EventTargetType {
 enum class EventPriority {
     Critical = 100, High = 80, Medium = 50, Low = 20
 };
+
 class GameEvents {
 public:
-
-    //Event'in oyun akýþýný durdurup durdurmadýðýný kontrol eder
-    virtual bool isBlocking() const = 0;
-
-    //Problemin çözümü
-    virtual void resolve(Game& game) = 0;
-
-    //Event'in önceliðini döndürür
-    virtual EventPriority getPriority() const = 0;
 
     //Virtual destructor
     virtual ~GameEvents() = default;
 
-    //Event'in nereyi etkilediðini döndürür
+    //Event'in oyun akisini durdurup durdurmadigini kontrol eder
+    virtual bool isBlocking() const = 0;
+
+    //Event cozumu
+    virtual void resolve(Game& game) = 0;
+
+    //Event'in o    nceligini verir
+    virtual EventPriority getPriority() const = 0;
+
+    //Event'in nereyi etkiledigini verir
     virtual EventTargetType getTargetType() const = 0;
 
-    //Event'i gönderen takýmun pointerýný döndürür
-    virtual Team* getSendingTeam() const = 0;
+    //Event'i gonderen takimin pointerini verir
+    virtual Team* getSendingTeam() const { return nullptr; }
 
-    //Event'i alan takýmýn pointerýný döndürür
-    virtual Team* getReceivingTeam() const = 0;
+    //Event'i alan takimin pointerini verir
+    virtual Team* getReceivingTeam() const { return nullptr; }
 
     //Hedefteki oyuncunun pointerýný verir
-    virtual Footballer* getPlayer() const = 0;
+    virtual Footballer* getPlayer() const { return nullptr; }
 
-    //Eventten etkilenen takýmýn kontrolünü yapar
+    //Eventten etkilenen takimin kontrolunu yapar
     virtual bool affectsTeam(const Team* team) const = 0;
+
 };

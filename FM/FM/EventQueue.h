@@ -12,9 +12,10 @@ public:
 	
 	//Queue'ya event ekler
 	void pushEvent(std::unique_ptr<GameEvents> event);
-    //Queue'dan event alýr
+    //Queue'dan event alir
 	std::unique_ptr<GameEvents> popEvent();
-	//Event queue doluluðu kontrol eder
+	//Event queue dolulugu kontrol eder
 	bool empty() const;
-
+	//Bekleyen event sayisi
+	std::size_t size() const;
 };

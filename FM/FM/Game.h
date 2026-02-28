@@ -1,4 +1,5 @@
 #pragma once
+#include<memory>
 
 #include"Date.h"
 #include"League.h"
@@ -25,7 +26,7 @@ public:
 	//Game constructor
 	Game();
 
-	//Gün ilerletir even kontrol eder
+	//Gün ilerletir event kontrol eder
 	void updateDaily();
 
 	//Pre season / In season / Post season kontrolü yapar
@@ -49,9 +50,10 @@ public:
 	TransferRoom& getTransferRoom();
 
 	const TransferRoom& getTransferRoom() const;
-	//Blocking event var ise zamaný durdurur
+	//Blocking event var ise zamani durdurur
 	void stopTime();
-	//Oyuncunun karar vermesi gereken eventin iþlendiði fonksiyon
+	//Oyuncunun karar vermesi gereken eventin islendigi fonksiyon
 	void processBlockingEvent();
 
+	bool isTimePaused() const;
 };

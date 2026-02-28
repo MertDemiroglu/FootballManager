@@ -7,7 +7,7 @@ Game::Game() : date(2025, Month::July, 1, 1), league("Super Lig"), transferRoom(
 }
 
 void Game::updateState() {
-    Month m = date.getMonth();
+    const Month m = date.getMonth();
 
     if (m == Month::July || m == Month::August) {
         state = GameState::PreSeason;
@@ -28,8 +28,10 @@ void Game::updateDaily() {
     }
     
     while (!eventsQueue.empty()){
-
         auto event = eventsQueue.popEvent();
+        if (!event) {
+            continue;
+        }
 
         if (event->isBlocking() && event->affectsTeam(league.getTeam(user.getTeam()))) {
             currentBlockingEvent = std::move(event);
@@ -40,7 +42,11 @@ void Game::updateDaily() {
     }
 
     date.advanceDay();
+    updateTransferWindow();
 
+    if (date.getWeek() % 7 == 1) {
+        handleWeeklyEvents();
+    }
     if (date.isNewMonth()) {
         handleMonthlyEvents();
         handleSeasonalEvents();
@@ -58,7 +64,7 @@ void Game::handleSeasonalEvents() {
         break;
 
     case GameState::InSeason:
-        //maçlar ve milyon tane event daha
+        //maçlar ve diger eventler burada planlanacak
         break;
 
     case GameState::PostSeason:
@@ -69,17 +75,21 @@ void Game::handleSeasonalEvents() {
 
     }
 }
+
 void Game::handleMonthlyEvents() {      
      for (auto& [name, team] : league.getTeams()) {
             team->payWagesMonthly();
      }
 }
+
 void Game::handleWeeklyEvents() {
-   
+    // Haftalýk otomatik event uretimi burada genisletilebilir
 }
+
 void Game::seasonStartChecks() {
     transferRoom.collectFreeAgentsFromTeams();
 }
+
 void Game::seasonEndChecks() {
     transferRoom.updatePlayersContractYearsInTeams();
 }
@@ -92,6 +102,7 @@ void Game::updateTransferWindow() {
         transferRoom.closeWindow();
     }
 }
+
 TransferRoom& Game::getTransferRoom() {
     return transferRoom;
 }
@@ -99,9 +110,14 @@ TransferRoom& Game::getTransferRoom() {
 const TransferRoom& Game::getTransferRoom() const {
     return transferRoom;
 }
+
 void Game::stopTime() {
     timePaused = true;
-    //Zamanýn o an ki akýþý burada durdurulacak ve event oyuncuya sunulacak, oyuncu tekrar baþlatana kadar zaman akýþý duracak.
+    //Zamanin o an ki ilerleyisi burada durdurulacak ve event oyuncuya sunulacak, oyuncu tekrar baslatana kadar zaman duracak
+}
+
+bool Game::isTimePaused() const {
+    return timePaused;
 }
 void Game::processBlockingEvent() {
     if (currentBlockingEvent) {

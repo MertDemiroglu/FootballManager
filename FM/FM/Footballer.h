@@ -15,31 +15,31 @@ public:
 	//Footballer constructor
 	Footballer(const std::string& name, const std::string& position, const std::string& team, int age);
 
-	//Virtual destructor alt sýnýflarýn silinmesi için
+	//Virtual destructor alt siniflarin silinmesi icin
 	virtual ~Footballer() = default;
-	//Overall hesabý (her tür kendine göre)
+	//Overall hesabi (her tur kendine gore)
 	virtual int totalPower() const = 0;
-	//Deðer hesabý (her tür kendine göre)
+	//Deger hesabi (her tur kendine gore)
 	virtual double calculateMarketValue() const = 0;
 
-	//Oyuncunun ismi döndürür
+	//Oyuncunun ismi verir
 	const std::string& getName() const;
-	//Oyuncunun pozisyonu döndürür
+	//Oyuncunun pozisyonu verir
 	const std::string& getPosition() const;
-	//Oyuncunun takýmýnýn ismini döndürür
+	//Oyuncunun takýmýnýn ismini verir
 	const std::string& getTeam() const;
-	//Oyuncunun yaþýný döner
+	//Oyuncunun yasýný verir
 	int getAge() const;
 
 	
-	//Takým adýný düzenler
+	//Takým adýný set eder
 	void setTeam(const std::string& newTeam);
 	
 	//Kontrat imzalama
 	void signContract(Money wage, int years);
-	//Kontratý döndürür
+	//Kontratý verir
 	const Contract* getContract() const;
-	//Kontrat süresini 1 yýl azaltýr
+	//Kontrat süresini 1 yil azaltir
 	void advanceContractYear();
 	
 	virtual void print(std::ostream& os) const;
