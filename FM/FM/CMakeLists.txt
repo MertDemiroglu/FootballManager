@@ -14,6 +14,7 @@ add_library(fm_core STATIC
     Goalkeeper.cpp
     League.cpp
     MatchEvent.cpp
+    MatchScheduler.cpp
     Midfielder.cpp
     Team.cpp
     TransferOfferEvent.cpp

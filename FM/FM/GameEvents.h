@@ -24,7 +24,7 @@ public:
     //Event cozumu
     virtual void resolve(Game& game) = 0;
 
-    //Event'in o    nceligini verir
+    //Event'in onceligini verir
     virtual EventPriority getPriority() const = 0;
 
     //Event'in nereyi etkiledigini verir
@@ -36,7 +36,7 @@ public:
     //Event'i alan takimin pointerini verir
     virtual Team* getReceivingTeam() const { return nullptr; }
 
-    //Hedefteki oyuncunun pointerýný verir
+    //Hedefteki oyuncunun pointerini verir
     virtual Footballer* getPlayer() const { return nullptr; }
 
     //Eventten etkilenen takimin kontrolunu yapar

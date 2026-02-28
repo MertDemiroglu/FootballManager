@@ -1,5 +1,6 @@
 #include "Game.h"
 #include "GameEvents.h"
+#include <utility>
 
 Game::Game() : date(2025, Month::July, 1, 1), league("Super Lig"), transferRoom(league), state(GameState::PreSeason), eventsQueue(), user(), timePaused(false), currentBlockingEvent(nullptr) {
     updateState();           
@@ -26,7 +27,7 @@ void Game::updateDaily() {
         processBlockingEvent();
         return;
     }
-    
+    matchScheduler.update(*this, eventsQueue);
     while (!eventsQueue.empty()){
         auto event = eventsQueue.popEvent();
         if (!event) {
@@ -103,6 +104,10 @@ void Game::updateTransferWindow() {
     }
 }
 
+void Game::scheduleMatch(int year, Month month, int day, std::string homeTeamName, std::string awayTeamName) {
+    matchScheduler.scheduleMatch(year, month, day, std::move(homeTeamName), std::move(awayTeamName));
+}
+
 TransferRoom& Game::getTransferRoom() {
     return transferRoom;
 }
@@ -119,10 +124,27 @@ void Game::stopTime() {
 bool Game::isTimePaused() const {
     return timePaused;
 }
+
 void Game::processBlockingEvent() {
     if (currentBlockingEvent) {
         currentBlockingEvent->resolve(*this);
         currentBlockingEvent.reset();
     }
     timePaused = false;
+}
+
+Date& Game::getDate() {
+    return date;
+}
+
+const Date& Game::getDate() const {
+    return date;
+}
+
+League& Game::getLeague() {
+    return league;
+}
+
+const League& Game::getLeague() const {
+    return league;
 }
