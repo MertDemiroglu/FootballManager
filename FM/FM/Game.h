@@ -8,6 +8,7 @@
 #include"EventQueue.h"
 #include"User.h"
 #include"MatchScheduler.h"
+#include"FixtureGenerator.h"
 
 class GameEvents;
 
@@ -22,6 +23,7 @@ private:
 	GameState state;
 	EventQueue eventsQueue;
 	MatchScheduler matchScheduler;
+	FixtureGenerator fixtureGenerator;
 	User user;
 	bool timePaused;
 	std::unique_ptr<GameEvents> currentBlockingEvent;
@@ -29,10 +31,9 @@ public:
 	//Game constructor
 	Game();
 
-	//Gün ilerletir event kontrol eder
+	//Gun ilerletir ve event kontrol eder
 	void updateDaily();
-
-	//Pre season / In season / Post season kontrolü yapar
+	//Pre season / In season / Post season kontrolu yapar
 	void updateState();
 
 
@@ -43,15 +44,13 @@ public:
 	//Haftalýk eventler
 	void handleWeeklyEvents();
 
-	//sezon baþý rutin kontroller
+	//sezon baslarken rutin kontroller
 	void seasonStartChecks();
 	//sezon sonu rutin kontroller
 	void seasonEndChecks();
-	//transfer penceresi kontrolü
+	//transfer penceresi kontrolu
 	void updateTransferWindow();
 
-
-	void scheduleMatch(int year, Month month, int day, std::string homeTeamName, std::string awayTeamName);
 
 	//Transfer room nesnesini verir non-const
 	TransferRoom& getTransferRoom();

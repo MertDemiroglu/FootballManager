@@ -65,11 +65,11 @@ void Game::handleSeasonalEvents() {
         break;
 
     case GameState::InSeason:
-        //maçlar ve diger eventler burada planlanacak
+        //maclar ve diger eventler burada planlanacak
         break;
 
     case GameState::PostSeason:
-        //tüm maçlar bittikten sonra bu state geçilecek
+        //tum maclar bittikten sonra bu state'e gecilecek
         seasonEndChecks();
         break;
 
@@ -89,6 +89,10 @@ void Game::handleWeeklyEvents() {
 
 void Game::seasonStartChecks() {
     transferRoom.collectFreeAgentsFromTeams();
+
+    if (league.getFixture().empty() && league.getTeams().size() == 18) {
+            fixtureGenerator.generateSeasonFixture(league, date);    
+    }
 }
 
 void Game::seasonEndChecks() {
@@ -102,10 +106,6 @@ void Game::updateTransferWindow() {
     else {
         transferRoom.closeWindow();
     }
-}
-
-void Game::scheduleMatch(int year, Month month, int day, std::string homeTeamName, std::string awayTeamName) {
-    matchScheduler.scheduleMatch(year, month, day, std::move(homeTeamName), std::move(awayTeamName));
 }
 
 TransferRoom& Game::getTransferRoom() {

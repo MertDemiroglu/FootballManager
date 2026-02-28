@@ -8,6 +8,7 @@ add_library(fm_core STATIC
     Date.cpp
     Defender.cpp
     EventQueue.cpp
+    FixtureGenerator.cpp
     Footballer.cpp
     FootballerFactory.cpp
     Forward.cpp
@@ -20,4 +21,4 @@ add_library(fm_core STATIC
     TransferOfferEvent.cpp
     TransferRoom.cpp
     User.cpp
-)
+ "FixtureGenerator.cpp" "FixtureGenerator.h")

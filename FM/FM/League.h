@@ -7,21 +7,40 @@
 #include "Types.h"
 #include "Team.h"
 #include "Footballer.h"
+#include "Date.h"
+
+struct FixtureMatch {
+	Date date;
+	std::string homeTeamName;
+	std::string awayTeamName;	
+};
 
 class League {
 private:
 	std::string name;
 	std::unordered_map<std::string, std::unique_ptr<Team>> teams;
+	std::vector<FixtureMatch> fixture;
 public:
 	//League constructor
-	explicit League(const std::string& name);
-	//Lige takým ekler (Pointer olarak)
+	explicit League(const std::string& leagueName);
+	//Lige takim ekler (Pointer olarak)
 	void addTeam(std::unique_ptr<Team> team);
-	//Takýmýn pointerýnýn döndürür
+	//Takimin pointerinin verir
 	Team* getTeam(const std::string& teamName);
-	//Takýmýn ismini alýr, var ise true döner
+	//Takimin ismini alir, var ise true verir
 	bool teamExists(const std::string& teamName) const;
-	//Bütün takýmlarý unordered map olarak döndürür
+	//Butun takimlari unordered map olarak verir
 	const std::unordered_map<std::string, std::unique_ptr<Team>>& getTeams() const;
 
+	//Fixture mac uretir
+	void addFixtureMatch(const Date& date, std::string homeTeamName, std::string awayTeamName);
+
+	//Fixturu temizler
+	void clearFixture();
+
+	//Fixturu verir
+	const std::vector<FixtureMatch>& getFixture() const;
+
+	//O gunun maclarini vector olarak verir
+	std::vector<FixtureMatch> getMatchesForDate(const Date& date) const;
 };
