@@ -50,3 +50,14 @@ bool Date::isNewYear() const {
 	}
 	return 0;
 }
+
+bool Date::operator<(const Date& other) const {
+	if (year != other.year) {
+		return year < other.year;
+	}
+	if (month != other.month) {
+		return static_cast<int>(month) < static_cast<int>(other.month);
+	}
+
+	return day < other.day;
+}

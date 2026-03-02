@@ -27,7 +27,9 @@ void Game::updateDaily() {
         processBlockingEvent();
         return;
     }
+    //gunluk mac kontrolu
     matchScheduler.update(*this, eventsQueue);
+
     while (!eventsQueue.empty()){
         auto event = eventsQueue.popEvent();
         if (!event) {
@@ -59,7 +61,7 @@ void Game::updateDaily() {
 void Game::handleSeasonalEvents() {
     switch (state) {
     case GameState::PreSeason:
-        if (date.getMonth() == Month::July && date.getWeek() == 1) {
+        if (date.getMonth() == Month::July && date.getWeek() == 1 && date.getDay() == 1) {
             seasonStartChecks();
         }
         break;
@@ -90,13 +92,19 @@ void Game::handleWeeklyEvents() {
 void Game::seasonStartChecks() {
     transferRoom.collectFreeAgentsFromTeams();
 
-    if (league.getFixture().empty() && league.getTeams().size() == 18) {
-            fixtureGenerator.generateSeasonFixture(league, date);    
+    if (!league.isSeasonFixtureGenerated() && league.getTeams().size() == 18) {
+        fixtureGenerator.generateSeasonFixture(league, date);
+        league.setSeasonFixtureGenerated(true);
     }
 }
 
 void Game::seasonEndChecks() {
     transferRoom.updatePlayersContractYearsInTeams();
+    league.resetForNewSeason();
+
+    const int nextYear = date.getYear() + 1;
+    date = Date(nextYear, Month::July, 1, 1);
+    state = GameState::PreSeason;
 }
 
 void Game::updateTransferWindow() {

@@ -22,28 +22,45 @@ const std::unordered_map<std::string, std::unique_ptr<Team>>& League::getTeams()
 	return teams;
 }
 
-void League::addFixtureMatch(const Date& date, std::string homeTeamName, std::string awayTeamName) {
-	//struct'a bilgileri verdigimiz yer, ayni anda push ediliyor.
-	fixture.push_back(FixtureMatch{ date, std::move(homeTeamName), std::move(awayTeamName) });
+void League::addFixtureMatch(const Date& date, const std::string& home, const std::string& away) {
+	fixture[date].push_back(FixtureMatch{ home, away, false });
 }
 
 void League::clearFixture() {
 	fixture.clear();
 }
 
-const std::vector<FixtureMatch>& League::getFixture() const {
+const std::map<Date, std::vector<FixtureMatch>>& League::getFixture() const {
 	return fixture;
 }
 
-std::vector<FixtureMatch> League::getMatchesForDate(const Date& date) const {
-	std::vector<FixtureMatch> matches;
+std::vector<FixtureMatch*> League::getMatchesForDate(const Date& date) {
+	std::vector<FixtureMatch*> matches;
 
-	for (const auto& match : fixture) {
-		const bool sameDay = match.date.getDay() == date.getDay() && match.date.getMonth() == date.getMonth() && match.date.getYear() == date.getYear();
+	auto it = fixture.find(date);
 
-		if (sameDay) {
-			matches.push_back(match);
+	if (it == fixture.end()) {
+		return matches;
+	}
+
+	for (auto& match : it->second) {
+		if (!match.played) {
+			matches.push_back(&match);
 		}
 	}
 	return matches;
+}
+
+bool League::isSeasonFixtureGenerated() const {
+		return seasonFixtureGenerated;
+}
+
+void League::setSeasonFixtureGenerated(bool generated) {
+		seasonFixtureGenerated = generated;
+}
+
+void League::resetForNewSeason() {
+
+		fixture.clear();
+		seasonFixtureGenerated = false;
 }

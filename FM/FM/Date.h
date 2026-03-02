@@ -35,4 +35,6 @@ public:
 	bool isNewMonth() const;
 	//Yeni yýl kontrolü (Yýllýk eventler için)
 	bool isNewYear() const;
+
+	bool operator<(const Date& other) const;
 };

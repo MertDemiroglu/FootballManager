@@ -39,7 +39,7 @@ bool TransferRoom::transferPlayer(const std::string& fromTeam, const std::string
 	seller->earn(fee);
 
 	auto soldPlayer = seller->releasePlayer(playerName);
-	if (!player) {
+	if (!soldPlayer) {
 		return false;
 	}
 
