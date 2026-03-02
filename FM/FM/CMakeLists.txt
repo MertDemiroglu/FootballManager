@@ -17,8 +17,15 @@ add_library(fm_core STATIC
     MatchEvent.cpp
     MatchScheduler.cpp
     Midfielder.cpp
+    RosterLoader.cpp
     Team.cpp
     TransferOfferEvent.cpp
     TransferRoom.cpp
-    User.cpp
- "FixtureGenerator.cpp" "FixtureGenerator.h")
+    User.cpp)
+
+    add_executable(fm_runner
+    main.cpp
+)
+
+target_link_libraries(fm_runner PRIVATE fm_core)
+target_compile_features(fm_runner PRIVATE cxx_std_17)

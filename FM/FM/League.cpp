@@ -64,3 +64,17 @@ void League::resetForNewSeason() {
 		fixture.clear();
 		seasonFixtureGenerated = false;
 }
+
+
+//debug
+int League::debugFixtureDayCount() const {
+	return static_cast<int>(fixture.size());
+}
+
+int League::debugTotalFixtureMatches() const {
+	int total = 0;
+	for (const auto& [date, matches] : fixture) {
+		total += static_cast<int>(matches.size());
+	}
+	return total;
+}

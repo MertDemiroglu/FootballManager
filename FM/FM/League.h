@@ -53,4 +53,10 @@ public:
 	bool isSeasonFixtureGenerated() const;
 	void setSeasonFixtureGenerated(bool generated);
 	void resetForNewSeason();
+
+
+	//debug
+	int debugFixtureDayCount() const;
+	//debug
+	int debugTotalFixtureMatches() const;
 };

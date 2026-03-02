@@ -30,6 +30,7 @@ private:
 public:
 	//Game constructor
 	Game();
+	~Game();
 
 	//Gun ilerletir ve event kontrol eder
 	void updateDaily();
@@ -74,4 +75,7 @@ public:
 	League& getLeague();
 	//lig nesnesini verir const
 	const League& getLeague() const;
+
+	//debug
+	const MatchScheduler& getMatchScheduler() const;
 };

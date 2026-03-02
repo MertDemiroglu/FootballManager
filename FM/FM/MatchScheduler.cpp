@@ -22,7 +22,8 @@ void MatchScheduler::update(Game& game, EventQueue& queue) {
             continue;   
         }
 
-        queue.pushEvent(std::make_unique<MatchEvent>(home, away));
+        queue.pushEvent(std::make_unique<MatchEvent>(home, away));  
+        generatedMatchEvents++;//debug
         match->played = true;
     }
 }

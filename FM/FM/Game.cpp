@@ -1,8 +1,13 @@
 #include "Game.h"
 #include "GameEvents.h"
+#include "RosterLoader.h"
 #include <utility>
 
+Game::~Game() = default;
+
 Game::Game() : date(2025, Month::July, 1, 1), league("Super Lig"), transferRoom(league), state(GameState::PreSeason), eventsQueue(), user(), timePaused(false), currentBlockingEvent(nullptr) {
+    //takimlari txt dosyasindan okudugumuz yer (gecici)
+    RosterLoader::loadFromFile(league, "database.txt");
     updateState();           
     updateTransferWindow(); 
 }
@@ -27,6 +32,7 @@ void Game::updateDaily() {
         processBlockingEvent();
         return;
     }
+   
     //gunluk mac kontrolu
     matchScheduler.update(*this, eventsQueue);
 
@@ -45,6 +51,7 @@ void Game::updateDaily() {
     }
 
     date.advanceDay();
+    handleSeasonalEvents();
     updateTransferWindow();
 
     if (date.getWeek() % 7 == 1) {
@@ -52,7 +59,6 @@ void Game::updateDaily() {
     }
     if (date.isNewMonth()) {
         handleMonthlyEvents();
-        handleSeasonalEvents();
         updateState();
     }
     
@@ -61,7 +67,7 @@ void Game::updateDaily() {
 void Game::handleSeasonalEvents() {
     switch (state) {
     case GameState::PreSeason:
-        if (date.getMonth() == Month::July && date.getWeek() == 1 && date.getDay() == 1) {
+        if (date.getMonth() == Month::July && date.getDay() == 1) {
             seasonStartChecks();
         }
         break;
@@ -105,6 +111,7 @@ void Game::seasonEndChecks() {
     const int nextYear = date.getYear() + 1;
     date = Date(nextYear, Month::July, 1, 1);
     state = GameState::PreSeason;
+    seasonStartChecks();
 }
 
 void Game::updateTransferWindow() {
@@ -155,4 +162,10 @@ League& Game::getLeague() {
 
 const League& Game::getLeague() const {
     return league;
+}
+
+
+//debug
+const MatchScheduler& Game::getMatchScheduler() const {
+    return matchScheduler;
 }

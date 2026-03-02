@@ -4,7 +4,7 @@ class Game;
 class User {
 private:
 	std::string userName = "xx";
-	std::string managedTeam = "x";
+	std::string managedTeam = "Galatasaray";
 public:
 	void setTeam();
 	std::string getTeam() const;
