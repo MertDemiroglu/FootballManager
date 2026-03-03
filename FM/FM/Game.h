@@ -66,6 +66,9 @@ public:
 	//zamanin akmasini kontrol eder (true/false)
 	bool isTimePaused() const;
 
+	//Kullanici takimini disaridan set eder
+	void setUserTeam(const std::string& teamName);
+
 	//tarih nesnesini verir non-const
 	Date& getDate();
 	//tarihi verir const

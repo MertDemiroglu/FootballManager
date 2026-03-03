@@ -8,7 +8,8 @@ Game::~Game() = default;
 Game::Game() : date(2025, Month::July, 1, 1), league("Super Lig"), transferRoom(league), state(GameState::PreSeason), eventsQueue(), user(), timePaused(false), currentBlockingEvent(nullptr) {
     //takimlari txt dosyasindan okudugumuz yer (gecici)
     RosterLoader::loadFromFile(league, "database.txt");
-    updateState();           
+    updateState();         
+    seasonStartChecks();
     updateTransferWindow(); 
 }
 
@@ -42,26 +43,29 @@ void Game::updateDaily() {
             continue;
         }
 
-        if (event->isBlocking() && event->affectsTeam(league.getTeam(user.getTeam()))) {
+        Team* userTeam = nullptr;
+        const std::string managedTeam = user.getTeam();
+        if (!managedTeam.empty()) {
+            userTeam = league.getTeam(managedTeam);
+        }
+        if(event->isBlocking() && userTeam && event->affectsTeam(userTeam)){
             currentBlockingEvent = std::move(event);
             stopTime();
             return;
         }
         event->resolve(*this);
     }
-
-    date.advanceDay();
     handleSeasonalEvents();
     updateTransferWindow();
 
-    if (date.getWeek() % 7 == 1) {
+    if (date.getDay() % 7 == 1 || date.getDay() % 7 == 2 || date.getDay() % 7 == 3 || date.getDay() % 7 == 4) {
         handleWeeklyEvents();
     }
     if (date.isNewMonth()) {
-        handleMonthlyEvents();
-        updateState();
+        updateState();  
+        handleMonthlyEvents();   
     }
-    
+    date.advanceDay();
 }
 
 void Game::handleSeasonalEvents() {
@@ -164,6 +168,9 @@ const League& Game::getLeague() const {
     return league;
 }
 
+void Game::setUserTeam(const std::string& teamName) {
+    user.setTeam(teamName);
+}
 
 //debug
 const MatchScheduler& Game::getMatchScheduler() const {

@@ -1,22 +1,25 @@
 #pragma once
+
+#include<string>
+
 #include"GameEvents.h"
 #include"Types.h"
 
 class Team;
-class Footballer;
+
 
 class TransferOfferEvent : public GameEvents {
 private:
 	bool block = 1;
 	EventPriority priority = EventPriority::High;
 	EventTargetType type = EventTargetType::Team;
-	Team* sellingTeam;
-	Team* buyingTeam;
-	Footballer* player;
+	std::string sellingTeamName;
+	std::string buyingTeamName;
+	std::string playerName;
 	Money fee;
 public:
 
-	TransferOfferEvent(Team* s, Team* b, Footballer* p, Money f);
+	TransferOfferEvent(const std::string& sellingTeamName, const std::string& buyingTeamName, const std::string& playerName, Money f);
 
 	bool isBlocking() const override;
 
@@ -26,11 +29,11 @@ public:
 
 	EventTargetType getTargetType() const override;
 
-	Team* getSendingTeam() const override;
+	const std::string& getSendingTeam() const override;
 
-	Team* getReceivingTeam() const override;
+	const std::string& getReceivingTeam() const override;
 
-	Footballer* getPlayer() const override;
+	const std::string& getPlayer() const override;
 
 	bool affectsTeam(const Team* team) const override;
 

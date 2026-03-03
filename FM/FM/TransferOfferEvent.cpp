@@ -2,16 +2,26 @@
 #include"Team.h"
 #include"Game.h"
 
-TransferOfferEvent::TransferOfferEvent(Team* s, Team* b, Footballer* p, Money f) : sellingTeam(s), buyingTeam(b), player(p), fee(f){}
+TransferOfferEvent::TransferOfferEvent(const std::string& s, const std::string& b, const std::string& p, Money f) : sellingTeamName(s), buyingTeamName(b), playerName(p), fee(f){}
 
 bool TransferOfferEvent::isBlocking() const { 
     return block;
 }
 
 void TransferOfferEvent::resolve(Game& game) {
-    if (!sellingTeam || !buyingTeam || !player) {
+    Team* sellingTeam = game.getLeague().getTeam(sellingTeamName);
+    Team* buyingTeam = game.getLeague().getTeam(buyingTeamName);
+
+    if (!sellingTeam || !buyingTeam) {
         return;
     }
+
+    Footballer* player = sellingTeam->findPlayer(playerName);
+
+    if (!player) {
+        return;
+    }
+
     game.getTransferRoom().transferPlayer(sellingTeam->getName(), buyingTeam->getName(), player->getName(), fee);
 }
 
@@ -23,18 +33,18 @@ EventTargetType TransferOfferEvent::getTargetType() const {
     return type;
 }
 
-Team* TransferOfferEvent::getReceivingTeam() const {
-    return sellingTeam;
+const std::string& TransferOfferEvent::getReceivingTeam() const {
+    return buyingTeamName;
 }
 
-Team* TransferOfferEvent::getSendingTeam() const {
-    return buyingTeam;
+const std::string& TransferOfferEvent::getSendingTeam() const {
+    return sellingTeamName;
 }
 
-Footballer* TransferOfferEvent::getPlayer() const {
-    return player;
+const std::string& TransferOfferEvent::getPlayer() const {
+    return playerName;
 }
 
 bool TransferOfferEvent::affectsTeam(const Team* team) const {
-    return team == sellingTeam;
+    return team && team->getName() == sellingTeamName;
 }

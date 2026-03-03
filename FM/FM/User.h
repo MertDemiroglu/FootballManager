@@ -6,6 +6,6 @@ private:
 	std::string userName = "xx";
 	std::string managedTeam = "Galatasaray";
 public:
-	void setTeam();
+	void setTeam(const std::string& teamName);
 	std::string getTeam() const;
 };

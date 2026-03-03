@@ -10,6 +10,7 @@
 #include "League.h"
 #include "Team.h"
 #include "FootballerFactory.h"
+#include "Types.h"
 
 static std::string trim(const std::string& s) {
     const auto start = s.find_first_not_of(" \t\r\n");
@@ -99,12 +100,15 @@ void RosterLoader::loadFromFile(League& league, const std::string& filePath) {
             teamPtr = it->second.get();
         }
 
-        // Player üret
+        // Player uret
         auto player = FootballerFactory::create(name, age, position, teamName, s1, s2, s3, s4, s5);
         if (!player) {
             throw std::runtime_error("RosterLoader: Unknown position '" + position
                 + "' at line " + std::to_string(lineNo));
         }
+
+        // Butun oyunculara default kontrat atamasi (engine invarianti)
+        player->signContract(Money(1000), 3);
 
         // Team’e ekle (Team API'si sende nasýl bilmiyorum)
         // Aþaðýdakilerden biri sende vardýr:

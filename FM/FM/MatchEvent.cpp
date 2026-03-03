@@ -3,7 +3,7 @@
 #include "Game.h"
 
 
-MatchEvent::MatchEvent(Team* h, Team* a) : home(h), away(a) {}
+MatchEvent::MatchEvent(std::string h, std::string a) : home(h), away(a) {}
 
 bool MatchEvent::isBlocking() const { 
     return block; 
@@ -16,15 +16,24 @@ void MatchEvent::resolve(Game& game) {
    
     //mac eventi burada islenecek
 }
-Team* MatchEvent::getSendingTeam() const {
+const std::string& MatchEvent::getSendingTeam() const {
     return home;
 }
-Team* MatchEvent::getReceivingTeam() const {
+const std::string& MatchEvent::getReceivingTeam() const {
     return away;
 }
 EventTargetType MatchEvent::getTargetType() const {
     return type;
 }
 bool MatchEvent::affectsTeam(const Team* team) const {
-    return team == home || team == away;
+    if (!team) {
+        return false;
+    }
+    const auto& name = team->getName();
+    return name == home || name == away;
+}
+
+static const std::string kEmpty{};
+const std::string& MatchEvent::getPlayer() const {
+    return kEmpty;
 }

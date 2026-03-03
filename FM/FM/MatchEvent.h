@@ -7,11 +7,11 @@ class MatchEvent : public GameEvents {
 private:
 	bool block = true;
 	EventPriority priority = EventPriority::Critical;
-	Team* home;
-	Team* away;
+	std::string home;
+	std::string away;
 	EventTargetType type = EventTargetType::League;
 public:
-	MatchEvent(Team* h, Team* a);
+	MatchEvent(std::string h, std::string a);
 
 	bool isBlocking() const override;
 
@@ -21,9 +21,11 @@ public:
 
 	EventTargetType getTargetType() const override;
 
-	Team* getSendingTeam() const override;
+	const std::string& getSendingTeam() const override;
 
-	Team* getReceivingTeam() const override;
+	const std::string& getReceivingTeam() const override;
+	//oyuncu yok o yuzden empty
+	const std::string& getPlayer() const override;
 
 	bool affectsTeam(const Team* team) const override;
 };

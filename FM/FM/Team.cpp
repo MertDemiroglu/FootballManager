@@ -40,6 +40,9 @@ Footballer* Team::findPlayer(const std::string& name) {
 }
 
 void Team::addPlayer(std::unique_ptr<Footballer> player) {
+    if (!player) {
+        return;
+    }
     players.push_back(std::move(player));
 }
 std::unique_ptr<Footballer> Team::releasePlayer(const std::string& playerName) {
@@ -92,7 +95,7 @@ std::vector<std::unique_ptr<Footballer>> Team::collectExpiredContracts() {
     auto it = players.begin();
     while (it != players.end()) {
        auto c = (*it)->getContract();
-       if (c->isExpired()) {
+       if (c && c->isExpired()) {
            leavingPlayers.push_back(std::move(*it));
            it = players.erase(it);
        }

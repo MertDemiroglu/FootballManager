@@ -1,5 +1,5 @@
 #pragma once
-
+#include<string>
 class Game;
 class Team;
 class Footballer;
@@ -31,13 +31,13 @@ public:
     virtual EventTargetType getTargetType() const = 0;
 
     //Event'i gonderen takimin pointerini verir
-    virtual Team* getSendingTeam() const { return nullptr; }
+    virtual const std::string&  getSendingTeam() const = 0;
 
     //Event'i alan takimin pointerini verir
-    virtual Team* getReceivingTeam() const { return nullptr; }
+    virtual const std::string& getReceivingTeam() const = 0;;
 
     //Hedefteki oyuncunun pointerini verir
-    virtual Footballer* getPlayer() const { return nullptr; }
+    virtual const std::string&  getPlayer() const = 0;;
 
     //Eventten etkilenen takimin kontrolunu yapar
     virtual bool affectsTeam(const Team* team) const = 0;
