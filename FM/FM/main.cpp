@@ -25,7 +25,7 @@ int main() {
 
         // 1 sezon görmek istiyorsan 365 yeter ama 2026-07-01'e gelmez.
         // Hem 2025-07-01'i saymak hem de "bir sonraki sezon başlangıcına" ulaşmak için 400 gün mantıklı.
-        const int simulationDays = 400;
+        const int simulationDays = 1461;
 
         int seasonStarts = 0;
 

@@ -5,7 +5,7 @@
 
 Game::~Game() = default;
 
-Game::Game() : date(2025, Month::July, 1, 1), league("Super Lig"), transferRoom(league), state(GameState::PreSeason), eventsQueue(), user(), timePaused(false), currentBlockingEvent(nullptr) {
+Game::Game() : date(2025, Month::July, 1, 2), league("Super Lig"), transferRoom(league), state(GameState::PreSeason), eventsQueue(), user(), timePaused(false), currentBlockingEvent(nullptr) {
     //takimlari txt dosyasindan okudugumuz yer (gecici)
     RosterLoader::loadFromFile(league, "database.txt");
     updateState();         
@@ -58,7 +58,7 @@ void Game::updateDaily() {
     handleSeasonalEvents();
     updateTransferWindow();
 
-    if (date.getDay() % 7 == 1 || date.getDay() % 7 == 2 || date.getDay() % 7 == 3 || date.getDay() % 7 == 4) {
+    if (date.isNewWeek()) {
         handleWeeklyEvents();
     }
     if (date.isNewMonth()) {

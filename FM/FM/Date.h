@@ -7,18 +7,18 @@ enum class Month {
 class Date {
 private:
 	Month month;
-	int year, week, day;
+	int year, dayOfWeek, day;
 
 
 public:
 	//Date constructor 
-	Date(int year, Month month, int week, int day);
-	//Yýl döndürür
+	Date(int year, Month month, int day, int dayOfWeek);
+	//Yil'i veri
 	int getYear() const;
-	//Ay döndürür
+	//Ay'i verir
 	Month getMonth() const;
-	//Hafta döndürür
-	int getWeek() const;
+	//Haftanin hangi gunu oldugunu verir
+	int getDayOfWeek() const;
 	//Gün döndürür
 	int getDay() const;
 	
@@ -31,10 +31,19 @@ public:
 	//Kýþ transfer döneminin baþlayýp baþlamadýðýnýn kontrolü
 	bool isWinterTransferWindow() const;
 
-	//Yeni bir aya girilip girilmediðinin kontrolü (Yylýk eventler için)
+	//Yeni bir aya girilip girilmediðinin kontrolü (Yillik eventler icin)
 	bool isNewMonth() const;
-	//Yeni yýl kontrolü (Yýllýk eventler için)
+	//Yeni yil kontrolu (Yillik eventler icin)
 	bool isNewYear() const;
+	//Yeni hafta kontrolu (Haftalik eventler icin)
+	bool isNewWeek() const;
 
+
+	bool isLeapYear() const;
+	static bool isLeapYear(int year);
+	int daysInMonth() const;
+	static int daysInMonth(int year, Month month);
+
+	//Map'in tarih siralamasi icin kullanacagi operator
 	bool operator<(const Date& other) const;
 };

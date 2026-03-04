@@ -1,6 +1,6 @@
 #include"Date.h"
 
-Date::Date(int year, Month month, int week, int day) : year(year), month(month), week(week), day(day){}
+Date::Date(int year, Month month, int day, int dayOfWeek) : year(year), month(month), day(day), dayOfWeek(dayOfWeek){}
 
 int Date::getYear() const {
 	return year;
@@ -8,23 +8,61 @@ int Date::getYear() const {
 Month Date::getMonth() const {
 	return month;
 }
-int Date::getWeek() const {
-	return week;
+int Date::getDayOfWeek() const {
+	return dayOfWeek;
 }
 int Date::getDay() const {
 	return day;
 }
+bool Date::isLeapYear() const {
+	return isLeapYear(year);
+}
+bool Date::isLeapYear(int y) {
+	if (y % 400 == 0) return true;
+	if (y % 100 == 0) return false;
+	return (y % 4 == 0);
+}
+
+int Date::daysInMonth() const {
+	return daysInMonth(year, month);
+}
+int Date::daysInMonth(int y, Month m) {
+	switch (m) {
+	    case Month::January:   return 31;
+		case Month::February:  return isLeapYear(y) ? 29 : 28;
+		case Month::March:     return 31;
+		case Month::April:     return 30;
+		case Month::May:       return 31;
+		case Month::June:      return 30;
+		case Month::July:      return 31;
+		case Month::August:    return 31;
+		case Month::September: return 30;
+		case Month::October:   return 31;
+		case Month::November:  return 30;
+		case Month::December:  return 31;
+		default: return 30;
+	}
+}
+
 void Date::advanceDay() {
+
+	dayOfWeek = (dayOfWeek % 7) + 1;
+
 	day++;
-	if (day > 30) {
+
+	const int monthDayCount = daysInMonth();
+
+	if (day > monthDayCount) {
 		day = 1;
+
 		month = static_cast<Month>(static_cast<int>(month) + 1);
 		if (static_cast<int>(month) > 12) {
 			month = Month::January;
 			year++;
 		}
 	}
-	week = (day - 1) / 7 + 1;
+
+	
 }
 bool Date::isSummerTransferWindow() const {
 	if (month == Month::June || month == Month::July || month == Month::August) {
@@ -50,7 +88,9 @@ bool Date::isNewYear() const {
 	}
 	return 0;
 }
-
+bool Date::isNewWeek() const {
+	return dayOfWeek == 1;
+}
 bool Date::operator<(const Date& other) const {
 	if (year != other.year) {
 		return year < other.year;
