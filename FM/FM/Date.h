@@ -12,7 +12,7 @@ private:
 
 public:
 	//Date constructor 
-	Date(int year, Month month, int day, int dayOfWeek);
+	Date(int year, Month month, int day);
 	//Yil'i veri
 	int getYear() const;
 	//Ay'i verir
@@ -38,10 +38,17 @@ public:
 	//Yeni hafta kontrolu (Haftalik eventler icin)
 	bool isNewWeek() const;
 
+	//Haftanin hangi gunu oldugunu otomatik hesaplar
+	static int computeDayOfWeek(int year, Month month, int day);
 
+	//leap year kontrolu
 	bool isLeapYear() const;
+	//leap year kontrolu
 	static bool isLeapYear(int year);
+
+	//O aydaki gun sayisini verir
 	int daysInMonth() const;
+	//O aydaki gun sayisini verir
 	static int daysInMonth(int year, Month month);
 
 	//Map'in tarih siralamasi icin kullanacagi operator

@@ -1,31 +1,56 @@
 #include"Date.h"
 
-Date::Date(int year, Month month, int day, int dayOfWeek) : year(year), month(month), day(day), dayOfWeek(dayOfWeek){}
+Date::Date(int year, Month month, int day) : year(year), month(month), day(day){
+
+}
 
 int Date::getYear() const {
 	return year;
 }
+
 Month Date::getMonth() const {
 	return month;
 }
+
 int Date::getDayOfWeek() const {
 	return dayOfWeek;
 }
+
 int Date::getDay() const {
 	return day;
 }
+
 bool Date::isLeapYear() const {
 	return isLeapYear(year);
 }
+
 bool Date::isLeapYear(int y) {
 	if (y % 400 == 0) return true;
 	if (y % 100 == 0) return false;
 	return (y % 4 == 0);
 }
 
+int Date::computeDayOfWeek(int y, Month m, int d) {
+
+	int monthInt = static_cast<int>(m);
+
+	static int table[] = { 0,3,2,5,0,3,5,1,4,6,2,4 };
+
+	if (monthInt < 3)
+		y -= 1;
+
+	int result = (y + y / 4 - y / 100 + y / 400 + table[monthInt - 1] + d) % 7;
+
+	if (result == 0)
+		return 7;
+
+	return result; 
+}
+
 int Date::daysInMonth() const {
 	return daysInMonth(year, month);
 }
+
 int Date::daysInMonth(int y, Month m) {
 	switch (m) {
 	    case Month::January:   return 31;
@@ -46,8 +71,6 @@ int Date::daysInMonth(int y, Month m) {
 
 void Date::advanceDay() {
 
-	dayOfWeek = (dayOfWeek % 7) + 1;
-
 	day++;
 
 	const int monthDayCount = daysInMonth();
@@ -61,36 +84,45 @@ void Date::advanceDay() {
 			year++;
 		}
 	}
+	dayOfWeek++;
 
-	
+	if (dayOfWeek > 7) {
+		dayOfWeek = 7;
+	}
 }
+
 bool Date::isSummerTransferWindow() const {
 	if (month == Month::June || month == Month::July || month == Month::August) {
 		return 1;
 	}
 	return 0;
 }
+
 bool Date::isWinterTransferWindow() const {
 	if (month == Month::January) {
 		return 1;
 	}
 	return 0;
 }
+
 bool Date::isNewMonth() const {
 	if (day == 1) {
 		return 1;
 	}
 	return 0;
 }
+
 bool Date::isNewYear() const {
 	if (day == 1 && month == Month::January) {
 		return 1;
 	}
 	return 0;
 }
+
 bool Date::isNewWeek() const {
 	return dayOfWeek == 1;
 }
+
 bool Date::operator<(const Date& other) const {
 	if (year != other.year) {
 		return year < other.year;

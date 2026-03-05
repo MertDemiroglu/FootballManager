@@ -5,7 +5,7 @@
 
 Game::~Game() = default;
 
-Game::Game() : date(2025, Month::July, 1, 2), league("Super Lig"), transferRoom(league), state(GameState::PreSeason), eventsQueue(), user(), timePaused(false), currentBlockingEvent(nullptr) {
+Game::Game() : date(2025, Month::July, 1), league("Super Lig"), transferRoom(league), state(GameState::PreSeason), eventsQueue(), user(), timePaused(false), dateWasReset(false), currentBlockingEvent(nullptr) {
     //takimlari txt dosyasindan okudugumuz yer (gecici)
     RosterLoader::loadFromFile(league, "database.txt");
     updateState();         
@@ -65,7 +65,12 @@ void Game::updateDaily() {
         updateState();  
         handleMonthlyEvents();   
     }
-    date.advanceDay();
+    if (!dateWasReset) {
+        date.advanceDay();
+    }
+    else {
+        dateWasReset = false;
+    }
 }
 
 void Game::handleSeasonalEvents() {
@@ -82,7 +87,10 @@ void Game::handleSeasonalEvents() {
 
     case GameState::PostSeason:
         //tum maclar bittikten sonra bu state'e gecilecek
-        seasonEndChecks();
+        if (date.getMonth() == Month::June && date.getDay() == 30) {
+            seasonEndChecks();
+        }
+   
         break;
 
 
@@ -112,9 +120,10 @@ void Game::seasonEndChecks() {
     transferRoom.updatePlayersContractYearsInTeams();
     league.resetForNewSeason();
 
-    const int nextYear = date.getYear() + 1;
-    date = Date(nextYear, Month::July, 1, 1);
+    const int seasonStartYear = date.getYear();
+    date = Date(seasonStartYear, Month::July, 1);
     state = GameState::PreSeason;
+    dateWasReset = true;
     seasonStartChecks();
 }
 

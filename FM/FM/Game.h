@@ -26,6 +26,7 @@ private:
 	FixtureGenerator fixtureGenerator;
 	User user;
 	bool timePaused;
+	bool dateWasReset;
 	std::unique_ptr<GameEvents> currentBlockingEvent;
 public:
 	//Game constructor
