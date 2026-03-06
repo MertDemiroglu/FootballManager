@@ -87,7 +87,7 @@ void Date::advanceDay() {
 	dayOfWeek++;
 
 	if (dayOfWeek > 7) {
-		dayOfWeek = 7;
+		dayOfWeek = 1;
 	}
 }
 

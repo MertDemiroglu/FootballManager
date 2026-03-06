@@ -23,14 +23,10 @@ int main() {
     try {
         Game game;
 
-        // 1 sezon görmek istiyorsan 365 yeter ama 2026-07-01'e gelmez.
-        // Hem 2025-07-01'i saymak hem de "bir sonraki sezon başlangıcına" ulaşmak için 400 gün mantıklı.
-        const int simulationDays = 1461;
+        const int simulationDays = 365;
 
         int seasonStarts = 0;
 
-        // 🔥 Kritik fix:
-        // Başlangıç yılı 2025 ise, 2025-07-01'i de sayabilmek için başlangıç değerini 2024 yap.
         int lastSeasonStartYear = game.getDate().getYear() - 1;
 
         int lastSeasonMatchEvents = 0;
@@ -46,7 +42,7 @@ int main() {
 
             const Date& d = game.getDate();
 
-            // Her 50 günde bir tarih bas (Date sistemini hızlı doğrulamak için)
+        
             if (day % 50 == 0) {
                 std::cout << "[Tick] simDay=" << day
                     << " dateYear=" << d.getYear()
@@ -55,7 +51,7 @@ int main() {
                     << "\n";
             }
 
-            // Sezon başlangıcı: July 1 (yıl bazlı)
+    
             if (d.getMonth() == Month::July && d.getDay() == 1 && d.getYear() != lastSeasonStartYear) {
                 lastSeasonStartYear = d.getYear();
                 seasonStarts++;
@@ -67,8 +63,7 @@ int main() {
                 const int fixtureDays = league.debugFixtureDayCount();
                 const int totalMatches = league.debugTotalFixtureMatches();
 
-                // GameState'i burada okuyamıyoruz çünkü getter yok; şimdilik Unknown basıyoruz.
-                // İstersen Game'e: GameState getState() const; ekleyip burada kullanırız.
+           
                 const int stateInt = -1;
 
                 const int totalGeneratedMatchEvents = game.getMatchScheduler().debugGeneratedMatchEvents();
@@ -84,7 +79,6 @@ int main() {
                     << " matchEventsSinceLastSeason=" << generatedThisSeason
                     << "\n";
 
-                // Temel doğrulamalar (sadece fixture gerçekten o an üretiliyorsa anlamlı)
                 assertOrThrow(teams == 18, "Team count must be 18 at season start.");
                 assertOrThrow(fixtureGenerated, "Fixture should be marked generated at season start.");
                 assertOrThrow(fixtureDays == 34, "Fixture day count must be 34.");
