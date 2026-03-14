@@ -87,10 +87,12 @@ int main() {
         int seasonStartsObserved = 0;
         int lastSeasonObservedYear = game.getDate().getYear() - 1;
         int lastSeasonMatchEvents = 0;
+        std::optional<Date> lastWeeklyLogDate;
+        std::optional<std::string> lastNewMonthLogKey;
 
         bool wasSummerOpen = false;
         bool wasWinterOpen = false;
-
+        
         const LeagueRules& rules = game.getRules();
         const SeasonPlan& bootPlan = game.getSeasonPlan();
         const League& bootLeague = game.getLeague();
@@ -128,20 +130,24 @@ int main() {
                     << "\n";
             }
 
-            if (date.isNewMonth()) {
+            const std::string monthLogKey = std::to_string(date.getYear()) + "-" +
+                std::to_string(static_cast<int>(date.getMonth()));
+            if (date.isNewMonth() && (!lastNewMonthLogKey.has_value() || *lastNewMonthLogKey != monthLogKey)) {
                 std::cout << "[NewMonth] date=" << dateToString(date)
                     << " state=" << stateToString(game.getState())
                     << " summerOpen=" << (summer.contains(date) ? "true" : "false")
                     << " winterOpen=" << (winter.contains(date) ? "true" : "false")
                     << " transferOpen=" << (game.getTransferRoom().isOpen() ? "true" : "false")
                     << "\n";
+                lastNewMonthLogKey = monthLogKey;
             }
 
-            if (date.getDayOfWeek() == 1) {
+            if (date.getDayOfWeek() == 1 && (!lastWeeklyLogDate.has_value() || !dateEquals(*lastWeeklyLogDate, date))) {
                 std::cout << "[Weekly] date=" << dateToString(date)
                     << " state=" << stateToString(game.getState())
                     << " allMatchesPlayed=" << (league.allMatchesPlayed() ? "true" : "false")
                     << "\n";
+                lastWeeklyLogDate = date;
             }
 
             const bool summerOpenNow = summer.contains(date);

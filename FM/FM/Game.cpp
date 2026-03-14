@@ -105,13 +105,20 @@ void Game::handleWeeklyEvents() {
 }
 
 void Game::seasonStartChecks() {
-    if (date.getDay() == seasonPlan.getPreseasonStart().getDay() && date.getMonth() == seasonPlan.getPreseasonStart().getMonth() && date.getYear() == seasonPlan.getPreseasonStart().getYear()&& (!league.isSeasonFixtureGenerated())) {
-        transferRoom.collectFreeAgentsFromTeams();
-}
-    seasonPlan = SeasonPlan::build(date.getYear(), rules);
-    fixtureGenerator.generateSeasonFixture(league, seasonPlan, rules);
-    seasonPlan.finalizeFromFixture(league, rules);
-    league.setSeasonFixtureGenerated(true);
+        const int y = date.getYear();
+        const Date preseasonStart = rules.preseasonStart(y);
+
+        if (date.getDay() == preseasonStart.getDay() && date.getMonth() == preseasonStart.getMonth() && date.getYear() == preseasonStart.getYear() && seasonPlan.getSeasonYear() != y) {
+           
+            league.resetForNewSeason();               
+            transferRoom.collectFreeAgentsFromTeams();
+
+            seasonPlan = SeasonPlan::build(y, rules);
+            fixtureGenerator.generateSeasonFixture(league, seasonPlan, rules);
+            seasonPlan.finalizeFromFixture(league, rules);
+
+            league.setSeasonFixtureGenerated(true);
+        }
 }
 
 void Game::seasonEndChecks() {
