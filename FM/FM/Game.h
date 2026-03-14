@@ -87,6 +87,11 @@ public:
 	//state'i verir
 	GameState getState() const;
 
+	//aktif lig kurallarini verir
+	const LeagueRules& getRules() const;
+	//aktif sezon planini verir
+	const SeasonPlan& getSeasonPlan() const;
+
 	//debug
 	const MatchScheduler& getMatchScheduler() const;
 };

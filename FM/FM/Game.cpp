@@ -5,7 +5,7 @@
 
 Game::~Game() = default;
 
-Game::Game() : date(2025, Month::July, 1), league("Super Lig"), transferRoom(league), state(GameState::PreSeason), eventsQueue(), user(), timePaused(false), dateWasReset(false), currentBlockingEvent(nullptr) {
+Game::Game() : date(2025, Month::July, 1), league("Super Lig"), rules(LeagueRules::makeSuperLig()), seasonPlan(SeasonPlan::build(2025, rules)), transferRoom(league), state(GameState::PreSeason), eventsQueue(), user(), timePaused(false), dateWasReset(false), currentBlockingEvent(nullptr) {
     //takimlari txt dosyasindan okudugumuz yer (gecici)
     RosterLoader::loadFromFile(league, "database.txt");
     updateState();         
@@ -174,6 +174,14 @@ void Game::setUserTeam(const std::string& teamName) {
 
 GameState Game::getState() const {
     return state;
+}
+
+const LeagueRules& Game::getRules() const {
+    return rules;
+}
+
+const SeasonPlan& Game::getSeasonPlan() const {
+    return seasonPlan;
 }
 
 //debug
