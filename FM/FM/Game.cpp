@@ -23,7 +23,7 @@ void Game::updateState() {
         state = GameState::PreSeason;
         return;
     }
-    if (league.isSeasonFixtureGenerated() && !league.allMatchesPlayed() && date < nextPreseasonStart) {
+    if (league.isSeasonFixtureGenerated() &&!league.allMatchesPlayed() && !(date < kickoff) && date < nextPreseasonStart) {
         state = GameState::InSeason;
         return;
     }
@@ -82,9 +82,6 @@ void Game::updateDaily() {
 
 void Game::handleSeasonalEvents() {
     const Date& nextPreseason = seasonPlan.getNextPreseasonStart();
-    if (date.getYear() == nextPreseason.getYear() && date.getMonth() == nextPreseason.getMonth() && date.getDay() == nextPreseason.getDay()) {
-        league.resetForNewSeason();
-    }
 
     seasonStartChecks();
 
@@ -105,24 +102,38 @@ void Game::handleWeeklyEvents() {
 }
 
 void Game::seasonStartChecks() {
-        const int y = date.getYear();
-        const Date preseasonStart = rules.preseasonStart(y);
+    const int y = date.getYear();
+    const Date preseasonStart = rules.preseasonStart(y);
 
-        if (date.getDay() == preseasonStart.getDay() && date.getMonth() == preseasonStart.getMonth() && date.getYear() == preseasonStart.getYear() && seasonPlan.getSeasonYear() != y) {
-           
-            league.resetForNewSeason();               
-            transferRoom.collectFreeAgentsFromTeams();
+    const bool isPreseasonStartToday =
+        date.getYear() == preseasonStart.getYear() &&
+        date.getMonth() == preseasonStart.getMonth() &&
+        date.getDay() == preseasonStart.getDay();
 
-            seasonPlan = SeasonPlan::build(y, rules);
-            fixtureGenerator.generateSeasonFixture(league, seasonPlan, rules);
-            seasonPlan.finalizeFromFixture(league, rules);
+    if (!isPreseasonStartToday) {
+        return;
+    }
+    if (lastSeasonRolloverYear == y) {
+        return;
+    }
+    lastSeasonRolloverYear = y;
 
-            league.setSeasonFixtureGenerated(true);
-        }
+    // Kontratlarý 1'er yil azalt
+    transferRoom.updatePlayersContractYearsInTeams();
+
+    // Lig yeni sezon reset
+    league.resetForNewSeason();
+    transferRoom.collectFreeAgentsFromTeams();
+
+    // Plan + fixture
+    seasonPlan = SeasonPlan::build(y, rules);
+    fixtureGenerator.generateSeasonFixture(league, seasonPlan, rules);
+    seasonPlan.finalizeFromFixture(league, rules);
+    league.setSeasonFixtureGenerated(true);
 }
 
 void Game::seasonEndChecks() {
-    transferRoom.updatePlayersContractYearsInTeams();
+    
 }
 
 void Game::updateTransferWindow() {

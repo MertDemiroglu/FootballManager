@@ -31,6 +31,7 @@ private:
 	User user;
 	bool timePaused;
 	bool dateWasReset;
+	int lastSeasonRolloverYear = -1;
 	std::unique_ptr<GameEvents> currentBlockingEvent;
 public:
 	//Game constructor

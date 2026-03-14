@@ -84,18 +84,21 @@ int main() {
         const int tickEvery = 50;
         const bool failFast = true;
 
-        int seasonStartsObserved = 0;
-        int lastSeasonObservedYear = game.getDate().getYear() - 1;
+        int seasonsObserved = 0;
+        int lastSeasonYearLogged = game.getDate().getYear() - 1;
+        int lastSeasonStartObservedYear = game.getDate().getYear() - 1;
         int lastSeasonMatchEvents = 0;
         std::optional<Date> lastWeeklyLogDate;
         std::optional<std::string> lastNewMonthLogKey;
-
-        bool wasSummerOpen = false;
-        bool wasWinterOpen = false;
         
         const LeagueRules& rules = game.getRules();
         const SeasonPlan& bootPlan = game.getSeasonPlan();
         const League& bootLeague = game.getLeague();
+
+        bool lastAllMatchesPlayed = bootLeague.allMatchesPlayed();
+        bool prevTransferOpen = bootPlan.getSummerWindow().contains(game.getDate()) || bootPlan.getWinterWindow().contains(game.getDate());
+        bool wasSummerOpen = bootPlan.getSummerWindow().contains(game.getDate());
+        bool wasWinterOpen = bootPlan.getWinterWindow().contains(game.getDate());
 
         const int expectedTotalMatches =
             (rules.teamCount * (rules.teamCount - 1));
@@ -153,10 +156,11 @@ int main() {
             const bool summerOpenNow = summer.contains(date);
             const bool winterOpenNow = winter.contains(date);
 
-            if (summerOpenNow && !wasSummerOpen) {
+          
+            if (!wasSummerOpen && summerOpenNow) {
                 std::cout << "[TransferWindowOpen] type=Summer date=" << dateToString(date) << "\n";
             }
-            if (!summerOpenNow && wasSummerOpen) {
+            if (wasSummerOpen && !summerOpenNow) {
                 const bool closeBoundaryIsClosed = !summer.contains(summer.endExclusive);
                 assertOrThrow(!failFast || closeBoundaryIsClosed,
                     "Summer transfer window must be closed on endExclusive boundary at " +
@@ -166,10 +170,11 @@ int main() {
                     << "\n";
             }
 
-            if (winterOpenNow && !wasWinterOpen) {
+          
+            if (!wasWinterOpen && winterOpenNow) {
                 std::cout << "[TransferWindowOpen] type=Winter date=" << dateToString(date) << "\n";
             }
-            if (!winterOpenNow && wasWinterOpen) {
+            if (wasWinterOpen && !winterOpenNow) {
                 const bool closeBoundaryIsClosed = !winter.contains(winter.endExclusive);
                 assertOrThrow(!failFast || closeBoundaryIsClosed,
                     "Winter transfer window must be closed on endExclusive boundary at " +
@@ -179,12 +184,17 @@ int main() {
                     << "\n";
             }
 
+            
             wasSummerOpen = summerOpenNow;
             wasWinterOpen = winterOpenNow;
 
-            if (dateEquals(date, plan.getPreseasonStart()) && date.getYear() != lastSeasonObservedYear) {
-                lastSeasonObservedYear = date.getYear();
-                ++seasonStartsObserved;
+            if (date.getMonth() == Month::July && date.getDay() == 1 && date.getYear() != lastSeasonYearLogged) {
+                lastSeasonYearLogged = date.getYear();
+                ++seasonsObserved;
+            }
+
+            if (dateEquals(date, plan.getPreseasonStart()) && date.getYear() != lastSeasonStartObservedYear) {
+                lastSeasonStartObservedYear = date.getYear();
 
                 const int teams = static_cast<int>(league.getTeams().size());
                 const bool fixtureGenerated = league.isSeasonFixtureGenerated();
@@ -247,7 +257,8 @@ int main() {
                     << "\n";
             }
 
-            if (league.allMatchesPlayed()) {
+            const bool allMatchesPlayedNow = league.allMatchesPlayed();
+            if (!lastAllMatchesPlayed && allMatchesPlayedNow) {
                 const std::optional<Date> seasonEnd = plan.getSeasonEndDate();
                 assertOrThrow(!failFast || seasonEnd.has_value(),
                     "SeasonComplete validation failed at " + dateToString(date) +
@@ -272,6 +283,7 @@ int main() {
                         << "\n";
                 }
             }
+            lastAllMatchesPlayed = allMatchesPlayedNow;
         }
 
         if (rules.winterBreakEnabled) {
@@ -286,7 +298,7 @@ int main() {
             (void)plan;
         }
 
-        std::cout << "[Done] seasonsObserved=" << seasonStartsObserved
+        std::cout << "[Done] seasonsObserved=" << seasonsObserved
             << " totalGeneratedMatchEvents=" << game.getMatchScheduler().debugGeneratedMatchEvents()
             << " finalDate=" << dateToString(game.getDate())
             << "\n";
