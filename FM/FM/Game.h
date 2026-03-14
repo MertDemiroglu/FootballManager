@@ -4,11 +4,13 @@
 
 #include"Date.h"
 #include"League.h"
+#include"LeagueRules.h"
 #include"TransferRoom.h"
 #include"EventQueue.h"
 #include"User.h"
 #include"MatchScheduler.h"
 #include"FixtureGenerator.h"
+#include"SeasonPlan.h"
 
 class GameEvents;
 
@@ -19,6 +21,8 @@ class Game {
 private:
 	Date date;
 	League league;
+	LeagueRules rules;
+	SeasonPlan seasonPlan;
 	TransferRoom transferRoom;
 	GameState state;
 	EventQueue eventsQueue;
@@ -79,6 +83,9 @@ public:
 	League& getLeague();
 	//lig nesnesini verir const
 	const League& getLeague() const;
+
+	//state'i verir
+	GameState getState() const;
 
 	//debug
 	const MatchScheduler& getMatchScheduler() const;

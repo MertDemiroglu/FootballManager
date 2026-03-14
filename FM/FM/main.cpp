@@ -23,7 +23,7 @@ int main() {
     try {
         Game game;
 
-        const int simulationDays = 365;
+        const int simulationDays = 1461;
 
         int seasonStarts = 0;
 

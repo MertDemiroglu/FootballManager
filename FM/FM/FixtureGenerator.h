@@ -1,10 +1,11 @@
 #pragma once
 
-#include "Date.h"
+#include"LeagueRules.h"
+#include"SeasonPlan.h"
 
 class League;
 
 class FixtureGenerator {
 public:
-    void generateSeasonFixture(League& league, const Date& startDate) const;
+    void generateSeasonFixture(League& league, const SeasonPlan& plan, const LeagueRules& rules ) const;
 };

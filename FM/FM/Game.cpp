@@ -14,17 +14,24 @@ Game::Game() : date(2025, Month::July, 1), league("Super Lig"), transferRoom(lea
 }
 
 void Game::updateState() {
-    const Month m = date.getMonth();
+    const Date& preseasonStart = seasonPlan.getPreseasonStart();
+    const Date& kickoff = seasonPlan.getKickoff();
+    const Date& nextPreseasonStart = seasonPlan.getNextPreseasonStart();
 
-    if (m == Month::July || m == Month::August) {
+
+    if (!(date < preseasonStart) && date < kickoff) {
         state = GameState::PreSeason;
+        return;
     }
-    else if (m == Month::September || m == Month::October || m == Month::November || m == Month::December || m == Month::January || m == Month::February || m == Month::March || m == Month::April || m == Month::May) {
+    if (league.isSeasonFixtureGenerated() && !league.allMatchesPlayed() && date < nextPreseasonStart) {
         state = GameState::InSeason;
+        return;
     }
-    else {
+    if(league.isSeasonFixtureGenerated() && league.allMatchesPlayed() && date < nextPreseasonStart){
         state = GameState::PostSeason;
+        return;
     }
+    state = GameState::PreSeason;
 }
 
 void Game::updateDaily() {
@@ -61,10 +68,10 @@ void Game::updateDaily() {
     if (date.isNewWeek()) {
         handleWeeklyEvents();
     }
-    if (date.isNewMonth()) {
-        updateState();  
+    if (date.isNewMonth()) { 
         handleMonthlyEvents();   
     }
+    updateState();
     if (!dateWasReset) {
         date.advanceDay();
     }
@@ -74,32 +81,22 @@ void Game::updateDaily() {
 }
 
 void Game::handleSeasonalEvents() {
-    switch (state) {
-    case GameState::PreSeason:
-        if (date.getMonth() == Month::July && date.getDay() == 1) {
-            seasonStartChecks();
-        }
-        break;
+    const Date& nextPreseason = seasonPlan.getNextPreseasonStart();
+    if (date.getYear() == nextPreseason.getYear() && date.getMonth() == nextPreseason.getMonth() && date.getDay() == nextPreseason.getDay()) {
+        league.resetForNewSeason();
+    }
 
-    case GameState::InSeason:
-        //maclar ve diger eventler burada planlanacak
-        break;
+    seasonStartChecks();
 
-    case GameState::PostSeason:
-        //tum maclar bittikten sonra bu state'e gecilecek
-        if (date.getMonth() == Month::June && date.getDay() == 30) {
-            seasonEndChecks();
-        }
-   
-        break;
-
-
+    if (league.allMatchesPlayed()) {
+        seasonEndChecks();
     }
 }
 
 void Game::handleMonthlyEvents() {      
      for (auto& [name, team] : league.getTeams()) {
-            team->payWagesMonthly();
+         (void)name;
+         team->payWagesMonthly();
      }
 }
 
@@ -108,27 +105,21 @@ void Game::handleWeeklyEvents() {
 }
 
 void Game::seasonStartChecks() {
-    transferRoom.collectFreeAgentsFromTeams();
-
-    if (!league.isSeasonFixtureGenerated() && league.getTeams().size() == 18) {
-        fixtureGenerator.generateSeasonFixture(league, date);
-        league.setSeasonFixtureGenerated(true);
-    }
+    if (date.getDay() == seasonPlan.getPreseasonStart().getDay() && date.getMonth() == seasonPlan.getPreseasonStart().getMonth() && date.getYear() == seasonPlan.getPreseasonStart().getYear()&& (!league.isSeasonFixtureGenerated())) {
+        transferRoom.collectFreeAgentsFromTeams();
+}
+    seasonPlan = SeasonPlan::build(date.getYear(), rules);
+    fixtureGenerator.generateSeasonFixture(league, seasonPlan, rules);
+    seasonPlan.finalizeFromFixture(league, rules);
+    league.setSeasonFixtureGenerated(true);
 }
 
 void Game::seasonEndChecks() {
     transferRoom.updatePlayersContractYearsInTeams();
-    league.resetForNewSeason();
-
-    const int seasonStartYear = date.getYear();
-    date = Date(seasonStartYear, Month::July, 1);
-    state = GameState::PreSeason;
-    dateWasReset = true;
-    seasonStartChecks();
 }
 
 void Game::updateTransferWindow() {
-    if (date.isSummerTransferWindow() || date.isWinterTransferWindow()) {
+    if (seasonPlan.getSummerWindow().contains(date) || seasonPlan.getWinterWindow().contains(date)) {
         transferRoom.openWindow();
     }
     else {
@@ -179,6 +170,10 @@ const League& Game::getLeague() const {
 
 void Game::setUserTeam(const std::string& teamName) {
     user.setTeam(teamName);
+}
+
+GameState Game::getState() const {
+    return state;
 }
 
 //debug

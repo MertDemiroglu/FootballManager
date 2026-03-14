@@ -6,6 +6,7 @@ add_library(fm_core STATIC
     Game.cpp
     Contract.cpp
     Date.cpp
+    DateUtils.cpp
     Defender.cpp
     EventQueue.cpp
     FixtureGenerator.cpp
@@ -14,10 +15,12 @@ add_library(fm_core STATIC
     Forward.cpp
     Goalkeeper.cpp
     League.cpp
+    LeagueRules.cpp
     MatchEvent.cpp
     MatchScheduler.cpp
     Midfielder.cpp
     RosterLoader.cpp
+    SeasonPlan.cpp
     Team.cpp
     TransferOfferEvent.cpp
     TransferRoom.cpp
