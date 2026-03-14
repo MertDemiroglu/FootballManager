@@ -1,6 +1,6 @@
 #include"Date.h"
 
-Date::Date(int year, Month month, int day) : year(year), month(month), day(day){
+Date::Date(int year, Month month, int day) : month(month), year(year), dayOfWeek(computeDayOfWeek(year, month, day)), day(day){
 
 }
 

@@ -2,6 +2,7 @@
 #include <unordered_map>
 #include <map>
 #include <memory>
+#include <optional>
 #include <vector>
 #include <string>
 
@@ -12,9 +13,10 @@
 
 struct FixtureMatch {
 	bool played = false;
+	bool eventEnqueued = false;
 	std::string home;
 	std::string away;
-	FixtureMatch(const std::string& h,const std::string& a,bool p): home(h), away(a), played(p) {}
+	FixtureMatch(const std::string& h,const std::string& a,bool p): played(p), home(h), away(a) {}
 };
 
 class League {
@@ -22,6 +24,7 @@ private:
 	std::string name;
 	std::unordered_map<std::string, std::unique_ptr<Team>> teams;
 	std::map<Date, std::vector<FixtureMatch>> fixture;
+	std::vector<std::optional<Date>> matchdayEndDates;
 	bool seasonFixtureGenerated = false;
 public:
 
@@ -38,7 +41,7 @@ public:
 	const std::unordered_map<std::string, std::unique_ptr<Team>>& getTeams() const;
 
 	//Fixture mac uretir
-	void addFixtureMatch(const Date& date, const std::string& home, const std::string& away);
+	void addFixtureMatch(int matchdayIndex, const Date& date, const std::string& home, const std::string& away);
 
 	//Fixturu temizler
 	void clearFixture();
@@ -48,6 +51,10 @@ public:
 
 	//O gunun maclarini vector olarak verir
 	std::vector<FixtureMatch*> getMatchesForDate(const Date& date);
+	std::optional<Date> tryGetMatchdayEndDate(int matchdayIndex) const;
+	Date getLastFixtureDate() const;
+	bool allMatchesPlayed() const;
+    void initializeMatchdayTracking(int matchdaysPerSeason);
 
 
 	bool isSeasonFixtureGenerated() const;
@@ -59,4 +66,5 @@ public:
 	int debugFixtureDayCount() const;
 	//debug
 	int debugTotalFixtureMatches() const;
+	int debugMatchdayCount() const;
 };

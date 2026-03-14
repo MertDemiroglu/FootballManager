@@ -12,7 +12,7 @@ void MatchScheduler::update(Game& game, EventQueue& queue) {
     const std::vector<FixtureMatch*> todaysMatches = league.getMatchesForDate(currentDate);
 
     for (FixtureMatch* match : todaysMatches) {
-        if (match == nullptr) {
+        if (match == nullptr || match->played || match->eventEnqueued) {
             continue;
         }
         Team* home = league.getTeam(match->home);
@@ -24,6 +24,7 @@ void MatchScheduler::update(Game& game, EventQueue& queue) {
 
         queue.pushEvent(std::make_unique<MatchEvent>(home->getName(), away->getName()));
         generatedMatchEvents++;//debug
+        match->eventEnqueued = true;
         match->played = true;
     }
 }

@@ -1,30 +1,48 @@
 #include "Game.h"
 #include "GameEvents.h"
 #include "RosterLoader.h"
-#include <utility>
 
 Game::~Game() = default;
 
-Game::Game() : date(2025, Month::July, 1), league("Super Lig"), transferRoom(league), state(GameState::PreSeason), eventsQueue(), user(), timePaused(false), dateWasReset(false), currentBlockingEvent(nullptr) {
-    //takimlari txt dosyasindan okudugumuz yer (gecici)
+Game::Game()
+    : date(2025, Month::July, 1),
+    league("Super Lig"),
+    rules(LeagueRules::makeSuperLig()),
+    seasonPlan(SeasonPlan::build(2025, rules)),
+    transferRoom(league),
+    state(GameState::PreSeason),
+    eventsQueue(),
+    user(),
+    timePaused(false),
+    dateWasReset(false),
+    currentBlockingEvent(nullptr) {
     RosterLoader::loadFromFile(league, "database.txt");
-    updateState();         
     seasonStartChecks();
-    updateTransferWindow(); 
+    updateState();
+    updateTransferWindow();
 }
 
 void Game::updateState() {
-    const Month m = date.getMonth();
+    const Date& preseasonStart = seasonPlan.getPreseasonStart();
+    const Date& kickoff = seasonPlan.getKickoff();
+    const Date& nextPreseasonStart = seasonPlan.getNextPreseasonStart();
 
-    if (m == Month::July || m == Month::August) {
+    if (!(date < preseasonStart) && date < kickoff) {
         state = GameState::PreSeason;
+        return;
     }
-    else if (m == Month::September || m == Month::October || m == Month::November || m == Month::December || m == Month::January || m == Month::February || m == Month::March || m == Month::April || m == Month::May) {
+
+    if (league.isSeasonFixtureGenerated() && !league.allMatchesPlayed() && !(date < kickoff)) {
         state = GameState::InSeason;
+        return;
     }
-    else {
+
+    if (league.isSeasonFixtureGenerated() && league.allMatchesPlayed() && date < nextPreseasonStart) {
         state = GameState::PostSeason;
+        return;
     }
+
+    state = GameState::PreSeason;
 }
 
 void Game::updateDaily() {
@@ -33,8 +51,7 @@ void Game::updateDaily() {
         processBlockingEvent();
         return;
     }
-   
-    //gunluk mac kontrolu
+
     matchScheduler.update(*this, eventsQueue);
 
     while (!eventsQueue.empty()){
@@ -62,9 +79,11 @@ void Game::updateDaily() {
         handleWeeklyEvents();
     }
     if (date.isNewMonth()) {
-        updateState();  
-        handleMonthlyEvents();   
+        handleMonthlyEvents();
     }
+
+    updateState();
+
     if (!dateWasReset) {
         date.advanceDay();
     }
@@ -74,61 +93,49 @@ void Game::updateDaily() {
 }
 
 void Game::handleSeasonalEvents() {
-    switch (state) {
-    case GameState::PreSeason:
-        if (date.getMonth() == Month::July && date.getDay() == 1) {
-            seasonStartChecks();
-        }
-        break;
+    const Date& nextPre = seasonPlan.getNextPreseasonStart();
+    if (date.getYear() == nextPre.getYear() && date.getMonth() == nextPre.getMonth() && date.getDay() == nextPre.getDay()) {
+        league.resetForNewSeason();
+    }
 
-    case GameState::InSeason:
-        //maclar ve diger eventler burada planlanacak
-        break;
+    seasonStartChecks();
 
-    case GameState::PostSeason:
-        //tum maclar bittikten sonra bu state'e gecilecek
-        if (date.getMonth() == Month::June && date.getDay() == 30) {
-            seasonEndChecks();
-        }
-   
-        break;
-
-
+    if (league.allMatchesPlayed()) {
+        seasonEndChecks();
     }
 }
 
-void Game::handleMonthlyEvents() {      
+void Game::handleMonthlyEvents() {
      for (auto& [name, team] : league.getTeams()) {
-            team->payWagesMonthly();
+         (void)name;
+         team->payWagesMonthly();
      }
 }
 
 void Game::handleWeeklyEvents() {
-    // Haftalýk otomatik event uretimi burada genisletilebilir
 }
 
 void Game::seasonStartChecks() {
-    transferRoom.collectFreeAgentsFromTeams();
+    if (date.getDay() == seasonPlan.getPreseasonStart().getDay()
+        && date.getMonth() == seasonPlan.getPreseasonStart().getMonth()
+        && date.getYear() == seasonPlan.getPreseasonStart().getYear()
+        && (!league.isSeasonFixtureGenerated())) {
 
-    if (!league.isSeasonFixtureGenerated() && league.getTeams().size() == 18) {
-        fixtureGenerator.generateSeasonFixture(league, date);
+        transferRoom.collectFreeAgentsFromTeams();
+
+        seasonPlan = SeasonPlan::build(date.getYear(), rules);
+        fixtureGenerator.generateSeasonFixture(league, seasonPlan, rules);
+        seasonPlan.finalizeFromFixture(league, rules);
         league.setSeasonFixtureGenerated(true);
     }
 }
 
 void Game::seasonEndChecks() {
     transferRoom.updatePlayersContractYearsInTeams();
-    league.resetForNewSeason();
-
-    const int seasonStartYear = date.getYear();
-    date = Date(seasonStartYear, Month::July, 1);
-    state = GameState::PreSeason;
-    dateWasReset = true;
-    seasonStartChecks();
 }
 
 void Game::updateTransferWindow() {
-    if (date.isSummerTransferWindow() || date.isWinterTransferWindow()) {
+    if (seasonPlan.getSummerWindow().contains(date) || seasonPlan.getWinterWindow().contains(date)) {
         transferRoom.openWindow();
     }
     else {
@@ -146,7 +153,6 @@ const TransferRoom& Game::getTransferRoom() const {
 
 void Game::stopTime() {
     timePaused = true;
-    //Zamanin o an ki ilerleyisi burada durdurulacak ve event oyuncuya sunulacak, oyuncu tekrar baslatana kadar zaman duracak
 }
 
 bool Game::isTimePaused() const {
@@ -181,7 +187,10 @@ void Game::setUserTeam(const std::string& teamName) {
     user.setTeam(teamName);
 }
 
-//debug
 const MatchScheduler& Game::getMatchScheduler() const {
     return matchScheduler;
+}
+
+GameState Game::getState() const {
+    return state;
 }
