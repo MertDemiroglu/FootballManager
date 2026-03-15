@@ -13,8 +13,17 @@ EventPriority MatchEvent::getPriority() const {
     return priority;
 }
 void MatchEvent::resolve(Game& game) {
-   
-    //mac eventi burada islenecek
+    League& league = game.getLeague();
+    const Date& d = game.getDate();
+    
+    FixtureMatch* fm = league.findFixtureMatch(d, home, away);
+    if (!fm) {
+        return;
+    }
+    //simulasyon burada olacak
+
+    fm->played = true;
+    fm->eventEnqueued = false;
 }
 const std::string& MatchEvent::getSendingTeam() const {
     return home;

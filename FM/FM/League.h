@@ -55,6 +55,8 @@ public:
 	//O gunun maclarini vector olarak verir
 	std::vector<FixtureMatch*> getMatchesForDate(const Date& date);
 
+	FixtureMatch* findFixtureMatch(const Date& date, const std::string& home, const std::string& away);
+
 	std::optional<Date> tryGetMatchdayEndDate(int matchdayIndex) const;
 	Date getLastFixtureDate() const;
 	bool allMatchesPlayed() const;

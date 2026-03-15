@@ -28,4 +28,4 @@ public:
 	const std::string& getPlayer() const override;
 
 	bool affectsTeam(const Team* team) const override;
-};
+};	

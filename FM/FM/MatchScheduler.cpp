@@ -24,6 +24,6 @@ void MatchScheduler::update(Game& game, EventQueue& queue) {
 
         queue.pushEvent(std::make_unique<MatchEvent>(home->getName(), away->getName()));
         generatedMatchEvents++;//debug
-        match->played = true;
+        match->eventEnqueued = true;
     }
 }

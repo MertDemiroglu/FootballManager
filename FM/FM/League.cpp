@@ -98,11 +98,24 @@ std::vector<FixtureMatch*> League::getMatchesForDate(const Date& date) {
 	}
 
 	for (auto& match : it->second) {
-		if (!match.played) {
+		if (!match.played && !match.eventEnqueued) {
 			matches.push_back(&match);
 		}
 	}
 	return matches;
+}
+
+FixtureMatch* League::findFixtureMatch(const Date& date, const std::string& home, const std::string& away) {
+	auto it = fixture.find(date);
+	if (it == fixture.end()) {
+		return nullptr;
+	}
+	for (auto& m : it->second) {
+		if (m.home == home && m.away == away) {
+			return &m;
+		}
+	}
+	return nullptr;
 }
 
 bool League::isSeasonFixtureGenerated() const {
@@ -115,8 +128,8 @@ void League::setSeasonFixtureGenerated(bool generated) {
 
 void League::resetForNewSeason() {
 
-		fixture.clear();
-		seasonFixtureGenerated = false;
+	clearFixture();
+	seasonFixtureGenerated = false;
 }
 
 
