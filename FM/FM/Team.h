@@ -16,6 +16,7 @@
 class Team {
 private:
 
+	TeamId id;
 	Money transferBudget, wageBudget, totalBudget;
 	std::string name;
 	std::vector<std::unique_ptr<Footballer>> players;
@@ -24,6 +25,9 @@ public:
 
 	//Team constructor
 	explicit Team(const std::string& name);
+	Team(TeamId id, const std::string& name);
+
+	TeamId getId() const;
 
 	//takýmýn adýný döner
 	const std::string& getName() const;

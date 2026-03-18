@@ -10,8 +10,22 @@
 #include<ostream>
 #include<algorithm>
 #include<iostream>
+#include<atomic>
 
-Team::Team(const std::string& name) : name(name), wageBudget(0), transferBudget(0), totalBudget(0) {}
+namespace {
+    TeamId generateTeamId() {
+        static std::atomic<TeamId> nextId{ 1 };
+        return nextId++;
+    }
+
+}
+Team::Team(const std::string& name) : Team(generateTeamId(), name) {}
+
+Team::Team(TeamId id, const std::string& name) : id(id), name(name), wageBudget(0), transferBudget(0), totalBudget(0) {}
+
+TeamId Team::getId() const {
+    return id;
+}
 
 const std::string& Team::getName() const {
     return name;
@@ -29,7 +43,7 @@ int Team::calculateTeamRating() const {
     return total / players.size();
 }
 
-//player iþlemleri
+//Takimda oyuncu bulur (isim ile bulup ptr verir)
 Footballer* Team::findPlayer(const std::string& name) {
     for (auto& p : players) {
         if (p->getName() == name) {
@@ -39,14 +53,17 @@ Footballer* Team::findPlayer(const std::string& name) {
     return nullptr;
 }
 
+//Takima oyuncu ekler
 void Team::addPlayer(std::unique_ptr<Footballer> player) {
     if (!player) {
         return;
     }
     players.push_back(std::move(player));
 }
+
+//Oyuncu serbest birakma fonksiyonu
 std::unique_ptr<Footballer> Team::releasePlayer(const std::string& playerName) {
-    //transferler için
+    //transferler icin
     auto it = std::find_if(players.begin(), players.end(),[&](const std::unique_ptr<Footballer>& p) {
             return p->getName() == playerName;
         });
@@ -61,7 +78,7 @@ std::unique_ptr<Footballer> Team::releasePlayer(const std::string& playerName) {
     return released;
 }
 
-//transfer iþlemleri
+//transfer islemleri
 bool Team::canAffordTransfer(Money amount) const {
     return transferBudget >= amount;
 }
@@ -83,14 +100,14 @@ void Team::setBudgets() {
 }
 void Team::payWagesMonthly() {
    for (const auto& p : players) {
-       //kontrol sistemi iyileþtirilebilir
+       //kontrol sistemi iyilestirilebilir
        if (const Contract* c = p->getContract()) {
            spend(c->getWage() / 12);
        }
    }  
 }
 std::vector<std::unique_ptr<Footballer>> Team::collectExpiredContracts() {
-    //sözleþme bitimi kontrolü
+    //sozlesme bitimi kontrolu
     std::vector<std::unique_ptr<Footballer>> leavingPlayers;
     auto it = players.begin();
     while (it != players.end()) {
@@ -105,6 +122,7 @@ std::vector<std::unique_ptr<Footballer>> Team::collectExpiredContracts() {
     }
     return leavingPlayers;
 }
+//Kontrat yilini 1 azaltir (her oyuncu icin)
 void Team::updateContracts() {
     for (const auto& p : players) {
         p->advanceContractYear();

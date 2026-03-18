@@ -1,4 +1,4 @@
-#include"FixtureGenerator.h"
+    #include"FixtureGenerator.h"
 
 #include<algorithm>
 #include<stdexcept>
@@ -10,17 +10,19 @@
 #include"League.h"
 
 void FixtureGenerator::generateSeasonFixture(League& league, const SeasonPlan& plan, const LeagueRules& rules) const {
-    std::vector<std::string> teamNames;
-    teamNames.reserve(league.getTeams().size());
+    std::vector<std::pair<std::string, TeamId>> teamsByName;
+    teamsByName.reserve(league.getTeams().size());
+
 
     for (const auto& [teamName, team] : league.getTeams()) {
-        (void)team;
-        teamNames.push_back(teamName);
+        teamsByName.emplace_back(teamName, team->getId());
     }
 
-    std::sort(teamNames.begin(), teamNames.end());
+    std::sort(teamsByName.begin(), teamsByName.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.first < rhs.first;
+        });
 
-    if (static_cast<int>(teamNames.size()) != rules.teamCount) {
+    if (static_cast<int>(teamsByName.size()) != rules.teamCount) {
         throw std::runtime_error("FixtureGenerator team count does not match LeagueRules.");
     }
 
@@ -29,21 +31,26 @@ void FixtureGenerator::generateSeasonFixture(League& league, const SeasonPlan& p
         throw std::runtime_error("matchdayDistributionOffsets size must equal matchesPerMatchday.");
     }
 
-    const std::size_t teamCount = teamNames.size();
+    const std::size_t teamCount = teamsByName.size();
     const std::size_t roundsPerHalf = static_cast<std::size_t>(rules.firstHalfRounds);
 
-    std::vector<std::string> rotatingOrder = teamNames;
-    std::vector<std::vector<std::pair<std::string, std::string>>> firstHalf;
+    std::vector<TeamId> rotatingOrder;
+    rotatingOrder.reserve(teamCount);
+    for (const auto& [teamName, teamId] : teamsByName) {
+        (void)teamName;
+        rotatingOrder.push_back(teamId);
+    }
+
+    std::vector<std::vector<std::pair<TeamId, TeamId>>> firstHalf;
     firstHalf.reserve(roundsPerHalf);
 
     for (std::size_t round = 0; round < roundsPerHalf; ++round) {
-        std::vector<std::pair<std::string, std::string>> pairings;
+        std::vector<std::pair<TeamId, TeamId>> pairings;
         pairings.reserve(static_cast<std::size_t>(matchesPerMatchday));
 
         for (int i = 0; i < matchesPerMatchday; ++i) {
-            const std::string& left = rotatingOrder[static_cast<std::size_t>(i)];
-            const std::string& right = rotatingOrder[teamCount - 1 - static_cast<std::size_t>(i)];
-
+            const TeamId left = rotatingOrder[static_cast<std::size_t>(i)];
+            const TeamId right = rotatingOrder[teamCount - 1 - static_cast<std::size_t>(i)];
             bool swapHomeAway = ((round + static_cast<std::size_t>(i)) % 2 == 1);
             if (i == 0) {
                 swapHomeAway = (round % 2 == 1);
@@ -59,7 +66,7 @@ void FixtureGenerator::generateSeasonFixture(League& league, const SeasonPlan& p
 
         firstHalf.push_back(std::move(pairings));
 
-        std::vector<std::string> nextOrder;
+        std::vector<TeamId> nextOrder;
         nextOrder.reserve(teamCount);
         nextOrder.push_back(rotatingOrder[0]);
         nextOrder.push_back(rotatingOrder.back());
@@ -79,9 +86,9 @@ void FixtureGenerator::generateSeasonFixture(League& league, const SeasonPlan& p
 
     for (const auto& roundPairings : firstHalf) {
         for (int i = 0; i < matchesPerMatchday; ++i) {
-            const auto& [home, away] = roundPairings[static_cast<std::size_t>(i)];
+            const auto& [homeId, awayId] = roundPairings[static_cast<std::size_t>(i)];
             const Date matchDate = DateUtils::addDays(matchdayDate, rules.matchdayDistributionOffsets[static_cast<std::size_t>(i)]);
-            league.addFixtureMatch(matchdayIndex, matchDate, home, away);
+            league.addFixtureMatch(matchdayIndex, matchDate, homeId, awayId);
         }
         ++matchdayIndex;
         matchdayDate = DateUtils::addDays(matchdayDate, rules.matchSpacingDays);
@@ -93,9 +100,9 @@ void FixtureGenerator::generateSeasonFixture(League& league, const SeasonPlan& p
 
     for (const auto& roundPairings : firstHalf) {
             for (int i = 0; i < matchesPerMatchday; ++i) {
-                const auto& [home, away] = roundPairings[static_cast<std::size_t>(i)];
+                const auto& [homeId, awayId] = roundPairings[static_cast<std::size_t>(i)];
                 const Date matchDate = DateUtils::addDays(matchdayDate, rules.matchdayDistributionOffsets[static_cast<std::size_t>(i)]);
-                league.addFixtureMatch(matchdayIndex, matchDate, away, home);
+                league.addFixtureMatch(matchdayIndex, matchDate, awayId, homeId);
             }
             ++matchdayIndex;
             matchdayDate = DateUtils::addDays(matchdayDate, rules.matchSpacingDays);

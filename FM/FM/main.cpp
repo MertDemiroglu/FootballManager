@@ -74,7 +74,95 @@ namespace {
         return dateToString(*date);
     }
 
-} // namespace
+}
+void validateSortedStandings(const League& league) {
+    const auto sorted = league.getSortedStandings();
+    for (std::size_t i = 1; i < sorted.size(); ++i) {
+        const StandingsEntry& prev = sorted[i - 1];
+        const StandingsEntry& curr = sorted[i];
+
+        const bool correctlyOrdered =
+            (prev.points > curr.points) ||
+            (prev.points == curr.points && prev.goalDifference > curr.goalDifference) ||
+            (prev.points == curr.points && prev.goalDifference == curr.goalDifference && prev.goalsFor > curr.goalsFor) ||
+            (prev.points == curr.points && prev.goalDifference == curr.goalDifference && prev.goalsFor == curr.goalsFor && prev.teamId < curr.teamId) ||
+            (prev.points == curr.points && prev.goalDifference == curr.goalDifference && prev.goalsFor == curr.goalsFor && prev.teamId == curr.teamId);
+
+        assertOrThrow(correctlyOrdered, "Sorted standings order is invalid.");
+    }
+}
+
+void validateSeasonOutcome(Game& game, const LeagueRules& rules) {
+    League& league = game.getLeague();
+
+    int playedFixtures = 0;
+    int totalPlayedFromStandings = 0;
+    int totalGoalsFor = 0;
+    int totalGoalsAgainst = 0;
+    int totalWins = 0;
+    int totalLosses = 0;
+
+    for (const auto& [date, matches] : league.getFixture()) {
+        (void)date;
+        for (const auto& match : matches) {
+            assertOrThrow(!(match.played && match.eventEnqueued),
+                "Illegal fixture state: played and eventEnqueued cannot both be true.");
+            if (match.played) {
+                ++playedFixtures;
+                assertOrThrow(match.homeGoals >= 0 && match.awayGoals >= 0,
+                    "Played fixture must contain finalized score.");
+            }
+            else {
+                assertOrThrow(match.homeGoals == -1 && match.awayGoals == -1,
+                    "Unplayed fixture must keep score fields at -1.");
+            }
+        }
+    }
+
+    for (const auto& [teamId, entry] : league.getStandings()) {
+        (void)teamId;
+        assertOrThrow(league.findTeamById(entry.teamId) != nullptr,
+            "Standings lookup by TeamId failed.");
+        assertOrThrow(!league.getTeamName(entry.teamId).empty(),
+            "Team name display lookup failed.");
+
+        totalPlayedFromStandings += entry.played;
+        totalGoalsFor += entry.goalsFor;
+        totalGoalsAgainst += entry.goalsAgainst;
+        totalWins += entry.wins;
+        totalLosses += entry.losses;
+    }
+
+    assertOrThrow(playedFixtures == rules.teamCount * (rules.teamCount - 1),
+        "Played fixture count mismatch at season completion.");
+    assertOrThrow(totalPlayedFromStandings == playedFixtures * 2,
+        "Standings played total mismatch at season completion.");
+    assertOrThrow(totalGoalsFor == totalGoalsAgainst,
+        "Standings goalsFor/goalsAgainst invariant failed.");
+    assertOrThrow(totalWins == totalLosses,
+        "Standings wins/losses invariant failed.");
+
+    validateSortedStandings(league);
+
+    bool duplicateResolveBlocked = false;
+    for (const auto& [date, matches] : league.getFixture()) {
+        for (const auto& match : matches) {
+            if (!match.played) {
+                continue;
+            }
+            try {
+                league.applyMatchResult(date, match.homeId, match.awayId, MatchResult{ match.homeGoals, match.awayGoals });
+            }
+            catch (const std::logic_error&) {
+                duplicateResolveBlocked = true;
+            }
+            assertOrThrow(duplicateResolveBlocked, "Duplicate match resolution should be blocked.");
+            return;
+        }
+    }
+
+    throw std::runtime_error("No played fixture found to validate duplicate resolution guard.");
+}
 
 int main() {
     try {
@@ -96,6 +184,7 @@ int main() {
         const League& bootLeague = game.getLeague();
 
         bool lastAllMatchesPlayed = bootLeague.allMatchesPlayed();
+        bool seasonOutcomeValidated = false;
         bool prevTransferOpen = bootPlan.getSummerWindow().contains(game.getDate()) || bootPlan.getWinterWindow().contains(game.getDate());
         bool wasSummerOpen = bootPlan.getSummerWindow().contains(game.getDate());
         bool wasWinterOpen = bootPlan.getWinterWindow().contains(game.getDate());
@@ -259,6 +348,8 @@ int main() {
 
             const bool allMatchesPlayedNow = league.allMatchesPlayed();
             if (!lastAllMatchesPlayed && allMatchesPlayedNow) {
+                validateSeasonOutcome(game, rules);
+                seasonOutcomeValidated = true;
                 const std::optional<Date> seasonEnd = plan.getSeasonEndDate();
                 assertOrThrow(!failFast || seasonEnd.has_value(),
                     "SeasonComplete validation failed at " + dateToString(date) +
@@ -297,6 +388,7 @@ int main() {
                 "Final validation failed: matchdayEndDate(34) missing with winter break enabled.");
             (void)plan;
         }
+        assertOrThrow(!failFast || seasonOutcomeValidated, "Final validation failed: no completed season outcome was validated.");
 
         std::cout << "[Done] seasonsObserved=" << seasonsObserved
             << " totalGeneratedMatchEvents=" << game.getMatchScheduler().debugGeneratedMatchEvents()

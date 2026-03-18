@@ -1,5 +1,7 @@
 #pragma once
 #include"GameEvents.h"
+#include"Date.h"
+#include"Types.h"
 
 class Team;
 
@@ -7,11 +9,14 @@ class MatchEvent : public GameEvents {
 private:
 	bool block = true;
 	EventPriority priority = EventPriority::Critical;
-	std::string home;
-	std::string away;
+	std::string homeName;
+	std::string awayName;
+	TeamId homeId;
+	TeamId awayId;
+	Date matchDate;
 	EventTargetType type = EventTargetType::League;
 public:
-	MatchEvent(std::string h, std::string a);
+	MatchEvent(TeamId homeId, TeamId awayId, const Date& matchDate, std::string h, std::string a);
 
 	bool isBlocking() const override;
 

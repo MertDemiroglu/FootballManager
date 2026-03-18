@@ -15,14 +15,14 @@ void MatchScheduler::update(Game& game, EventQueue& queue) {
         if (match == nullptr) {
             continue;
         }
-        Team* home = league.getTeam(match->home);
-        Team* away = league.getTeam(match->away);
+        Team* home = league.findTeamById(match->homeId);
+        Team* away = league.findTeamById(match->awayId);
 
         if (home == nullptr || away == nullptr) {
             continue;   
         }
 
-        queue.pushEvent(std::make_unique<MatchEvent>(home->getName(), away->getName()));
+        queue.pushEvent(std::make_unique<MatchEvent>(home->getId(), away->getId(), currentDate, home->getName(), away->getName()));
         generatedMatchEvents++;//debug
         match->eventEnqueued = true;
     }
