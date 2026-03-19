@@ -1,6 +1,7 @@
 #include"League.h"
 #include<algorithm>
 #include<stdexcept>
+#include<cassert>
 
 namespace {
 	bool datesEqual(const Date& lhs, const Date& rhs) {
@@ -77,6 +78,26 @@ bool League::hasTeam(TeamId id) const {
 	return teamIndexById.find(id) != teamIndexById.end();
 }
 
+Footballer* League::findPlayerById(PlayerId id) {
+	for (auto& [teamName, team] : teams) {
+		(void)teamName;
+		if (Footballer* player = team->findPlayerById(id)) {
+			return player;
+		}
+	}
+	return nullptr;
+}
+
+const Footballer* League::findPlayerById(PlayerId id) const {
+	for (const auto& [teamName, team] : teams) {
+		(void)teamName;
+		if (const Footballer* player = team->findPlayerById(id)) {
+			return player;
+		}
+	}
+	return nullptr;
+}
+
 const std::unordered_map<std::string, std::unique_ptr<Team>>& League::getTeams() const {
 	return teams;
 }
@@ -88,9 +109,9 @@ void League::initializeMatchdayTracking(int matchdaysPerSeason) {
 	matchdayEndDates.assign(static_cast<std::size_t>(matchdaysPerSeason), std::nullopt);
 }
 
-void League::addFixtureMatch(int matchdayIndex, const Date& date, TeamId homeId, TeamId awayId) {
-	if (matchdayIndex <= 0) {
-		throw std::invalid_argument("matchdayIndex must be 1-based positive");
+void League::addFixtureMatch(int matchWeekIndex, const Date& date, TeamId homeId, TeamId awayId) {
+	if (matchWeekIndex <= 0) {
+		throw std::invalid_argument("matchWeekIndex must be 1-based positive");
 	}
 
 	if (!hasTeam(homeId) || !hasTeam(awayId)){
@@ -101,13 +122,13 @@ void League::addFixtureMatch(int matchdayIndex, const Date& date, TeamId homeId,
 		throw std::invalid_argument("fixture match cannot contain same team twice");
 	}
 
-	const std::size_t zeroBased = static_cast<std::size_t>(matchdayIndex - 1);
+	const std::size_t zeroBased = static_cast<std::size_t>(matchWeekIndex - 1);
 	if (zeroBased >= matchdayEndDates.size()) {
-		matchdayEndDates.resize(zeroBased + 1, std::nullopt);
+		throw std::out_of_range("matchday index exceeds initialized tracking range");
 	}
 
 	auto& dayMatches = fixture[date];
-	dayMatches.push_back(FixtureMatch{ homeId, awayId, false });
+	dayMatches.push_back(FixtureMatch{ homeId, awayId, matchWeekIndex});
 
 	auto& endDate = matchdayEndDates[zeroBased];
 	if (!endDate.has_value() || *endDate < date) {
@@ -197,6 +218,15 @@ const FixtureMatch* League::findFixtureMatch(const Date& date, TeamId homeId, Te
 	return nullptr;
 }
 
+bool League::hasCurrentSeasonHistoryRecord(const Date& date, TeamId homeId, TeamId awayId) const {
+	return std::any_of(currentSeasonHistory.begin(), currentSeasonHistory.end(),
+		[&](const MatchRecord& existing) {
+			return datesEqual(existing.date, date)
+				&& existing.homeId == homeId
+				&& existing.awayId == awayId;
+		});
+}
+
 void League::initializeStandings() {
 	standings.clear();
 	for (const auto& [teamName, team] : teams) {
@@ -206,7 +236,6 @@ void League::initializeStandings() {
 }
 
 void League::resetStandings() {
-	standings.clear();
 	initializeStandings();
 }
 
@@ -250,21 +279,43 @@ void League::updateStandingsForMatch(TeamId homeId, TeamId awayId, const MatchRe
 
 void League::applyMatchResult(const Date& date, TeamId homeId, TeamId awayId, const MatchResult& result) {
 	FixtureMatch* match = findFixtureMatch(date, homeId, awayId);
+
 	if (!match) {
 		throw std::runtime_error("fixture match not found for applyMatchResult");
 	}
+
+	if (currentSeasonYear < 0) {
+		throw std::logic_error("current season year is not initialized");
+	}
+
+	if (result.homeGoals < 0 || result.awayGoals < 0) {
+		throw std::invalid_argument("match result goals cannot be negative");
+	}
+
 	if (match->played) {
 		throw std::logic_error("fixture match already played");
 	}
+
 	if (!match->eventEnqueued) {
 		throw std::logic_error("fixture match result cannot be applied before event enqueue");
 	}
+
+	if (match->matchweek <= 0) {
+		throw std::logic_error("fixture match has invalid matchweek");
+	}
+
+	if (hasCurrentSeasonHistoryRecord(date, homeId, awayId)) {
+		throw std::logic_error("duplicate match history record");
+	}
+
 	match->homeGoals = result.homeGoals;
 	match->awayGoals = result.awayGoals;
 	match->played = true;
 	match->eventEnqueued = false;
 
 	updateStandingsForMatch(homeId, awayId, result);
+
+	currentSeasonHistory.push_back(MatchRecord{ date, currentSeasonYear, homeId,awayId, result.homeGoals, result.awayGoals, match->matchweek });
 }
 
 std::vector<StandingsEntry> League::getSortedStandings() const {
@@ -301,9 +352,182 @@ void League::setSeasonFixtureGenerated(bool generated) {
 		seasonFixtureGenerated = generated;
 }
 
-void League::resetForNewSeason() {
-	clearFixture();	
-	resetStandings();
+bool League::recordBelongsToTeam(const MatchRecord& record, TeamId teamId) {
+	return record.homeId == teamId || record.awayId == teamId;
+}
+
+std::vector<MatchRecord> League::filterMatchesForTeam(const std::vector<MatchRecord>& records, TeamId teamId) const {
+	if (!hasTeam(teamId)) {
+		return {};
+	}
+
+	std::vector<MatchRecord> matches;
+	for (const MatchRecord& record : records) {
+		if (recordBelongsToTeam(record, teamId)) {
+			matches.push_back(record);
+		}
+	}
+	return matches;
+}
+
+std::vector<MatchRecord> League::getMatchesForTeamInCurrentSeason(TeamId teamId) const {
+	return filterMatchesForTeam(currentSeasonHistory, teamId);
+}
+
+std::vector<MatchRecord> League::getMatchesForTeamInSeason(TeamId teamId, int seasonYear) const {
+	if (seasonYear == currentSeasonYear) {
+		return getMatchesForTeamInCurrentSeason(teamId);
+	}
+
+	auto it = archivedHistoryBySeason.find(seasonYear);
+	if (it == archivedHistoryBySeason.end()) {
+		return {};
+	}
+	return filterMatchesForTeam(it->second, teamId);
+}
+
+std::vector<MatchRecord> League::getAllMatchesForTeam(TeamId teamId) const {
+	if (!hasTeam(teamId)) {
+		return {};
+	}
+
+	std::vector<MatchRecord> matches;
+
+	for (const auto& [seasonYear, archivedRecords] : archivedHistoryBySeason) {
+		(void)seasonYear;
+		auto filtered = filterMatchesForTeam(archivedRecords, teamId);
+		matches.insert(matches.end(), filtered.begin(), filtered.end());
+	}
+
+	auto currentFiltered = filterMatchesForTeam(currentSeasonHistory, teamId);
+	matches.insert(matches.end(), currentFiltered.begin(), currentFiltered.end());
+
+	std::sort(matches.begin(), matches.end(), [](const MatchRecord& lhs, const MatchRecord& rhs) {
+		if (lhs.seasonYear != rhs.seasonYear) {
+			return lhs.seasonYear < rhs.seasonYear;
+		}
+		if (lhs.date < rhs.date) {
+			return true;
+		}
+		if (rhs.date < lhs.date) {
+			return false;
+		}
+		if (lhs.matchweek != rhs.matchweek) {
+			return lhs.matchweek < rhs.matchweek;
+		}
+		if (lhs.homeId != rhs.homeId) {
+			return lhs.homeId < rhs.homeId;
+		}
+		return lhs.awayId < rhs.awayId;
+		});
+
+	return matches;
+}
+
+std::vector<MatchRecord> League::getLastMatchesForTeam(TeamId teamId, std::size_t count) const {
+	std::vector<MatchRecord> matches = getAllMatchesForTeam(teamId);
+	if (matches.size() > count) {
+		matches.erase(matches.begin(), matches.end() - static_cast<std::ptrdiff_t>(count));
+	}
+	std::reverse(matches.begin(), matches.end());
+	return matches;
+}
+
+const std::vector<MatchRecord>& League::getCurrentSeasonHistory() const {
+	return currentSeasonHistory;
+}
+
+const std::unordered_map<int, std::vector<MatchRecord>>& League::getArchivedHistoryBySeason() const {
+	return archivedHistoryBySeason;
+}
+
+MatchOutcome League::toOutcome(const MatchRecord& record, TeamId teamId) {
+	const bool isHome = record.homeId == teamId;
+	const int goalsFor = isHome ? record.homeGoals : record.awayGoals;
+	const int goalsAgainst = isHome ? record.awayGoals : record.homeGoals;
+	if (goalsFor > goalsAgainst) {
+		return MatchOutcome::Win;
+	}
+	if (goalsFor < goalsAgainst) {
+		return MatchOutcome::Loss;
+	}
+	return MatchOutcome::Draw;
+}
+
+std::vector<MatchOutcome> League::getRecentOutcomes(TeamId teamId, std::size_t count) const {
+	std::vector<MatchOutcome> outcomes;
+	const std::vector<MatchRecord> matches = getLastMatchesForTeam(teamId, count);
+	outcomes.reserve(matches.size());
+	for (const MatchRecord& record : matches) {
+		outcomes.push_back(toOutcome(record, teamId));
+	}
+	return outcomes;
+}
+
+std::string League::getRecentFormString(TeamId teamId, std::size_t count) const {
+	std::string form;
+	for (MatchOutcome outcome : getRecentOutcomes(teamId, count)) {
+		switch (outcome) {
+		case MatchOutcome::Win:
+			form.push_back('W');
+			break;
+		case MatchOutcome::Draw:
+			form.push_back('D');
+			break;
+		case MatchOutcome::Loss:
+			form.push_back('L');
+			break;
+		}
+	}
+	return form;
+}
+
+void League::archiveCompletedSeasonHistory(int seasonYear) {
+	if (seasonYear < 0) {
+		throw std::invalid_argument("invalid season year for archive");
+	}
+
+	if (currentSeasonHistory.empty()) {
+		return;
+	}
+
+	auto [it, inserted] = archivedHistoryBySeason.emplace(seasonYear, currentSeasonHistory);
+	if (!inserted) {
+		throw std::logic_error("season history already archived");
+	}
+}
+
+void League::resetCurrentSeasonHistory() {
+	currentSeasonHistory.clear();
+}
+
+void League::setCurrentSeasonYear(int seasonYear) {
+	if (seasonYear < 0) {
+		throw std::invalid_argument("season year cannot be negative");
+	}
+	currentSeasonYear = seasonYear;
+}
+
+int League::getCurrentSeasonYear() const {
+	return currentSeasonYear;
+}
+
+void League::resetForNewSeason(int newSeasonYear) {
+	if (newSeasonYear < 0) {
+		throw std::invalid_argument("new season year cannot be negative");
+	}
+
+	if (!currentSeasonHistory.empty()) {
+		if (currentSeasonYear < 0) {
+			throw std::logic_error("cannot archive season history without a valid current season year");
+		}
+		archiveCompletedSeasonHistory(currentSeasonYear);
+	}
+
+	clearFixture();
+	initializeStandings();
+	resetCurrentSeasonHistory();
+	setCurrentSeasonYear(newSeasonYear);
 	seasonFixtureGenerated = false;
 }
 

@@ -81,7 +81,6 @@ void Game::updateDaily() {
 }
 
 void Game::handleSeasonalEvents() {
-    const Date& nextPreseason = seasonPlan.getNextPreseasonStart();
 
     seasonStartChecks();
 
@@ -122,7 +121,7 @@ void Game::seasonStartChecks() {
     transferRoom.updatePlayersContractYearsInTeams();
 
     // Lig yeni sezon reset
-    league.resetForNewSeason();
+    league.resetForNewSeason(y);
     transferRoom.collectFreeAgentsFromTeams();
 
     // Plan + fixture

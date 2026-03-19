@@ -31,6 +31,8 @@ bool TransferRoom::transferPlayer(const std::string& fromTeam, const std::string
 	Footballer* player = seller->findPlayer(playerName);
 	if (!player) { return false; }
 
+	const PlayerId playerId = player->getId();
+
 	if (!negotiateContract(buyer, player)) {
 		return false;
 	}
@@ -38,12 +40,11 @@ bool TransferRoom::transferPlayer(const std::string& fromTeam, const std::string
 	buyer->spend(fee);
 	seller->earn(fee);
 
-	auto soldPlayer = seller->releasePlayer(playerName);
+	auto soldPlayer = seller->releasePlayer(playerId);
 	if (!soldPlayer) {
 		return false;
 	}
 
-	player->setTeam(buyer->getName());
 	buyer->addPlayer(std::move(soldPlayer));
 	return true;
 }
@@ -61,12 +62,12 @@ bool TransferRoom::transferFreeAgent(const std::string& teamName, const std::str
 	}	
 
 	auto player = it->get();
+	player->setTeam(team->getName(), team->getId());
 	negotiateContract(team, player);
 
 	std::unique_ptr<Footballer> movingPlayer = std::move(*it);
 	freeAgents.erase(it);
 
-	player->setTeam(team->getName());
 	team->addPlayer(std::move(movingPlayer));
 
 	return true;
@@ -81,6 +82,7 @@ bool TransferRoom::negotiateContract(Team* team, Footballer* player) {
 	if (!team->canAffordWage(wage)) {
 		return false;
 	}
+	player->setTeam(team->getName(), team->getId());
 	player->signContract(wage, years);
 	return true;
 }
@@ -90,7 +92,7 @@ void TransferRoom::collectFreeAgentsFromTeams() {
 		auto expiredPlayers = teamPtr->collectExpiredContracts();
 
 		for (auto& p : expiredPlayers) {
-			p->setTeam("Free Agent");
+			p->setTeam("Free Agent", 0);
 			addFreeAgent(std::move(p));
 		}
 	}

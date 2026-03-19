@@ -8,18 +8,20 @@
 
 #include"Types.h"
 #include"Team.h"
-#include"Footballer.h"
 #include"Date.h"
-#include"LeagueRules.h"
-#include"SeasonPlan.h"
 
 struct FixtureMatch {
+
 	bool played = false;
 	bool eventEnqueued = false;
+
 	TeamId homeId;
 	TeamId awayId;
+	int matchweek = 0;
+
 	FixtureMatch() = default;
-	FixtureMatch(TeamId h,const TeamId a, bool p = false): played(p), homeId(h), awayId(a) {}
+	FixtureMatch(TeamId h,const TeamId a, int mw): homeId(h), awayId(a), matchweek(mw) {}
+
 	int homeGoals = -1;
 	int awayGoals = -1;
 };
@@ -27,6 +29,22 @@ struct FixtureMatch {
 struct MatchResult {
 	int homeGoals = 0;
 	int awayGoals = 0;
+};
+
+struct MatchRecord {
+	Date date{ 1900, Month::January, 1 };
+	int seasonYear = 0;
+	TeamId homeId = 0;
+	TeamId awayId = 0;
+	int homeGoals = 0;
+	int awayGoals = 0;
+	int matchweek = 0;
+};
+
+enum class MatchOutcome {
+	Win,
+	Draw,
+	Loss
 };
 
 struct StandingsEntry {
@@ -49,8 +67,23 @@ private:
 	std::map<Date, std::vector<FixtureMatch>> fixture;
 	std::vector<std::optional<Date>> matchdayEndDates;
 	std::unordered_map<TeamId, StandingsEntry> standings;
+	std::vector<MatchRecord> currentSeasonHistory;
+	std::unordered_map<int, std::vector<MatchRecord>> archivedHistoryBySeason;
 	bool seasonFixtureGenerated = false;
-	
+	int currentSeasonYear = -1;
+
+	std::vector<MatchRecord>filterMatchesForTeam(const std::vector<MatchRecord>& records, TeamId teamId) const;
+	std::vector<MatchRecord>getAllMatchesForTeam(TeamId teamId) const;
+	static MatchOutcome toOutcome(const MatchRecord& record, TeamId teamId);
+	static bool recordBelongsToTeam(const MatchRecord& record, TeamId teamId);
+	bool hasCurrentSeasonHistoryRecord(const Date& date, TeamId homeId, TeamId awayId) const;
+
+	//Bu 3'lu fonksiyon tek bir rollover fonksiyonundan cagirilacak disari acilmayacak
+	void archiveCompletedSeasonHistory(int seasonYear);
+	void resetCurrentSeasonHistory();
+	void setCurrentSeasonYear(int seasonYear);
+	//--------------------------------------------------------------------------------
+
 public:
 
 	//League constructor
@@ -76,8 +109,13 @@ public:
 	//Takimin olup olmadigini kontrol eder ID ile
 	bool hasTeam(TeamId id) const;
 
+	//Oyuncuyu ID ile bulur
+	Footballer* findPlayerById(PlayerId id);
+	//Oyuncuyu ID ile bulur overloaded
+	const Footballer* findPlayerById(PlayerId id) const;
+
 	//Fixture mac uretir
-	void addFixtureMatch(int matchDayIndex, const Date& date, TeamId homeId, TeamId awayId);
+	void addFixtureMatch(int matchWeekIndex, const Date& date, TeamId homeId, TeamId awayId);
 
 	//Fixturu temizler
 	void clearFixture();
@@ -93,12 +131,28 @@ public:
 	//Maci arayip bulur overloaded
 	const FixtureMatch* findFixtureMatch(const Date& date, TeamId homeId, TeamId awayId) const;
 
+
+	//standings fonksiyonlari-----------------------------------------------------------------------
 	void initializeStandings();
 	void resetStandings();
 	void updateStandingsForMatch(TeamId homeId, TeamId awayId, const MatchResult& result);
 	void applyMatchResult(const Date& date, TeamId homeId, TeamId awayId, const MatchResult& result);
 	std::vector<StandingsEntry> getSortedStandings() const;
 	const std::unordered_map<TeamId, StandingsEntry>& getStandings() const;
+	//----------------------------------------------------------------------------------------------
+
+
+	//history fonksiyonlari-------------------------------------------------------------------------
+	const std::vector<MatchRecord>& getCurrentSeasonHistory() const;
+	const std::unordered_map<int, std::vector<MatchRecord>>& getArchivedHistoryBySeason() const;
+	std::vector<MatchRecord> getMatchesForTeamInCurrentSeason(TeamId teamId) const;
+	std::vector<MatchRecord> getMatchesForTeamInSeason(TeamId teamId, int seasonYear) const;
+	std::vector<MatchRecord> getLastMatchesForTeam(TeamId teamId, std::size_t count) const;
+	std::vector<MatchOutcome> getRecentOutcomes(TeamId teamId, std::size_t count) const;
+	std::string getRecentFormString(TeamId teamId, std::size_t count) const;
+	int getCurrentSeasonYear() const;                                                               
+   //-----------------------------------------------------------------------------------------------
+
 
 	std::optional<Date> tryGetMatchdayEndDate(int matchdayIndex) const;
 	Date getLastFixtureDate() const;
@@ -107,7 +161,7 @@ public:
 
 	bool isSeasonFixtureGenerated() const;
 	void setSeasonFixtureGenerated(bool generated);
-	void resetForNewSeason();
+	void resetForNewSeason(int newSeasonYear);
 
 
 	//debug

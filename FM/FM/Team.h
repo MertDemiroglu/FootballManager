@@ -29,43 +29,50 @@ public:
 
 	TeamId getId() const;
 
-	//takýmýn adýný döner
+	//takimin adini verir
 	const std::string& getName() const;
 
-	//oyuncu sayýsý döner
+	//oyuncu sayisini verir
 	std::size_t playerCount() const;
 
-	//Oyuncuyu takýma ekler
+	//Oyuncuyu takima ekler
 	void addPlayer(std::unique_ptr<Footballer> player);
 
-	//Oyuncuyu serbest býrakýr (pointer'ýný býrakýr)
+	//Oyuncuyu serbest birakir (pointer'ini birakir)
+	std::unique_ptr<Footballer> releasePlayer(PlayerId playerId);
+	//Oyuncuyu serbest birakir (pointer'ini birakir)
 	std::unique_ptr<Footballer> releasePlayer(const std::string& playerName);
 
-	//Oyuncuyu ismine göre bulur pointer'ýný döndürür
+	//Oyuncuyu ismine gore bulur pointer'ini verir
 	Footballer* findPlayer(const std::string& name);
+	const Footballer* findPlayer(const std::string& name) const;
 
-	//Transfer için yeterli para olup olmadýðýný kontrol eder
+	//Oyuncuyu ID'sine gore bulur pointer'ini verir
+	Footballer* findPlayerById(PlayerId id);
+	const Footballer* findPlayerById(PlayerId id) const;
+
+	//Transfer icin yeterli para olup olmadigini kontrol eder
 	bool canAffordTransfer(Money amount) const;
-	//Maaþ için yeterli para olup olmadýðýný kontrol eder
+	//Maas icin yeterli para olup olmadigini kontrol eder
 	bool canAffordWage(Money amount) const;
 
-	//Takýma para ekler
+	//Takima para ekler
 	void earn(Money amount);
-	//Takýmdan para azaltýr
+	//Takimdan para azaltir
 	void spend(Money amount);
 
-	//Bütçeyi belirler
+	//Butceyi belirler
 	void setBudgets();
-	//Aylýk maaþ ödemesini yapar
+	//Aylik maas odemesini yapar
 	void payWagesMonthly();
 
-	//takýmýn ortalama gücünü hesaplar
+	//takimin ortalama gucunu hesaplar
 	int calculateTeamRating() const;
 
-	//Kontratý biten oyuncularý bir vektöre koyup döndürür
+	//Kontrati biten oyunculari bir vektore koyup verir
 	std::vector<std::unique_ptr<Footballer>>collectExpiredContracts();
 
-	//kontrat sürelerini günceller ( 1 yýl azaltýr )
+	//kontrat surelerini gunceller ( 1 yil azaltir )
 	void updateContracts();
 	
 	void print(std::ostream& os) const;

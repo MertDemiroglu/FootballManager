@@ -7,6 +7,8 @@
 class Footballer {
 
 protected:
+	PlayerId playerId;
+	TeamId teamId;
 	std::unique_ptr<Contract> contract;
 	std::string name, position, team;
 	int age;
@@ -22,24 +24,28 @@ public:
 	//Deger hesabi (her tur kendine gore)
 	virtual double calculateMarketValue() const = 0;
 
+	//Oyuncunun ID'sini verir
+	PlayerId getId() const;
+	//Oyuncunun takým ID'sini verir
+	TeamId getTeamId() const;
 	//Oyuncunun ismi verir
 	const std::string& getName() const;
 	//Oyuncunun pozisyonu verir
 	const std::string& getPosition() const;
-	//Oyuncunun takýmýnýn ismini verir
+	//Oyuncunun takiminin ismini verir
 	const std::string& getTeam() const;
-	//Oyuncunun yasýný verir
+	//Oyuncunun yasini verir
 	int getAge() const;
 
 	
-	//Takým adýný set eder
-	void setTeam(const std::string& newTeam);
+	//Takým bilgisini set eder
+	void setTeam(const std::string& newTeam, TeamId newTeamId);
 	
 	//Kontrat imzalama
 	void signContract(Money wage, int years);
-	//Kontratý verir
+	//Kontrati verir
 	const Contract* getContract() const;
-	//Kontrat süresini 1 yil azaltir
+	//Kontrat suresini 1 yil azaltir
 	void advanceContractYear();
 	
 	virtual void print(std::ostream& os) const;

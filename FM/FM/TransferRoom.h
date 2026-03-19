@@ -2,7 +2,7 @@
 #include<vector>
 #include<memory>
 #include<string>
-#include <algorithm>
+#include<algorithm>
 
 #include"Types.h"
 

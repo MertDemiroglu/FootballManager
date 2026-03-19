@@ -3,15 +3,26 @@
 
 class Contract {
 private:
+	PlayerId playerId;
+	TeamId teamId;
 	Money wage;
 	int yearsRemaining;
 public:
 	//Contract constructor
-	Contract(Money wage, int years);
-	//Kontrat süresi 1 yýl azaltýr
+	Contract(PlayerId playerId, TeamId teamId, Money wage, int years);
+
+	//Kontrat suresini 1 yýl azaltir
 	void advanceYear();
-	//Kontratýn bitip bitmediðini kontrol eder
+	//Kontratin bitip bitmedigini kontrol eder
 	bool isExpired() const;
-	//Yýllýk maaþý döner
+	//Yillik maasi verir
 	Money getWage() const;
+
+
+	//Oyuncunun ID'sini verir
+	PlayerId getPlayerId() const;
+	//Oyuncunun takiminin ID'sini verir
+	TeamId getTeamId() const;
+	//Oyuncunun takiminin ID'sini set eder
+	void setTeamId(TeamId newTeamId);
 };

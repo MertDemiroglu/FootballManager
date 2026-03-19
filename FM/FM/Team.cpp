@@ -53,11 +53,38 @@ Footballer* Team::findPlayer(const std::string& name) {
     return nullptr;
 }
 
-//Takima oyuncu ekler
+const Footballer* Team::findPlayer(const std::string& name) const {
+    for (const auto& p : players) {
+        if (p->getName() == name) {
+            return p.get();
+        }
+    }
+    return nullptr;
+}
+
+Footballer* Team::findPlayerById(PlayerId playerId) {
+    for (auto& p : players) {
+        if (p->getId() == playerId) {
+            return p.get();
+        }
+    }
+    return nullptr;
+}
+
+const Footballer* Team::findPlayerById(PlayerId playerId) const {
+    for (const auto& p : players) {
+        if (p->getId() == playerId) {
+            return p.get();
+        }
+    }
+    return nullptr;
+}
+
 void Team::addPlayer(std::unique_ptr<Footballer> player) {
     if (!player) {
         return;
     }
+    player->setTeam(name, id);
     players.push_back(std::move(player));
 }
 
@@ -73,8 +100,24 @@ std::unique_ptr<Footballer> Team::releasePlayer(const std::string& playerName) {
 
     std::unique_ptr<Footballer> released = std::move(*it);
 
+    released->setTeam("Free Agent", 0);
     players.erase(it);
 
+    return released;
+}
+
+std::unique_ptr<Footballer> Team::releasePlayer(PlayerId playerId) {
+    auto it = std::find_if(players.begin(), players.end(), [&](const std::unique_ptr<Footballer>& p) {
+        return p->getId() == playerId;
+        });
+
+    if (it == players.end()) {
+        return nullptr;
+    }
+
+    std::unique_ptr<Footballer> released = std::move(*it);
+    released->setTeam("Free Agent", 0);
+    players.erase(it);
     return released;
 }
 
@@ -113,6 +156,7 @@ std::vector<std::unique_ptr<Footballer>> Team::collectExpiredContracts() {
     while (it != players.end()) {
        auto c = (*it)->getContract();
        if (c && c->isExpired()) {
+           (*it)->setTeam("Free Agent", 0);
            leavingPlayers.push_back(std::move(*it));
            it = players.erase(it);
        }

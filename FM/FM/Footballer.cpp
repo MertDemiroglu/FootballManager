@@ -1,8 +1,25 @@
 #include"Footballer.h"
 
-Footballer::Footballer(const std::string& name, const std::string& position, const std::string& team, int age) : name(name), position(position), team(team), age(age){}
+#include<atomic>
 
-//get fonksiyonlarý
+namespace {
+    PlayerId generatePlayerId() {
+        static std::atomic<PlayerId> nextId{ 1 };
+        return nextId++;
+    }
+
+}
+Footballer::Footballer(const std::string& name, const std::string& position, const std::string& team, int age) : playerId(generatePlayerId()), name(name), position(position), team(team), teamId(0), age(age) {}
+
+PlayerId Footballer::getId() const {
+    return playerId;
+}
+
+TeamId Footballer::getTeamId() const {
+    return teamId;
+}
+
+//get fonksiyonlari
 
 const std::string& Footballer::getName() const {
     return name;
@@ -20,16 +37,21 @@ int Footballer::getAge() const {
     return age;
 }
 
-//set fonksiyonlarý
+//set fonksiyonlari
 
-void Footballer::setTeam(const std::string& newTeam) {
+void Footballer::setTeam(const std::string& newTeam, TeamId newTeamId) {
     team = newTeam;
+    teamId = newTeamId;
+
+    if (contract) {
+        contract->setTeamId(newTeamId);
+    }
 }
 
-//contract fonksiyonlarý
+//contract fonksiyonlari
 
 void Footballer::signContract(Money wage, int years) {
-    contract = std::make_unique<Contract>(wage, years);
+    contract = std::make_unique<Contract>(playerId, teamId, wage, years);
 }
 const Contract* Footballer::getContract() const{
     return contract.get();
@@ -38,7 +60,7 @@ const Contract* Footballer::getContract() const{
 //print
 
 void Footballer::print(std::ostream& os) const {
-    os << "Name: " << name << ", Age: " << age<< ", Position: " << position << ", Team: " << team;
+    os << "Name: " << name << ", Id: " << playerId << ", Age: " << age << ", Position: " << position << ", Team: " << team;
 }
 
 
