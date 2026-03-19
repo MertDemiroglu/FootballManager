@@ -5,6 +5,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include "Date.h"
 #include "Game.h"
@@ -73,8 +74,181 @@ namespace {
         }
         return dateToString(*date);
     }
-
 }
+struct StandingsTotals {
+    int totalPlayed = 0;
+    int totalGoalsFor = 0;
+    int totalGoalsAgainst = 0;
+    int totalWins = 0;
+    int totalLosses = 0;
+};
+
+StandingsTotals computeStandingsTotals(const std::vector<StandingsEntry>& sorted) {
+    StandingsTotals totals;
+    for (const auto& entry : sorted) {
+        totals.totalPlayed += entry.played;
+        totals.totalGoalsFor += entry.goalsFor;
+        totals.totalGoalsAgainst += entry.goalsAgainst;
+        totals.totalWins += entry.wins;
+        totals.totalLosses += entry.losses;
+    }
+    return totals;
+}
+
+void printSeasonStandings(const League& league, int seasonYear) {
+    const auto sorted = league.getSortedStandings();
+    const int teamCount = static_cast<int>(league.getTeams().size());
+
+    assertOrThrow(!sorted.empty(),
+        "Standings print failed: sorted standings cannot be empty.");
+    assertOrThrow(static_cast<int>(sorted.size()) == teamCount,
+        "Standings print failed: standings entry count must match team count.");
+
+    std::cout << "[Standings] seasonYear=" << seasonYear << "\n";
+    std::cout << "#  "
+        << std::left << std::setw(20) << "Team"
+        << std::right << std::setw(4) << "P"
+        << std::setw(4) << "W"
+        << std::setw(4) << "D"
+        << std::setw(4) << "L"
+        << std::setw(5) << "GF"
+        << std::setw(5) << "GA"
+        << std::setw(5) << "GD"
+        << std::setw(5) << "Pts"
+        << "\n";
+
+    for (std::size_t i = 0; i < sorted.size(); ++i) {
+        const StandingsEntry& entry = sorted[i];
+        const std::string& teamName = league.getTeamName(entry.teamId);
+        assertOrThrow(!teamName.empty(),
+            "Standings print failed: team name lookup cannot be empty.");
+
+        std::cout << std::setw(2) << (i + 1) << ". "
+            << std::left << std::setw(20) << teamName
+            << std::right << std::setw(4) << entry.played
+            << std::setw(4) << entry.wins
+            << std::setw(4) << entry.draws
+            << std::setw(4) << entry.losses
+            << std::setw(5) << entry.goalsFor
+            << std::setw(5) << entry.goalsAgainst
+            << std::setw(5) << entry.goalDifference
+            << std::setw(5) << entry.points
+            << "\n";
+    }
+}
+
+void printStandingsSummary(const League& league, int seasonYear) {
+    const auto sorted = league.getSortedStandings();
+    const int teamCount = static_cast<int>(league.getTeams().size());
+
+    assertOrThrow(!sorted.empty(),
+        "Standings summary failed: sorted standings cannot be empty.");
+    assertOrThrow(static_cast<int>(sorted.size()) == teamCount,
+        "Standings summary failed: standings entry count must match team count.");
+
+    const std::string& champion = league.getTeamName(sorted.front().teamId);
+    const std::string& bottom = league.getTeamName(sorted.back().teamId);
+    assertOrThrow(!champion.empty(),
+        "Standings summary failed: champion team name cannot be empty.");
+    assertOrThrow(!bottom.empty(),
+        "Standings summary failed: bottom team name cannot be empty.");
+
+    const StandingsTotals totals = computeStandingsTotals(sorted);
+
+    std::cout << "[StandingsSummary] seasonYear=" << seasonYear
+        << " champion=" << champion
+        << " bottom=" << bottom
+        << " teams=" << sorted.size()
+        << " totalPlayed=" << totals.totalPlayed
+        << " totalGF=" << totals.totalGoalsFor
+        << " totalGA=" << totals.totalGoalsAgainst
+        << " totalWins=" << totals.totalWins
+        << " totalLosses=" << totals.totalLosses
+        << "\n";
+}
+
+void maybeLogWeekly(const Date& date,
+    const Game& game,
+    const League& league,
+    std::optional<Date>& lastWeeklyLogDate) {
+    if (date.getDayOfWeek() != 1 || (lastWeeklyLogDate.has_value() && dateEquals(*lastWeeklyLogDate, date))) {
+        return;
+    }
+
+    std::cout << "[Weekly] date=" << dateToString(date)
+        << " state=" << stateToString(game.getState())
+        << " allMatchesPlayed=" << (league.allMatchesPlayed() ? "true" : "false")
+        << "\n";
+    lastWeeklyLogDate = date;
+}
+
+void maybeLogMonthBoundary(const Date& date,
+    const Game& game,
+    const TransferWindow& summer,
+    const TransferWindow& winter,
+    std::optional<std::string>& lastNewMonthLogKey) {
+    const std::string monthLogKey = std::to_string(date.getYear()) + "-" +
+        std::to_string(static_cast<int>(date.getMonth()));
+    if (!date.isNewMonth() || (lastNewMonthLogKey.has_value() && *lastNewMonthLogKey == monthLogKey)) {
+        return;
+    }
+
+    std::cout << "[NewMonth] date=" << dateToString(date)
+        << " state=" << stateToString(game.getState())
+        << " summerOpen=" << (summer.contains(date) ? "true" : "false")
+        << " winterOpen=" << (winter.contains(date) ? "true" : "false")
+        << " transferOpen=" << (game.getTransferRoom().isOpen() ? "true" : "false")
+        << "\n";
+    lastNewMonthLogKey = monthLogKey;
+}
+
+void maybeLogTransferWindowTransitions(const Date& preDate,
+    const Date& postDate,
+    const TransferWindow& preSummer,
+    const TransferWindow& postSummer,
+    const TransferWindow& preWinter,
+    const TransferWindow& postWinter,
+    bool failFast) {
+    const bool summerOpenBefore = preSummer.contains(preDate);
+    const bool summerOpenNow = postSummer.contains(postDate);
+    const bool winterOpenBefore = preWinter.contains(preDate);
+    const bool winterOpenNow = postWinter.contains(postDate);
+
+    if (!summerOpenBefore && summerOpenNow) {
+        std::cout << "[TransferWindowOpen] type=Summer date=" << dateToString(postSummer.start)
+            << " observedOn=" << dateToString(postDate)
+            << " previousSnapshot=" << dateToString(preDate)
+            << "\n";
+    }
+    if (summerOpenBefore && !summerOpenNow) {
+        const bool closeBoundaryIsClosed = !preSummer.contains(preSummer.endExclusive);
+        assertOrThrow(!failFast || closeBoundaryIsClosed,
+            "Summer transfer window must be closed on endExclusive boundary at " +
+            dateToString(preSummer.endExclusive));
+        std::cout << "[TransferWindowClose] type=Summer date=" << dateToString(preSummer.endExclusive)
+            << " observedOn=" << dateToString(postDate)
+            << " previousSnapshot=" << dateToString(preDate)
+            << "\n";
+    }
+
+    if (!winterOpenBefore && winterOpenNow) {
+        std::cout << "[TransferWindowOpen] type=Winter date=" << dateToString(postWinter.start)
+            << " observedOn=" << dateToString(postDate)
+            << " previousSnapshot=" << dateToString(preDate)
+            << "\n";
+    }
+    if (winterOpenBefore && !winterOpenNow) {
+        const bool closeBoundaryIsClosed = !preWinter.contains(preWinter.endExclusive);
+        assertOrThrow(!failFast || closeBoundaryIsClosed,
+            "Winter transfer window must be closed on endExclusive boundary at " +
+            dateToString(preWinter.endExclusive));
+        std::cout << "[TransferWindowClose] type=Winter date=" << dateToString(preWinter.endExclusive)
+            << " observedOn=" << dateToString(postDate)
+            << " previousSnapshot=" << dateToString(preDate)
+            << "\n";
+    }
+}
+
 void validateSortedStandings(const League& league) {
     const auto sorted = league.getSortedStandings();
     for (std::size_t i = 1; i < sorted.size(); ++i) {
@@ -185,9 +359,7 @@ int main() {
 
         bool lastAllMatchesPlayed = bootLeague.allMatchesPlayed();
         bool seasonOutcomeValidated = false;
-        bool prevTransferOpen = bootPlan.getSummerWindow().contains(game.getDate()) || bootPlan.getWinterWindow().contains(game.getDate());
-        bool wasSummerOpen = bootPlan.getSummerWindow().contains(game.getDate());
-        bool wasWinterOpen = bootPlan.getWinterWindow().contains(game.getDate());
+        int lastPrintedStandingsSeasonYear = bootPlan.getSeasonYear() - 1;
 
         const int expectedTotalMatches =
             (rules.teamCount * (rules.teamCount - 1));
@@ -205,6 +377,8 @@ int main() {
             << "\n";
 
         for (int simDay = 1; simDay <= simulationDays; ++simDay) {
+            const Date preUpdateDate = game.getDate();
+            const SeasonPlan preUpdatePlan = game.getSeasonPlan();
             game.updateDaily();
 
             const Date& date = game.getDate();
@@ -222,60 +396,15 @@ int main() {
                     << "\n";
             }
 
-            const std::string monthLogKey = std::to_string(date.getYear()) + "-" +
-                std::to_string(static_cast<int>(date.getMonth()));
-            if (date.isNewMonth() && (!lastNewMonthLogKey.has_value() || *lastNewMonthLogKey != monthLogKey)) {
-                std::cout << "[NewMonth] date=" << dateToString(date)
-                    << " state=" << stateToString(game.getState())
-                    << " summerOpen=" << (summer.contains(date) ? "true" : "false")
-                    << " winterOpen=" << (winter.contains(date) ? "true" : "false")
-                    << " transferOpen=" << (game.getTransferRoom().isOpen() ? "true" : "false")
-                    << "\n";
-                lastNewMonthLogKey = monthLogKey;
-            }
-
-            if (date.getDayOfWeek() == 1 && (!lastWeeklyLogDate.has_value() || !dateEquals(*lastWeeklyLogDate, date))) {
-                std::cout << "[Weekly] date=" << dateToString(date)
-                    << " state=" << stateToString(game.getState())
-                    << " allMatchesPlayed=" << (league.allMatchesPlayed() ? "true" : "false")
-                    << "\n";
-                lastWeeklyLogDate = date;
-            }
-
-            const bool summerOpenNow = summer.contains(date);
-            const bool winterOpenNow = winter.contains(date);
-
-          
-            if (!wasSummerOpen && summerOpenNow) {
-                std::cout << "[TransferWindowOpen] type=Summer date=" << dateToString(date) << "\n";
-            }
-            if (wasSummerOpen && !summerOpenNow) {
-                const bool closeBoundaryIsClosed = !summer.contains(summer.endExclusive);
-                assertOrThrow(!failFast || closeBoundaryIsClosed,
-                    "Summer transfer window must be closed on endExclusive boundary at " +
-                    dateToString(summer.endExclusive));
-                std::cout << "[TransferWindowClose] type=Summer date=" << dateToString(date)
-                    << " closeBoundary=" << dateToString(summer.endExclusive)
-                    << "\n";
-            }
-
-          
-            if (!wasWinterOpen && winterOpenNow) {
-                std::cout << "[TransferWindowOpen] type=Winter date=" << dateToString(date) << "\n";
-            }
-            if (wasWinterOpen && !winterOpenNow) {
-                const bool closeBoundaryIsClosed = !winter.contains(winter.endExclusive);
-                assertOrThrow(!failFast || closeBoundaryIsClosed,
-                    "Winter transfer window must be closed on endExclusive boundary at " +
-                    dateToString(winter.endExclusive));
-                std::cout << "[TransferWindowClose] type=Winter date=" << dateToString(date)
-                    << " closeBoundary=" << dateToString(winter.endExclusive)
-                    << "\n";
-            }
-
-            
-            wasSummerOpen = summerOpenNow;
-            wasWinterOpen = winterOpenNow;
+            maybeLogMonthBoundary(date, game, summer, winter, lastNewMonthLogKey);
+            maybeLogWeekly(date, game, league, lastWeeklyLogDate);
+            maybeLogTransferWindowTransitions(preUpdateDate,
+                date,
+                preUpdatePlan.getSummerWindow(),
+                summer,
+                preUpdatePlan.getWinterWindow(),
+                winter,
+                failFast);
 
             if (date.getMonth() == Month::July && date.getDay() == 1 && date.getYear() != lastSeasonYearLogged) {
                 lastSeasonYearLogged = date.getYear();
@@ -367,6 +496,12 @@ int main() {
                     << " seasonEnd=" << optionalDateToString(seasonEnd)
                     << " state=" << stateToString(game.getState())
                     << "\n";
+
+                if (lastPrintedStandingsSeasonYear != plan.getSeasonYear()) {
+                    printSeasonStandings(league, plan.getSeasonYear());
+                    printStandingsSummary(league, plan.getSeasonYear());
+                    lastPrintedStandingsSeasonYear = plan.getSeasonYear();
+                }
 
                 if (seasonEnd.has_value() && dateGreaterOrEqual(date, *seasonEnd)) {
                     std::cout << "[PostSeasonCheck] date=" << dateToString(date)
