@@ -22,6 +22,7 @@ qt_add_qml_module(FM_UI
     VERSION 1.0
     QML_FILES
         Main.qml
+        HomeView.qml
         NewGameView.qml
         DashboardView.qml
         StandingsView.qml

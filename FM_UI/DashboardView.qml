@@ -8,8 +8,10 @@ ScrollView {
     signal openTeamRequested()
 
     property var dashboard: ({})
+    property bool hasActiveGame: gameFacade.hasStartedGame()
 
     function refreshData() {
+        hasActiveGame = gameFacade.hasStartedGame()
         dashboard = gameFacade.getDashboard()
     }
 
@@ -42,6 +44,7 @@ ScrollView {
             radius: 10
             color: "white"
             border.color: "#d8d8d8"
+            visible: root.hasActiveGame
 
             ColumnLayout {
                 anchors.fill: parent
@@ -71,6 +74,7 @@ ScrollView {
             radius: 10
             color: "white"
             border.color: "#d8d8d8"
+            visible: root.hasActiveGame
 
             ColumnLayout {
                 anchors.fill: parent
@@ -105,9 +109,16 @@ ScrollView {
             }
         }
 
+        Label {
+            visible: !root.hasActiveGame
+            text: "Start a new game from the home screen to view the dashboard."
+            color: "#666666"
+        }
+
         RowLayout {
             Layout.fillWidth: true
             spacing: 16
+            visible: root.hasActiveGame
 
             Rectangle {
                 Layout.fillWidth: true
@@ -191,6 +202,7 @@ ScrollView {
             radius: 10
             color: "white"
             border.color: "#d8d8d8"
+            visible: root.hasActiveGame
 
             ColumnLayout {
                 anchors.fill: parent
@@ -249,6 +261,7 @@ ScrollView {
         RowLayout {
             Layout.fillWidth: true
             spacing: 12
+            visible: root.hasActiveGame
 
             Button {
                 text: "Next Day"

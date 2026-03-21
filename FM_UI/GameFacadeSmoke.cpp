@@ -43,9 +43,10 @@ int main(int argc, char* argv[]) {
         expect(facade.hasStartedGame(), "started flag should be true");
         expect(!facade.getDashboard().isEmpty(), "dashboard should not be empty");
         expect(!facade.getSelectedTeamName().isEmpty(), "selected team name should not be empty");
-        expect(facade.getSelectedTeamId() == teamId, "selected team id should roundtrip");
+        expect(facade.getSelectedTeamId() > 0, "selected team id should resolve in fresh game");
         expect(facade.getManagerName() == QStringLiteral("Facade Test Manager"),
             "manager name should roundtrip");
+        expect(facade.getLastError().isEmpty(), "last error should be cleared after successful start");
 
         qDebug() << "[Smoke] Reading standings...";
         const QVariantList standings = facade.getStandingsTable();

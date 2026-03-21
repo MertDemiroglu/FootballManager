@@ -4,13 +4,14 @@
 #include "Team.h"
 #include "Footballer.h"
 
+#include <QDebug>
 
 #include <algorithm>
+#include <exception>
 #include <array>
 #include <optional>
 #include <string>
 #include <vector>
-
 
 namespace {
     QVariantMap missingPlayerMap() {
@@ -53,7 +54,7 @@ GameFacade::GameFacade(QObject* parent)
     : QObject(parent) {
 }
 
-GameFacade::~GameFacade(){}
+GameFacade::~GameFacade() {}
 
 Game* GameFacade::ensureGame() {
     if (!game) {
@@ -67,8 +68,15 @@ const Game* GameFacade::ensureGame() const {
 }
 
 bool GameFacade::hasValidSelectedTeam() const {
+    if (!gameStarted || selectedTeamId == 0) {
+        return false;
+    }   
     const Game* currentGame = ensureGame();
-    return currentGame && selectedTeamId != 0 && currentGame->getLeague().hasTeam(selectedTeamId);
+    return currentGame && currentGame->getLeague().hasTeam(selectedTeamId);
+}
+
+void GameFacade::setLastError(const QString& errorMessage) {
+    lastError = errorMessage;
 }
 
 QVariantList GameFacade::getTeamSelectionList() const {
@@ -91,7 +99,7 @@ QVariantList GameFacade::getTeamSelectionList() const {
             fromStd(team->getName()),
             team->calculateTeamRating(),
             static_cast<int>(team->playerCount())
-            });
+        });
     }
 
     std::sort(summaries.begin(), summaries.end(), [](const TeamSummary& lhs, const TeamSummary& rhs) {
@@ -113,52 +121,102 @@ QVariantList GameFacade::getTeamSelectionList() const {
 
 bool GameFacade::startNewGame(int teamId, const QString& newManagerName) {
     try {
+        const QString trimmedManagerName = newManagerName.trimmed();
         if (teamId <= 0) {
+            setLastError(QStringLiteral("Please choose a valid team."));
+            qWarning() << "[GameFacade::startNewGame] Rejected invalid team id:" << teamId;
+            emit gameStateChanged();
             return false;
         }
  
-        Game* bootGame = ensureGame();
-        if (!bootGame) {
+        if (trimmedManagerName.isEmpty()) {
+            setLastError(QStringLiteral("Please enter a manager name."));
+            qWarning() << "[GameFacade::startNewGame] Rejected empty manager name.";
+            emit gameStateChanged();
+            return false;
+        }
+
+        const Game* selectionGame = ensureGame();
+        if (!selectionGame) {
+            setLastError(QStringLiteral("Unable to prepare a new game."));
+            qWarning() << "[GameFacade::startNewGame] Could not access selection game state.";
+            emit gameStateChanged();
             return false;
         }
 
         const TeamId requestedTeamId = static_cast<TeamId>(teamId);
-        if (!bootGame->getLeague().hasTeam(requestedTeamId)) {
+        const Team* requestedTeam = selectionGame->getLeague().findTeamById(requestedTeamId);
+        if (!requestedTeam) {
+            setLastError(QStringLiteral("Selected team could not be found."));
+            qWarning() << "[GameFacade::startNewGame] Team id is not present in selection state:" << teamId;
+            emit gameStateChanged();
             return false;
         }
 
-        game = std::make_unique<Game>();
+        const QString requestedTeamName = fromStd(requestedTeam->getName());
+        std::unique_ptr<Game> newGame = std::make_unique<Game>();
+        Team* teamInNewGame = newGame->getLeague().getTeam(requestedTeamName.toStdString());
+        if (!teamInNewGame) {
+            setLastError(QStringLiteral("Selected team is unavailable in the new game session."));
+            qWarning() << "[GameFacade::startNewGame] Team name not found in fresh game:" << requestedTeamName;
+            emit gameStateChanged();
+            return false;
+        }
 
-        selectedTeamId = requestedTeamId;
-        managerName = newManagerName.trimmed();
+        newGame->setUserTeam(teamInNewGame->getName());
 
-        const std::string selectedTeamName = game->getLeague().getTeamName(selectedTeamId);
-        game->setUserTeam(selectedTeamName);
+        game = std::move(newGame);
+        selectedTeamId = teamInNewGame->getId();
+        managerName = trimmedManagerName;
 
         gameStarted = true;
+
+        setLastError(QString());
+
+        qDebug() << "[GameFacade::startNewGame] Started new game with team" << requestedTeamName << "resolved id" << selectedTeamId;
         emit gameStateChanged();
         return true;
     }
     catch (const std::exception& ex) {
         qWarning() << "[GameFacade::startNewGame] Exception:" << ex.what();
-        gameStarted = false;
-        selectedTeamId = 0;
+        if (!gameStarted) {
+            selectedTeamId = 0;
+            managerName.clear();
+        }
+        setLastError(QStringLiteral("Failed to start a new game. Please try again."));
+        emit gameStateChanged();
         return false;
     }
     catch (...) {
         qWarning() << "[GameFacade::startNewGame] Unknown exception";
-        gameStarted = false;
-        selectedTeamId = 0;
+        if (!gameStarted) {
+            selectedTeamId = 0;
+            managerName.clear();
+        }
+        setLastError(QStringLiteral("Failed to start a new game. Please try again."));
+        emit gameStateChanged();
         return false;
     }
 }
 
+bool GameFacade::hasStartedGame() const {
+    return gameStarted;
+}
+
 QString GameFacade::getCurrentDateText() const {
+    if (!gameStarted) {
+        return QString();
+    }
+
     const Game* currentGame = ensureGame();
     return currentGame ? formatDate(currentGame->getDate()) : QString();
 }
 
 QString GameFacade::getCurrentStateText() const {
+    if (!gameStarted) {
+        return QString();
+    }
+
     const Game* currentGame = ensureGame();
     return currentGame ? formatGameState(currentGame->getState()) : QString();
 }
@@ -176,6 +234,19 @@ int GameFacade::getSelectedTeamId() const {
 
 QString GameFacade::getManagerName() const {
     return managerName;
+}
+
+QString GameFacade::getLastError() const {
+    return lastError;
+}
+
+void GameFacade::clearLastError() {
+    if (lastError.isEmpty()) {
+        return;
+    }
+
+    lastError.clear();
+    emit gameStateChanged();
 }
 
 QVariantMap GameFacade::getDashboard() const {
@@ -256,6 +327,9 @@ bool GameFacade::advanceDays(int count) {
 
 QVariantList GameFacade::getStandingsTable() const {
     QVariantList table;
+    if (!gameStarted) {
+        return table;
+    }
     const League& league = ensureGame()->getLeague();
     const std::vector<StandingsEntry> standings = league.getSortedStandings();
 
@@ -328,11 +402,11 @@ QVariantList GameFacade::getCurrentTeamPlayers() const {
 }
 
 QVariantMap GameFacade::getPlayerDetails(int playerId) const {
-    const League& league = ensureGame()->getLeague();
-    if (playerId <= 0) {
+    if (!gameStarted || playerId <= 0) {
         return missingPlayerMap();
     }
 
+    const League& league = ensureGame()->getLeague();
     const Footballer* player = league.findPlayerById(static_cast<PlayerId>(playerId));
     if (!player) {
         return missingPlayerMap();

@@ -23,7 +23,9 @@ enum class GameState;
 
 class GameFacade : public QObject {
     Q_OBJECT
-        Q_DISABLE_COPY_MOVE(GameFacade)
+
+    Q_DISABLE_COPY_MOVE(GameFacade)
+    Q_PROPERTY(QString lastError READ getLastError NOTIFY gameStateChanged)
 
 public:
     explicit GameFacade(QObject* parent = nullptr);
@@ -38,6 +40,8 @@ public:
     Q_INVOKABLE QString getSelectedTeamName() const;
     Q_INVOKABLE int getSelectedTeamId() const;
     Q_INVOKABLE QString getManagerName() const;
+    Q_INVOKABLE QString getLastError() const;
+    Q_INVOKABLE void clearLastError();
 
     Q_INVOKABLE QVariantMap getDashboard() const;
 
@@ -60,10 +64,12 @@ private:
     TeamId selectedTeamId = 0;
     bool gameStarted = false;
     QString managerName;
+    QString lastError;
 
     Game* ensureGame();
     const Game* ensureGame() const;
     bool hasValidSelectedTeam() const;
+    void setLastError(const QString& errorMessage);
 
     QString formatDate(const Date& date) const;
     QString formatGameState(GameState state) const;

@@ -11,8 +11,10 @@ Item {
     property var upcomingMatches: []
     property var players: []
     property var selectedPlayerDetails: ({})
+    property bool hasActiveGame: gameFacade.hasStartedGame()
 
     function refreshData() {
+        hasActiveGame = gameFacade.hasStartedGame()
         seasonStats = gameFacade.getCurrentTeamSeasonStats()
         recentMatches = gameFacade.getCurrentTeamMatches()
         upcomingMatches = gameFacade.getCurrentTeamUpcomingMatches(5)
@@ -20,6 +22,9 @@ Item {
     }
 
     function openPlayerDetails(playerId) {
+     if (!root.hasActiveGame) {
+            return
+        }
         selectedPlayerDetails = gameFacade.getPlayerDetails(playerId)
         playerDialog.open()
     }
@@ -67,9 +72,16 @@ Item {
             color: "#666666"
         }
 
+        Label {
+            visible: !root.hasActiveGame
+            text: "No active game. Start a new game to view team details."
+            color: "#666666"
+        }
+
         ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            visible: root.hasActiveGame
             clip: true
 
             ColumnLayout {

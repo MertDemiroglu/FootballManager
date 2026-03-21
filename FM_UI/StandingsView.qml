@@ -7,8 +7,11 @@ Item {
     signal backRequested()
 
     property var standingsTable: []
+    property bool hasActiveGame: gameFacade.hasStartedGame()
+
 
     function refreshData() {
+        hasActiveGame = gameFacade.hasStartedGame()
         standingsTable = gameFacade.getStandingsTable()
     }
 
@@ -46,6 +49,7 @@ Item {
         Rectangle {
             Layout.fillWidth: true
             radius: 8
+            visible: root.hasActiveGame
             color: "#eef1f5"
             border.color: "#d2d8df"
             implicitHeight: 42
@@ -72,9 +76,16 @@ Item {
             }
         }
 
+        Label {
+            visible: !root.hasActiveGame
+            text: "No active game. Start a new game to view standings."
+            color: "#666666"
+        }
+
         ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            visible: root.hasActiveGame
             clip: true
 
             Column {

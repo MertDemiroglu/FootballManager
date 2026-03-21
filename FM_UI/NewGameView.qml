@@ -4,6 +4,7 @@ import QtQuick.Layouts
 
 Item {
     id: root
+    signal backRequested()
     signal gameStarted()
 
     property var teamList: []
@@ -31,6 +32,10 @@ Item {
         }
     }
 
+        function trimmedManagerName() {
+        return managerNameField.text.trim()
+    }
+
     Component.onCompleted: refreshData()
 
     Connections {
@@ -47,7 +52,7 @@ Item {
 
         Rectangle {
             width: Math.min(parent.width - 48, 720)
-            height: Math.min(parent.height - 48, 760)
+            height: Math.min(parent.height - 48, 780)
             anchors.centerIn: parent
             radius: 10
             color: "white"
@@ -85,6 +90,11 @@ Item {
                         id: managerNameField
                         Layout.fillWidth: true
                         placeholderText: "Manager name"
+                        onTextChanged: {
+                            if (gameFacade.lastError) {
+                                gameFacade.clearLastError()
+                            }
+                        }
                     }
                 }
 
@@ -123,9 +133,13 @@ Item {
 
                                 MouseArea {
                                     anchors.fill: parent
+                                    enabled: !!parent.modelData
                                     onClicked: {
                                         root.selectedTeamId = parent.modelData.teamId
                                         root.selectedTeamName = parent.modelData.teamName || ""
+                                        if (gameFacade.lastError) {
+                                            gameFacade.clearLastError()
+                                        }
                                     }
                                 }
 
@@ -166,7 +180,7 @@ Item {
                                 Label {
                                     anchors.centerIn: parent
                                     visible: root.teamList.length === 0
-                                    text: "No data"
+                                    text: "No teams are available right now."
                                     color: "#666666"
                                 }
                             }
@@ -174,9 +188,22 @@ Item {
                     }
                 }
 
+                Label {
+                    visible: !!gameFacade.lastError
+                    text: gameFacade.lastError
+                    color: "#b3261e"
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
+                }
+
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 12
+
+                    Button {
+                        text: "Back"
+                        onClicked: root.backRequested()
+                    }
 
                     Label {
                         Layout.fillWidth: true
@@ -188,10 +215,10 @@ Item {
 
                     Button {
                         text: "Start Game"
-                        enabled: root.selectedTeamId > 0
+                        enabled: root.selectedTeamId > 0 && root.trimmedManagerName().length > 0 && root.teamList.length > 0
                         onClicked: {
-                            var managerName = managerNameField.text
-                            if (gameFacade.startNewGame(root.selectedTeamId, managerName)) {
+                           var didStart = gameFacade.startNewGame(root.selectedTeamId, root.trimmedManagerName())
+                            if (didStart) {
                                 root.gameStarted()
                             }
                         }

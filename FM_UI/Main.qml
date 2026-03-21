@@ -3,7 +3,6 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import FM_UI
 
-
 ApplicationWindow {
     id: root
     visible: true
@@ -14,11 +13,11 @@ ApplicationWindow {
     title: "Football Manager"
     color: "#f5f5f5"
 
-     property string currentView: gameFacade.hasStartedGame() ? "dashboard" : "newGame"
+    property string currentView: gameFacade.hasStartedGame() ? "dashboard" : "home"
     property string headerTeamName: gameFacade.hasStartedGame() ? (gameFacade.getSelectedTeamName() || "No Team") : "Football Manager"
     property string headerDateText: gameFacade.getCurrentDateText() || ""
 
-     function refreshHeader() {
+    function refreshHeader() {
         headerTeamName = gameFacade.hasStartedGame() ? (gameFacade.getSelectedTeamName() || "No Team") : "Football Manager"
         headerDateText = gameFacade.getCurrentDateText() || ""
     }
@@ -36,7 +35,7 @@ ApplicationWindow {
     Component.onCompleted: refreshHeader()
 
     header: ToolBar {
-        visible: root.currentView !== "newGame"
+        visible: root.currentView !== "home" && root.currentView !== "teamSelection"
         contentHeight: 52
 
         RowLayout {
@@ -66,14 +65,16 @@ ApplicationWindow {
     Loader {
         id: viewLoader
         anchors.fill: parent
-        anchors.margins: root.currentView === "newGame" ? 0 : 16
-        sourceComponent: root.currentView === "newGame"
-                         ? newGameComponent
-                         : root.currentView === "standings"
-                           ? standingsComponent
-                           : root.currentView === "team"
-                             ? teamComponent
-                             : dashboardComponent
+       anchors.margins: (root.currentView === "dashboard" || root.currentView === "standings" || root.currentView === "team") ? 16 : 0
+        sourceComponent: root.currentView === "home"
+                         ? homeComponent
+                         : root.currentView === "teamSelection"
+                           ? newGameComponent
+                           : root.currentView === "standings"
+                             ? standingsComponent
+                             : root.currentView === "team"
+                               ? teamComponent
+                               : dashboardComponent
         onLoaded: {
             root.refreshHeader()
             root.refreshActiveView()
@@ -84,7 +85,7 @@ ApplicationWindow {
         target: gameFacade
 
         function onGameStateChanged() {
-            if (gameFacade.hasStartedGame() && root.currentView === "newGame") {
+           if (gameFacade.hasStartedGame() && root.currentView === "teamSelection") {
                 root.currentView = "dashboard"
             }
             root.refreshHeader()
@@ -93,9 +94,25 @@ ApplicationWindow {
     }
 
     Component {
+        id: homeComponent
+
+        HomeView {
+            onNewGameRequested: {
+                gameFacade.clearLastError()
+                root.goTo("teamSelection")
+            }
+            onQuitRequested: Qt.quit()
+        }
+    }
+
+    Component {
         id: newGameComponent
 
         NewGameView {
+        onBackRequested: {
+                gameFacade.clearLastError()
+                root.goTo("home")
+            }
             onGameStarted: root.goTo("dashboard")
         }
     }
