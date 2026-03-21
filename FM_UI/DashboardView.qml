@@ -9,11 +9,14 @@ Item {
     signal openStandingsRequested()
     signal openTeamRequested()
 
+    readonly property int pagePadding: 24
+    readonly property int sectionSpacing: 20
+
     property var dashboard: ({})
     property bool hasActiveGame: gameFacade.hasStartedGame()
-    property var teamStats: mapValue(dashboard, "shortTeamStats", {})
-    property var standingsRow: mapValue(dashboard, "standingsRow", {})
-    property var nextMatch: mapValue(dashboard, "nextMatch", {})
+    property var teamStats: mapValue(dashboard, "shortTeamStats", ({}))
+    property var standingsRow: mapValue(dashboard, "standingsRow", ({}))
+    property var nextMatch: mapValue(dashboard, "nextMatch", ({}))
     property var upcomingMatches: mapValue(dashboard, "upcomingMatches", [])
 
     function refreshData() {
@@ -28,13 +31,21 @@ Item {
         return mapObject[key]
     }
 
+    function hasMapValue(mapObject, key) {
+        return !!mapObject && mapObject[key] !== undefined && mapObject[key] !== null
+    }
+
+    function displayValue(mapObject, key) {
+        return hasMapValue(mapObject, key) ? String(mapObject[key]) : "—"
+    }
+
     function formCharacters() {
-        var rawForm = String(mapValue(dashboard, "recentForm", "") || "")
+        const rawForm = String(mapValue(dashboard, "recentForm", "") || "")
         if (!rawForm.length) {
             return []
         }
 
-        var cleaned = rawForm.replace(/[^WDL]/g, "")
+        const cleaned = rawForm.toUpperCase().replace(/[^WDL]/g, "")
         return cleaned.length ? cleaned.split("") : []
     }
 
@@ -79,33 +90,39 @@ Item {
         color: "#f4f6fb"
 
         ScrollView {
+            id: dashboardScroll
             anchors.fill: parent
             clip: true
+            contentWidth: availableWidth
 
             Item {
-                width: Math.max(root.width, dashboardColumn.implicitWidth)
-                implicitHeight: dashboardColumn.implicitHeight
+                width: dashboardScroll.availableWidth
+                implicitHeight: pageColumn.implicitHeight + (root.pagePadding * 2)
 
-                ColumnLayout {
-                    id: dashboardColumn
-                    width: Math.max(parent.width, 860)
-                    spacing: 18
+                Column {
+                    id: pageColumn
+                    x: root.pagePadding
+                    y: root.pagePadding
+                    width: Math.max(0, parent.width - (root.pagePadding * 2))
+                    spacing: root.sectionSpacing
 
                     Rectangle {
-                        Layout.fillWidth: true
-                        radius: 16
+                        width: parent.width
+                        radius: 18
                         color: "#ffffff"
                         border.color: "#d8dee8"
+                        implicitHeight: headerContent.implicitHeight + 48
                         visible: root.hasActiveGame
 
                         ColumnLayout {
+                            id: headerContent
                             anchors.fill: parent
                             anchors.margins: 24
-                            spacing: 16
+                            spacing: 18
 
                             Label {
                                 text: root.mapValue(root.dashboard, "selectedTeamName", "No Team")
-                                font.pixelSize: 32
+                                font.pixelSize: 34
                                 font.bold: true
                                 color: "#17212f"
                                 Layout.fillWidth: true
@@ -113,73 +130,124 @@ Item {
                             }
 
                             Label {
-                                text: "Season overview, fixtures, form and standings snapshot for the current club."
+                                text: "Season overview, fixtures, team form and league snapshot for the active club."
                                 color: "#526071"
-                                font.pixelSize: 15
+                                font.pixelSize: 16
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
                             }
 
                             GridLayout {
                                 Layout.fillWidth: true
-                                columns: width >= 720 ? 4 : 2
-                                rowSpacing: 10
-                                columnSpacing: 18
+                                columns: width >= 760 ? 4 : 2
+                                rowSpacing: 12
+                                columnSpacing: 20
 
-                                Label { text: "Date"; font.bold: true; font.pixelSize: 15; color: "#344054" }
-                                Label { text: root.mapValue(root.dashboard, "currentDateText", "-"); font.pixelSize: 15; color: "#475467"; Layout.fillWidth: true; elide: Text.ElideRight }
-                                Label { text: "State"; font.bold: true; font.pixelSize: 15; color: "#344054" }
-                                Label { text: root.mapValue(root.dashboard, "gameStateText", "-"); font.pixelSize: 15; color: "#475467"; Layout.fillWidth: true; elide: Text.ElideRight }
-                                Label { text: "Manager"; font.bold: true; font.pixelSize: 15; color: "#344054" }
-                                Label { text: gameFacade.getManagerName() || "-"; font.pixelSize: 15; color: "#475467"; Layout.fillWidth: true; elide: Text.ElideRight }
-                                Label { text: "Club"; font.bold: true; font.pixelSize: 15; color: "#344054" }
-                                Label { text: root.mapValue(root.dashboard, "selectedTeamName", "-"); font.pixelSize: 15; color: "#475467"; Layout.fillWidth: true; elide: Text.ElideRight }
+                                Label { text: "Date"; font.bold: true; font.pixelSize: 16; color: "#344054" }
+                                Label {
+                                    text: root.displayValue(root.dashboard, "currentDateText")
+                                    font.pixelSize: 16
+                                    color: "#475467"
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
+                                Label { text: "State"; font.bold: true; font.pixelSize: 16; color: "#344054" }
+                                Label {
+                                    text: root.displayValue(root.dashboard, "gameStateText")
+                                    font.pixelSize: 16
+                                    color: "#475467"
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
+                                Label { text: "Manager"; font.bold: true; font.pixelSize: 16; color: "#344054" }
+                                Label {
+                                    text: gameFacade.getManagerName() || "—"
+                                    font.pixelSize: 16
+                                    color: "#475467"
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
+                                Label { text: "Club"; font.bold: true; font.pixelSize: 16; color: "#344054" }
+                                Label {
+                                    text: root.displayValue(root.dashboard, "selectedTeamName")
+                                    font.pixelSize: 16
+                                    color: "#475467"
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
                             }
                         }
                     }
 
-                    Label {
+                    Rectangle {
+                        width: parent.width
+                        radius: 18
+                        color: "#ffffff"
+                        border.color: "#d8dee8"
+                        implicitHeight: emptyStateContent.implicitHeight + 40
                         visible: !root.hasActiveGame
-                        text: "Start a new game from the home screen to view the dashboard."
-                        color: "#667085"
-                        font.pixelSize: 16
-                        Layout.fillWidth: true
-                        wrapMode: Text.WordWrap
+
+                        Column {
+                            id: emptyStateContent
+                            x: 24
+                            y: 20
+                            width: Math.max(0, parent.width - 48)
+                            spacing: 10
+
+                            Label {
+                                width: parent.width
+                                text: "Start a new game from the home screen to view the dashboard."
+                                color: "#17212f"
+                                font.pixelSize: 24
+                                font.bold: true
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Label {
+                                width: parent.width
+                                text: "Once a club is selected, this page shows the next match, team season numbers and your current league position."
+                                color: "#667085"
+                                font.pixelSize: 16
+                                wrapMode: Text.WordWrap
+                            }
+                        }
                     }
 
                     GridLayout {
-                        Layout.fillWidth: true
+                        width: parent.width
                         visible: root.hasActiveGame
-                        columns: width >= 1040 ? 3 : 1
-                        rowSpacing: 18
-                        columnSpacing: 18
+                        columns: width >= 1100 ? 3 : (width >= 720 ? 2 : 1)
+                        rowSpacing: root.sectionSpacing
+                        columnSpacing: root.sectionSpacing
 
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignTop
-                            radius: 16
+                            radius: 18
                             color: "#ffffff"
                             border.color: "#d8dee8"
+                            implicitHeight: scheduleCardContent.implicitHeight + 40
 
                             ColumnLayout {
+                                id: scheduleCardContent
                                 anchors.fill: parent
                                 anchors.margins: 20
                                 spacing: 16
 
                                 Label {
                                     text: "Schedule Overview"
-                                    font.pixelSize: 22
+                                    font.pixelSize: 24
                                     font.bold: true
                                     color: "#17212f"
                                 }
 
                                 ColumnLayout {
                                     Layout.fillWidth: true
-                                    spacing: 6
+                                    spacing: 8
 
                                     Label {
                                         text: "Next Match"
-                                        font.pixelSize: 16
+                                        font.pixelSize: 17
                                         font.bold: true
                                         color: "#344054"
                                     }
@@ -187,12 +255,12 @@ Item {
                                     Label {
                                         Layout.fillWidth: true
                                         text: root.nextMatch && root.nextMatch.hasNextMatch
-                                              ? (root.nextMatch.dateText || "-") + " • "
+                                              ? (root.nextMatch.dateText || "—") + " • "
                                                 + (root.nextMatch.homeTeamName || "") + " vs "
                                                 + (root.nextMatch.awayTeamName || "")
                                               : "No upcoming match"
                                         wrapMode: Text.WordWrap
-                                        font.pixelSize: 15
+                                        font.pixelSize: 16
                                         color: "#475467"
                                     }
 
@@ -200,28 +268,32 @@ Item {
                                         Layout.fillWidth: true
                                         text: root.nextMatch && root.nextMatch.hasNextMatch
                                               ? ((root.nextMatch.isHome ? "Home" : "Away")
-                                                 + " • Matchweek " + (root.nextMatch.matchweek || 0))
+                                                 + " • Matchweek " + (root.nextMatch.matchweek || "—"))
                                               : ""
-                                        font.pixelSize: 14
+                                        font.pixelSize: 15
                                         color: "#667085"
                                         visible: text.length > 0
                                     }
                                 }
 
-                                Rectangle { Layout.fillWidth: true; height: 1; color: "#eaecf0" }
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 1
+                                    color: "#eaecf0"
+                                }
 
                                 ColumnLayout {
                                     Layout.fillWidth: true
-                                    spacing: 8
+                                    spacing: 10
 
                                     Label {
                                         text: "Recent Form"
-                                        font.pixelSize: 16
+                                        font.pixelSize: 17
                                         font.bold: true
                                         color: "#344054"
                                     }
 
-                                    RowLayout {
+                                    Flow {
                                         Layout.fillWidth: true
                                         spacing: 8
                                         visible: root.formCharacters().length > 0
@@ -234,8 +306,8 @@ Item {
                                                 radius: 999
                                                 color: root.formBackground(modelData)
                                                 border.color: root.formColor(modelData)
-                                                implicitWidth: 36
-                                                implicitHeight: 36
+                                                width: 38
+                                                height: 38
 
                                                 Label {
                                                     anchors.centerIn: parent
@@ -246,8 +318,6 @@ Item {
                                                 }
                                             }
                                         }
-
-                                        Item { Layout.fillWidth: true }
                                     }
 
                                     Label {
@@ -258,15 +328,19 @@ Item {
                                     }
                                 }
 
-                                Rectangle { Layout.fillWidth: true; height: 1; color: "#eaecf0" }
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 1
+                                    color: "#eaecf0"
+                                }
 
                                 ColumnLayout {
                                     Layout.fillWidth: true
-                                    spacing: 8
+                                    spacing: 10
 
                                     Label {
                                         text: "Upcoming Matches"
-                                        font.pixelSize: 16
+                                        font.pixelSize: 17
                                         font.bold: true
                                         color: "#344054"
                                     }
@@ -280,17 +354,18 @@ Item {
                                             radius: 12
                                             color: "#f8fafc"
                                             border.color: "#e4e7ec"
-                                            implicitHeight: 72
+                                            implicitHeight: upcomingMatchContent.implicitHeight + 24
 
                                             ColumnLayout {
+                                                id: upcomingMatchContent
                                                 anchors.fill: parent
                                                 anchors.margins: 12
                                                 spacing: 6
 
                                                 Label {
                                                     Layout.fillWidth: true
-                                                    text: modelData.dateText || "-"
-                                                    font.pixelSize: 14
+                                                    text: modelData.dateText || "—"
+                                                    font.pixelSize: 15
                                                     color: "#344054"
                                                 }
 
@@ -298,14 +373,14 @@ Item {
                                                     Layout.fillWidth: true
                                                     text: (modelData.homeTeamName || "") + " vs " + (modelData.awayTeamName || "")
                                                     wrapMode: Text.WordWrap
-                                                    font.pixelSize: 15
+                                                    font.pixelSize: 16
                                                     color: "#17212f"
                                                 }
 
                                                 Label {
                                                     Layout.fillWidth: true
-                                                    text: (modelData.isHome ? "Home" : "Away") + " • Matchweek " + (modelData.matchweek || 0)
-                                                    font.pixelSize: 14
+                                                    text: (modelData.isHome ? "Home" : "Away") + " • Matchweek " + (modelData.matchweek || "—")
+                                                    font.pixelSize: 15
                                                     color: "#667085"
                                                 }
                                             }
@@ -325,18 +400,20 @@ Item {
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignTop
-                            radius: 16
+                            radius: 18
                             color: "#ffffff"
                             border.color: "#d8dee8"
+                            implicitHeight: teamStatsCardContent.implicitHeight + 40
 
                             ColumnLayout {
+                                id: teamStatsCardContent
                                 anchors.fill: parent
                                 anchors.margins: 20
-                                spacing: 14
+                                spacing: 16
 
                                 Label {
                                     text: "Team Stats"
-                                    font.pixelSize: 22
+                                    font.pixelSize: 24
                                     font.bold: true
                                     color: "#17212f"
                                 }
@@ -347,22 +424,22 @@ Item {
                                     rowSpacing: 12
                                     columnSpacing: 18
 
-                                    Label { text: "Played"; font.bold: true; font.pixelSize: 15; color: "#344054" }
-                                    Label { text: root.mapValue(root.teamStats, "played", 0); font.pixelSize: 16; color: "#475467" }
-                                    Label { text: "Wins"; font.bold: true; font.pixelSize: 15; color: "#344054" }
-                                    Label { text: root.mapValue(root.teamStats, "wins", 0); font.pixelSize: 16; color: "#475467" }
-                                    Label { text: "Draws"; font.bold: true; font.pixelSize: 15; color: "#344054" }
-                                    Label { text: root.mapValue(root.teamStats, "draws", 0); font.pixelSize: 16; color: "#475467" }
-                                    Label { text: "Losses"; font.bold: true; font.pixelSize: 15; color: "#344054" }
-                                    Label { text: root.mapValue(root.teamStats, "losses", 0); font.pixelSize: 16; color: "#475467" }
-                                    Label { text: "Goals For"; font.bold: true; font.pixelSize: 15; color: "#344054" }
-                                    Label { text: root.mapValue(root.teamStats, "goalsFor", 0); font.pixelSize: 16; color: "#475467" }
-                                    Label { text: "Goals Against"; font.bold: true; font.pixelSize: 15; color: "#344054" }
-                                    Label { text: root.mapValue(root.teamStats, "goalsAgainst", 0); font.pixelSize: 16; color: "#475467" }
-                                    Label { text: "Clean Sheets"; font.bold: true; font.pixelSize: 15; color: "#344054" }
-                                    Label { text: root.mapValue(root.teamStats, "cleanSheets", 0); font.pixelSize: 16; color: "#475467" }
-                                    Label { text: "Failed To Score"; font.bold: true; font.pixelSize: 15; color: "#344054" }
-                                    Label { text: root.mapValue(root.teamStats, "failedToScore", 0); font.pixelSize: 16; color: "#475467" }
+                                    Label { text: "Played"; font.bold: true; font.pixelSize: 16; color: "#344054" }
+                                    Label { text: root.displayValue(root.teamStats, "played"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: "Wins"; font.bold: true; font.pixelSize: 16; color: "#344054" }
+                                    Label { text: root.displayValue(root.teamStats, "wins"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: "Draws"; font.bold: true; font.pixelSize: 16; color: "#344054" }
+                                    Label { text: root.displayValue(root.teamStats, "draws"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: "Losses"; font.bold: true; font.pixelSize: 16; color: "#344054" }
+                                    Label { text: root.displayValue(root.teamStats, "losses"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: "Goals For"; font.bold: true; font.pixelSize: 16; color: "#344054" }
+                                    Label { text: root.displayValue(root.teamStats, "goalsFor"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: "Goals Against"; font.bold: true; font.pixelSize: 16; color: "#344054" }
+                                    Label { text: root.displayValue(root.teamStats, "goalsAgainst"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: "Goal Difference"; font.bold: true; font.pixelSize: 16; color: "#344054" }
+                                    Label { text: root.displayValue(root.teamStats, "goalDifference"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: "Points"; font.bold: true; font.pixelSize: 16; color: "#344054" }
+                                    Label { text: root.displayValue(root.teamStats, "points"); font.pixelSize: 17; color: "#475467" }
                                 }
                             }
                         }
@@ -370,18 +447,20 @@ Item {
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignTop
-                            radius: 16
+                            radius: 18
                             color: "#ffffff"
                             border.color: "#d8dee8"
+                            implicitHeight: leagueCardContent.implicitHeight + 40
 
                             ColumnLayout {
+                                id: leagueCardContent
                                 anchors.fill: parent
                                 anchors.margins: 20
-                                spacing: 14
+                                spacing: 16
 
                                 Label {
                                     text: "League Position"
-                                    font.pixelSize: 22
+                                    font.pixelSize: 24
                                     font.bold: true
                                     color: "#17212f"
                                 }
@@ -392,26 +471,30 @@ Item {
                                     rowSpacing: 12
                                     columnSpacing: 18
 
-                                    Label { text: "Position"; font.bold: true; font.pixelSize: 15; color: "#344054" }
-                                    Label { text: root.mapValue(root.standingsRow, "position", "-"); font.pixelSize: 16; color: "#475467" }
-                                    Label { text: "Points"; font.bold: true; font.pixelSize: 15; color: "#344054" }
-                                    Label { text: root.mapValue(root.standingsRow, "points", 0); font.pixelSize: 16; color: "#475467" }
-                                    Label { text: "Goal Diff"; font.bold: true; font.pixelSize: 15; color: "#344054" }
-                                    Label { text: root.mapValue(root.standingsRow, "goalDifference", 0); font.pixelSize: 16; color: "#475467" }
-                                    Label { text: "Played"; font.bold: true; font.pixelSize: 15; color: "#344054" }
-                                    Label { text: root.mapValue(root.standingsRow, "played", 0); font.pixelSize: 16; color: "#475467" }
-                                    Label { text: "Record"; font.bold: true; font.pixelSize: 15; color: "#344054" }
+                                    Label { text: "Position"; font.bold: true; font.pixelSize: 16; color: "#344054" }
+                                    Label { text: root.displayValue(root.standingsRow, "position"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: "Points"; font.bold: true; font.pixelSize: 16; color: "#344054" }
+                                    Label { text: root.displayValue(root.standingsRow, "points"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: "Played"; font.bold: true; font.pixelSize: 16; color: "#344054" }
+                                    Label { text: root.displayValue(root.standingsRow, "played"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: "Goal Difference"; font.bold: true; font.pixelSize: 16; color: "#344054" }
+                                    Label { text: root.displayValue(root.standingsRow, "goalDifference"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: "Record"; font.bold: true; font.pixelSize: 16; color: "#344054" }
                                     Label {
-                                        text: root.mapValue(root.standingsRow, "wins", 0) + "W "
-                                              + root.mapValue(root.standingsRow, "draws", 0) + "D "
-                                              + root.mapValue(root.standingsRow, "losses", 0) + "L"
-                                        font.pixelSize: 16
+                                        text: root.hasMapValue(root.standingsRow, "wins")
+                                              ? root.displayValue(root.standingsRow, "wins") + "W "
+                                                + root.displayValue(root.standingsRow, "draws") + "D "
+                                                + root.displayValue(root.standingsRow, "losses") + "L"
+                                              : "—"
+                                        font.pixelSize: 17
                                         color: "#475467"
                                     }
-                                    Label { text: "Team"; font.bold: true; font.pixelSize: 15; color: "#344054" }
+                                    Label { text: "Team"; font.bold: true; font.pixelSize: 16; color: "#344054" }
                                     Label {
-                                        text: root.mapValue(root.standingsRow, "teamName", root.mapValue(root.dashboard, "selectedTeamName", "-"))
-                                        font.pixelSize: 16
+                                        text: root.hasMapValue(root.standingsRow, "teamName")
+                                              ? root.displayValue(root.standingsRow, "teamName")
+                                              : root.displayValue(root.dashboard, "selectedTeamName")
+                                        font.pixelSize: 17
                                         color: "#475467"
                                         Layout.fillWidth: true
                                         elide: Text.ElideRight
@@ -421,39 +504,49 @@ Item {
                         }
                     }
 
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 12
+                    Rectangle {
+                        width: parent.width
+                        radius: 18
+                        color: "#ffffff"
+                        border.color: "#d8dee8"
+                        implicitHeight: actionContent.implicitHeight + 32
                         visible: root.hasActiveGame
 
-                        Button {
-                            text: "Next Day"
-                            Layout.preferredHeight: 44
-                            font.pixelSize: 15
-                            onClicked: gameFacade.advanceOneDay()
-                        }
+                        RowLayout {
+                            id: actionContent
+                            anchors.fill: parent
+                            anchors.margins: 16
+                            spacing: 12
 
-                        Button {
-                            text: "Advance 7 Days"
-                            Layout.preferredHeight: 44
-                            font.pixelSize: 15
-                            onClicked: gameFacade.advanceDays(7)
-                        }
+                            Button {
+                                text: "Next Day"
+                                Layout.preferredHeight: 46
+                                font.pixelSize: 15
+                                onClicked: gameFacade.advanceOneDay()
+                            }
 
-                        Item { Layout.fillWidth: true }
+                            Button {
+                                text: "Advance 7 Days"
+                                Layout.preferredHeight: 46
+                                font.pixelSize: 15
+                                onClicked: gameFacade.advanceDays(7)
+                            }
 
-                        Button {
-                            text: "Standings"
-                            Layout.preferredHeight: 44
-                            font.pixelSize: 15
-                            onClicked: root.openStandingsRequested()
-                        }
+                            Item { Layout.fillWidth: true }
 
-                        Button {
-                            text: "Team"
-                            Layout.preferredHeight: 44
-                            font.pixelSize: 15
-                            onClicked: root.openTeamRequested()
+                            Button {
+                                text: "Standings"
+                                Layout.preferredHeight: 46
+                                font.pixelSize: 15
+                                onClicked: root.openStandingsRequested()
+                            }
+
+                            Button {
+                                text: "Team"
+                                Layout.preferredHeight: 46
+                                font.pixelSize: 15
+                                onClicked: root.openTeamRequested()
+                            }
                         }
                     }
                 }
