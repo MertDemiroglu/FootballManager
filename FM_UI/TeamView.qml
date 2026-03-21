@@ -8,6 +8,9 @@ Item {
 
     signal backRequested()
 
+    readonly property int pagePadding: 24
+    readonly property int sectionSpacing: 20
+
     property var seasonStats: ({})
     property var recentMatches: []
     property var upcomingMatches: []
@@ -36,6 +39,14 @@ Item {
             return fallbackValue
         }
         return mapObject[key]
+    }
+
+    function hasMapValue(mapObject, key) {
+        return !!mapObject && mapObject[key] !== undefined && mapObject[key] !== null
+    }
+
+    function displayValue(mapObject, key) {
+        return hasMapValue(mapObject, key) ? String(mapObject[key]) : "—"
     }
 
     function resultColor(resultLetter) {
@@ -80,62 +91,88 @@ Item {
 
         ColumnLayout {
             anchors.fill: parent
-            spacing: 18
+            anchors.margins: root.pagePadding
+            spacing: root.sectionSpacing
 
             Rectangle {
                 Layout.fillWidth: true
-                radius: 16
+                radius: 18
                 color: "#ffffff"
                 border.color: "#d8dee8"
+                implicitHeight: headerCardContent.implicitHeight + 40
 
-                ColumnLayout {
+                RowLayout {
+                    id: headerCardContent
                     anchors.fill: parent
-                    anchors.margins: 24
-                    spacing: 14
+                    anchors.margins: 20
+                    spacing: 16
 
-                    RowLayout {
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: 16
+                        spacing: 8
 
-                        ColumnLayout {
+                        Label {
+                            text: gameFacade.getSelectedTeamName() || "Team"
+                            font.pixelSize: 34
+                            font.bold: true
+                            color: "#17212f"
                             Layout.fillWidth: true
-                            spacing: 6
-
-                            Label {
-                                text: gameFacade.getSelectedTeamName() || "Team"
-                                font.pixelSize: 32
-                                font.bold: true
-                                color: "#17212f"
-                                Layout.fillWidth: true
-                                elide: Text.ElideRight
-                            }
-
-                            Label {
-                                text: "Team overview, season stats, fixtures and squad information."
-                                color: "#526071"
-                                font.pixelSize: 15
-                                wrapMode: Text.WordWrap
-                                Layout.fillWidth: true
-                            }
+                            elide: Text.ElideRight
                         }
 
-                        Button {
-                            text: "Back"
-                            Layout.preferredHeight: 44
-                            font.pixelSize: 15
-                            onClicked: root.backRequested()
+                        Label {
+                            text: root.hasActiveGame
+                                  ? "Team overview, season stats, fixtures and squad information for the current club."
+                                  : "Start a new game to load the team overview, fixtures and squad information."
+                            color: "#526071"
+                            font.pixelSize: 16
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
                         }
+                    }
+
+                    Button {
+                        text: "Back"
+                        Layout.preferredHeight: 46
+                        Layout.preferredWidth: 108
+                        font.pixelSize: 15
+                        onClicked: root.backRequested()
                     }
                 }
             }
 
-            Label {
-                visible: !root.hasActiveGame
-                text: "No active game. Start a new game to view team details."
-                color: "#667085"
-                font.pixelSize: 16
+            Rectangle {
                 Layout.fillWidth: true
-                wrapMode: Text.WordWrap
+                radius: 18
+                color: "#ffffff"
+                border.color: "#d8dee8"
+                implicitHeight: emptyStateContent.implicitHeight + 40
+                visible: !root.hasActiveGame
+
+                Column {
+                    id: emptyStateContent
+                    x: 24
+                    y: 20
+                    width: Math.max(0, parent.width - 48)
+                    spacing: 10
+
+                    Label {
+                        width: parent.width
+                        text: "No active game"
+                        color: "#17212f"
+                        font.pixelSize: 24
+                        font.bold: true
+                        wrapMode: Text.WordWrap
+                    }
+
+                    Label {
+                        width: parent.width
+                        text: "Go back to the home flow, start a save and this page will populate from gameFacade calls only."
+                        color: "#667085"
+                        font.pixelSize: 16
+                        wrapMode: Text.WordWrap
+                    }
+                }
             }
 
             ScrollView {
@@ -144,56 +181,59 @@ Item {
                 Layout.fillHeight: true
                 visible: root.hasActiveGame
                 clip: true
+                contentWidth: availableWidth
 
                 Item {
-                    width: Math.max(teamScroll.availableWidth, 860)
+                    width: teamScroll.availableWidth
                     implicitHeight: contentColumn.implicitHeight
 
-                    ColumnLayout {
+                    Column {
                         id: contentColumn
                         width: parent.width
-                        spacing: 18
+                        spacing: root.sectionSpacing
 
                         Rectangle {
-                            Layout.fillWidth: true
-                            radius: 16
+                            width: parent.width
+                            radius: 18
                             color: "#ffffff"
                             border.color: "#d8dee8"
+                            implicitHeight: seasonStatsContent.implicitHeight + 40
 
                             ColumnLayout {
+                                id: seasonStatsContent
                                 anchors.fill: parent
                                 anchors.margins: 20
-                                spacing: 14
+                                spacing: 16
 
                                 Label {
                                     text: "Team Season Stats"
-                                    font.pixelSize: 22
+                                    font.pixelSize: 24
                                     font.bold: true
                                     color: "#17212f"
                                 }
 
                                 GridLayout {
                                     Layout.fillWidth: true
-                                    columns: width >= 760 ? 4 : 2
+                                    columns: width >= 840 ? 4 : 2
                                     rowSpacing: 12
                                     columnSpacing: 14
 
                                     Repeater {
                                         model: [
-                                            ["Played", root.mapValue(root.seasonStats, "played", 0)],
-                                            ["Wins", root.mapValue(root.seasonStats, "wins", 0)],
-                                            ["Draws", root.mapValue(root.seasonStats, "draws", 0)],
-                                            ["Losses", root.mapValue(root.seasonStats, "losses", 0)],
-                                            ["Goals For", root.mapValue(root.seasonStats, "goalsFor", 0)],
-                                            ["Goals Against", root.mapValue(root.seasonStats, "goalsAgainst", 0)],
-                                            ["Clean Sheets", root.mapValue(root.seasonStats, "cleanSheets", 0)],
-                                            ["Failed To Score", root.mapValue(root.seasonStats, "failedToScore", 0)]
+                                            ["Played", root.displayValue(root.seasonStats, "played")],
+                                            ["Wins", root.displayValue(root.seasonStats, "wins")],
+                                            ["Draws", root.displayValue(root.seasonStats, "draws")],
+                                            ["Losses", root.displayValue(root.seasonStats, "losses")],
+                                            ["Goals For", root.displayValue(root.seasonStats, "goalsFor")],
+                                            ["Goals Against", root.displayValue(root.seasonStats, "goalsAgainst")],
+                                            ["Clean Sheets", root.displayValue(root.seasonStats, "cleanSheets")],
+                                            ["Failed To Score", root.displayValue(root.seasonStats, "failedToScore")]
                                         ]
 
                                         delegate: Rectangle {
                                             required property var modelData
                                             Layout.fillWidth: true
-                                            Layout.preferredHeight: 90
+                                            Layout.preferredHeight: 96
                                             radius: 12
                                             color: "#f8fafc"
                                             border.color: "#e4e7ec"
@@ -226,19 +266,21 @@ Item {
                         }
 
                         Rectangle {
-                            Layout.fillWidth: true
-                            radius: 16
+                            width: parent.width
+                            radius: 18
                             color: "#ffffff"
                             border.color: "#d8dee8"
+                            implicitHeight: recentMatchesContent.implicitHeight + 40
 
                             ColumnLayout {
+                                id: recentMatchesContent
                                 anchors.fill: parent
                                 anchors.margins: 20
                                 spacing: 12
 
                                 Label {
                                     text: "Recent Matches"
-                                    font.pixelSize: 22
+                                    font.pixelSize: 24
                                     font.bold: true
                                     color: "#17212f"
                                 }
@@ -252,28 +294,29 @@ Item {
                                         radius: 12
                                         color: "#f8fafc"
                                         border.color: "#e4e7ec"
-                                        implicitHeight: 96
+                                        implicitHeight: recentMatchDelegateContent.implicitHeight + 28
 
                                         ColumnLayout {
+                                            id: recentMatchDelegateContent
                                             anchors.fill: parent
                                             anchors.margins: 14
-                                            spacing: 8
+                                            spacing: 10
 
                                             RowLayout {
                                                 Layout.fillWidth: true
                                                 spacing: 12
 
                                                 Label {
-                                                    Layout.preferredWidth: 140
-                                                    text: modelData.dateText || "-"
-                                                    font.pixelSize: 14
+                                                    text: modelData.dateText || "—"
+                                                    font.pixelSize: 15
                                                     color: "#475467"
+                                                    Layout.preferredWidth: 150
                                                 }
 
                                                 Label {
                                                     Layout.fillWidth: true
                                                     text: modelData.opponentName || "Unknown opponent"
-                                                    font.pixelSize: 16
+                                                    font.pixelSize: 17
                                                     font.bold: true
                                                     color: "#17212f"
                                                     elide: Text.ElideRight
@@ -283,7 +326,7 @@ Item {
                                                     radius: 999
                                                     color: root.resultBackground(modelData.resultLetter || "")
                                                     border.color: root.resultColor(modelData.resultLetter || "")
-                                                    implicitWidth: 38
+                                                    implicitWidth: 42
                                                     implicitHeight: 30
 
                                                     Label {
@@ -296,12 +339,12 @@ Item {
                                                 }
                                             }
 
-                                            RowLayout {
+                                            Flow {
                                                 Layout.fillWidth: true
                                                 spacing: 12
 
                                                 Label {
-                                                    text: "Score: " + (modelData.goalsFor || 0) + " - " + (modelData.goalsAgainst || 0)
+                                                    text: "Score: " + root.displayValue(modelData, "goalsFor") + " - " + root.displayValue(modelData, "goalsAgainst")
                                                     font.pixelSize: 15
                                                     font.bold: true
                                                     color: "#17212f"
@@ -309,17 +352,15 @@ Item {
 
                                                 Label {
                                                     text: modelData.isHome ? "Home" : "Away"
-                                                    font.pixelSize: 14
+                                                    font.pixelSize: 15
                                                     color: "#667085"
                                                 }
 
                                                 Label {
-                                                    text: "Matchweek " + (modelData.matchweek || 0)
-                                                    font.pixelSize: 14
+                                                    text: "Matchweek " + (modelData.matchweek || "—")
+                                                    font.pixelSize: 15
                                                     color: "#667085"
                                                 }
-
-                                                Item { Layout.fillWidth: true }
                                             }
                                         }
                                     }
@@ -335,19 +376,21 @@ Item {
                         }
 
                         Rectangle {
-                            Layout.fillWidth: true
-                            radius: 16
+                            width: parent.width
+                            radius: 18
                             color: "#ffffff"
                             border.color: "#d8dee8"
+                            implicitHeight: upcomingMatchesContent.implicitHeight + 40
 
                             ColumnLayout {
+                                id: upcomingMatchesContent
                                 anchors.fill: parent
                                 anchors.margins: 20
                                 spacing: 12
 
                                 Label {
                                     text: "Upcoming Matches"
-                                    font.pixelSize: 22
+                                    font.pixelSize: 24
                                     font.bold: true
                                     color: "#17212f"
                                 }
@@ -361,46 +404,45 @@ Item {
                                         radius: 12
                                         color: "#f8fafc"
                                         border.color: "#e4e7ec"
-                                        implicitHeight: 92
+                                        implicitHeight: upcomingMatchDelegateContent.implicitHeight + 28
 
                                         ColumnLayout {
+                                            id: upcomingMatchDelegateContent
                                             anchors.fill: parent
                                             anchors.margins: 14
                                             spacing: 8
 
                                             Label {
                                                 Layout.fillWidth: true
-                                                text: modelData.dateText || "-"
-                                                font.pixelSize: 14
+                                                text: modelData.dateText || "—"
+                                                font.pixelSize: 15
                                                 color: "#475467"
                                             }
 
                                             Label {
                                                 Layout.fillWidth: true
                                                 text: (modelData.homeTeamName || "") + " vs " + (modelData.awayTeamName || "")
-                                                font.pixelSize: 16
+                                                font.pixelSize: 17
                                                 font.bold: true
                                                 color: "#17212f"
                                                 wrapMode: Text.WordWrap
                                             }
 
-                                            RowLayout {
+                                            Flow {
                                                 Layout.fillWidth: true
                                                 spacing: 12
 
                                                 Label {
                                                     text: modelData.isHome ? "Home" : "Away"
-                                                    font.pixelSize: 14
+                                                    font.pixelSize: 15
                                                     color: "#667085"
                                                 }
 
                                                 Label {
-                                                    text: "Matchweek " + (modelData.matchweek || 0)
-                                                    font.pixelSize: 14
+                                                    text: "Matchweek " + (modelData.matchweek || "—")
+                                                    font.pixelSize: 15
                                                     color: "#667085"
                                                 }
-
-                                                Item { Layout.fillWidth: true }
                                             }
                                         }
                                     }
@@ -416,19 +458,21 @@ Item {
                         }
 
                         Rectangle {
-                            Layout.fillWidth: true
-                            radius: 16
+                            width: parent.width
+                            radius: 18
                             color: "#ffffff"
                             border.color: "#d8dee8"
+                            implicitHeight: playersContent.implicitHeight + 40
 
                             ColumnLayout {
+                                id: playersContent
                                 anchors.fill: parent
                                 anchors.margins: 20
                                 spacing: 12
 
                                 Label {
                                     text: "Players List"
-                                    font.pixelSize: 22
+                                    font.pixelSize: 24
                                     font.bold: true
                                     color: "#17212f"
                                 }
@@ -442,18 +486,13 @@ Item {
                                         radius: 12
                                         color: "#f8fafc"
                                         border.color: "#e4e7ec"
-                                        implicitHeight: 106
-
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: root.openPlayerDetails(parent.modelData.playerId)
-                                        }
+                                        implicitHeight: playerDelegateContent.implicitHeight + 28
 
                                         ColumnLayout {
+                                            id: playerDelegateContent
                                             anchors.fill: parent
                                             anchors.margins: 14
-                                            spacing: 8
+                                            spacing: 10
 
                                             RowLayout {
                                                 Layout.fillWidth: true
@@ -462,35 +501,35 @@ Item {
                                                 Label {
                                                     Layout.fillWidth: true
                                                     text: modelData.name || "Unknown"
-                                                    font.pixelSize: 16
+                                                    font.pixelSize: 17
                                                     font.bold: true
                                                     color: "#17212f"
                                                     elide: Text.ElideRight
                                                 }
 
                                                 Label {
-                                                    text: modelData.position || "-"
-                                                    font.pixelSize: 14
+                                                    text: modelData.position || "—"
+                                                    font.pixelSize: 15
                                                     color: "#475467"
+                                                }
+
+                                                Button {
+                                                    text: "Details"
+                                                    Layout.preferredHeight: 40
+                                                    font.pixelSize: 14
+                                                    onClicked: root.openPlayerDetails(modelData.playerId)
                                                 }
                                             }
 
                                             Flow {
-                                                width: parent.width
+                                                Layout.fillWidth: true
                                                 spacing: 12
 
-                                                Label { text: "Age: " + (modelData.age || 0); font.pixelSize: 14; color: "#667085" }
-                                                Label { text: modelData.overallSummary || "-"; font.pixelSize: 14; color: "#667085" }
-                                                Label { text: "Apps " + (modelData.appearances || 0); font.pixelSize: 14; color: "#667085" }
-                                                Label { text: "G " + (modelData.goals || 0); font.pixelSize: 14; color: "#667085" }
-                                                Label { text: "A " + (modelData.assists || 0); font.pixelSize: 14; color: "#667085" }
-                                            }
-
-                                            Label {
-                                                text: "View details"
-                                                font.pixelSize: 14
-                                                font.bold: true
-                                                color: "#2f5fbf"
+                                                Label { text: "Age: " + root.displayValue(modelData, "age"); font.pixelSize: 15; color: "#667085" }
+                                                Label { text: modelData.overallSummary || "—"; font.pixelSize: 15; color: "#667085" }
+                                                Label { text: "Apps " + root.displayValue(modelData, "appearances"); font.pixelSize: 15; color: "#667085" }
+                                                Label { text: "G " + root.displayValue(modelData, "goals"); font.pixelSize: 15; color: "#667085" }
+                                                Label { text: "A " + root.displayValue(modelData, "assists"); font.pixelSize: 15; color: "#667085" }
                                             }
                                         }
                                     }
