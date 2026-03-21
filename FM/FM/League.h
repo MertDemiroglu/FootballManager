@@ -59,16 +59,63 @@ struct StandingsEntry {
 	int points = 0;
 };
 
+struct TeamSeasonStats {
+	TeamId teamId;
+	int seasonYear = 0;
+
+	int played = 0;
+	int homePlayed = 0;
+	int awayPlayed = 0;
+
+	int wins = 0;
+	int draws = 0;
+	int losses = 0;
+
+	int homeWins = 0;
+	int homeDraws = 0;
+	int homeLosses = 0;
+
+	int awayWins = 0;
+	int awayDraws = 0;
+	int awayLosses = 0;
+
+	int goalsFor = 0;
+	int goalsAgainst = 0;
+
+	int homeGoalsFor = 0;
+	int homeGoalsAgainst = 0;
+
+	int awayGoalsFor = 0;
+	int awayGoalsAgainst = 0;
+
+	int points = 0;
+	int homePoints = 0;
+	int awayPoints = 0;
+
+	int cleanSheets = 0;
+	int failedToScore = 0;
+};
+
 class League {
 private:
+	//Lig ismi
 	std::string name;
+	//Takimlari tutan map
 	std::unordered_map<std::string, std::unique_ptr<Team>> teams;
 	std::unordered_map<TeamId, Team*> teamIndexById;
+
 	std::map<Date, std::vector<FixtureMatch>> fixture;
-	std::vector<std::optional<Date>> matchdayEndDates;
+	std::vector<std::optional<Date>> matchWeekEndDates;
 	std::unordered_map<TeamId, StandingsEntry> standings;
+
 	std::vector<MatchRecord> currentSeasonHistory;
 	std::unordered_map<int, std::vector<MatchRecord>> archivedHistoryBySeason;
+
+	//O sezondaki takim istatistiklerini tutan map
+	std::unordered_map<TeamId, TeamSeasonStats> currentTeamSeasonStats;
+	//Geçmiþ tüm sezonlarin istatistiklerini tutan map
+	std::unordered_map<int, std::unordered_map<TeamId, TeamSeasonStats>> archivedTeamSeasonStatsBySeason;
+
 	bool seasonFixtureGenerated = false;
 	int currentSeasonYear = -1;
 
@@ -78,9 +125,12 @@ private:
 	static bool recordBelongsToTeam(const MatchRecord& record, TeamId teamId);
 	bool hasCurrentSeasonHistoryRecord(const Date& date, TeamId homeId, TeamId awayId) const;
 
-	//Bu 3'lu fonksiyon tek bir rollover fonksiyonundan cagirilacak disari acilmayacak
+	//Bu 6 fonksiyon tek bir rollover fonksiyonundan cagirilacak disari acilmayacak
 	void archiveCompletedSeasonHistory(int seasonYear);
+	void archiveCompletedTeamSeasonStats(int seasonYear);
 	void resetCurrentSeasonHistory();
+	void resetCurrentTeamSeasonStats();
+	void initializeTeamSeasonStats();
 	void setCurrentSeasonYear(int seasonYear);
 	//--------------------------------------------------------------------------------
 
@@ -89,7 +139,7 @@ public:
 	//League constructor
 	explicit League(const std::string& leagueName);
 
-	//Lige takim ekler (Pointer olarak)
+	//Lige takim ekler
 	void addTeam(std::unique_ptr<Team> team);
 	//Takimin pointerini verir
 	Team* getTeam(const std::string& teamName);
@@ -136,6 +186,7 @@ public:
 	void initializeStandings();
 	void resetStandings();
 	void updateStandingsForMatch(TeamId homeId, TeamId awayId, const MatchResult& result);
+	void updateTeamSeasonStatsForMatch(TeamId homeId, TeamId awayId, const MatchResult& result);
 	void applyMatchResult(const Date& date, TeamId homeId, TeamId awayId, const MatchResult& result);
 	std::vector<StandingsEntry> getSortedStandings() const;
 	const std::unordered_map<TeamId, StandingsEntry>& getStandings() const;
@@ -150,11 +201,15 @@ public:
 	std::vector<MatchRecord> getLastMatchesForTeam(TeamId teamId, std::size_t count) const;
 	std::vector<MatchOutcome> getRecentOutcomes(TeamId teamId, std::size_t count) const;
 	std::string getRecentFormString(TeamId teamId, std::size_t count) const;
-	int getCurrentSeasonYear() const;                                                               
+	int getCurrentSeasonYear() const;     
+	const std::unordered_map<TeamId, TeamSeasonStats>& getCurrentTeamSeasonStats() const;
+	const std::unordered_map<int, std::unordered_map<TeamId, TeamSeasonStats>>& getArchivedTeamSeasonStatsBySeason() const;
+	const TeamSeasonStats* getCurrentTeamSeasonStatsFor(TeamId teamId) const;
+	const TeamSeasonStats* getArchivedTeamSeasonStatsFor(TeamId teamId, int seasonYear) const;
    //-----------------------------------------------------------------------------------------------
 
 
-	std::optional<Date> tryGetMatchdayEndDate(int matchdayIndex) const;
+	std::optional<Date> tryGetMatchWeekEndDate(int matchWeekIndex) const;
 	Date getLastFixtureDate() const;
 	bool allMatchesPlayed() const;
 	void initializeMatchdayTracking(int matchdaysPerSeason);

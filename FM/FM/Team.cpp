@@ -80,6 +80,10 @@ const Footballer* Team::findPlayerById(PlayerId playerId) const {
     return nullptr;
 }
 
+const std::vector<std::unique_ptr<Footballer>>& Team::getPlayers() const {
+    return players;
+}
+
 void Team::addPlayer(std::unique_ptr<Footballer> player) {
     if (!player) {
         return;
@@ -172,6 +176,20 @@ void Team::updateContracts() {
         p->advanceContractYear();
     }
 }
+
+//player stats fonksiyonlari
+void Team::resetPlayerSeasonStats(int newSeasonYear) {
+    for (const auto& p : players) {
+        p->initializeSeasonStats(newSeasonYear);
+    }
+}
+
+void Team::archiveAndResetPlayerSeasonStats(int newSeasonYear) {
+    for (const auto& p : players) {
+        p->resetSeasonStats(newSeasonYear);
+    }
+}
+
 
 //printler
 std::ostream& operator<<(std::ostream& os, const Team& team) {

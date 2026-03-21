@@ -1,17 +1,40 @@
 #pragma once
 #include<iostream>
 #include<string>
+#include<unordered_map>
 #include<memory>
 #include"Contract.h"
+
+struct PlayerSeasonStats {
+	PlayerId playerId = 0;
+	int seasonYear = 0;
+
+	int appearances = 0;
+	int starts = 0;
+	int substituteAppearances = 0;
+	int minutesPlayed = 0;
+
+	int goals = 0;
+	int assists = 0;
+
+	int yellowCards = 0;
+	int redCards = 0;
+
+	int cleanSheets = 0;
+	int goalsConcededWhileOnPitch = 0;
+};
 
 class Footballer {
 
 protected:
+
 	PlayerId playerId;
 	TeamId teamId;
 	std::unique_ptr<Contract> contract;
 	std::string name, position, team;
 	int age;
+	PlayerSeasonStats currentSeasonStats;
+	std::unordered_map<int, PlayerSeasonStats> archivedSeasonStatsByYear;
 
 public:
 	//Footballer constructor
@@ -26,7 +49,7 @@ public:
 
 	//Oyuncunun ID'sini verir
 	PlayerId getId() const;
-	//Oyuncunun takým ID'sini verir
+	//Oyuncunun takim ID'sini verir
 	TeamId getTeamId() const;
 	//Oyuncunun ismi verir
 	const std::string& getName() const;
@@ -38,7 +61,7 @@ public:
 	int getAge() const;
 
 	
-	//Takým bilgisini set eder
+	//Takim bilgisini set eder
 	void setTeam(const std::string& newTeam, TeamId newTeamId);
 	
 	//Kontrat imzalama
@@ -48,6 +71,18 @@ public:
 	//Kontrat suresini 1 yil azaltir
 	void advanceContractYear();
 	
+	//player stats fonksiyonlari-----------------------------------------------------------
+	const PlayerSeasonStats& getCurrentSeasonStats() const;
+	const std::unordered_map<int, PlayerSeasonStats>& getArchivedSeasonStatsByYear() const;
+	void initializeSeasonStats(int seasonYear);
+	void archiveCurrentSeasonStats();
+	void resetSeasonStats(int newSeasonYear);
+	void addAppearance(bool isStarter, int minutesPlayed);
+	void addGoal();
+	void addAssist();
+	void addMinutes(int additionalMinutes);
+	//------------------------------------------------------------------------------------
+
 	virtual void print(std::ostream& os) const;
 };
 

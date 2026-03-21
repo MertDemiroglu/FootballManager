@@ -46,6 +46,10 @@ bool TransferRoom::transferPlayer(const std::string& fromTeam, const std::string
 	}
 
 	buyer->addPlayer(std::move(soldPlayer));
+	Footballer* transferredPlayer = buyer->findPlayer(playerName);
+	if (transferredPlayer && league.getCurrentSeasonYear() >= 0 && transferredPlayer->getCurrentSeasonStats().seasonYear != league.getCurrentSeasonYear()) {
+		transferredPlayer->initializeSeasonStats(league.getCurrentSeasonYear());
+	}
 	return true;
 }
 
@@ -69,6 +73,11 @@ bool TransferRoom::transferFreeAgent(const std::string& teamName, const std::str
 	freeAgents.erase(it);
 
 	team->addPlayer(std::move(movingPlayer));
+
+	Footballer* signedPlayer = team->findPlayer(playerName);
+	if (signedPlayer && league.getCurrentSeasonYear() >= 0 && signedPlayer->getCurrentSeasonStats().seasonYear != league.getCurrentSeasonYear()) {
+		signedPlayer->initializeSeasonStats(league.getCurrentSeasonYear());
+	}
 
 	return true;
 }

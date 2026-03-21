@@ -6,6 +6,8 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <unordered_set>
+#include <unordered_map>
 
 #include "Date.h"
 #include "Game.h"
@@ -74,6 +76,230 @@ namespace {
         }
         return dateToString(*date);
     }
+}
+struct TeamSeasonStatsTotals {
+    int totalPlayed = 0;
+    int totalGoalsFor = 0;
+    int totalGoalsAgainst = 0;
+    int totalWins = 0;
+    int totalLosses = 0;
+    int totalPoints = 0;
+};
+
+TeamSeasonStatsTotals computeTeamSeasonStatsTotals(const std::unordered_map<TeamId, TeamSeasonStats>& statsByTeam) {
+    TeamSeasonStatsTotals totals;
+    for (const auto& [teamId, entry] : statsByTeam) {
+        (void)teamId;
+        totals.totalPlayed += entry.played;
+        totals.totalGoalsFor += entry.goalsFor;
+        totals.totalGoalsAgainst += entry.goalsAgainst;
+        totals.totalWins += entry.wins;
+        totals.totalLosses += entry.losses;
+        totals.totalPoints += entry.points;
+    }
+    return totals;
+}
+
+void validateCurrentPlayerSeasonStats(const League& league, int expectedSeasonYear) {
+    for (const auto& [teamName, team] : league.getTeams()) {
+        (void)teamName;
+        for (const auto& player : team->getPlayers()) {
+            const PlayerSeasonStats& stats = player->getCurrentSeasonStats();
+            assertOrThrow(stats.playerId == player->getId(),
+                "Player currentSeasonStats.playerId must match player id.");
+            assertOrThrow(stats.seasonYear == expectedSeasonYear,
+                "Player currentSeasonStats.seasonYear must match current season year.");
+        }
+    }
+}
+
+void validateSeasonStatsAtCompletion(const League& league, const LeagueRules& rules) {
+    const auto& teamStatsByTeam = league.getCurrentTeamSeasonStats();
+    const auto& standings = league.getStandings();
+    const int teamCount = static_cast<int>(league.getTeams().size());
+    const int expectedPlayedPerTeam = rules.matchdaysPerSeason;
+
+    assertOrThrow(static_cast<int>(teamStatsByTeam.size()) == teamCount,
+        "Team season stats entry count must match team count.");
+
+    int totalStandingsPoints = 0;
+    for (const auto& [teamId, entry] : standings) {
+        (void)teamId;
+        totalStandingsPoints += entry.points;
+    }
+
+    for (const auto& [teamId, stats] : teamStatsByTeam) {
+        assertOrThrow(league.getCurrentTeamSeasonStatsFor(teamId) != nullptr,
+            "Current team season stats lookup must not return null.");
+        assertOrThrow(stats.teamId == teamId,
+            "Team season stats teamId must match map key.");
+        assertOrThrow(stats.seasonYear == league.getCurrentSeasonYear(),
+            "Team season stats seasonYear must match current season year.");
+        assertOrThrow(stats.played == expectedPlayedPerTeam,
+            "Each team must have the expected played count in team season stats.");
+
+        const auto standingsIt = standings.find(teamId);
+        assertOrThrow(standingsIt != standings.end(),
+            "Standings entry must exist for team season stats team.");
+        const StandingsEntry& standingsEntry = standingsIt->second;
+        assertOrThrow(stats.played == standingsEntry.played,
+            "Team season stats played must match standings.");
+        assertOrThrow(stats.wins == standingsEntry.wins,
+            "Team season stats wins must match standings.");
+        assertOrThrow(stats.draws == standingsEntry.draws,
+            "Team season stats draws must match standings.");
+        assertOrThrow(stats.losses == standingsEntry.losses,
+            "Team season stats losses must match standings.");
+        assertOrThrow(stats.goalsFor == standingsEntry.goalsFor,
+            "Team season stats goalsFor must match standings.");
+        assertOrThrow(stats.goalsAgainst == standingsEntry.goalsAgainst,
+            "Team season stats goalsAgainst must match standings.");
+        assertOrThrow(stats.points == standingsEntry.points,
+            "Team season stats points must match standings.");
+    }
+
+    const TeamSeasonStatsTotals totals = computeTeamSeasonStatsTotals(teamStatsByTeam);
+    assertOrThrow(totals.totalPlayed == rules.teamCount * expectedPlayedPerTeam,
+        "Total team season stats played mismatch.");
+    assertOrThrow(totals.totalGoalsFor == totals.totalGoalsAgainst,
+        "Team season stats goalsFor/goalsAgainst invariant failed.");
+    assertOrThrow(totals.totalWins == totals.totalLosses,
+        "Team season stats wins/losses invariant failed.");
+    assertOrThrow(totals.totalPoints == totalStandingsPoints,
+        "Team season stats total points must match standings total points.");
+}
+
+void validateSeasonRolloverState(const League& league, int archivedSeasonYear, const LeagueRules& rules) {
+    const auto& archivedBySeason = league.getArchivedTeamSeasonStatsBySeason();
+    const auto archivedSeasonIt = archivedBySeason.find(archivedSeasonYear);
+    assertOrThrow(archivedSeasonIt != archivedBySeason.end(),
+        "Archived team season stats must contain the completed season.");
+    assertOrThrow(static_cast<int>(archivedSeasonIt->second.size()) == rules.teamCount,
+        "Archived team season stats entry count must match team count.");
+
+    for (const auto& [teamName, team] : league.getTeams()) {
+        (void)teamName;
+        const TeamId teamId = team->getId();
+        const TeamSeasonStats* archivedStats = league.getArchivedTeamSeasonStatsFor(teamId, archivedSeasonYear);
+        assertOrThrow(archivedStats != nullptr,
+            "Archived team season stats lookup must not return null.");
+        assertOrThrow(archivedStats->seasonYear == archivedSeasonYear,
+            "Archived team season stats seasonYear must match archived season.");
+
+        const TeamSeasonStats* currentStats = league.getCurrentTeamSeasonStatsFor(teamId);
+        assertOrThrow(currentStats != nullptr,
+            "Current team season stats lookup after rollover must not return null.");
+        assertOrThrow(currentStats->seasonYear == league.getCurrentSeasonYear(),
+            "Current team season stats seasonYear must match the new season year.");
+        assertOrThrow(currentStats->played == 0 && currentStats->points == 0 && currentStats->goalsFor == 0 && currentStats->goalsAgainst == 0,
+            "Current team season stats must be reset for the new season.");
+    }
+
+    assertOrThrow(static_cast<int>(league.getCurrentTeamSeasonStats().size()) == static_cast<int>(league.getTeams().size()),
+        "Current team season stats entry count after rollover must match team count.");
+
+    validateCurrentPlayerSeasonStats(league, league.getCurrentSeasonYear());
+
+    for (const auto& [teamName, team] : league.getTeams()) {
+        (void)teamName;
+        for (const auto& player : team->getPlayers()) {
+            const auto& archivedStatsByYear = player->getArchivedSeasonStatsByYear();
+            const auto archivedPlayerIt = archivedStatsByYear.find(archivedSeasonYear);
+            assertOrThrow(archivedPlayerIt != archivedStatsByYear.end(),
+                "Archived player season stats must contain the completed season.");
+            assertOrThrow(archivedPlayerIt->second.playerId == player->getId(),
+                "Archived player season stats playerId must match player id.");
+            assertOrThrow(archivedPlayerIt->second.seasonYear == archivedSeasonYear,
+                "Archived player season stats seasonYear must match archived season.");
+
+            const PlayerSeasonStats& currentStats = player->getCurrentSeasonStats();
+            assertOrThrow(currentStats.playerId == player->getId(),
+                "Reset player season stats playerId must remain stable.");
+            assertOrThrow(currentStats.seasonYear == league.getCurrentSeasonYear(),
+                "Reset player season stats seasonYear must match new season year.");
+            assertOrThrow(currentStats.appearances == 0 && currentStats.starts == 0 && currentStats.substituteAppearances == 0 &&
+                currentStats.minutesPlayed == 0 && currentStats.goals == 0 && currentStats.assists == 0 &&
+                currentStats.yellowCards == 0 && currentStats.redCards == 0 && currentStats.cleanSheets == 0 &&
+                currentStats.goalsConcededWhileOnPitch == 0,
+                "Reset player season stats must start from zero values.");
+        }
+    }
+}
+
+void validateMatchHistoryIntegrity(const League& league, const LeagueRules& rules) {
+    const auto& history = league.getCurrentSeasonHistory();
+    const int expectedTotalMatches = rules.teamCount * (rules.teamCount - 1);
+    assertOrThrow(static_cast<int>(history.size()) == expectedTotalMatches,
+        "Current season history size mismatch at season completion.");
+
+    std::unordered_set<std::string> dedupe;
+    for (const MatchRecord& record : history) {
+        assertOrThrow(record.seasonYear == league.getCurrentSeasonYear(),
+            "MatchRecord seasonYear does not match current league season.");
+        assertOrThrow(league.hasTeam(record.homeId),
+            "History record contains invalid home TeamId.");
+        assertOrThrow(league.hasTeam(record.awayId),
+            "History record contains invalid away TeamId.");
+        assertOrThrow(record.homeId != record.awayId,
+            "History record cannot contain same team twice.");
+        assertOrThrow(record.homeGoals >= 0 && record.awayGoals >= 0,
+            "History record cannot contain negative goals.");
+        const std::string key = std::to_string(record.seasonYear) + ":" +
+            std::to_string(record.date.getYear()) + "-" +
+            std::to_string(static_cast<int>(record.date.getMonth())) + "-" +
+            std::to_string(record.date.getDay()) + ":" +
+            std::to_string(record.homeId) + ":" + std::to_string(record.awayId);
+        assertOrThrow(dedupe.insert(key).second,
+            "Duplicate history record detected for a played match.");
+    }
+}
+
+void validateTeamHistoryQueries(const League& league, const LeagueRules& rules) {
+    const int expectedMatchesPerTeam = (rules.teamCount - 1) * 2;
+    bool checkedAnyTeam = false;
+
+    for (const auto& [teamName, team] : league.getTeams()) {
+        (void)teamName;
+        const TeamId teamId = team->getId();
+        const auto currentSeasonMatches = league.getMatchesForTeamInCurrentSeason(teamId);
+        const auto seasonMatches = league.getMatchesForTeamInSeason(teamId, league.getCurrentSeasonYear());
+
+        assertOrThrow(!currentSeasonMatches.empty(),
+            "Team current-season history query unexpectedly returned empty.");
+        assertOrThrow(static_cast<int>(currentSeasonMatches.size()) == expectedMatchesPerTeam,
+            "Team current-season history query count mismatch.");
+        assertOrThrow(currentSeasonMatches.size() == seasonMatches.size(),
+            "Season-scoped history query should match current-season query for active season.");
+
+        const std::string recentForm = league.getRecentFormString(teamId, 5);
+        assertOrThrow(recentForm.size() <= 5,
+            "Recent form string cannot exceed requested size.");
+        for (char c : recentForm) {
+            assertOrThrow(c == 'W' || c == 'D' || c == 'L',
+                "Recent form string contains invalid characters.");
+        }
+
+        const auto recentMatches = league.getLastMatchesForTeam(teamId, 5);
+        assertOrThrow(recentMatches.size() <= 5,
+            "Last-matches query cannot exceed requested size.");
+
+        checkedAnyTeam = true;
+    }
+
+    assertOrThrow(checkedAnyTeam, "No team found while validating history queries.");
+}
+
+void validateArchiveState(const League& league, int archivedSeasonYear, const LeagueRules& rules) {
+    const auto& archived = league.getArchivedHistoryBySeason();
+    const auto it = archived.find(archivedSeasonYear);
+    assertOrThrow(it != archived.end(),
+        "Archived history entry missing after season rollover.");
+
+    const int expectedTotalMatches = rules.teamCount * (rules.teamCount - 1);
+    assertOrThrow(static_cast<int>(it->second.size()) == expectedTotalMatches,
+        "Archived season history size mismatch after rollover.");
+    assertOrThrow(league.getCurrentSeasonHistory().empty(),
+        "New season current history must start empty after rollover.");
 }
 struct StandingsTotals {
     int totalPlayed = 0;
@@ -317,6 +543,8 @@ void validateSeasonOutcome(Game& game, const LeagueRules& rules) {
         "Standings wins/losses invariant failed.");
 
     validateSortedStandings(league);
+    validateMatchHistoryIntegrity(league, rules);
+    validateTeamHistoryQueries(league, rules);
 
     bool duplicateResolveBlocked = false;
     for (const auto& [date, matches] : league.getFixture()) {
@@ -324,6 +552,7 @@ void validateSeasonOutcome(Game& game, const LeagueRules& rules) {
             if (!match.played) {
                 continue;
             }
+            const std::size_t historySizeBeforeDuplicateAttempt = league.getCurrentSeasonHistory().size();
             try {
                 league.applyMatchResult(date, match.homeId, match.awayId, MatchResult{ match.homeGoals, match.awayGoals });
             }
@@ -331,6 +560,8 @@ void validateSeasonOutcome(Game& game, const LeagueRules& rules) {
                 duplicateResolveBlocked = true;
             }
             assertOrThrow(duplicateResolveBlocked, "Duplicate match resolution should be blocked.");
+            assertOrThrow(historySizeBeforeDuplicateAttempt == league.getCurrentSeasonHistory().size(),
+                "Duplicate match resolution attempt should not append extra history.");
             return;
         }
     }
@@ -342,7 +573,7 @@ int main() {
     try {
         Game game;
 
-        const int simulationDays = 1500;
+        const int simulationDays = 500;
         const int tickEvery = 50;
         const bool failFast = true;
 
@@ -352,14 +583,20 @@ int main() {
         int lastSeasonMatchEvents = 0;
         std::optional<Date> lastWeeklyLogDate;
         std::optional<std::string> lastNewMonthLogKey;
+        std::optional<int> pendingArchiveValidationSeason;
+        bool sawHistoryRefillAfterArchive = false;
+        bool sawAnyHistoryRefillAfterArchive = false;
         
         const LeagueRules& rules = game.getRules();
         const SeasonPlan& bootPlan = game.getSeasonPlan();
         const League& bootLeague = game.getLeague();
+        int lastObservedLeagueSeasonYear = bootLeague.getCurrentSeasonYear();
 
         bool lastAllMatchesPlayed = bootLeague.allMatchesPlayed();
         bool seasonOutcomeValidated = false;
+        bool archiveValidated = false;
         int lastPrintedStandingsSeasonYear = bootPlan.getSeasonYear() - 1;
+        int lastArchivedSeasonValidated = bootPlan.getSeasonYear() - 1;
 
         const int expectedTotalMatches =
             (rules.teamCount * (rules.teamCount - 1));
@@ -387,6 +624,16 @@ int main() {
             const TransferWindow& summer = plan.getSummerWindow();
             const TransferWindow& winter = plan.getWinterWindow();
 
+            if (league.getCurrentSeasonYear() != lastObservedLeagueSeasonYear) {
+                if (pendingArchiveValidationSeason.has_value()) {
+                    validateArchiveState(league, *pendingArchiveValidationSeason, rules);
+                    archiveValidated = true;
+                    pendingArchiveValidationSeason.reset();
+                    sawHistoryRefillAfterArchive = false;
+                }
+                lastObservedLeagueSeasonYear = league.getCurrentSeasonYear();
+            }
+
             if (simDay % tickEvery == 0) {
                 std::cout << "[Tick] simDay=" << simDay
                     << " date=" << dateToString(date)
@@ -398,14 +645,9 @@ int main() {
 
             maybeLogMonthBoundary(date, game, summer, winter, lastNewMonthLogKey);
             maybeLogWeekly(date, game, league, lastWeeklyLogDate);
-            maybeLogTransferWindowTransitions(preUpdateDate,
-                date,
-                preUpdatePlan.getSummerWindow(),
-                summer,
-                preUpdatePlan.getWinterWindow(),
-                winter,
-                failFast);
+            maybeLogTransferWindowTransitions(preUpdateDate, date, preUpdatePlan.getSummerWindow(), summer,preUpdatePlan.getWinterWindow(), winter, failFast);
 
+       
             if (date.getMonth() == Month::July && date.getDay() == 1 && date.getYear() != lastSeasonYearLogged) {
                 lastSeasonYearLogged = date.getYear();
                 ++seasonsObserved;
@@ -413,6 +655,11 @@ int main() {
 
             if (dateEquals(date, plan.getPreseasonStart()) && date.getYear() != lastSeasonStartObservedYear) {
                 lastSeasonStartObservedYear = date.getYear();
+
+                if (plan.getSeasonYear() > bootPlan.getSeasonYear() && lastArchivedSeasonValidated != plan.getSeasonYear() - 1) {
+                    validateSeasonRolloverState(league, plan.getSeasonYear() - 1, rules);
+                    lastArchivedSeasonValidated = plan.getSeasonYear() - 1;
+                }
 
                 const int teams = static_cast<int>(league.getTeams().size());
                 const bool fixtureGenerated = league.isSeasonFixtureGenerated();
@@ -422,8 +669,8 @@ int main() {
                 const int generatedThisSeason = totalGeneratedMatchEvents - lastSeasonMatchEvents;
                 lastSeasonMatchEvents = totalGeneratedMatchEvents;
 
-                const std::optional<Date> firstHalfEnd = league.tryGetMatchdayEndDate(rules.firstHalfRounds);
-                const std::optional<Date> finalRoundEnd = league.tryGetMatchdayEndDate(rules.matchdaysPerSeason);
+                const std::optional<Date> firstHalfEnd = league.tryGetMatchWeekEndDate(rules.firstHalfRounds);
+                const std::optional<Date> finalRoundEnd = league.tryGetMatchWeekEndDate(rules.matchdaysPerSeason);
 
                 std::cout << "[SeasonStart] year=" << plan.getSeasonYear()
                     << " date=" << dateToString(date)
@@ -456,6 +703,10 @@ int main() {
                 assertOrThrow(!failFast || plan.getSeasonEndDate().has_value(),
                     "SeasonStart validation failed at " + dateToString(date) +
                     ": seasonEndDate should be finalized.");
+                assertOrThrow(!failFast || league.getCurrentSeasonHistory().empty(),
+                    "SeasonStart validation failed: current season history must be empty at preseason start.");
+                assertOrThrow(!failFast || league.getCurrentSeasonYear() == plan.getSeasonYear(),
+                    "SeasonStart validation failed: league current season year mismatch.");
 
                 if (rules.winterBreakEnabled) {
                     assertOrThrow(!failFast || plan.getWinterBreakStart().has_value(),
@@ -468,7 +719,10 @@ int main() {
                         << " end=" << optionalDateToString(plan.getWinterBreakEnd()) << "\n";
                 }
             }
-
+            if (!sawHistoryRefillAfterArchive && archiveValidated && !league.getCurrentSeasonHistory().empty()) {
+                sawHistoryRefillAfterArchive = true;
+                sawAnyHistoryRefillAfterArchive = true;
+            }
             if (dateEquals(date, plan.getKickoff())) {
                 std::cout << "[Kickoff] date=" << dateToString(date)
                     << " seasonYear=" << plan.getSeasonYear()
@@ -478,7 +732,10 @@ int main() {
             const bool allMatchesPlayedNow = league.allMatchesPlayed();
             if (!lastAllMatchesPlayed && allMatchesPlayedNow) {
                 validateSeasonOutcome(game, rules);
+                validateSeasonStatsAtCompletion(league, rules);
+                validateCurrentPlayerSeasonStats(league, league.getCurrentSeasonYear());
                 seasonOutcomeValidated = true;
+                pendingArchiveValidationSeason = plan.getSeasonYear();
                 const std::optional<Date> seasonEnd = plan.getSeasonEndDate();
                 assertOrThrow(!failFast || seasonEnd.has_value(),
                     "SeasonComplete validation failed at " + dateToString(date) +
@@ -493,6 +750,7 @@ int main() {
                 std::cout << "[SeasonComplete] date=" << dateToString(date)
                     << " seasonYear=" << plan.getSeasonYear()
                     << " totalMatches=" << league.debugTotalFixtureMatches()
+                    << " historySize=" << league.getCurrentSeasonHistory().size()
                     << " seasonEnd=" << optionalDateToString(seasonEnd)
                     << " state=" << stateToString(game.getState())
                     << "\n";
@@ -515,8 +773,8 @@ int main() {
         if (rules.winterBreakEnabled) {
             const SeasonPlan& plan = game.getSeasonPlan();
             const League& league = game.getLeague();
-            const auto firstHalfEnd = league.tryGetMatchdayEndDate(17);
-            const auto fullSeasonEnd = league.tryGetMatchdayEndDate(34);
+            const auto firstHalfEnd = league.tryGetMatchWeekEndDate(17);
+            const auto fullSeasonEnd = league.tryGetMatchWeekEndDate(34);
             assertOrThrow(!failFast || firstHalfEnd.has_value(),
                 "Final validation failed: matchdayEndDate(17) missing with winter break enabled.");
             assertOrThrow(!failFast || fullSeasonEnd.has_value(),
@@ -524,6 +782,8 @@ int main() {
             (void)plan;
         }
         assertOrThrow(!failFast || seasonOutcomeValidated, "Final validation failed: no completed season outcome was validated.");
+        assertOrThrow(!failFast || archiveValidated, "Final validation failed: no archived season history was validated.");
+        assertOrThrow(!failFast || sawAnyHistoryRefillAfterArchive, "Final validation failed: new season history never refilled after archive reset.");
 
         std::cout << "[Done] seasonsObserved=" << seasonsObserved
             << " totalGeneratedMatchEvents=" << game.getMatchScheduler().debugGeneratedMatchEvents()

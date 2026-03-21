@@ -50,6 +50,7 @@ public:
 	//Oyuncuyu ID'sine gore bulur pointer'ini verir
 	Footballer* findPlayerById(PlayerId id);
 	const Footballer* findPlayerById(PlayerId id) const;
+	const std::vector<std::unique_ptr<Footballer>>& getPlayers() const;
 
 	//Transfer icin yeterli para olup olmadigini kontrol eder
 	bool canAffordTransfer(Money amount) const;
@@ -74,7 +75,12 @@ public:
 
 	//kontrat surelerini gunceller ( 1 yil azaltir )
 	void updateContracts();
-	
+
+	//player stats fonksiyonlari------------------------------
+	void resetPlayerSeasonStats(int newSeasonYear);
+	void archiveAndResetPlayerSeasonStats(int newSeasonYear);
+	//--------------------------------------------------------
+
 	void print(std::ostream& os) const;
 };
 std::ostream& operator<<(std::ostream& os, const Team& team);

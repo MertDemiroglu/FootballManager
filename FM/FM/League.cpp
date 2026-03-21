@@ -28,6 +28,11 @@ void League::addTeam(std::unique_ptr<Team> team) {
 	teams.emplace(teamName, std::move(team));
 	teamIndexById.emplace(teamId, rawTeam);
 	standings[teamId] = StandingsEntry{ teamId };
+
+	if (currentSeasonYear >= 0) {
+		currentTeamSeasonStats[teamId] = TeamSeasonStats{ teamId, currentSeasonYear };
+		rawTeam->resetPlayerSeasonStats(currentSeasonYear);
+	}
 }
 
 bool League::teamExists(const std::string& teamName) const {
@@ -106,7 +111,7 @@ void League::initializeMatchdayTracking(int matchdaysPerSeason) {
 	if (matchdaysPerSeason < 0) {
 		throw std::invalid_argument("matchdaysPerSeason cannot be negative");
 	}
-	matchdayEndDates.assign(static_cast<std::size_t>(matchdaysPerSeason), std::nullopt);
+	matchWeekEndDates.assign(static_cast<std::size_t>(matchdaysPerSeason), std::nullopt);
 }
 
 void League::addFixtureMatch(int matchWeekIndex, const Date& date, TeamId homeId, TeamId awayId) {
@@ -123,14 +128,14 @@ void League::addFixtureMatch(int matchWeekIndex, const Date& date, TeamId homeId
 	}
 
 	const std::size_t zeroBased = static_cast<std::size_t>(matchWeekIndex - 1);
-	if (zeroBased >= matchdayEndDates.size()) {
+	if (zeroBased >= matchWeekEndDates.size()) {
 		throw std::out_of_range("matchday index exceeds initialized tracking range");
 	}
 
 	auto& dayMatches = fixture[date];
 	dayMatches.push_back(FixtureMatch{ homeId, awayId, matchWeekIndex});
 
-	auto& endDate = matchdayEndDates[zeroBased];
+	auto& endDate = matchWeekEndDates[zeroBased];
 	if (!endDate.has_value() || *endDate < date) {
 		endDate = date;
 	}
@@ -138,18 +143,18 @@ void League::addFixtureMatch(int matchWeekIndex, const Date& date, TeamId homeId
 
 void League::clearFixture() {
 	fixture.clear();
-	matchdayEndDates.clear();
+	matchWeekEndDates.clear();
 }
 
-std::optional<Date> League::tryGetMatchdayEndDate(int matchdayIndex) const {
-	if (matchdayIndex <= 0) {
+std::optional<Date> League::tryGetMatchWeekEndDate(int matchWeekIndex) const {
+	if (matchWeekIndex <= 0) {
 		return std::nullopt;
 	}
-	const std::size_t zeroBased = static_cast<std::size_t>(matchdayIndex - 1);
-	if (zeroBased >= matchdayEndDates.size()) {
+	const std::size_t zeroBased = static_cast<std::size_t>(matchWeekIndex - 1);
+	if (zeroBased >= matchWeekEndDates.size()) {
 		return std::nullopt;
 	}
-	return matchdayEndDates[zeroBased];
+	return matchWeekEndDates[zeroBased];
 }
 
 Date League::getLastFixtureDate() const {
@@ -239,6 +244,37 @@ void League::resetStandings() {
 	initializeStandings();
 }
 
+void League::initializeTeamSeasonStats() {
+	if (currentSeasonYear < 0) {
+		throw std::logic_error("current season year is not initialized");
+	}
+
+	currentTeamSeasonStats.clear();
+	for (const auto& [teamName, team] : teams) {
+		(void)teamName;
+		currentTeamSeasonStats.emplace(team->getId(), TeamSeasonStats{ team->getId(), currentSeasonYear });
+	}
+}
+void League::resetCurrentTeamSeasonStats() {
+	currentTeamSeasonStats.clear();
+	initializeTeamSeasonStats();
+}
+
+void League::archiveCompletedTeamSeasonStats(int seasonYear) {
+	if (seasonYear < 0) {
+		throw std::invalid_argument("invalid season year for team stats archive");
+	}
+
+	if (currentTeamSeasonStats.empty()) {
+		return;
+	}
+	auto [it, inserted] = archivedTeamSeasonStatsBySeason.emplace(seasonYear, currentTeamSeasonStats);
+	if (!inserted) {
+		throw std::logic_error("team season stats already archived");
+	}
+}
+
+
 void League::updateStandingsForMatch(TeamId homeId, TeamId awayId, const MatchResult& result) {
 	auto homeIter = standings.find(homeId);
 	auto awayIter = standings.find(awayId);
@@ -274,6 +310,80 @@ void League::updateStandingsForMatch(TeamId homeId, TeamId awayId, const MatchRe
 		++awayEntry.draws;
 		++homeEntry.points;
 		++awayEntry.points;
+	}
+}
+
+void League::updateTeamSeasonStatsForMatch(TeamId homeId, TeamId awayId, const MatchResult& result) {
+	auto homeIter = currentTeamSeasonStats.find(homeId);
+	auto awayIter = currentTeamSeasonStats.find(awayId);
+
+	if (homeIter == currentTeamSeasonStats.end() || awayIter == currentTeamSeasonStats.end()) {
+		throw std::out_of_range("cannot update team stats for unknown team id");
+	}
+
+	TeamSeasonStats& homeEntry = homeIter->second;
+	TeamSeasonStats& awayEntry = awayIter->second;
+
+	if (homeEntry.seasonYear != currentSeasonYear || awayEntry.seasonYear != currentSeasonYear) {
+		throw std::logic_error("team season stats are not aligned with current season year");
+	}
+
+	++homeEntry.played;
+	++homeEntry.homePlayed;
+	++awayEntry.played;
+	++awayEntry.awayPlayed;
+
+	homeEntry.goalsFor += result.homeGoals;
+	homeEntry.goalsAgainst += result.awayGoals;
+	homeEntry.homeGoalsFor += result.homeGoals;
+	homeEntry.homeGoalsAgainst += result.awayGoals;
+
+	awayEntry.goalsFor += result.awayGoals;
+	awayEntry.goalsAgainst += result.homeGoals;
+	awayEntry.awayGoalsFor += result.awayGoals;
+	awayEntry.awayGoalsAgainst += result.homeGoals;
+
+	if (result.homeGoals > result.awayGoals) {
+		++homeEntry.wins;
+		++homeEntry.homeWins;
+		homeEntry.points += 3;
+		homeEntry.homePoints += 3;
+
+		++awayEntry.losses;
+		++awayEntry.awayLosses;
+	}
+	else if (result.awayGoals > result.homeGoals) {
+		++homeEntry.losses;
+		++homeEntry.homeLosses;
+
+		++awayEntry.wins;
+		++awayEntry.awayWins;
+		awayEntry.points += 3;
+		awayEntry.awayPoints += 3;
+	}
+	else {
+		++homeEntry.draws;
+		++homeEntry.homeDraws;
+		++homeEntry.points;
+		++homeEntry.homePoints;
+
+		++awayEntry.draws;
+		++awayEntry.awayDraws;
+		++awayEntry.points;
+		++awayEntry.awayPoints;
+	}
+
+	if (result.awayGoals == 0) {
+		++homeEntry.cleanSheets;
+	}
+	if (result.homeGoals == 0) {
+		++awayEntry.cleanSheets;
+	}
+	if (result.homeGoals == 0) {
+		++homeEntry.failedToScore;
+	}
+	if (result.awayGoals == 0) {
+		++awayEntry.failedToScore;
 	}
 }
 
@@ -316,6 +426,8 @@ void League::applyMatchResult(const Date& date, TeamId homeId, TeamId awayId, co
 	updateStandingsForMatch(homeId, awayId, result);
 
 	currentSeasonHistory.push_back(MatchRecord{ date, currentSeasonYear, homeId,awayId, result.homeGoals, result.awayGoals, match->matchweek });
+
+	updateTeamSeasonStatsForMatch(homeId, awayId, result);
 }
 
 std::vector<StandingsEntry> League::getSortedStandings() const {
@@ -342,6 +454,34 @@ std::vector<StandingsEntry> League::getSortedStandings() const {
 
 const std::unordered_map<TeamId, StandingsEntry>& League::getStandings() const {
 	return standings;
+}
+
+const std::unordered_map<TeamId, TeamSeasonStats>& League::getCurrentTeamSeasonStats() const {
+	return currentTeamSeasonStats;
+}
+
+const std::unordered_map<int, std::unordered_map<TeamId, TeamSeasonStats>>& League::getArchivedTeamSeasonStatsBySeason() const {
+	return archivedTeamSeasonStatsBySeason;
+}
+
+const TeamSeasonStats* League::getCurrentTeamSeasonStatsFor(TeamId teamId) const {
+	auto it = currentTeamSeasonStats.find(teamId);
+	if (it == currentTeamSeasonStats.end()) {
+		return nullptr;
+	}
+	return &it->second;
+}
+
+const TeamSeasonStats* League::getArchivedTeamSeasonStatsFor(TeamId teamId, int seasonYear) const {
+	auto seasonIt = archivedTeamSeasonStatsBySeason.find(seasonYear);
+	if (seasonIt == archivedTeamSeasonStatsBySeason.end()) {
+		return nullptr;
+	}
+	auto teamIt = seasonIt->second.find(teamId);
+	if (teamIt == seasonIt->second.end()) {
+		return nullptr;
+	}
+	return &teamIt->second;
 }
 
 bool League::isSeasonFixtureGenerated() const {
@@ -513,21 +653,27 @@ int League::getCurrentSeasonYear() const {
 }
 
 void League::resetForNewSeason(int newSeasonYear) {
+
 	if (newSeasonYear < 0) {
 		throw std::invalid_argument("new season year cannot be negative");
 	}
 
-	if (!currentSeasonHistory.empty()) {
-		if (currentSeasonYear < 0) {
-			throw std::logic_error("cannot archive season history without a valid current season year");
+	if (currentSeasonYear >= 0) {
+		if (!currentSeasonHistory.empty()) {
+			archiveCompletedSeasonHistory(currentSeasonYear);
 		}
-		archiveCompletedSeasonHistory(currentSeasonYear);
+		archiveCompletedTeamSeasonStats(currentSeasonYear);
 	}
 
 	clearFixture();
 	initializeStandings();
 	resetCurrentSeasonHistory();
 	setCurrentSeasonYear(newSeasonYear);
+	resetCurrentTeamSeasonStats();
+	for (auto& [teamName, team] : teams) {
+		(void)teamName;
+		team->archiveAndResetPlayerSeasonStats(newSeasonYear);
+	}
 	seasonFixtureGenerated = false;
 }
 
@@ -546,5 +692,5 @@ int League::debugTotalFixtureMatches() const {
 	return total;
 }
 int League::debugMatchdayCount() const {
-	return static_cast<int>(matchdayEndDates.size());
+	return static_cast<int>(matchWeekEndDates.size());
 }

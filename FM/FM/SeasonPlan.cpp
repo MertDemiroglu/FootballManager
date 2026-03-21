@@ -33,7 +33,7 @@ void SeasonPlan::finalizeFromFixture(const League& league, const LeagueRules& ru
         return;
     }
 
-    const auto anchor = league.tryGetMatchdayEndDate(rules.winterBreakAfterRoundIndex);
+    const auto anchor = league.tryGetMatchWeekEndDate(rules.winterBreakAfterRoundIndex);
     if (!anchor.has_value()) {
         winterBreakStart.reset();
         winterBreakEnd.reset();
