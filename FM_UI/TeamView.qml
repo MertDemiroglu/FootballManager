@@ -17,10 +17,10 @@ Item {
 
     function refreshData() {
         hasActiveGame = gameFacade.hasStartedGame()
-        seasonStats = gameFacade.getCurrentTeamSeasonStats()
-        recentMatches = gameFacade.getCurrentTeamMatches()
-        upcomingMatches = gameFacade.getCurrentTeamUpcomingMatches(5)
-        players = gameFacade.getCurrentTeamPlayers()
+        seasonStats = hasActiveGame ? gameFacade.getCurrentTeamSeasonStats() : ({})
+        recentMatches = hasActiveGame ? gameFacade.getCurrentTeamMatches() : []
+        upcomingMatches = hasActiveGame ? gameFacade.getCurrentTeamUpcomingMatches(5) : []
+        players = hasActiveGame ? gameFacade.getCurrentTeamPlayers() : []
     }
 
     function openPlayerDetails(playerId) {
@@ -38,6 +38,32 @@ Item {
         return mapObject[key]
     }
 
+    function resultColor(resultLetter) {
+        if (resultLetter === "W") {
+            return "#067647"
+        }
+        if (resultLetter === "D") {
+            return "#b54708"
+        }
+        if (resultLetter === "L") {
+            return "#b42318"
+        }
+        return "#667085"
+    }
+
+    function resultBackground(resultLetter) {
+        if (resultLetter === "W") {
+            return "#ecfdf3"
+        }
+        if (resultLetter === "D") {
+            return "#fffaeb"
+        }
+        if (resultLetter === "L") {
+            return "#fef3f2"
+        }
+        return "#f2f4f7"
+    }
+
     Component.onCompleted: refreshData()
 
     Connections {
@@ -50,27 +76,26 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        color: "#f5f5f5"
+        color: "#f4f6fb"
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 24
             spacing: 18
 
             Rectangle {
                 Layout.fillWidth: true
-                radius: 14
+                radius: 16
                 color: "#ffffff"
-                border.color: "#d9dee7"
+                border.color: "#d8dee8"
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 20
-                    spacing: 12
+                    anchors.margins: 24
+                    spacing: 14
 
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 12
+                        spacing: 16
 
                         ColumnLayout {
                             Layout.fillWidth: true
@@ -78,16 +103,17 @@ Item {
 
                             Label {
                                 text: gameFacade.getSelectedTeamName() || "Team"
-                                font.pixelSize: 30
+                                font.pixelSize: 32
                                 font.bold: true
-                                color: "#1f2937"
+                                color: "#17212f"
                                 Layout.fillWidth: true
                                 elide: Text.ElideRight
                             }
 
                             Label {
                                 text: "Team overview, season stats, fixtures and squad information."
-                                color: "#667085"
+                                color: "#526071"
+                                font.pixelSize: 15
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
                             }
@@ -95,7 +121,8 @@ Item {
 
                         Button {
                             text: "Back"
-                            Layout.preferredHeight: 42
+                            Layout.preferredHeight: 44
+                            font.pixelSize: 15
                             onClicked: root.backRequested()
                         }
                     }
@@ -106,6 +133,7 @@ Item {
                 visible: !root.hasActiveGame
                 text: "No active game. Start a new game to view team details."
                 color: "#667085"
+                font.pixelSize: 16
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
             }
@@ -118,7 +146,7 @@ Item {
                 clip: true
 
                 Item {
-                    width: teamScroll.availableWidth
+                    width: Math.max(teamScroll.availableWidth, 860)
                     implicitHeight: contentColumn.implicitHeight
 
                     ColumnLayout {
@@ -128,9 +156,9 @@ Item {
 
                         Rectangle {
                             Layout.fillWidth: true
-                            radius: 14
+                            radius: 16
                             color: "#ffffff"
-                            border.color: "#d9dee7"
+                            border.color: "#d8dee8"
 
                             ColumnLayout {
                                 anchors.fill: parent
@@ -139,16 +167,16 @@ Item {
 
                                 Label {
                                     text: "Team Season Stats"
-                                    font.pixelSize: 21
+                                    font.pixelSize: 22
                                     font.bold: true
-                                    color: "#1f2937"
+                                    color: "#17212f"
                                 }
 
                                 GridLayout {
                                     Layout.fillWidth: true
-                                    columns: 4
+                                    columns: width >= 760 ? 4 : 2
                                     rowSpacing: 12
-                                    columnSpacing: 18
+                                    columnSpacing: 14
 
                                     Repeater {
                                         model: [
@@ -165,7 +193,7 @@ Item {
                                         delegate: Rectangle {
                                             required property var modelData
                                             Layout.fillWidth: true
-                                            Layout.preferredHeight: 82
+                                            Layout.preferredHeight: 90
                                             radius: 12
                                             color: "#f8fafc"
                                             border.color: "#e4e7ec"
@@ -173,11 +201,12 @@ Item {
                                             ColumnLayout {
                                                 anchors.fill: parent
                                                 anchors.margins: 12
-                                                spacing: 4
+                                                spacing: 6
 
                                                 Label {
                                                     text: modelData[0]
                                                     font.bold: true
+                                                    font.pixelSize: 15
                                                     color: "#344054"
                                                     wrapMode: Text.WordWrap
                                                     Layout.fillWidth: true
@@ -185,9 +214,9 @@ Item {
 
                                                 Label {
                                                     text: modelData[1]
-                                                    font.pixelSize: 22
+                                                    font.pixelSize: 24
                                                     font.bold: true
-                                                    color: "#1f2937"
+                                                    color: "#17212f"
                                                 }
                                             }
                                         }
@@ -198,9 +227,9 @@ Item {
 
                         Rectangle {
                             Layout.fillWidth: true
-                            radius: 14
+                            radius: 16
                             color: "#ffffff"
-                            border.color: "#d9dee7"
+                            border.color: "#d8dee8"
 
                             ColumnLayout {
                                 anchors.fill: parent
@@ -208,10 +237,10 @@ Item {
                                 spacing: 12
 
                                 Label {
-                                    text: "Recent / Played Matches"
-                                    font.pixelSize: 21
+                                    text: "Recent Matches"
+                                    font.pixelSize: 22
                                     font.bold: true
-                                    color: "#1f2937"
+                                    color: "#17212f"
                                 }
 
                                 Repeater {
@@ -223,35 +252,47 @@ Item {
                                         radius: 12
                                         color: "#f8fafc"
                                         border.color: "#e4e7ec"
-                                        implicitHeight: 74
+                                        implicitHeight: 96
 
                                         ColumnLayout {
                                             anchors.fill: parent
-                                            anchors.margins: 12
-                                            spacing: 6
+                                            anchors.margins: 14
+                                            spacing: 8
 
                                             RowLayout {
                                                 Layout.fillWidth: true
                                                 spacing: 12
 
                                                 Label {
-                                                    Layout.preferredWidth: 120
+                                                    Layout.preferredWidth: 140
                                                     text: modelData.dateText || "-"
+                                                    font.pixelSize: 14
                                                     color: "#475467"
                                                 }
 
                                                 Label {
                                                     Layout.fillWidth: true
                                                     text: modelData.opponentName || "Unknown opponent"
-                                                    color: "#1f2937"
+                                                    font.pixelSize: 16
                                                     font.bold: true
+                                                    color: "#17212f"
                                                     elide: Text.ElideRight
                                                 }
 
-                                                Label {
-                                                    text: (modelData.goalsFor || 0) + " - " + (modelData.goalsAgainst || 0)
-                                                    font.bold: true
-                                                    color: "#1f2937"
+                                                Rectangle {
+                                                    radius: 999
+                                                    color: root.resultBackground(modelData.resultLetter || "")
+                                                    border.color: root.resultColor(modelData.resultLetter || "")
+                                                    implicitWidth: 38
+                                                    implicitHeight: 30
+
+                                                    Label {
+                                                        anchors.centerIn: parent
+                                                        text: modelData.resultLetter || "-"
+                                                        font.pixelSize: 14
+                                                        font.bold: true
+                                                        color: root.resultColor(modelData.resultLetter || "")
+                                                    }
                                                 }
                                             }
 
@@ -260,20 +301,21 @@ Item {
                                                 spacing: 12
 
                                                 Label {
+                                                    text: "Score: " + (modelData.goalsFor || 0) + " - " + (modelData.goalsAgainst || 0)
+                                                    font.pixelSize: 15
+                                                    font.bold: true
+                                                    color: "#17212f"
+                                                }
+
+                                                Label {
                                                     text: modelData.isHome ? "Home" : "Away"
+                                                    font.pixelSize: 14
                                                     color: "#667085"
                                                 }
 
                                                 Label {
-                                                    text: "Result: " + (modelData.resultLetter || "-")
-                                                    color: (modelData.resultLetter || "") === "W" ? "#067647"
-                                                         : (modelData.resultLetter || "") === "L" ? "#b42318"
-                                                         : "#667085"
-                                                    font.bold: true
-                                                }
-
-                                                Label {
                                                     text: "Matchweek " + (modelData.matchweek || 0)
+                                                    font.pixelSize: 14
                                                     color: "#667085"
                                                 }
 
@@ -286,6 +328,7 @@ Item {
                                 Label {
                                     visible: root.recentMatches.length === 0
                                     text: "No played matches available yet."
+                                    font.pixelSize: 15
                                     color: "#667085"
                                 }
                             }
@@ -293,9 +336,9 @@ Item {
 
                         Rectangle {
                             Layout.fillWidth: true
-                            radius: 14
+                            radius: 16
                             color: "#ffffff"
-                            border.color: "#d9dee7"
+                            border.color: "#d8dee8"
 
                             ColumnLayout {
                                 anchors.fill: parent
@@ -304,9 +347,9 @@ Item {
 
                                 Label {
                                     text: "Upcoming Matches"
-                                    font.pixelSize: 21
+                                    font.pixelSize: 22
                                     font.bold: true
-                                    color: "#1f2937"
+                                    color: "#17212f"
                                 }
 
                                 Repeater {
@@ -318,30 +361,27 @@ Item {
                                         radius: 12
                                         color: "#f8fafc"
                                         border.color: "#e4e7ec"
-                                        implicitHeight: 70
+                                        implicitHeight: 92
 
                                         ColumnLayout {
                                             anchors.fill: parent
-                                            anchors.margins: 12
-                                            spacing: 6
+                                            anchors.margins: 14
+                                            spacing: 8
 
-                                            RowLayout {
+                                            Label {
                                                 Layout.fillWidth: true
-                                                spacing: 12
+                                                text: modelData.dateText || "-"
+                                                font.pixelSize: 14
+                                                color: "#475467"
+                                            }
 
-                                                Label {
-                                                    Layout.preferredWidth: 120
-                                                    text: modelData.dateText || "-"
-                                                    color: "#475467"
-                                                }
-
-                                                Label {
-                                                    Layout.fillWidth: true
-                                                    text: (modelData.homeTeamName || "") + " vs " + (modelData.awayTeamName || "")
-                                                    color: "#1f2937"
-                                                    font.bold: true
-                                                    wrapMode: Text.WordWrap
-                                                }
+                                            Label {
+                                                Layout.fillWidth: true
+                                                text: (modelData.homeTeamName || "") + " vs " + (modelData.awayTeamName || "")
+                                                font.pixelSize: 16
+                                                font.bold: true
+                                                color: "#17212f"
+                                                wrapMode: Text.WordWrap
                                             }
 
                                             RowLayout {
@@ -350,11 +390,13 @@ Item {
 
                                                 Label {
                                                     text: modelData.isHome ? "Home" : "Away"
+                                                    font.pixelSize: 14
                                                     color: "#667085"
                                                 }
 
                                                 Label {
                                                     text: "Matchweek " + (modelData.matchweek || 0)
+                                                    font.pixelSize: 14
                                                     color: "#667085"
                                                 }
 
@@ -367,6 +409,7 @@ Item {
                                 Label {
                                     visible: root.upcomingMatches.length === 0
                                     text: "No upcoming match scheduled."
+                                    font.pixelSize: 15
                                     color: "#667085"
                                 }
                             }
@@ -374,9 +417,9 @@ Item {
 
                         Rectangle {
                             Layout.fillWidth: true
-                            radius: 14
+                            radius: 16
                             color: "#ffffff"
-                            border.color: "#d9dee7"
+                            border.color: "#d8dee8"
 
                             ColumnLayout {
                                 anchors.fill: parent
@@ -385,9 +428,9 @@ Item {
 
                                 Label {
                                     text: "Players List"
-                                    font.pixelSize: 21
+                                    font.pixelSize: 22
                                     font.bold: true
-                                    color: "#1f2937"
+                                    color: "#17212f"
                                 }
 
                                 Repeater {
@@ -399,7 +442,7 @@ Item {
                                         radius: 12
                                         color: "#f8fafc"
                                         border.color: "#e4e7ec"
-                                        implicitHeight: 78
+                                        implicitHeight: 106
 
                                         MouseArea {
                                             anchors.fill: parent
@@ -409,8 +452,8 @@ Item {
 
                                         ColumnLayout {
                                             anchors.fill: parent
-                                            anchors.margins: 12
-                                            spacing: 6
+                                            anchors.margins: 14
+                                            spacing: 8
 
                                             RowLayout {
                                                 Layout.fillWidth: true
@@ -419,53 +462,35 @@ Item {
                                                 Label {
                                                     Layout.fillWidth: true
                                                     text: modelData.name || "Unknown"
+                                                    font.pixelSize: 16
                                                     font.bold: true
-                                                    color: "#1f2937"
+                                                    color: "#17212f"
                                                     elide: Text.ElideRight
                                                 }
 
                                                 Label {
                                                     text: modelData.position || "-"
+                                                    font.pixelSize: 14
                                                     color: "#475467"
                                                 }
                                             }
 
-                                            RowLayout {
-                                                Layout.fillWidth: true
+                                            Flow {
+                                                width: parent.width
                                                 spacing: 12
 
-                                                Label {
-                                                    text: "Age: " + (modelData.age || 0)
-                                                    color: "#667085"
-                                                }
+                                                Label { text: "Age: " + (modelData.age || 0); font.pixelSize: 14; color: "#667085" }
+                                                Label { text: modelData.overallSummary || "-"; font.pixelSize: 14; color: "#667085" }
+                                                Label { text: "Apps " + (modelData.appearances || 0); font.pixelSize: 14; color: "#667085" }
+                                                Label { text: "G " + (modelData.goals || 0); font.pixelSize: 14; color: "#667085" }
+                                                Label { text: "A " + (modelData.assists || 0); font.pixelSize: 14; color: "#667085" }
+                                            }
 
-                                                Label {
-                                                    text: modelData.overallSummary || "-"
-                                                    color: "#667085"
-                                                }
-
-                                                Label {
-                                                    text: "Apps " + (modelData.appearances || 0)
-                                                    color: "#667085"
-                                                }
-
-                                                Label {
-                                                    text: "G " + (modelData.goals || 0)
-                                                    color: "#667085"
-                                                }
-
-                                                Label {
-                                                    text: "A " + (modelData.assists || 0)
-                                                    color: "#667085"
-                                                }
-
-                                                Item { Layout.fillWidth: true }
-
-                                                Label {
-                                                    text: "View details"
-                                                    color: "#2f5fbf"
-                                                    font.bold: true
-                                                }
+                                            Label {
+                                                text: "View details"
+                                                font.pixelSize: 14
+                                                font.bold: true
+                                                color: "#2f5fbf"
                                             }
                                         }
                                     }
@@ -474,6 +499,7 @@ Item {
                                 Label {
                                     visible: root.players.length === 0
                                     text: "No player data available."
+                                    font.pixelSize: 15
                                     color: "#667085"
                                 }
                             }
