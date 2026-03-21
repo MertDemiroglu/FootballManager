@@ -9,58 +9,74 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        color: "#f5f5f5"
+        color: "#f4f6fb"
 
         Rectangle {
-            width: Math.min(parent.width - 48, 720)
             anchors.centerIn: parent
-            radius: 16
-            color: "white"
-            border.color: "#d8d8d8"
+            width: Math.min(Math.max(parent.width - 48, 520), 680)
+            height: Math.min(Math.max(parent.height * 0.56, 340), 460)
+            radius: 20
+            color: "#ffffff"
+            border.color: "#d8dee8"
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 32
+                anchors.margins: 36
                 spacing: 20
+
+                Item { Layout.fillHeight: true }
 
                 Label {
                     text: "Football Manager"
-                    font.pixelSize: 34
+                    font.pixelSize: 38
                     font.bold: true
-                    color: "#202020"
-                    Layout.alignment: Qt.AlignHCenter
+                    color: "#17212f"
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
                 }
 
                 Label {
-                    text: "Start a new career, pick your club, and continue to the dashboard when the session is ready."
+                    text: "Start a new career, choose your club, and manage the season from a clean prototype dashboard."
                     wrapMode: Text.WordWrap
                     horizontalAlignment: Text.AlignHCenter
-                    color: "#5a5a5a"
+                    color: "#526071"
+                    font.pixelSize: 17
                     Layout.fillWidth: true
                 }
 
-                Item { Layout.preferredHeight: 8 }
+                Item { Layout.preferredHeight: 4 }
 
-                Button {
-                    text: "New Game"
+                ColumnLayout {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 48
-                    onClicked: root.newGameRequested()
+                    Layout.alignment: Qt.AlignHCenter
+                    spacing: 14
+
+                    Button {
+                        text: "New Game"
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 50
+                        font.pixelSize: 16
+                        onClicked: root.newGameRequested()
+                    }
+
+                    Button {
+                        text: "Continue"
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 50
+                        font.pixelSize: 16
+                        enabled: false
+                    }
+
+                    Button {
+                        text: "Quit"
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 50
+                        font.pixelSize: 16
+                        onClicked: root.quitRequested()
+                    }
                 }
 
-                Button {
-                    text: "Continue"
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 48
-                    enabled: false
-                }
-
-                Button {
-                    text: "Quit"
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 48
-                    onClicked: root.quitRequested()
-                }
+                Item { Layout.fillHeight: true }
             }
         }
     }
