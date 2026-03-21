@@ -22,6 +22,11 @@ qt_add_qml_module(FM_UI
     VERSION 1.0
     QML_FILES
         Main.qml
+        NewGameView.qml
+        DashboardView.qml
+        StandingsView.qml
+        TeamView.qml
+        PlayerDetailsDialog.qml
 )
 
 qt_add_executable(game_facade_smoke

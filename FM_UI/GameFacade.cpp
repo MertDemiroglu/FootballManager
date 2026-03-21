@@ -4,6 +4,7 @@
 #include "Team.h"
 #include "Footballer.h"
 
+
 #include <algorithm>
 #include <array>
 #include <optional>
@@ -111,33 +112,45 @@ QVariantList GameFacade::getTeamSelectionList() const {
 }
 
 bool GameFacade::startNewGame(int teamId, const QString& newManagerName) {
-    if (teamId <= 0) {
+    try {
+        if (teamId <= 0) {
+            return false;
+        }
+ 
+        Game* bootGame = ensureGame();
+        if (!bootGame) {
+            return false;
+        }
+
+        const TeamId requestedTeamId = static_cast<TeamId>(teamId);
+        if (!bootGame->getLeague().hasTeam(requestedTeamId)) {
+            return false;
+        }
+
+        game = std::make_unique<Game>();
+
+        selectedTeamId = requestedTeamId;
+        managerName = newManagerName.trimmed();
+
+        const std::string selectedTeamName = game->getLeague().getTeamName(selectedTeamId);
+        game->setUserTeam(selectedTeamName);
+
+        gameStarted = true;
+        emit gameStateChanged();
+        return true;
+    }
+    catch (const std::exception& ex) {
+        qWarning() << "[GameFacade::startNewGame] Exception:" << ex.what();
+        gameStarted = false;
+        selectedTeamId = 0;
         return false;
     }
-
-    Game* bootGame = ensureGame();
-    if (!bootGame) {
+    catch (...) {
+        qWarning() << "[GameFacade::startNewGame] Unknown exception";
+        gameStarted = false;
+        selectedTeamId = 0;
         return false;
     }
-
-    const TeamId requestedTeamId = static_cast<TeamId>(teamId);
-    if (!bootGame->getLeague().hasTeam(requestedTeamId)) {
-        return false;
-    }
-
-    game = std::make_unique<Game>();
-
-    selectedTeamId = requestedTeamId;
-    managerName = newManagerName.trimmed();
-    game->setUserTeam(game->getLeague().getTeamName(selectedTeamId));
-    gameStarted = true;
-
-    emit gameStateChanged();
-    return true;
-}
-
-bool GameFacade::hasStartedGame() const {
-    return gameStarted;
 }
 
 QString GameFacade::getCurrentDateText() const {
