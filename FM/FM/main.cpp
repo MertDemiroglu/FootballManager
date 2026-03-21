@@ -492,6 +492,28 @@ void validateSortedStandings(const League& league) {
     }
 }
 
+void validateUpcomingMatchQueries(const League& league) {
+    bool validatedAnyTeam = false;
+    for (const auto& [teamName, team] : league.getTeams()) {
+        (void)teamName;
+        const TeamId teamId = team->getId();
+        const auto nextMatch = league.getNextMatchForTeam(teamId);
+        const auto upcomingMatches = league.getUpcomingMatchesForTeam(teamId, 3);
+
+        assertOrThrow(nextMatch.has_value(), "Each team should have a next-match preview when fixture exists.");
+        assertOrThrow(!upcomingMatches.empty(), "Upcoming match preview query should not be empty.");
+        assertOrThrow(upcomingMatches.front().homeId == nextMatch->homeId &&
+            upcomingMatches.front().awayId == nextMatch->awayId &&
+            upcomingMatches.front().matchweek == nextMatch->matchweek,
+            "Next match preview must match the first upcoming match preview.");
+        assertOrThrow(upcomingMatches.front().homeId == teamId || upcomingMatches.front().awayId == teamId,
+            "Upcoming match preview must belong to the requested team.");
+        validatedAnyTeam = true;
+    }
+
+    assertOrThrow(validatedAnyTeam, "No team found while validating upcoming match previews.");
+}
+
 void validateSeasonOutcome(Game& game, const LeagueRules& rules) {
     League& league = game.getLeague();
 
@@ -707,6 +729,8 @@ int main() {
                     "SeasonStart validation failed: current season history must be empty at preseason start.");
                 assertOrThrow(!failFast || league.getCurrentSeasonYear() == plan.getSeasonYear(),
                     "SeasonStart validation failed: league current season year mismatch.");
+
+                validateUpcomingMatchQueries(league);
 
                 if (rules.winterBreakEnabled) {
                     assertOrThrow(!failFast || plan.getWinterBreakStart().has_value(),

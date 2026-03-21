@@ -26,6 +26,13 @@ struct FixtureMatch {
 	int awayGoals = -1;
 };
 
+struct FixtureMatchPreview {
+	Date date{ 1900, Month::January, 1 };
+	TeamId homeId = 0;
+	TeamId awayId = 0;
+	int matchweek = 0;
+};
+
 struct MatchResult {
 	int homeGoals = 0;
 	int awayGoals = 0;
@@ -113,7 +120,7 @@ private:
 
 	//O sezondaki takim istatistiklerini tutan map
 	std::unordered_map<TeamId, TeamSeasonStats> currentTeamSeasonStats;
-	//Geçmiþ tüm sezonlarin istatistiklerini tutan map
+	//Gecmis tum sezonlarin istatistiklerini tutan map
 	std::unordered_map<int, std::unordered_map<TeamId, TeamSeasonStats>> archivedTeamSeasonStatsBySeason;
 
 	bool seasonFixtureGenerated = false;
@@ -180,6 +187,10 @@ public:
 	FixtureMatch* findFixtureMatch(const Date& date, TeamId homeId, TeamId awayId);
 	//Maci arayip bulur overloaded
 	const FixtureMatch* findFixtureMatch(const Date& date, TeamId homeId, TeamId awayId) const;
+
+	//Sonraki maci bulup prewiew saglar
+	std::optional<FixtureMatchPreview> getNextMatchForTeam(TeamId teamId) const;
+	std::vector<FixtureMatchPreview> getUpcomingMatchesForTeam(TeamId teamId, std::size_t count) const;
 
 
 	//standings fonksiyonlari-----------------------------------------------------------------------

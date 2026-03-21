@@ -6,8 +6,11 @@
 Game::~Game() = default;
 
 Game::Game() : date(2025, Month::July, 1), league("Super Lig"), rules(LeagueRules::makeSuperLig()), seasonPlan(SeasonPlan::build(2025, rules)), transferRoom(league), state(GameState::PreSeason), eventsQueue(), user(), timePaused(false), dateWasReset(false), currentBlockingEvent(nullptr) {
+  
     //takimlari txt dosyasindan okudugumuz yer (gecici)
-    RosterLoader::loadFromFile(league, "database.txt");
+    const std::string rosterPath = R"(C:\Users\user\Desktop\FootballManager\out\build\x64-Debug\FM_UI\FM\FM\database.txt)";
+    RosterLoader::loadFromFile(league, rosterPath);
+
     updateState();         
     seasonStartChecks();
     updateTransferWindow(); 

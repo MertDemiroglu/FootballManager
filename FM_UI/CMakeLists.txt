@@ -13,6 +13,8 @@ qt_standard_project_setup()
 
 qt_add_executable(FM_UI
     main.cpp
+    GameFacade.cpp
+    GameFacade.h
 )
 
 qt_add_qml_module(FM_UI
@@ -22,9 +24,26 @@ qt_add_qml_module(FM_UI
         Main.qml
 )
 
+qt_add_executable(game_facade_smoke
+    GameFacadeSmoke.cpp
+    GameFacade.cpp
+    GameFacade.h
+)
+
+set_target_properties(game_facade_smoke PROPERTIES
+    WIN32_EXECUTABLE FALSE
+    MACOSX_BUNDLE FALSE
+)
+
 target_link_libraries(FM_UI
     PRIVATE
         Qt6::Core
         Qt6::Quick
+        fm_core
+)
+
+target_link_libraries(game_facade_smoke
+    PRIVATE
+        Qt6::Core
         fm_core
 )

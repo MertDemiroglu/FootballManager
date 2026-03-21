@@ -31,4 +31,7 @@ add_library(fm_core STATIC
 )
 
 target_link_libraries(fm_runner PRIVATE fm_core)
+
 target_compile_features(fm_runner PRIVATE cxx_std_17)
+
+target_include_directories(fm_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

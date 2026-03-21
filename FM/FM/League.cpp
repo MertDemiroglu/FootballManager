@@ -223,6 +223,38 @@ const FixtureMatch* League::findFixtureMatch(const Date& date, TeamId homeId, Te
 	return nullptr;
 }
 
+std::vector<FixtureMatchPreview> League::getUpcomingMatchesForTeam(TeamId teamId, std::size_t count) const {
+	std::vector<FixtureMatchPreview> previews;
+
+	if (!hasTeam(teamId) || count == 0) {
+		return previews;
+	}
+	previews.reserve(count);
+
+	for (const auto& [date, matches] : fixture) {
+		for (const auto& match : matches) {
+			if (match.played) {
+				continue;
+			}
+			if (match.homeId != teamId && match.awayId != teamId) {
+				continue;
+			}
+			previews.push_back(FixtureMatchPreview{ date, match.homeId, match.awayId, match.matchweek });
+			if (previews.size() >= count) {
+				return previews;
+			}
+		}
+	}
+	return previews;
+}
+std::optional<FixtureMatchPreview> League::getNextMatchForTeam(TeamId teamId) const {
+	const std::vector<FixtureMatchPreview> previews = getUpcomingMatchesForTeam(teamId, 1);
+	if (previews.empty()) {
+		return std::nullopt;
+	}
+	return previews.front();
+}
+
 bool League::hasCurrentSeasonHistoryRecord(const Date& date, TeamId homeId, TeamId awayId) const {
 	return std::any_of(currentSeasonHistory.begin(), currentSeasonHistory.end(),
 		[&](const MatchRecord& existing) {
