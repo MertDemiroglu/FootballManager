@@ -1,9 +1,8 @@
-#include "MatchScheduler.h"
-
-#include "EventQueue.h"
-#include "Game.h"
-#include "League.h"
-#include "MatchEvent.h"
+#include"MatchScheduler.h"
+#include"EventQueue.h"
+#include"Game.h"
+#include"League.h"
+#include"PlayMatchCommand.h"
 
 void MatchScheduler::update(Game& game, EventQueue& queue) {
     const Date& currentDate = game.getDate();
@@ -22,8 +21,8 @@ void MatchScheduler::update(Game& game, EventQueue& queue) {
             continue;   
         }
 
-        queue.pushEvent(std::make_unique<MatchEvent>(home->getId(), away->getId(), currentDate, home->getName(), away->getName()));
-        generatedMatchEvents++;//debug
+        queue.pushCommand(PlayMatchCommand{league.getCurrentSeasonYear(), currentDate, home->getId(), away->getId(), match->matchweek});
+        generatedMatchEvents++;
         match->eventEnqueued = true;
     }
 }

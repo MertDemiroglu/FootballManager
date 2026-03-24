@@ -1,29 +1,30 @@
 #include"EventQueue.h"
 #include"GameEvents.h"
-#include<algorithm>
 
-std::unique_ptr<GameEvents> EventQueue::popEvent() {
-    if (events.empty()) {
-        return nullptr;
+EventQueue::QueueItem EventQueue::popNext() {
+    if (items.empty()) {
+        return std::unique_ptr<GameEvents>{};
     }
-
-    auto it = std::max_element( events.begin(), events.end(), [](const auto& a, const auto& b) {
-        return static_cast<int>(a->getPriority()) < static_cast<int>(b->getPriority());
-    });
-
-    auto event = std::move(*it);
-    events.erase(it);
-    return event;
+    QueueItem item = std::move(items.front());
+    items.erase(items.begin());
+    return item;
 }
+
 void EventQueue::pushEvent(std::unique_ptr<GameEvents> event) {
     if (!event) {
         return;
     }
-    events.push_back(std::move(event));
+    items.push_back(std::move(event));
 }
+
+void EventQueue::pushCommand(const PlayMatchCommand& command) {
+    items.push_back(command);
+}
+
 bool EventQueue::empty() const {
-    return events.empty();
+    return items.empty();
 }
+
 std::size_t EventQueue::size() const {
-    return events.size();
+    return items.size();
 }

@@ -5,11 +5,15 @@
 
 Game::~Game() = default;
 
-Game::Game() : date(2025, Month::July, 1), league("Super Lig"), rules(LeagueRules::makeSuperLig()), seasonPlan(SeasonPlan::build(2025, rules)), transferRoom(league), state(GameState::PreSeason), eventsQueue(), user(), timePaused(false), dateWasReset(false), currentBlockingEvent(nullptr) {
+Game::Game() : date(2025, Month::July, 1), league("Super Lig"), rules(LeagueRules::makeSuperLig()), seasonPlan(SeasonPlan::build(2025, rules)), transferRoom(league), state(GameState::PreSeason), 
+    eventsQueue(), matchScheduler(), fixtureGenerator(), domainEventPublisher(), playMatchCommandHandler(league, domainEventPublisher), leagueProjection(league), 
+    user(), timePaused(false), dateWasReset(false), currentBlockingEvent(nullptr) {
   
     //takimlari txt dosyasindan okudugumuz yer (gecici)
     const std::string rosterPath = R"(C:\Users\user\Desktop\FootballManager\out\build\x64-Debug\FM_UI\FM\FM\database.txt)";
     RosterLoader::loadFromFile(league, rosterPath);
+
+    domainEventPublisher.subscribeMatchPlayed([this](const MatchPlayedEvent& event) { leagueProjection.onMatchPlayed(event); });
 
     updateState();         
     seasonStartChecks();
@@ -48,7 +52,14 @@ void Game::updateDaily() {
     matchScheduler.update(*this, eventsQueue);
 
     while (!eventsQueue.empty()){
-        auto event = eventsQueue.popEvent();
+        auto item = eventsQueue.popNext();
+
+        if (std::holds_alternative<PlayMatchCommand>(item)) {
+            playMatchCommandHandler.handle(std::get<PlayMatchCommand>(item));
+            continue;
+        }
+        auto event = std::move(std::get<std::unique_ptr<GameEvents>>(item));
+
         if (!event) {
             continue;
         }

@@ -1,0 +1,42 @@
+#include"PlayMatchCommandHandler.h"
+
+#include<stdexcept>
+
+#include"MatchSimulation.h"
+#include"Team.h"
+
+PlayMatchCommandHandler::PlayMatchCommandHandler(League& league, DomainEventPublisher& publisher)   : league(league), publisher(publisher) {}
+
+void PlayMatchCommandHandler::handle(const PlayMatchCommand& command) {
+	FixtureMatch* match = league.findFixtureMatch(command.date, command.homeId, command.awayId);
+
+    if (!match) {
+        throw std::runtime_error("fixture match not found for PlayMatchCommand");
+    }
+    if (match->played) {
+        return;
+    }
+    if (match->matchweek != command.matchweek) {
+        throw std::logic_error("play command matchweek mismatch");
+    }
+
+    const Team* homeTeam = league.findTeamById(command.homeId);
+    const Team* awayTeam = league.findTeamById(command.awayId);
+
+    if (!homeTeam || !awayTeam) {
+        throw std::out_of_range("play command contains unknown team id");
+    }
+
+    const MatchResult result = MatchSimulation::buildStrengthBasedResult(*homeTeam, *awayTeam, command.date);
+
+    publisher.publish(MatchPlayedEvent{ 
+        command.seasonYear,
+        command.date,
+        command.homeId,
+        command.awayId,
+        command.matchweek,
+        result.homeGoals,
+        result.awayGoals
+        });
+
+}

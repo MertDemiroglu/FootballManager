@@ -11,6 +11,9 @@
 #include"MatchScheduler.h"
 #include"FixtureGenerator.h"
 #include"SeasonPlan.h"
+#include"DomainEventPublisher.h"
+#include"PlayMatchCommandHandler.h"
+#include"LeagueProjection.h"
 
 class GameEvents;
 
@@ -28,6 +31,9 @@ private:
 	EventQueue eventsQueue;
 	MatchScheduler matchScheduler;
 	FixtureGenerator fixtureGenerator;
+	DomainEventPublisher domainEventPublisher;
+	PlayMatchCommandHandler playMatchCommandHandler;
+	LeagueProjection leagueProjection;
 	User user;
 	bool timePaused;
 	bool dateWasReset;
