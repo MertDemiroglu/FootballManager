@@ -16,6 +16,12 @@ void PlayMatchCommandHandler::handle(const PlayMatchCommand& command) {
     if (match->played) {
         return;
     }
+    if (command.leagueId != league.getId()) {
+        throw std::logic_error("play command league id mismatch");
+    }
+    if (command.seasonYear != league.getCurrentSeasonYear()) {
+        throw std::logic_error("play command season year mismatch");
+    }
     if (match->matchweek != command.matchweek) {
         throw std::logic_error("play command matchweek mismatch");
     }
@@ -29,14 +35,5 @@ void PlayMatchCommandHandler::handle(const PlayMatchCommand& command) {
 
     const MatchResult result = MatchSimulation::buildStrengthBasedResult(*homeTeam, *awayTeam, command.date);
 
-    publisher.publish(MatchPlayedEvent{ 
-        command.seasonYear,
-        command.date,
-        command.homeId,
-        command.awayId,
-        command.matchweek,
-        result.homeGoals,
-        result.awayGoals
-        });
-
+    publisher.publish(MatchPlayedEvent{ command.leagueId, command.seasonYear, command.date, command.homeId, command.awayId, command.matchweek, result.homeGoals, result.awayGoals });
 }

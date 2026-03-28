@@ -6,7 +6,7 @@
 Game::~Game() = default;
 
 Game::Game() : date(2025, Month::July, 1), league("Super Lig"), rules(LeagueRules::makeSuperLig()), seasonPlan(SeasonPlan::build(2025, rules)), transferRoom(league), state(GameState::PreSeason), 
-    eventsQueue(), matchScheduler(), fixtureGenerator(), domainEventPublisher(), playMatchCommandHandler(league, domainEventPublisher), leagueProjection(league), 
+    eventsQueue(), matchScheduler(), fixtureGenerator(), domainEventPublisher(), playMatchCommandHandler(league, domainEventPublisher), leagueProjection(*this),
     user(), timePaused(false), dateWasReset(false), currentBlockingEvent(nullptr) {
   
     //takimlari txt dosyasindan okudugumuz yer (gecici)
@@ -197,6 +197,20 @@ League& Game::getLeague() {
 
 const League& Game::getLeague() const {
     return league;
+}
+
+League* Game::findLeagueById(LeagueId id) {
+    if (league.getId() == id) {
+        return &league;
+    }
+    return nullptr;
+}
+
+const League* Game::findLeagueById(LeagueId id) const {
+    if (league.getId() == id) {
+        return &league;
+    }
+    return nullptr;
 }
 
 void Game::setUserTeam(const std::string& teamName) {

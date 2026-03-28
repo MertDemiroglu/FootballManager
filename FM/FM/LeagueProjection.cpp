@@ -1,21 +1,16 @@
 #include"LeagueProjection.h"
+#include"Game.h"
 
 #include<stdexcept>
 
-LeagueProjection::LeagueProjection(League& league) : league(league){}
+LeagueProjection::LeagueProjection(Game& game) : game(game){}
 
 void LeagueProjection::onMatchPlayed(const MatchPlayedEvent& event) {
-	FixtureMatch* match = league.findFixtureMatch(event.date, event.homeId, event.awayId);
-	if (!match) {
-		throw std::runtime_error("fixture match not found for MatchPlayedEvent");
+	League* league = game.findLeagueById(event.leagueId);
+	if (!league) {
+		throw std::runtime_error("league not found for MatchPlayedEvent");
 	}
-
-	if (match->played) {
-		return;
-	}
-
-	if (match->matchweek != event.matchWeek) {
-		throw std::logic_error("match played event matchweek mismatch");
-	}
-	league.applyMatchResult(event.date, event.homeId, event.awayId, MatchResult{ event.homeGoals, event.awayGoals });
+	league->applyMatchPlayedEvent(event);
 }
+
+

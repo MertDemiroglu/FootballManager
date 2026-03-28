@@ -3,10 +3,12 @@
 #include"League.h"
 #include"MatchPlayedEvent.h"
 
+class Game;
+
 class LeagueProjection {
 public:
-	explicit LeagueProjection(League& league);
+	explicit LeagueProjection(Game& game);
 	void onMatchPlayed(const MatchPlayedEvent& event);
 private:
-	League& league;
+	Game& game;
 };

@@ -9,6 +9,7 @@
 #include"Types.h"
 #include"Team.h"
 #include"Date.h"
+#include"MatchPlayedEvent.h"
 
 struct FixtureMatch {
 
@@ -107,6 +108,8 @@ class League {
 private:
 	//Lig ismi
 	std::string name;
+	//Lig id'si
+	LeagueId id = 0;
 	//Takimlari tutan map
 	std::unordered_map<std::string, std::unique_ptr<Team>> teams;
 	std::unordered_map<TeamId, Team*> teamIndexById;
@@ -144,7 +147,10 @@ private:
 public:
 
 	//League constructor
-	explicit League(const std::string& leagueName);
+	explicit League(const std::string& leagueName, LeagueId leagueId = 1);
+
+	//Lig id'sini verir
+	LeagueId getId() const;
 
 	//Lige takim ekler
 	void addTeam(std::unique_ptr<Team> team);
@@ -199,6 +205,7 @@ public:
 	void updateStandingsForMatch(TeamId homeId, TeamId awayId, const MatchResult& result);
 	void updateTeamSeasonStatsForMatch(TeamId homeId, TeamId awayId, const MatchResult& result);
 	void applyMatchResult(const Date& date, TeamId homeId, TeamId awayId, const MatchResult& result);
+	void applyMatchPlayedEvent(const MatchPlayedEvent& event);
 	std::vector<StandingsEntry> getSortedStandings() const;
 	const std::unordered_map<TeamId, StandingsEntry>& getStandings() const;
 	//----------------------------------------------------------------------------------------------

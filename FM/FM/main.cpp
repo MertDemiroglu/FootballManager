@@ -15,6 +15,7 @@
 #include "LeagueRules.h"
 #include "MatchScheduler.h"
 #include "SeasonPlan.h"
+#include "MatchPlayedEvent.h"
 
 namespace {
 
@@ -576,7 +577,16 @@ void validateSeasonOutcome(Game& game, const LeagueRules& rules) {
             }
             const std::size_t historySizeBeforeDuplicateAttempt = league.getCurrentSeasonHistory().size();
             try {
-                league.applyMatchResult(date, match.homeId, match.awayId, MatchResult{ match.homeGoals, match.awayGoals });
+                league.applyMatchPlayedEvent(MatchPlayedEvent{
+    league.getId(),
+    league.getCurrentSeasonYear(),
+    date,
+    match.homeId,
+    match.awayId,
+    match.matchweek,
+    match.homeGoals,
+    match.awayGoals
+                    });
             }
             catch (const std::logic_error&) {
                 duplicateResolveBlocked = true;
@@ -612,6 +622,10 @@ int main() {
         const LeagueRules& rules = game.getRules();
         const SeasonPlan& bootPlan = game.getSeasonPlan();
         const League& bootLeague = game.getLeague();
+        assertOrThrow(game.findLeagueById(bootLeague.getId()) == &game.getLeague(),
+            "Game league lookup seam should resolve primary league by id.");
+        assertOrThrow(game.findLeagueById(bootLeague.getId() + 1000U) == nullptr,
+            "Game league lookup seam should return null for unknown league id.");
         int lastObservedLeagueSeasonYear = bootLeague.getCurrentSeasonYear();
 
         bool lastAllMatchesPlayed = bootLeague.allMatchesPlayed();

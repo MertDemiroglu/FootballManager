@@ -21,7 +21,7 @@ void MatchScheduler::update(Game& game, EventQueue& queue) {
             continue;   
         }
 
-        queue.pushCommand(PlayMatchCommand{league.getCurrentSeasonYear(), currentDate, home->getId(), away->getId(), match->matchweek});
+        queue.pushCommand(PlayMatchCommand{ league.getId(), league.getCurrentSeasonYear(), currentDate, home->getId(), away->getId(), match->matchweek});
         generatedMatchEvents++;
         match->eventEnqueued = true;
     }

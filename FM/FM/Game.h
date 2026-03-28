@@ -90,6 +90,10 @@ public:
 	League& getLeague();
 	//lig nesnesini verir const
 	const League& getLeague() const;
+	//lig nesnesini id ile aratýp bulur non-const
+	League* findLeagueById(LeagueId id);
+	//lig nesnesini id ile aratýp bulur const
+	const League* findLeagueById(LeagueId id) const;
 
 	//state'i verir
 	GameState getState() const;

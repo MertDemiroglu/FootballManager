@@ -9,7 +9,15 @@ namespace {
 	}
 }
 
-League::League(const std::string& leagueName) : name(leagueName) {}
+League::League(const std::string& leagueName, LeagueId leagueId) : name(leagueName), id(leagueId) {
+	if (id == 0) {
+		throw std::invalid_argument("league id cannot be zero");
+	}
+}
+
+LeagueId League::getId() const {
+	return id;
+}
 
 void League::addTeam(std::unique_ptr<Team> team) {
 	if (!team) {
@@ -419,19 +427,30 @@ void League::updateTeamSeasonStatsForMatch(TeamId homeId, TeamId awayId, const M
 	}
 }
 
-void League::applyMatchResult(const Date& date, TeamId homeId, TeamId awayId, const MatchResult& result) {
-	FixtureMatch* match = findFixtureMatch(date, homeId, awayId);
+void League::applyMatchPlayedEvent(const MatchPlayedEvent& event) {
 
-	if (!match) {
-		throw std::runtime_error("fixture match not found for applyMatchResult");
+	if (event.leagueId != id) {
+		throw std::logic_error("match played event league id mismatch");;
 	}
 
 	if (currentSeasonYear < 0) {
 		throw std::logic_error("current season year is not initialized");
 	}
 
-	if (result.homeGoals < 0 || result.awayGoals < 0) {
-		throw std::invalid_argument("match result goals cannot be negative");
+	if (event.seasonYear != currentSeasonYear) {
+		throw std::logic_error("match played event season year mismatch");
+	}
+	if (event.homeGoals < 0 || event.awayGoals < 0) {
+		throw std::invalid_argument("match played event goals cannot be negative");
+	}
+
+	FixtureMatch* match = findFixtureMatch(event.date, event.homeId, event.awayId);
+
+	if (!match) {
+	    throw std::runtime_error("fixture match not found for MatchPlayedEvent");
+	}
+	if (match->homeId != event.homeId || match->awayId != event.awayId) {
+		throw std::logic_error("fixture team ids do not match match played event");
 	}
 
 	if (match->played) {
@@ -442,24 +461,35 @@ void League::applyMatchResult(const Date& date, TeamId homeId, TeamId awayId, co
 		throw std::logic_error("fixture match result cannot be applied before event enqueue");
 	}
 
-	if (match->matchweek <= 0) {
-		throw std::logic_error("fixture match has invalid matchweek");
+	if (match->matchweek <= 0 || match->matchweek != event.matchweek) {
+		throw std::logic_error("match played event matchweek mismatch");
 	}
 
-	if (hasCurrentSeasonHistoryRecord(date, homeId, awayId)) {
+	if (hasCurrentSeasonHistoryRecord(event.date, event.homeId, event.awayId)) {
 		throw std::logic_error("duplicate match history record");
 	}
 
-	match->homeGoals = result.homeGoals;
-	match->awayGoals = result.awayGoals;
+	match->homeGoals = event.homeGoals;
+	match->awayGoals = event.awayGoals;
 	match->played = true;
 	match->eventEnqueued = false;
 
-	updateStandingsForMatch(homeId, awayId, result);
+	//Match result (skor) diger fonksiyonlarda kullaniliyor
+	const MatchResult result{ event.homeGoals, event.awayGoals };
+	//Standingse sonuclar islenir
+	updateStandingsForMatch(event.homeId, event.awayId, result);
+	//Sezon gecmisine mac eklenir
+	currentSeasonHistory.push_back(MatchRecord{ event.date, currentSeasonYear, event.homeId, event.awayId, event.homeGoals, event.awayGoals, match->matchweek });
+	//Takimin istatistikleri islenir
+	updateTeamSeasonStatsForMatch(event.homeId, event.awayId, result);
+}
 
-	currentSeasonHistory.push_back(MatchRecord{ date, currentSeasonYear, homeId,awayId, result.homeGoals, result.awayGoals, match->matchweek });
-
-	updateTeamSeasonStatsForMatch(homeId, awayId, result);
+void League::applyMatchResult(const Date& date, TeamId homeId, TeamId awayId, const MatchResult& result) {
+	FixtureMatch* match = findFixtureMatch(date, homeId, awayId);
+	if (!match) {
+		throw std::runtime_error("fixture match not found for applyMatchResult");
+	}
+	applyMatchPlayedEvent(MatchPlayedEvent{ id, currentSeasonYear, date, homeId, awayId, match->matchweek, result.homeGoals, result.awayGoals });
 }
 
 std::vector<StandingsEntry> League::getSortedStandings() const {
