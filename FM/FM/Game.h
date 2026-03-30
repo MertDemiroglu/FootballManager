@@ -3,17 +3,12 @@
 #include<string>
 
 #include"Date.h"
-#include"League.h"
-#include"LeagueRules.h"
-#include"TransferRoom.h"
 #include"EventQueue.h"
 #include"User.h"
 #include"MatchScheduler.h"
 #include"FixtureGenerator.h"
-#include"SeasonPlan.h"
 #include"DomainEventPublisher.h"
-#include"PlayMatchCommandHandler.h"
-#include"LeagueProjection.h"
+#include"World.h"
 
 class GameEvents;
 
@@ -23,17 +18,12 @@ enum class GameState {
 class Game {
 private:
 	Date date;
-	League league;
-	LeagueRules rules;
-	SeasonPlan seasonPlan;
-	TransferRoom transferRoom;
+	World world;
 	GameState state;
 	EventQueue eventsQueue;
 	MatchScheduler matchScheduler;
 	FixtureGenerator fixtureGenerator;
 	DomainEventPublisher domainEventPublisher;
-	PlayMatchCommandHandler playMatchCommandHandler;
-	LeagueProjection leagueProjection;
 	User user;
 	bool timePaused;
 	bool dateWasReset;
@@ -52,9 +42,9 @@ public:
 
 	//Pre/In/Post season eventler
 	void handleSeasonalEvents();
-	//Aylýk eventler
+	//Aylik eventler
 	void handleMonthlyEvents();
-	//Haftalýk eventler
+	//Haftalik eventler
 	void handleWeeklyEvents();
 
 	//sezon baslarken rutin kontroller
@@ -90,9 +80,9 @@ public:
 	League& getLeague();
 	//lig nesnesini verir const
 	const League& getLeague() const;
-	//lig nesnesini id ile aratýp bulur non-const
+	//lig nesnesini id ile aratip bulur non-const
 	League* findLeagueById(LeagueId id);
-	//lig nesnesini id ile aratýp bulur const
+	//lig nesnesini id ile aratip bulur const
 	const League* findLeagueById(LeagueId id) const;
 
 	//state'i verir

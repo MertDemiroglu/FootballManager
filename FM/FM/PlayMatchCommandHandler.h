@@ -6,10 +6,9 @@
 
 class PlayMatchCommandHandler {
 public:
-	PlayMatchCommandHandler(League& league, DomainEventPublisher& publisher);
-	void handle(const PlayMatchCommand& command);
+	PlayMatchCommandHandler(DomainEventPublisher& publisher);
+	void handle(League& league, const PlayMatchCommand& command);
 
 private:
-	League& league;
 	DomainEventPublisher& publisher;
 };

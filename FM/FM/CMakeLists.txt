@@ -16,6 +16,8 @@ add_library(fm_core STATIC
     Forward.cpp
     Goalkeeper.cpp
     League.cpp
+    World.cpp
+    LeagueContext.cpp
     LeagueProjection.cpp
     LeagueRules.cpp
     MatchEvent.cpp

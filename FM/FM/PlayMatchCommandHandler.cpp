@@ -5,9 +5,9 @@
 #include"MatchSimulation.h"
 #include"Team.h"
 
-PlayMatchCommandHandler::PlayMatchCommandHandler(League& league, DomainEventPublisher& publisher)   : league(league), publisher(publisher) {}
+PlayMatchCommandHandler::PlayMatchCommandHandler(DomainEventPublisher& publisher)   : publisher(publisher) {}
 
-void PlayMatchCommandHandler::handle(const PlayMatchCommand& command) {
+void PlayMatchCommandHandler::handle(League& league, const PlayMatchCommand& command) {
 	FixtureMatch* match = league.findFixtureMatch(command.date, command.homeId, command.awayId);
 
     if (!match) {
