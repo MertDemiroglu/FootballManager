@@ -1,5 +1,4 @@
 #include"TransferOfferEvent.h"
-#include"Team.h"
 #include"Game.h"
 
 TransferOfferEvent::TransferOfferEvent(const std::string& s, const std::string& b, const std::string& p, Money f) : sellingTeamName(s), buyingTeamName(b), playerName(p), fee(f){}
@@ -9,20 +8,7 @@ bool TransferOfferEvent::isBlocking() const {
 }
 
 void TransferOfferEvent::resolve(Game& game) {
-    Team* sellingTeam = game.getLeague().getTeam(sellingTeamName);
-    Team* buyingTeam = game.getLeague().getTeam(buyingTeamName);
-
-    if (!sellingTeam || !buyingTeam) {
-        return;
-    }
-
-    Footballer* player = sellingTeam->findPlayer(playerName);
-
-    if (!player) {
-        return;
-    }
-
-    game.getTransferRoom().transferPlayer(sellingTeam->getName(), buyingTeam->getName(), player->getName(), fee);
+    game.getTransferRoom().transferPlayer(sellingTeamName, buyingTeamName, playerName, fee);
 }
 
 EventPriority TransferOfferEvent::getPriority() const {

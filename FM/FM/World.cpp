@@ -3,6 +3,10 @@
 #include <stdexcept>
 
 #include "DomainEventPublisher.h"
+#include "Team.h"
+
+World::World() : leagueContexts(), primaryLeagueId(std::nullopt), transferRoom(*this) {
+}
 
 LeagueContext& World::addLeagueContext(League league,
     LeagueRules rules,
@@ -50,6 +54,38 @@ const League* World::findLeagueById(LeagueId leagueId) const {
 
 bool World::hasPrimaryLeagueContext() const {
     return primaryLeagueId.has_value();
+}
+
+Team* World::findTeamByName(const std::string& teamName, LeagueId* leagueIdOut) {
+    for (auto& [leagueId, context] : leagueContexts) {
+        if (Team* team = context.getLeague().getTeam(teamName)) {
+            if (leagueIdOut) {
+                *leagueIdOut = leagueId;
+            }
+            return team;
+        }
+    }
+    return nullptr;
+}
+
+const Team* World::findTeamByName(const std::string& teamName, LeagueId* leagueIdOut) const {
+    for (const auto& [leagueId, context] : leagueContexts) {
+        if (const Team* team = context.getLeague().getTeam(teamName)) {
+            if (leagueIdOut) {
+                *leagueIdOut = leagueId;
+            }
+            return team;
+        }
+    }
+    return nullptr;
+}
+
+TransferRoom& World::getTransferRoom() {
+    return transferRoom;
+}
+
+const TransferRoom& World::getTransferRoom() const {
+    return transferRoom;
 }
 
 LeagueContext& World::getPrimaryLeagueContext() {

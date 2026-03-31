@@ -191,7 +191,7 @@ void Game::seasonStartChecks() {
 void Game::seasonStartChecksForContext(LeagueContext& context) {
 
     League& league = context.getLeague();
-    TransferRoom& transferRoom = context.getTransferRoom();
+    TransferRoom& transferRoom = world.getTransferRoom();
     LeagueRules& rules = context.getRules();
     SeasonPlan& seasonPlan = context.getSeasonPlan();
 
@@ -212,11 +212,11 @@ void Game::seasonStartChecksForContext(LeagueContext& context) {
     context.setLastSeasonRolloverYear(y);
 
     // Kontratlari 1'er yil azalt
-    transferRoom.updatePlayersContractYearsInTeams();
+    transferRoom.updatePlayersContractYearsInLeague(league.getId());
 
     // Lig yeni sezon reset
     league.resetForNewSeason(y);
-    transferRoom.collectFreeAgentsFromTeams();
+    transferRoom.collectFreeAgentsFromLeague(league.getId());
 
     // Plan + fixture
     seasonPlan = SeasonPlan::build(y, rules);
@@ -239,23 +239,24 @@ void Game::updateTransferWindow() {
 
     world.forEachLeagueContext([&](LeagueContext& context) {
         const SeasonPlan& seasonPlan = context.getSeasonPlan();
-        TransferRoom& transferRoom = context.getTransferRoom();
+        TransferRoom& transferRoom = world.getTransferRoom();
 
+        const LeagueId leagueId = context.getLeague().getId();
         if (seasonPlan.getSummerWindow().contains(date) || seasonPlan.getWinterWindow().contains(date)) {
-            transferRoom.openWindow();
+            transferRoom.openWindowForLeague(leagueId);
         }
         else {
-            transferRoom.closeWindow();
+            transferRoom.closeWindowForLeague(leagueId);
         }
         });
 }
 
 TransferRoom& Game::getTransferRoom() {
-    return world.getPrimaryLeagueContext().getTransferRoom();
+    return world.getTransferRoom();
 }
 
 const TransferRoom& Game::getTransferRoom() const {
-    return world.getPrimaryLeagueContext().getTransferRoom();
+    return world.getTransferRoom();
 }
 
 void Game::stopTime() {

@@ -1,7 +1,7 @@
 #include "LeagueContext.h"
 
-LeagueContext::LeagueContext(League league, LeagueRules rules, SeasonPlan seasonPlan, DomainEventPublisher& publisher): league(std::move(league)), rules(std::move(rules)), 
-seasonPlan(std::move(seasonPlan)), transferRoom(this->league), leagueProjection(this->league), playMatchCommandHandler(publisher) {
+LeagueContext::LeagueContext(League league, LeagueRules rules, SeasonPlan seasonPlan, DomainEventPublisher& publisher)
+    : league(std::move(league)), rules(std::move(rules)), seasonPlan(std::move(seasonPlan)), leagueProjection(this->league), playMatchCommandHandler(publisher) {
 }
 
 League& LeagueContext::getLeague() {
@@ -26,14 +26,6 @@ SeasonPlan& LeagueContext::getSeasonPlan() {
 
 const SeasonPlan& LeagueContext::getSeasonPlan() const {
     return seasonPlan;
-}
-
-TransferRoom& LeagueContext::getTransferRoom() {
-    return transferRoom;
-}
-
-const TransferRoom& LeagueContext::getTransferRoom() const {
-    return transferRoom;
 }
 
 LeagueProjection& LeagueContext::getLeagueProjection() {

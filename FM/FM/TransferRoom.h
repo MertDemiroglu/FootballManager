@@ -3,23 +3,28 @@
 #include<memory>
 #include<string>
 #include<algorithm>
+#include<unordered_map>
 
 #include"Types.h"
 
-class League;
+class World;
 class Team;
 class Footballer;
 
 class TransferRoom{
 private:
 
-	League& league;
+	World* world = nullptr;
 	std::vector <std::unique_ptr<Footballer>> freeAgents;
-	bool transferOpen = false;
+	std::unordered_map<LeagueId, bool> transferWindowByLeagueId;
 
 public:
-    //Transfer room constructor
-	TransferRoom(League& league);
+	TransferRoom();
+
+	explicit TransferRoom(World& world);
+
+	void bindWorld(World& world);
+
 	//Boþtaki oyuncuyu Transfer Room vektörüne ekler
 	void addFreeAgent(std::unique_ptr<Footballer> player);
 	//Boþtaki oyuncularý yazdýrýr
@@ -32,17 +37,20 @@ public:
 	//Sözleþme anlaþmalarýnda çaðýrýlan fonksiyon
 	bool negotiateContract(Team* team, Footballer* player);
 
+
 	//Takýmlardan sözleþmesi biten topçularý toplar
 	void collectFreeAgentsFromTeams();
+	void collectFreeAgentsFromLeague(LeagueId leagueId);
 	//Sene sonu bütün takýmlardaki oyuncularýn kontrat sürelerini 1 yýl azaltýr
 	void updatePlayersContractYearsInTeams();
+	void updatePlayersContractYearsInLeague(LeagueId leagueId);
 
-	//Transfer room açýk ise true döner
+
 	bool isOpen() const;
-	//Transfer room'u açar
+	bool isOpenForLeague(LeagueId leagueId) const;
 	void openWindow();
-	//Transfer room'u kapatýr
+	void openWindowForLeague(LeagueId leagueId);
 	void closeWindow();
-
+	void closeWindowForLeague(LeagueId leagueId);
 	
 };
