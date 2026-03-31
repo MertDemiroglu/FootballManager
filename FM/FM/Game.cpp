@@ -1,7 +1,9 @@
-#include "Game.h"
-#include "GameEvents.h"
-#include "RosterLoader.h"
-#include <utility>
+#include"Game.h"
+#include"GameEvents.h"
+#include"RosterLoader.h"
+
+#include<stdexcept>
+#include<utility>
 
 Game::~Game() = default;
 
@@ -26,11 +28,15 @@ Game::Game()
     const std::string rosterPath = R"(C:\Users\user\Desktop\FootballManager\out\build\x64-Debug\FM_UI\FM\FM\database.txt)";
     RosterLoader::loadFromFile(league, rosterPath);
 
-    LeagueContext& context = world.addLeagueContext(std::move(league), std::move(rules), std::move(seasonPlan), domainEventPublisher);
+    world.addLeagueContext(std::move(league), std::move(rules), std::move(seasonPlan), domainEventPublisher);
 
-    domainEventPublisher.subscribeMatchPlayed([&context](const MatchPlayedEvent& event) {
-        context.getLeagueProjection().onMatchPlayed(event);
-        });
+    domainEventPublisher.subscribeMatchPlayed([this](const MatchPlayedEvent& event) {
+        LeagueContext* context = world.findLeagueContext(event.leagueId);
+        if (!context) {
+            throw std::logic_error("match played event references unknown league context");
+        }
+        context->getLeagueProjection().onMatchPlayed(event);
+    });
 
     updateState();         
     seasonStartChecks();
@@ -39,28 +45,51 @@ Game::Game()
 
 void Game::updateState() {
 
-    const LeagueContext& context = world.getPrimaryLeagueContext();
-    const League& league = context.getLeague();
-    const SeasonPlan& seasonPlan = context.getSeasonPlan();
+    bool anyInSeason = false;
+    bool anyPostSeason = false;
+    bool anyContext = false;
 
-    const Date& preseasonStart = seasonPlan.getPreseasonStart();
-    const Date& kickoff = seasonPlan.getKickoff();
-    const Date& nextPreseasonStart = seasonPlan.getNextPreseasonStart();
+    world.forEachLeagueContext([&](const LeagueContext& context) {
+        anyContext = true;
 
 
-    if (!(date < preseasonStart) && date < kickoff) {
+        const League& league = context.getLeague();
+        const SeasonPlan& seasonPlan = context.getSeasonPlan();
+
+        const Date& preseasonStart = seasonPlan.getPreseasonStart();
+        const Date& kickoff = seasonPlan.getKickoff();
+        const Date& nextPreseasonStart = seasonPlan.getNextPreseasonStart();
+
+        const bool isPreseason = !(date < preseasonStart) && date < kickoff;
+        const bool isInSeason = league.isSeasonFixtureGenerated() && !league.allMatchesPlayed() && !(date < kickoff) && date < nextPreseasonStart;
+        const bool isPostSeason = league.isSeasonFixtureGenerated() && league.allMatchesPlayed() && date < nextPreseasonStart;
+
+        if (isInSeason) {
+            anyInSeason = true;
+            return;
+        }
+        if (isPostSeason) {
+            anyPostSeason = true;
+            return;
+        }
+        (void)isPreseason;
+    });
+
+        if (!anyContext) {
+            throw std::logic_error("game world has no league contexts");
+        }
+
+
+        if (anyInSeason) {
+            state = GameState::InSeason;
+            return;
+        }
+        if (anyPostSeason) {
+            state = GameState::PostSeason;
+            return;
+        }
         state = GameState::PreSeason;
-        return;
-    }
-    if (league.isSeasonFixtureGenerated() &&!league.allMatchesPlayed() && !(date < kickoff) && date < nextPreseasonStart) {
-        state = GameState::InSeason;
-        return;
-    }
-    if(league.isSeasonFixtureGenerated() && league.allMatchesPlayed() && date < nextPreseasonStart){
-        state = GameState::PostSeason;
-        return;
-    }
-    state = GameState::PreSeason;
+      
 }
 
 void Game::updateDaily() {
@@ -71,7 +100,7 @@ void Game::updateDaily() {
     }
    
     //gunluk mac kontrolu
-    matchScheduler.update(*this, eventsQueue);
+    matchScheduler.update(world, date, eventsQueue);
 
     while (!eventsQueue.empty()){
         auto item = eventsQueue.popNext();
@@ -80,23 +109,27 @@ void Game::updateDaily() {
             const PlayMatchCommand& command = std::get<PlayMatchCommand>(item);
             LeagueContext* context = world.findLeagueContext(command.leagueId);
             if (!context) {
-                continue;
+                throw std::logic_error("play command references unknown league context");
             }
             context->getPlayMatchCommandHandler().handle(context->getLeague(), command);
             continue;
         }
         auto event = std::move(std::get<std::unique_ptr<GameEvents>>(item));
 
-        if (!event) {
+        if (!event){
             continue;
         }
-
-        League& league = world.getPrimaryLeagueContext().getLeague();
 
         Team* userTeam = nullptr;
         const std::string managedTeam = user.getTeam();
         if (!managedTeam.empty()) {
-            userTeam = league.getTeam(managedTeam);
+           world.forEachLeagueContext([&](LeagueContext& context){
+               if (userTeam != nullptr) {
+                   return;
+               }
+               userTeam = context.getLeague().getTeam(managedTeam);
+               });
+
         }
         if(event->isBlocking() && userTeam && event->affectsTeam(userTeam)){
             currentBlockingEvent = std::move(event);
@@ -105,6 +138,7 @@ void Game::updateDaily() {
         }
         event->resolve(*this);
     }
+
     handleSeasonalEvents();
     updateTransferWindow();
 
@@ -127,17 +161,21 @@ void Game::handleSeasonalEvents() {
 
     seasonStartChecks();
 
-    if (world.getPrimaryLeagueContext().getLeague().allMatchesPlayed()) {
-        seasonEndChecks();
-    }
+    world.forEachLeagueContext([&](LeagueContext& context) {
+        if (context.getLeague().allMatchesPlayed()) {
+            seasonEndChecksForContext(context);
+        }
+        });
 }
 
 void Game::handleMonthlyEvents() {
-    League& league = world.getPrimaryLeagueContext().getLeague();
-    for (auto& [name, team] : league.getTeams()) {
-        (void)name;
-        team->payWagesMonthly();
-    }
+    world.forEachLeagueContext([&](LeagueContext& context) {
+        League& league = context.getLeague();
+        for (auto& [name, team] : league.getTeams()) {
+            (void)name;
+            team->payWagesMonthly();
+        }
+        });
 }
 
 void Game::handleWeeklyEvents() {
@@ -145,8 +183,13 @@ void Game::handleWeeklyEvents() {
 }
 
 void Game::seasonStartChecks() {
+    world.forEachLeagueContext([&](LeagueContext& context) {
+        seasonStartChecksForContext(context);
+        });
+}
 
-    LeagueContext& context = world.getPrimaryLeagueContext();
+void Game::seasonStartChecksForContext(LeagueContext& context) {
+
     League& league = context.getLeague();
     TransferRoom& transferRoom = context.getTransferRoom();
     LeagueRules& rules = context.getRules();
@@ -160,13 +203,13 @@ void Game::seasonStartChecks() {
         date.getMonth() == preseasonStart.getMonth() &&
         date.getDay() == preseasonStart.getDay();
 
-    if (!isPreseasonStartToday) {
+    if(!isPreseasonStartToday) {
         return;
     }
-    if (lastSeasonRolloverYear == y) {
+    if(context.getLastSeasonRolloverYear() == y) {
         return;
     }
-    lastSeasonRolloverYear = y;
+    context.setLastSeasonRolloverYear(y);
 
     // Kontratlari 1'er yil azalt
     transferRoom.updatePlayersContractYearsInTeams();
@@ -183,21 +226,28 @@ void Game::seasonStartChecks() {
 }
 
 void Game::seasonEndChecks() {
-    
+    world.forEachLeagueContext([&](LeagueContext& context) {
+        seasonEndChecksForContext(context);
+        });
+}
+
+void Game::seasonEndChecksForContext(LeagueContext& context) {
+    (void)context;
 }
 
 void Game::updateTransferWindow() {
 
-    LeagueContext& context = world.getPrimaryLeagueContext();
-    const SeasonPlan& seasonPlan = context.getSeasonPlan();
-    TransferRoom& transferRoom = context.getTransferRoom();
+    world.forEachLeagueContext([&](LeagueContext& context) {
+        const SeasonPlan& seasonPlan = context.getSeasonPlan();
+        TransferRoom& transferRoom = context.getTransferRoom();
 
-    if (seasonPlan.getSummerWindow().contains(date) || seasonPlan.getWinterWindow().contains(date)) {
-        transferRoom.openWindow();
-    }
-    else {
-        transferRoom.closeWindow();
-    }
+        if (seasonPlan.getSummerWindow().contains(date) || seasonPlan.getWinterWindow().contains(date)) {
+            transferRoom.openWindow();
+        }
+        else {
+            transferRoom.closeWindow();
+        }
+        });
 }
 
 TransferRoom& Game::getTransferRoom() {

@@ -51,3 +51,11 @@ PlayMatchCommandHandler& LeagueContext::getPlayMatchCommandHandler() {
 const PlayMatchCommandHandler& LeagueContext::getPlayMatchCommandHandler() const {
     return playMatchCommandHandler;
 }
+
+int LeagueContext::getLastSeasonRolloverYear() const {
+    return lastSeasonRolloverYear;
+}
+
+void LeagueContext::setLastSeasonRolloverYear(int year) {
+    lastSeasonRolloverYear = year;
+}

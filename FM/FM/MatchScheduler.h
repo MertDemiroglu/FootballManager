@@ -1,10 +1,10 @@
 #pragma once
-#include <string>
-#include <vector>
+#include<string>
+#include<vector>
 
-#include "Date.h"
+#include"Date.h"
 
-class Game;
+class World;
 class EventQueue;
 
 class MatchScheduler {
@@ -12,7 +12,7 @@ private:
     int generatedMatchEvents = 0;
 public:
     //Her gun o gunun maclarini uretir ve event vektorune gonderir
-    void update(Game& game, EventQueue& queue);
+    void update(World& world, const Date& currentDate, EventQueue& queue);
     //debug
     int debugGeneratedMatchEvents() const { return generatedMatchEvents; }
 };

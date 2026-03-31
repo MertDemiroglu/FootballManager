@@ -16,12 +16,10 @@ private:
     TransferRoom transferRoom;
     LeagueProjection leagueProjection;
     PlayMatchCommandHandler playMatchCommandHandler;
+    int lastSeasonRolloverYear = -1;
 
 public:
-    LeagueContext(League league,
-        LeagueRules rules,
-        SeasonPlan seasonPlan,
-        DomainEventPublisher& publisher);
+    LeagueContext(League league, LeagueRules rules, SeasonPlan seasonPlan, DomainEventPublisher& publisher);
 
     LeagueContext(const LeagueContext&) = delete;
     LeagueContext& operator=(const LeagueContext&) = delete;
@@ -45,6 +43,9 @@ public:
 
     PlayMatchCommandHandler& getPlayMatchCommandHandler();
     const PlayMatchCommandHandler& getPlayMatchCommandHandler() const;
+
+    int getLastSeasonRolloverYear() const;
+    void setLastSeasonRolloverYear(int year);
 
 
 };

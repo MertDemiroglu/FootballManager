@@ -1,7 +1,6 @@
 #include "World.h"
 
 #include <stdexcept>
-#include <tuple>
 
 #include "DomainEventPublisher.h"
 
@@ -10,10 +9,7 @@ LeagueContext& World::addLeagueContext(League league,
     SeasonPlan seasonPlan,
     DomainEventPublisher& publisher) {
     const LeagueId leagueId = league.getId();
-    auto [it, inserted] = leagueContexts.emplace(
-        std::piecewise_construct,
-        std::forward_as_tuple(leagueId),
-        std::forward_as_tuple(std::move(league), std::move(rules), std::move(seasonPlan), publisher));
+    auto [it, inserted] = leagueContexts.try_emplace(leagueId, std::move(league), std::move(rules), std::move(seasonPlan), publisher);
 
     if (!inserted) {
         throw std::logic_error("league context already exists");
@@ -76,4 +72,19 @@ const LeagueContext& World::getPrimaryLeagueContext() const {
         throw std::logic_error("primary league context is missing");
     }
     return *context;
+}
+
+void World::forEachLeagueContext(const std::function<void(LeagueContext&)>& visitor) {
+    for (auto& [leagueId, context] : leagueContexts) {
+        (void)leagueId;
+        visitor(context);
+    }
+
+}
+
+void World::forEachLeagueContext(const std::function<void(const LeagueContext&)>& visitor) const {
+    for (const auto& [leagueId, context] : leagueContexts) {
+        (void)leagueId;
+        visitor(context);
+    }
 }

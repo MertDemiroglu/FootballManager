@@ -1,13 +1,14 @@
 #pragma once
 
-#include <optional>
-#include <unordered_map>
+#include<functional>
+#include<optional>
+#include<unordered_map>
 
-#include "League.h"
-#include "LeagueContext.h"
-#include "LeagueRules.h"
-#include "SeasonPlan.h"
-#include "Types.h"
+#include"League.h"
+#include"LeagueContext.h"
+#include"LeagueRules.h"
+#include"SeasonPlan.h"
+#include"Types.h"
 
 class DomainEventPublisher;
 
@@ -29,4 +30,8 @@ public:
 
 	LeagueContext& getPrimaryLeagueContext();
 	const LeagueContext& getPrimaryLeagueContext() const;
+
+	//Ligleri gezip islem yapmak icin
+	void forEachLeagueContext(const std::function<void(LeagueContext&)>& visitor);
+	void forEachLeagueContext(const std::function<void(const LeagueContext&)>& visitor) const;
 };
