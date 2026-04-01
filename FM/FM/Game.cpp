@@ -300,6 +300,22 @@ const League* Game::findLeagueById(LeagueId id) const {
     return world.findLeagueById(id);
 }
 
+LeagueContext* Game::findLeagueContextById(LeagueId id) {
+    return world.findLeagueContext(id);
+}
+
+const LeagueContext* Game::findLeagueContextById(LeagueId id) const {
+    return world.findLeagueContext(id);
+}
+
+void Game::forEachLeagueContext(const std::function<void(LeagueContext&)>& visitor) {
+    world.forEachLeagueContext(visitor);
+}
+
+void Game::forEachLeagueContext(const std::function<void(const LeagueContext&)>& visitor) const {
+    world.forEachLeagueContext(visitor);
+}
+
 void Game::setUserTeam(const std::string& teamName) {
     user.setTeam(teamName);
 }

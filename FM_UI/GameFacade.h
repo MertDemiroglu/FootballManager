@@ -18,6 +18,8 @@ struct StandingsEntry;
 struct TeamSeasonStats;
 struct MatchRecord;
 struct PlayerSeasonStats;
+class League;
+class LeagueContext;
 
 enum class GameState;
 
@@ -33,11 +35,13 @@ public:
 
     Q_INVOKABLE QVariantList getTeamSelectionList() const;
     Q_INVOKABLE bool startNewGame(int teamId, const QString& managerName);
+    Q_INVOKABLE bool startNewGameForLeagueTeam(int leagueId, int teamId, const QString& managerName);
     Q_INVOKABLE bool hasStartedGame() const;
 
     Q_INVOKABLE QString getCurrentDateText() const;
     Q_INVOKABLE QString getCurrentStateText() const;
     Q_INVOKABLE QString getSelectedTeamName() const;
+    Q_INVOKABLE int getSelectedLeagueId() const;
     Q_INVOKABLE int getSelectedTeamId() const;
     Q_INVOKABLE QString getManagerName() const;
     Q_INVOKABLE QString getLastError() const;
@@ -61,6 +65,7 @@ signals:
 
 private:
     std::unique_ptr<Game> game;
+    LeagueId selectedLeagueId = 0;
     TeamId selectedTeamId = 0;
     bool gameStarted = false;
     QString managerName;
@@ -68,7 +73,13 @@ private:
 
     Game* ensureGame();
     const Game* ensureGame() const;
+    LeagueContext* resolveLeagueContext(LeagueId leagueId);
+    const LeagueContext* resolveLeagueContext(LeagueId leagueId) const;
+    const League* resolveLeague(LeagueId leagueId) const;
+    LeagueId resolveDefaultLeagueId() const;
     bool hasValidSelectedTeam() const;
+    bool hasValidLeagueSelection() const;
+    bool startNewGameInternal(LeagueId leagueId, TeamId teamId, const QString& managerName);
     void setLastError(const QString& errorMessage);
 
     QString formatDate(const Date& date) const;

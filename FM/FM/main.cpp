@@ -13,6 +13,7 @@
 #include "Game.h"
 #include "League.h"
 #include "LeagueRules.h"
+#include "LeagueContext.h"
 #include "MatchScheduler.h"
 #include "SeasonPlan.h"
 #include "MatchPlayedEvent.h"
@@ -515,8 +516,10 @@ void validateUpcomingMatchQueries(const League& league) {
     assertOrThrow(validatedAnyTeam, "No team found while validating upcoming match previews.");
 }
 
-void validateSeasonOutcome(Game& game, const LeagueRules& rules) {
-    League& league = game.getLeague();
+void validateSeasonOutcome(Game& game, LeagueId leagueId, const LeagueRules& rules) {
+    League* leaguePtr = game.findLeagueById(leagueId);
+    assertOrThrow(leaguePtr != nullptr, "validateSeasonOutcome could not resolve selected league by id.");
+    League& league = *leaguePtr;
 
     int playedFixtures = 0;
     int totalPlayedFromStandings = 0;
@@ -619,12 +622,24 @@ int main() {
         bool sawHistoryRefillAfterArchive = false;
         bool sawAnyHistoryRefillAfterArchive = false;
         
-        const LeagueRules& rules = game.getRules();
-        const SeasonPlan& bootPlan = game.getSeasonPlan();
-        const League& bootLeague = game.getLeague();
-        assertOrThrow(game.findLeagueById(bootLeague.getId()) == &game.getLeague(),
-            "Game league lookup seam should resolve primary league by id.");
-        assertOrThrow(game.findLeagueById(bootLeague.getId() + 1000U) == nullptr,
+        LeagueId targetLeagueId = 0;
+        game.forEachLeagueContext([&](const LeagueContext& context) {
+            if (targetLeagueId == 0) {
+                targetLeagueId = context.getLeague().getId();
+            }
+            });
+        assertOrThrow(targetLeagueId != 0, "Game should expose at least one league context.");
+
+        const LeagueContext* bootContext = game.findLeagueContextById(targetLeagueId);
+        assertOrThrow(bootContext != nullptr, "Game should resolve selected boot league context by id.");
+
+        const LeagueRules& rules = bootContext->getRules();
+        const SeasonPlan& bootPlan = bootContext->getSeasonPlan();
+        const League& bootLeague = bootContext->getLeague();
+
+        assertOrThrow(game.findLeagueById(targetLeagueId) != nullptr,
+            "Game league lookup seam should resolve selected league by id.");
+        assertOrThrow(game.findLeagueById(targetLeagueId + 1000U) == nullptr,
             "Game league lookup seam should return null for unknown league id.");
         int lastObservedLeagueSeasonYear = bootLeague.getCurrentSeasonYear();
 
@@ -651,12 +666,16 @@ int main() {
 
         for (int simDay = 1; simDay <= simulationDays; ++simDay) {
             const Date preUpdateDate = game.getDate();
-            const SeasonPlan preUpdatePlan = game.getSeasonPlan();
+            const LeagueContext* preUpdateContext = game.findLeagueContextById(targetLeagueId);
+            assertOrThrow(preUpdateContext != nullptr, "Selected league context must remain available before update.");
+            const SeasonPlan preUpdatePlan = preUpdateContext->getSeasonPlan();
             game.updateDaily();
 
             const Date& date = game.getDate();
-            const SeasonPlan& plan = game.getSeasonPlan();
-            const League& league = game.getLeague();
+            const LeagueContext* context = game.findLeagueContextById(targetLeagueId);
+            assertOrThrow(context != nullptr, "Selected league context must remain available after update.");
+            const SeasonPlan& plan = context->getSeasonPlan();
+            const League& league = context->getLeague();
             const TransferWindow& summer = plan.getSummerWindow();
             const TransferWindow& winter = plan.getWinterWindow();
 
@@ -769,7 +788,7 @@ int main() {
 
             const bool allMatchesPlayedNow = league.allMatchesPlayed();
             if (!lastAllMatchesPlayed && allMatchesPlayedNow) {
-                validateSeasonOutcome(game, rules);
+                validateSeasonOutcome(game, targetLeagueId, rules);
                 validateSeasonStatsAtCompletion(league, rules);
                 validateCurrentPlayerSeasonStats(league, league.getCurrentSeasonYear());
                 seasonOutcomeValidated = true;
@@ -809,8 +828,10 @@ int main() {
         }
 
         if (rules.winterBreakEnabled) {
-            const SeasonPlan& plan = game.getSeasonPlan();
-            const League& league = game.getLeague();
+            const LeagueContext* context = game.findLeagueContextById(targetLeagueId);
+            assertOrThrow(context != nullptr, "Selected league context must remain available during final checks.");
+            const SeasonPlan& plan = context->getSeasonPlan();
+            const League& league = context->getLeague();
             const auto firstHalfEnd = league.tryGetMatchWeekEndDate(17);
             const auto fullSeasonEnd = league.tryGetMatchWeekEndDate(34);
             assertOrThrow(!failFast || firstHalfEnd.has_value(),

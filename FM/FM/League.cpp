@@ -15,6 +15,10 @@ League::League(const std::string& leagueName, LeagueId leagueId) : name(leagueNa
 	}
 }
 
+const std::string& League::getName() const {
+	return name;
+}
+
 LeagueId League::getId() const {
 	return id;
 }

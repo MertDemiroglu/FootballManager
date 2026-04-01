@@ -33,15 +33,18 @@ int main(int argc, char* argv[]) {
             "invalid team id should be rejected");
 
         const QVariantMap firstTeam = teamSelection.first().toMap();
+        const int leagueId = firstTeam.value(QStringLiteral("leagueId")).toInt();
         const int teamId = firstTeam.value(QStringLiteral("teamId")).toInt();
+        expect(leagueId > 0, "valid league id should be positive");
         expect(teamId > 0, "valid team id should be positive");
 
-        qDebug() << "[Smoke] Starting game with teamId =" << teamId;
-        expect(facade.startNewGame(teamId, QStringLiteral("Facade Test Manager")),
-            "valid team should start the game");
+        qDebug() << "[Smoke] Starting game with leagueId =" << leagueId << "teamId =" << teamId;
+        expect(facade.startNewGameForLeagueTeam(leagueId, teamId, QStringLiteral("Facade Test Manager")),
+            "valid league/team should start the game");
 
         expect(facade.hasStartedGame(), "started flag should be true");
         expect(!facade.getDashboard().isEmpty(), "dashboard should not be empty");
+        expect(facade.getSelectedLeagueId() == leagueId, "selected league id should roundtrip");
         expect(!facade.getSelectedTeamName().isEmpty(), "selected team name should not be empty");
         expect(facade.getSelectedTeamId() > 0, "selected team id should resolve in fresh game");
         expect(facade.getManagerName() == QStringLiteral("Facade Test Manager"),

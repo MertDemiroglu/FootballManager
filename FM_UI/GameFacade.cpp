@@ -1,17 +1,18 @@
-#include "GameFacade.h"
-#include "Game.h"
-#include "League.h"
-#include "Team.h"
-#include "Footballer.h"
+#include"GameFacade.h"
+#include"Game.h"
+#include"League.h"
+#include"Team.h"
+#include"Footballer.h"
+#include"LeagueContext.h"
 
-#include <QDebug>
+#include<QDebug>
 
-#include <algorithm>
-#include <exception>
-#include <array>
-#include <optional>
-#include <string>
-#include <vector>
+#include<algorithm>
+#include<exception>
+#include<array>
+#include<optional>
+#include<string>
+#include<vector>
 
 namespace {
     QVariantMap missingPlayerMap() {
@@ -68,11 +69,92 @@ const Game* GameFacade::ensureGame() const {
 }
 
 bool GameFacade::hasValidSelectedTeam() const {
-    if (!gameStarted || selectedTeamId == 0) {
+    if (!gameStarted || selectedTeamId == 0 || selectedLeagueId == 0) {
         return false;
-    }   
-    const Game* currentGame = ensureGame();
-    return currentGame && currentGame->getLeague().hasTeam(selectedTeamId);
+    }
+    const League* league = resolveLeague(selectedLeagueId);
+    return league && league->hasTeam(selectedTeamId);
+}
+
+bool GameFacade::hasValidLeagueSelection() const {
+    return selectedLeagueId != 0 && resolveLeague(selectedLeagueId) != nullptr;
+}
+
+LeagueContext* GameFacade::resolveLeagueContext(LeagueId leagueId) {
+    if (leagueId == 0) {
+        return nullptr;
+    }
+    Game* currentGame = ensureGame();
+    return currentGame ? currentGame->findLeagueContextById(leagueId) : nullptr;
+}
+
+const LeagueContext* GameFacade::resolveLeagueContext(LeagueId leagueId) const {
+    return const_cast<GameFacade*>(this)->resolveLeagueContext(leagueId);
+}
+
+const League* GameFacade::resolveLeague(LeagueId leagueId) const {
+    const LeagueContext* context = resolveLeagueContext(leagueId);
+    return context ? &context->getLeague() : nullptr;
+}
+
+LeagueId GameFacade::resolveDefaultLeagueId() const {
+    LeagueId resolvedLeagueId = 0;
+    ensureGame()->forEachLeagueContext([&](const LeagueContext& context) {
+        if (resolvedLeagueId == 0) {
+            resolvedLeagueId = context.getLeague().getId();
+        }
+        });
+    return resolvedLeagueId;
+}
+
+bool GameFacade::startNewGameInternal(LeagueId leagueId, TeamId teamId, const QString& newManagerName) {
+    const QString trimmedManagerName = newManagerName.trimmed();
+    if (leagueId == 0) {
+        setLastError(QStringLiteral("Please choose a valid league."));
+        qWarning() << "[GameFacade::startNewGame] Rejected invalid league id:" << leagueId;
+        emit gameStateChanged();
+        return false;
+    }
+    if (teamId == 0) {
+        setLastError(QStringLiteral("Please choose a valid team."));
+        qWarning() << "[GameFacade::startNewGame] Rejected invalid team id:" << teamId;
+        emit gameStateChanged();
+        return false;
+    }
+    if (trimmedManagerName.isEmpty()) {
+        setLastError(QStringLiteral("Please enter a manager name."));
+        qWarning() << "[GameFacade::startNewGame] Rejected empty manager name.";
+        emit gameStateChanged();
+        return false;
+    }
+
+    std::unique_ptr<Game> newGame = std::make_unique<Game>();
+    LeagueContext* selectedContext = newGame->findLeagueContextById(leagueId);
+    if (!selectedContext) {
+        setLastError(QStringLiteral("Selected league could not be found."));
+        qWarning() << "[GameFacade::startNewGame] League id is not present in fresh game:" << leagueId;
+        emit gameStateChanged();
+        return false;
+    }
+
+    Team* teamInNewGame = selectedContext->getLeague().findTeamById(teamId);
+    if (!teamInNewGame) {
+        setLastError(QStringLiteral("Selected team could not be found in the selected league."));
+        qWarning() << "[GameFacade::startNewGame] Team id" << teamId << "not found in league" << leagueId;
+        emit gameStateChanged();
+        return false;
+    }
+
+    newGame->setUserTeam(teamInNewGame->getName());
+    game = std::move(newGame);
+    selectedLeagueId = leagueId;
+    selectedTeamId = teamInNewGame->getId();
+    managerName = trimmedManagerName;
+    gameStarted = true;
+    setLastError(QString());
+    qDebug() << "[GameFacade::startNewGame] Started new game with league" << selectedLeagueId << "team id" << selectedTeamId;
+    emit gameStateChanged();
+    return true;
 }
 
 void GameFacade::setLastError(const QString& errorMessage) {
@@ -80,35 +162,46 @@ void GameFacade::setLastError(const QString& errorMessage) {
 }
 
 QVariantList GameFacade::getTeamSelectionList() const {
-    const League& league = ensureGame()->getLeague();
 
     struct TeamSummary {
+        LeagueId leagueId = 0;
         TeamId teamId = 0;
         QString teamName;
+        QString leagueName;
         int rating = 0;
         int squadSize = 0;
     };
 
     std::vector<TeamSummary> summaries;
-    summaries.reserve(league.getTeams().size());
-
-    for (const auto& [teamName, team] : league.getTeams()) {
-        (void)teamName;
-        summaries.push_back(TeamSummary{
-            team->getId(),
-            fromStd(team->getName()),
-            team->calculateTeamRating(),
-            static_cast<int>(team->playerCount())
+    ensureGame()->forEachLeagueContext([&](const LeagueContext& context) {
+        const League& league = context.getLeague();
+        for (const auto& [teamName, team] : league.getTeams()) {
+            (void)teamName;
+            summaries.push_back(TeamSummary{
+                league.getId(),
+                team->getId(),
+                fromStd(team->getName()),
+                fromStd(league.getName()),
+                team->calculateTeamRating(),
+                static_cast<int>(team->playerCount())
+                });
+        }
         });
-    }
+    
 
     std::sort(summaries.begin(), summaries.end(), [](const TeamSummary& lhs, const TeamSummary& rhs) {
+        const int leagueCompare = lhs.leagueName.localeAwareCompare(rhs.leagueName);
+        if (leagueCompare != 0) {
+            return leagueCompare < 0;
+        }   
         return lhs.teamName.localeAwareCompare(rhs.teamName) < 0;
         });
 
     QVariantList result;
     for (const TeamSummary& summary : summaries) {
         QVariantMap item;
+        item.insert(QStringLiteral("leagueId"), static_cast<int>(summary.leagueId));
+        item.insert(QStringLiteral("leagueName"), summary.leagueName);
         item.insert(QStringLiteral("teamId"), static_cast<int>(summary.teamId));
         item.insert(QStringLiteral("teamName"), summary.teamName);
         item.insert(QStringLiteral("shortRatingSummary"), QStringLiteral("OVR %1").arg(summary.rating));
@@ -121,65 +214,33 @@ QVariantList GameFacade::getTeamSelectionList() const {
 
 bool GameFacade::startNewGame(int teamId, const QString& newManagerName) {
     try {
-        const QString trimmedManagerName = newManagerName.trimmed();
-        if (teamId <= 0) {
-            setLastError(QStringLiteral("Please choose a valid team."));
-            qWarning() << "[GameFacade::startNewGame] Rejected invalid team id:" << teamId;
-            emit gameStateChanged();
-            return false;
+        LeagueId leagueId = selectedLeagueId;
+        if (leagueId == 0) {
+            leagueId = resolveDefaultLeagueId();
+        }
+        if (leagueId != 0) {
+            const League* selectedLeague = resolveLeague(leagueId);
+            if (!selectedLeague || !selectedLeague->hasTeam(static_cast<TeamId>(teamId))) {
+                leagueId = 0;
+            }
         }
  
-        if (trimmedManagerName.isEmpty()) {
-            setLastError(QStringLiteral("Please enter a manager name."));
-            qWarning() << "[GameFacade::startNewGame] Rejected empty manager name.";
-            emit gameStateChanged();
-            return false;
+        if (leagueId == 0) {
+            ensureGame()->forEachLeagueContext([&](const LeagueContext& context) {
+                if (leagueId != 0) {
+                    return;
+                }
+                if (context.getLeague().hasTeam(static_cast<TeamId>(teamId))) {
+                    leagueId = context.getLeague().getId();
+                }
+                });
         }
-
-        const Game* selectionGame = ensureGame();
-        if (!selectionGame) {
-            setLastError(QStringLiteral("Unable to prepare a new game."));
-            qWarning() << "[GameFacade::startNewGame] Could not access selection game state.";
-            emit gameStateChanged();
-            return false;
-        }
-
-        const TeamId requestedTeamId = static_cast<TeamId>(teamId);
-        const Team* requestedTeam = selectionGame->getLeague().findTeamById(requestedTeamId);
-        if (!requestedTeam) {
-            setLastError(QStringLiteral("Selected team could not be found."));
-            qWarning() << "[GameFacade::startNewGame] Team id is not present in selection state:" << teamId;
-            emit gameStateChanged();
-            return false;
-        }
-
-        const QString requestedTeamName = fromStd(requestedTeam->getName());
-        std::unique_ptr<Game> newGame = std::make_unique<Game>();
-        Team* teamInNewGame = newGame->getLeague().getTeam(requestedTeamName.toStdString());
-        if (!teamInNewGame) {
-            setLastError(QStringLiteral("Selected team is unavailable in the new game session."));
-            qWarning() << "[GameFacade::startNewGame] Team name not found in fresh game:" << requestedTeamName;
-            emit gameStateChanged();
-            return false;
-        }
-
-        newGame->setUserTeam(teamInNewGame->getName());
-
-        game = std::move(newGame);
-        selectedTeamId = teamInNewGame->getId();
-        managerName = trimmedManagerName;
-
-        gameStarted = true;
-
-        setLastError(QString());
-
-        qDebug() << "[GameFacade::startNewGame] Started new game with team" << requestedTeamName << "resolved id" << selectedTeamId;
-        emit gameStateChanged();
-        return true;
+        return startNewGameInternal(leagueId, static_cast<TeamId>(teamId), newManagerName);
     }
     catch (const std::exception& ex) {
         qWarning() << "[GameFacade::startNewGame] Exception:" << ex.what();
         if (!gameStarted) {
+            selectedLeagueId = 0;
             selectedTeamId = 0;
             managerName.clear();
         }
@@ -190,9 +251,28 @@ bool GameFacade::startNewGame(int teamId, const QString& newManagerName) {
     catch (...) {
         qWarning() << "[GameFacade::startNewGame] Unknown exception";
         if (!gameStarted) {
+            selectedLeagueId = 0;
             selectedTeamId = 0;
             managerName.clear();
         }
+        setLastError(QStringLiteral("Failed to start a new game. Please try again."));
+        emit gameStateChanged();
+        return false;
+    }
+}
+
+bool GameFacade::startNewGameForLeagueTeam(int leagueId, int teamId, const QString& managerName) {
+    try {
+        return startNewGameInternal(static_cast<LeagueId>(leagueId), static_cast<TeamId>(teamId), managerName);
+    }
+    catch (const std::exception& ex) {
+        qWarning() << "[GameFacade::startNewGameForLeagueTeam] Exception:" << ex.what();
+        setLastError(QStringLiteral("Failed to start a new game. Please try again."));
+        emit gameStateChanged();
+        return false;
+    }
+    catch (...) {
+        qWarning() << "[GameFacade::startNewGameForLeagueTeam] Unknown exception";
         setLastError(QStringLiteral("Failed to start a new game. Please try again."));
         emit gameStateChanged();
         return false;
@@ -225,7 +305,12 @@ QString GameFacade::getSelectedTeamName() const {
     if (!hasValidSelectedTeam()) {
         return QString();
     }
-    return fromStd(ensureGame()->getLeague().getTeamName(selectedTeamId));
+    const League* league = resolveLeague(selectedLeagueId);
+    return league ? fromStd(league->getTeamName(selectedTeamId)) : QString();
+}
+
+int GameFacade::getSelectedLeagueId() const {
+    return static_cast<int>(selectedLeagueId);
 }
 
 int GameFacade::getSelectedTeamId() const {
@@ -268,21 +353,24 @@ QVariantMap GameFacade::getDashboard() const {
         return dashboard;
     }
 
-    const League& league = ensureGame()->getLeague();
+    const League* league = resolveLeague(selectedLeagueId);
+    if (!league) {
+        return dashboard;
+    }
 
     dashboard.insert(QStringLiteral("recentForm"),
-        fromStd(league.getRecentFormString(selectedTeamId, 5)));
+        fromStd(league->getRecentFormString(selectedTeamId, 5)));
 
     dashboard.insert(QStringLiteral("upcomingMatches"),
         getCurrentTeamUpcomingMatches(3));
 
     if (const std::optional<FixtureMatchPreview> nextMatch =
-        league.getNextMatchForTeam(selectedTeamId);
+        league->getNextMatchForTeam(selectedTeamId);
         nextMatch.has_value()) {
         dashboard.insert(QStringLiteral("nextMatch"), toNextMatchMap(*nextMatch));
     }
 
-    const std::vector<StandingsEntry> standings = league.getSortedStandings();
+    const std::vector<StandingsEntry> standings = league->getSortedStandings();
     for (std::size_t index = 0; index < standings.size(); ++index) {
         if (standings[index].teamId == selectedTeamId) {
             dashboard.insert(QStringLiteral("standingsRow"),
@@ -292,7 +380,7 @@ QVariantMap GameFacade::getDashboard() const {
     }
 
     if (const TeamSeasonStats* stats =
-        league.getCurrentTeamSeasonStatsFor(selectedTeamId)) {
+        league->getCurrentTeamSeasonStatsFor(selectedTeamId)) {
         dashboard.insert(QStringLiteral("shortTeamStats"), toTeamStatsMap(*stats));
     }
 
@@ -330,12 +418,15 @@ QVariantList GameFacade::getStandingsTable() const {
     if (!gameStarted) {
         return table;
     }
-    const League& league = ensureGame()->getLeague();
-    const std::vector<StandingsEntry> standings = league.getSortedStandings();
+    const League* league = resolveLeague(selectedLeagueId);
+    if (!league) {
+        return table;
+    }
+    const std::vector<StandingsEntry> standings = league->getSortedStandings();
 
     for (std::size_t index = 0; index < standings.size(); ++index) {
         QVariantMap row = toStandingsRowMap(standings[index], static_cast<int>(index + 1));
-        row.insert(QStringLiteral("recentForm"), fromStd(league.getRecentFormString(standings[index].teamId, 5)));
+        row.insert(QStringLiteral("recentForm"), fromStd(league->getRecentFormString(standings[index].teamId, 5)));
         table.push_back(row);
     }
 
@@ -347,7 +438,11 @@ QVariantMap GameFacade::getCurrentTeamSeasonStats() const {
         return {};
     }
 
-    const TeamSeasonStats* stats = ensureGame()->getLeague().getCurrentTeamSeasonStatsFor(selectedTeamId);
+    const League* league = resolveLeague(selectedLeagueId);
+    if (!league) {
+        return {};
+    }
+    const TeamSeasonStats* stats = league->getCurrentTeamSeasonStatsFor(selectedTeamId);
     return stats ? toTeamStatsMap(*stats) : QVariantMap{};
 }
 
@@ -357,7 +452,11 @@ QVariantList GameFacade::getCurrentTeamMatches() const {
         return matches;
     }
 
-    std::vector<MatchRecord> records = ensureGame()->getLeague().getMatchesForTeamInCurrentSeason(selectedTeamId);
+    const League* league = resolveLeague(selectedLeagueId);
+    if (!league) {
+        return matches;
+    }
+    std::vector<MatchRecord> records = league->getMatchesForTeamInCurrentSeason(selectedTeamId);
     std::reverse(records.begin(), records.end());
     for (const MatchRecord& record : records) {
         matches.push_back(toMatchRecordMap(record));
@@ -371,8 +470,11 @@ QVariantList GameFacade::getCurrentTeamUpcomingMatches(int count) const {
         return matches;
     }
 
-    const League& league = ensureGame()->getLeague();
-    const auto previews = league.getUpcomingMatchesForTeam(
+    const League* league = resolveLeague(selectedLeagueId);
+    if (!league) {
+        return matches;
+    }
+    const auto previews = league->getUpcomingMatchesForTeam(
         selectedTeamId,
         static_cast<std::size_t>(count)
     );
@@ -390,7 +492,12 @@ QVariantList GameFacade::getCurrentTeamPlayers() const {
         return players;
     }
 
-    const Team* team = ensureGame()->getLeague().findTeamById(selectedTeamId);
+    const League* league = resolveLeague(selectedLeagueId);
+    if (!league) {
+        return players;
+    }
+
+    const Team* team = league->findTeamById(selectedTeamId);
     if (!team) {
         return players;
     }
@@ -406,8 +513,11 @@ QVariantMap GameFacade::getPlayerDetails(int playerId) const {
         return missingPlayerMap();
     }
 
-    const League& league = ensureGame()->getLeague();
-    const Footballer* player = league.findPlayerById(static_cast<PlayerId>(playerId));
+    const League* league = resolveLeague(selectedLeagueId);
+    if (!league) {
+        return missingPlayerMap();
+    }
+    const Footballer* player = league->findPlayerById(static_cast<PlayerId>(playerId));
     if (!player) {
         return missingPlayerMap();
     }
@@ -437,13 +547,13 @@ QString GameFacade::formatGameState(GameState state) const {
 
 QVariantMap GameFacade::toNextMatchMap(const FixtureMatchPreview& preview) const {
     QVariantMap map;
-    const League& league = ensureGame()->getLeague();
+    const League* league = resolveLeague(selectedLeagueId); 
     map.insert(QStringLiteral("hasNextMatch"), true);
     map.insert(QStringLiteral("dateText"), formatDate(preview.date));
     map.insert(QStringLiteral("homeTeamId"), static_cast<int>(preview.homeId));
     map.insert(QStringLiteral("awayTeamId"), static_cast<int>(preview.awayId));
-    map.insert(QStringLiteral("homeTeamName"), fromStd(league.getTeamName(preview.homeId)));
-    map.insert(QStringLiteral("awayTeamName"), fromStd(league.getTeamName(preview.awayId)));
+    map.insert(QStringLiteral("homeTeamName"), league ? fromStd(league->getTeamName(preview.homeId)) : QString());
+    map.insert(QStringLiteral("awayTeamName"), league ? fromStd(league->getTeamName(preview.awayId)) : QString());
     map.insert(QStringLiteral("isHome"), preview.homeId == selectedTeamId);
     map.insert(QStringLiteral("matchweek"), preview.matchweek);
     return map;
@@ -451,10 +561,10 @@ QVariantMap GameFacade::toNextMatchMap(const FixtureMatchPreview& preview) const
 
 QVariantMap GameFacade::toStandingsRowMap(const StandingsEntry& entry, int position) const {
     QVariantMap map;
-    const League& league = ensureGame()->getLeague();
+    const League* league = resolveLeague(selectedLeagueId);
     map.insert(QStringLiteral("position"), position);
     map.insert(QStringLiteral("teamId"), static_cast<int>(entry.teamId));
-    map.insert(QStringLiteral("teamName"), fromStd(league.getTeamName(entry.teamId)));
+    map.insert(QStringLiteral("teamName"), league ? fromStd(league->getTeamName(entry.teamId)) : QString());
     map.insert(QStringLiteral("played"), entry.played);
     map.insert(QStringLiteral("wins"), entry.wins);
     map.insert(QStringLiteral("draws"), entry.draws);
@@ -487,7 +597,7 @@ QVariantMap GameFacade::toTeamStatsMap(const TeamSeasonStats& stats) const {
 
 QVariantMap GameFacade::toMatchRecordMap(const MatchRecord& record) const {
     QVariantMap map;
-    const League& league = ensureGame()->getLeague();
+    const League* league = resolveLeague(selectedLeagueId);
     const bool isHome = record.homeId == selectedTeamId;
     const TeamId opponentId = isHome ? record.awayId : record.homeId;
     const int goalsFor = isHome ? record.homeGoals : record.awayGoals;
@@ -496,7 +606,7 @@ QVariantMap GameFacade::toMatchRecordMap(const MatchRecord& record) const {
     map.insert(QStringLiteral("dateText"), formatDate(record.date));
     map.insert(QStringLiteral("matchweek"), record.matchweek);
     map.insert(QStringLiteral("opponentId"), static_cast<int>(opponentId));
-    map.insert(QStringLiteral("opponentName"), fromStd(league.getTeamName(opponentId)));
+    map.insert(QStringLiteral("opponentName"), league ? fromStd(league->getTeamName(opponentId)) : QString());
     map.insert(QStringLiteral("isHome"), isHome);
     map.insert(QStringLiteral("goalsFor"), goalsFor);
     map.insert(QStringLiteral("goalsAgainst"), goalsAgainst);
@@ -541,9 +651,9 @@ QVariantMap GameFacade::toPlayerDetailsMap(const Footballer& player) const {
     map.insert(QStringLiteral("hasPlayer"), true);
     map.insert(QStringLiteral("teamId"), static_cast<int>(player.getTeamId()));
 
-    const League& league = ensureGame()->getLeague();
-    if (player.getTeamId() != 0 && league.hasTeam(player.getTeamId())) {
-        map.insert(QStringLiteral("teamName"), fromStd(league.getTeamName(player.getTeamId())));
+    const League* league = resolveLeague(selectedLeagueId);
+    if (league && player.getTeamId() != 0 && league->hasTeam(player.getTeamId())) {
+        map.insert(QStringLiteral("teamName"), fromStd(league->getTeamName(player.getTeamId())));
     }
     else {
         map.insert(QStringLiteral("teamName"), fromStd(player.getTeam()));

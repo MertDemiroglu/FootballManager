@@ -1,6 +1,7 @@
 #pragma once
 #include<memory>
 #include<string>
+#include<functional>
 
 #include"Date.h"
 #include"EventQueue.h"
@@ -83,9 +84,21 @@ public:
 	//lig nesnesini verir const
 	const League& getLeague() const;
 	//lig nesnesini id ile aratip bulur non-const
+
 	League* findLeagueById(LeagueId id);
 	//lig nesnesini id ile aratip bulur const
 	const League* findLeagueById(LeagueId id) const;
+	//lig context nesnesini id ile aratip bulur non-const
+
+	LeagueContext* findLeagueContextById(LeagueId id);
+	//lig context nesnesini id ile aratip bulur const
+	const LeagueContext* findLeagueContextById(LeagueId id) const;
+
+	//lig contextleri dolasmak icin
+	void forEachLeagueContext(const std::function<void(LeagueContext&)>& visitor);
+	//lig contextleri dolasmak icin
+	void forEachLeagueContext(const std::function<void(const LeagueContext&)>& visitor) const;
+
 
 	//state'i verir
 	GameState getState() const;

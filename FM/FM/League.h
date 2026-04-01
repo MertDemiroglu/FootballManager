@@ -68,7 +68,7 @@ struct StandingsEntry {
 };
 
 struct TeamSeasonStats {
-	TeamId teamId;
+	TeamId teamId = 0;
 	int seasonYear = 0;
 
 	int played = 0;
@@ -148,6 +148,8 @@ public:
 
 	//League constructor
 	explicit League(const std::string& leagueName, LeagueId leagueId = 1);
+
+	const std::string& getName() const;
 
 	//Lig id'sini verir
 	LeagueId getId() const;
