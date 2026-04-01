@@ -1,9 +1,14 @@
 #include"User.h"
 
-void User::setTeam(const std::string& teamName) {
-	managedTeam = teamName;
+void User::setTeam(LeagueId leagueId, TeamId teamId) {
+	managedLeagueId = leagueId;
+	managedTeamId = teamId;
 }
 
-std::string User::getTeam() const {
-	return managedTeam;
+LeagueId User::getManagedLeagueId() const {
+	return managedLeagueId;
+}
+
+TeamId User::getManagedTeamId() const {
+	return managedTeamId;
 }

@@ -1,11 +1,15 @@
 #pragma once
 #include<string>
+#include"Types.h"
+
 class Game;
 class User {
 private:
 	std::string userName = "xx";
-	std::string managedTeam = "Galatasaray";
+	LeagueId managedLeagueId = 0;
+	TeamId managedTeamId = 0;
 public:
-	void setTeam(const std::string& teamName);
-	std::string getTeam() const;
+	void setTeam(LeagueId leagueId, TeamId teamId);
+	LeagueId getManagedLeagueId() const;
+	TeamId getManagedTeamId() const;
 };

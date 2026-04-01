@@ -54,12 +54,6 @@
     <ClCompile Include="Game.cpp">
       <Filter>Kaynak Dosyalar</Filter>
     </ClCompile>
-    <ClCompile Include="TransferOfferEvent.cpp">
-      <Filter>Kaynak Dosyalar</Filter>
-    </ClCompile>
-    <ClCompile Include="MatchEvent.cpp">
-      <Filter>Kaynak Dosyalar</Filter>
-    </ClCompile>
     <ClCompile Include="EventQueue.cpp">
       <Filter>Kaynak Dosyalar</Filter>
     </ClCompile>
@@ -108,15 +102,6 @@
       <Filter>Kaynak Dosyaları</Filter>
     </ClInclude>
     <ClInclude Include="Game.h">
-      <Filter>Kaynak Dosyaları</Filter>
-    </ClInclude>
-    <ClInclude Include="GameEvents.h">
-      <Filter>Kaynak Dosyaları</Filter>
-    </ClInclude>
-    <ClInclude Include="TransferOfferEvent.h">
-      <Filter>Kaynak Dosyaları</Filter>
-    </ClInclude>
-    <ClInclude Include="MatchEvent.h">
       <Filter>Kaynak Dosyaları</Filter>
     </ClInclude>
     <ClInclude Include="EventQueue.h">

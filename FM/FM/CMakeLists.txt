@@ -19,16 +19,14 @@ add_library(fm_core STATIC
     World.cpp
     LeagueContext.cpp
     LeagueProjection.cpp
-    LeagueRules.cpp
-    MatchEvent.cpp
+    LeagueRules.cpp 
     MatchScheduler.cpp
     MatchSimulation.cpp
     PlayMatchCommandHandler.cpp
     Midfielder.cpp
     RosterLoader.cpp
     SeasonPlan.cpp
-    Team.cpp
-    TransferOfferEvent.cpp
+    Team.cpp    
     TransferRoom.cpp
     User.cpp)
 

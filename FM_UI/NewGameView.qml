@@ -10,6 +10,7 @@ Item {
     signal gameStarted()
 
     property var teamList: []
+    property int selectedLeagueId: -1
     property int selectedTeamId: -1
     property string selectedTeamName: ""
 
@@ -20,15 +21,18 @@ Item {
             for (var i = 0; i < teamList.length; ++i) {
                 if (teamList[i].teamId === selectedTeamId) {
                     stillSelected = true
+                     selectedLeagueId = teamList[i].leagueId || -1
                     selectedTeamName = teamList[i].teamName || ""
                     break
                 }
             }
             if (!stillSelected) {
+                selectedLeagueId = teamList[0].leagueId || -1
                 selectedTeamId = teamList[0].teamId
                 selectedTeamName = teamList[0].teamName || ""
             }
         } else {
+            selectedLeagueId = -1
             selectedTeamId = -1
             selectedTeamName = ""
         }
@@ -148,6 +152,7 @@ Item {
                                         anchors.fill: parent
                                         onClicked: {
                                             root.selectedTeamId = parent.modelData.teamId
+                                            root.selectedLeagueId = parent.modelData.leagueId || -1
                                             root.selectedTeamName = parent.modelData.teamName || ""
                                             if (gameFacade.lastError) {
                                                 gameFacade.clearLastError()
@@ -248,10 +253,14 @@ Item {
                             text: "Start Game"
                             Layout.preferredHeight: 42
                             enabled: root.selectedTeamId > 0
+                                     && root.selectedLeagueId > 0
                                      && root.trimmedManagerName().length > 0
                                      && root.teamList.length > 0
                             onClicked: {
-                                var didStart = gameFacade.startNewGame(root.selectedTeamId, root.trimmedManagerName())
+                                var didStart = gameFacade.startNewGameForLeagueTeam(
+                                            root.selectedLeagueId,
+                                            root.selectedTeamId,
+                                            root.trimmedManagerName())
                                 if (didStart) {
                                     root.gameStarted()
                                 }

@@ -136,11 +136,9 @@
     <ClCompile Include="Goalkeeper.cpp" />
     <ClCompile Include="League.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="MatchEvent.cpp" />
     <ClCompile Include="Midfielder.cpp" />
     <ClCompile Include="User.cpp" />
     <ClCompile Include="Team.cpp" />
-    <ClCompile Include="TransferOfferEvent.cpp" />
     <ClCompile Include="TransferRoom.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -152,14 +150,11 @@
     <ClInclude Include="FootballerFactory.h" />
     <ClInclude Include="Forward.h" />
     <ClInclude Include="Game.h" />
-    <ClInclude Include="GameEvents.h" />
     <ClInclude Include="Goalkeeper.h" />
     <ClInclude Include="League.h" />
-    <ClInclude Include="MatchEvent.h" />
     <ClInclude Include="Midfielder.h" />
     <ClInclude Include="User.h" />
     <ClInclude Include="Team.h" />
-    <ClInclude Include="TransferOfferEvent.h" />
     <ClInclude Include="TransferRoom.h" />
     <ClInclude Include="Types.h" />
   </ItemGroup>

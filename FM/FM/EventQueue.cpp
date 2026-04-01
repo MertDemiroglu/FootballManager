@@ -1,20 +1,13 @@
 #include"EventQueue.h"
-#include"GameEvents.h"
+#include<stdexcept>
 
-EventQueue::QueueItem EventQueue::popNext() {
+PlayMatchCommand EventQueue::popNext() {
     if (items.empty()) {
-        return std::unique_ptr<GameEvents>{};
+        throw std::logic_error("event queue is empty");
     }
-    QueueItem item = std::move(items.front());
+    PlayMatchCommand item = items.front();
     items.erase(items.begin());
     return item;
-}
-
-void EventQueue::pushEvent(std::unique_ptr<GameEvents> event) {
-    if (!event) {
-        return;
-    }
-    items.push_back(std::move(event));
 }
 
 void EventQueue::pushCommand(const PlayMatchCommand& command) {

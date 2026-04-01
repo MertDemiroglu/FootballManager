@@ -11,8 +11,6 @@
 #include"DomainEventPublisher.h"
 #include"World.h"
 
-class GameEvents;
-
 enum class GameState {
 	PreSeason, InSeason, PostSeason
 };
@@ -28,7 +26,6 @@ private:
 	User user;
 	bool timePaused;
 	bool dateWasReset;
-	std::unique_ptr<GameEvents> currentBlockingEvent;
 
 	void seasonStartChecksForContext(LeagueContext& context);
 	void seasonEndChecksForContext(LeagueContext& context);
@@ -72,7 +69,7 @@ public:
 	bool isTimePaused() const;
 
 	//Kullanici takimini disaridan set eder
-	void setUserTeam(const std::string& teamName);
+	void setUserTeam(LeagueId leagueId, TeamId teamId);
 
 	//tarih nesnesini verir non-const
 	Date& getDate();

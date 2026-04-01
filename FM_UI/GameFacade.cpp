@@ -97,16 +97,6 @@ const League* GameFacade::resolveLeague(LeagueId leagueId) const {
     return context ? &context->getLeague() : nullptr;
 }
 
-LeagueId GameFacade::resolveDefaultLeagueId() const {
-    LeagueId resolvedLeagueId = 0;
-    ensureGame()->forEachLeagueContext([&](const LeagueContext& context) {
-        if (resolvedLeagueId == 0) {
-            resolvedLeagueId = context.getLeague().getId();
-        }
-        });
-    return resolvedLeagueId;
-}
-
 bool GameFacade::startNewGameInternal(LeagueId leagueId, TeamId teamId, const QString& newManagerName) {
     const QString trimmedManagerName = newManagerName.trimmed();
     if (leagueId == 0) {
@@ -128,11 +118,11 @@ bool GameFacade::startNewGameInternal(LeagueId leagueId, TeamId teamId, const QS
         return false;
     }
 
-    std::unique_ptr<Game> newGame = std::make_unique<Game>();
-    LeagueContext* selectedContext = newGame->findLeagueContextById(leagueId);
+    Game* currentGame = ensureGame();
+    LeagueContext* selectedContext = currentGame ? currentGame->findLeagueContextById(leagueId) : nullptr;
     if (!selectedContext) {
         setLastError(QStringLiteral("Selected league could not be found."));
-        qWarning() << "[GameFacade::startNewGame] League id is not present in fresh game:" << leagueId;
+        qWarning() << "[GameFacade::startNewGame] League id is not present in active game:" << leagueId;
         emit gameStateChanged();
         return false;
     }
@@ -145,8 +135,7 @@ bool GameFacade::startNewGameInternal(LeagueId leagueId, TeamId teamId, const QS
         return false;
     }
 
-    newGame->setUserTeam(teamInNewGame->getName());
-    game = std::move(newGame);
+    currentGame->setUserTeam(leagueId, teamInNewGame->getId());
     selectedLeagueId = leagueId;
     selectedTeamId = teamInNewGame->getId();
     managerName = trimmedManagerName;
@@ -214,28 +203,7 @@ QVariantList GameFacade::getTeamSelectionList() const {
 
 bool GameFacade::startNewGame(int teamId, const QString& newManagerName) {
     try {
-        LeagueId leagueId = selectedLeagueId;
-        if (leagueId == 0) {
-            leagueId = resolveDefaultLeagueId();
-        }
-        if (leagueId != 0) {
-            const League* selectedLeague = resolveLeague(leagueId);
-            if (!selectedLeague || !selectedLeague->hasTeam(static_cast<TeamId>(teamId))) {
-                leagueId = 0;
-            }
-        }
- 
-        if (leagueId == 0) {
-            ensureGame()->forEachLeagueContext([&](const LeagueContext& context) {
-                if (leagueId != 0) {
-                    return;
-                }
-                if (context.getLeague().hasTeam(static_cast<TeamId>(teamId))) {
-                    leagueId = context.getLeague().getId();
-                }
-                });
-        }
-        return startNewGameInternal(leagueId, static_cast<TeamId>(teamId), newManagerName);
+        return startNewGameInternal(selectedLeagueId, static_cast<TeamId>(teamId), newManagerName);
     }
     catch (const std::exception& ex) {
         qWarning() << "[GameFacade::startNewGame] Exception:" << ex.what();

@@ -1,5 +1,4 @@
 #include"Game.h"
-#include"GameEvents.h"
 #include"RosterLoader.h"
 
 #include<stdexcept>
@@ -17,8 +16,7 @@ Game::Game()
     domainEventPublisher(),
     user(),
     timePaused(false),
-    dateWasReset(false),
-    currentBlockingEvent(nullptr) {
+    dateWasReset(false) {
     League league("Super Lig");
     LeagueRules rules = LeagueRules::makeSuperLig();
     SeasonPlan seasonPlan = SeasonPlan::build(2025, rules);
@@ -102,41 +100,13 @@ void Game::updateDaily() {
     //gunluk mac kontrolu
     matchScheduler.update(world, date, eventsQueue);
 
-    while (!eventsQueue.empty()){
-        auto item = eventsQueue.popNext();
-
-        if (std::holds_alternative<PlayMatchCommand>(item)) {
-            const PlayMatchCommand& command = std::get<PlayMatchCommand>(item);
-            LeagueContext* context = world.findLeagueContext(command.leagueId);
-            if (!context) {
-                throw std::logic_error("play command references unknown league context");
-            }
-            context->getPlayMatchCommandHandler().handle(context->getLeague(), command);
-            continue;
+    while (!eventsQueue.empty()) {
+        const PlayMatchCommand command = eventsQueue.popNext();
+        LeagueContext* context = world.findLeagueContext(command.leagueId);
+        if (!context) {
+            throw std::logic_error("play command references unknown league context");
         }
-        auto event = std::move(std::get<std::unique_ptr<GameEvents>>(item));
-
-        if (!event){
-            continue;
-        }
-
-        Team* userTeam = nullptr;
-        const std::string managedTeam = user.getTeam();
-        if (!managedTeam.empty()) {
-           world.forEachLeagueContext([&](LeagueContext& context){
-               if (userTeam != nullptr) {
-                   return;
-               }
-               userTeam = context.getLeague().getTeam(managedTeam);
-               });
-
-        }
-        if(event->isBlocking() && userTeam && event->affectsTeam(userTeam)){
-            currentBlockingEvent = std::move(event);
-            stopTime();
-            return;
-        }
-        event->resolve(*this);
+        context->getPlayMatchCommandHandler().handle(context->getLeague(), command);
     }
 
     handleSeasonalEvents();
@@ -269,10 +239,7 @@ bool Game::isTimePaused() const {
 }
 
 void Game::processBlockingEvent() {
-    if (currentBlockingEvent) {
-        currentBlockingEvent->resolve(*this);
-        currentBlockingEvent.reset();
-    }
+ 
     timePaused = false;
 }
 
@@ -316,8 +283,15 @@ void Game::forEachLeagueContext(const std::function<void(const LeagueContext&)>&
     world.forEachLeagueContext(visitor);
 }
 
-void Game::setUserTeam(const std::string& teamName) {
-    user.setTeam(teamName);
+void Game::setUserTeam(LeagueId leagueId, TeamId teamId) {
+    LeagueContext* context = world.findLeagueContext(leagueId);
+    if (!context) {
+        throw std::logic_error("cannot set user team for unknown league");
+    }
+    if (!context->getLeague().hasTeam(teamId)) {
+        throw std::logic_error("cannot set user team for unknown team in league");
+    }
+    user.setTeam(leagueId, teamId);
 }
 
 GameState Game::getState() const {
