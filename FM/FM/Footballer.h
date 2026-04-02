@@ -31,7 +31,7 @@ protected:
 	PlayerId playerId;
 	TeamId teamId;
 	std::unique_ptr<Contract> contract;
-	std::string name, position, team;
+	std::string name, position;
 	int age;
 	PlayerSeasonStats currentSeasonStats;
 	std::unordered_map<int, PlayerSeasonStats> archivedSeasonStatsByYear;
@@ -55,14 +55,12 @@ public:
 	const std::string& getName() const;
 	//Oyuncunun pozisyonu verir
 	const std::string& getPosition() const;
-	//Oyuncunun takiminin ismini verir
-	const std::string& getTeam() const;
 	//Oyuncunun yasini verir
 	int getAge() const;
 
 	
 	//Takim bilgisini set eder
-	void setTeam(const std::string& newTeam, TeamId newTeamId);
+	void setTeam(TeamId newTeamId);
 	
 	//Kontrat imzalama
 	void signContract(Money wage, int years);

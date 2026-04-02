@@ -141,8 +141,8 @@ void Game::handleSeasonalEvents() {
 void Game::handleMonthlyEvents() {
     world.forEachLeagueContext([&](LeagueContext& context) {
         League& league = context.getLeague();
-        for (auto& [name, team] : league.getTeams()) {
-            (void)name;
+        for (auto& [teamId, team] : league.getTeams()) {
+            (void)teamId;
             team->payWagesMonthly();
         }
         });
@@ -221,14 +221,6 @@ void Game::updateTransferWindow() {
         });
 }
 
-TransferRoom& Game::getTransferRoom() {
-    return world.getTransferRoom();
-}
-
-const TransferRoom& Game::getTransferRoom() const {
-    return world.getTransferRoom();
-}
-
 void Game::stopTime() {
     timePaused = true;
     //Zamanin o an ki ilerleyisi burada durdurulacak ve event oyuncuya sunulacak, oyuncu tekrar baslatana kadar zaman duracak
@@ -251,13 +243,6 @@ const Date& Game::getDate() const {
     return date;
 }
 
-League& Game::getLeague() {
-    return world.getPrimaryLeagueContext().getLeague();
-}
-
-const League& Game::getLeague() const {
-    return world.getPrimaryLeagueContext().getLeague();
-}
 
 League* Game::findLeagueById(LeagueId id) {
     return world.findLeagueById(id);
@@ -298,13 +283,6 @@ GameState Game::getState() const {
     return state;
 }
 
-const LeagueRules& Game::getRules() const {
-    return world.getPrimaryLeagueContext().getRules();
-}
-
-const SeasonPlan& Game::getSeasonPlan() const {
-    return world.getPrimaryLeagueContext().getSeasonPlan();
-}
 
 //debug
 const MatchScheduler& Game::getMatchScheduler() const {

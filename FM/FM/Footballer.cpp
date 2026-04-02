@@ -9,7 +9,8 @@ namespace {
     }
 
 }
-Footballer::Footballer(const std::string& name, const std::string& position, const std::string& team, int age) : playerId(generatePlayerId()), name(name), position(position), team(team), teamId(0), age(age) {
+Footballer::Footballer(const std::string& name, const std::string& position, const std::string& team, int age) : playerId(generatePlayerId()), name(name), position(position), teamId(0), age(age) {
+    (void)team;
     currentSeasonStats.playerId = playerId;
 }
 
@@ -30,17 +31,12 @@ const std::string& Footballer::getPosition() const {
     return position;
 }
 
-const std::string& Footballer::getTeam() const {
-    return team;
-}
-
 int Footballer::getAge() const {
     return age;
 }
 
 //set fonksiyonlari
-void Footballer::setTeam(const std::string& newTeam, TeamId newTeamId) {
-    team = newTeam;
+void Footballer::setTeam(TeamId newTeamId) {
     teamId = newTeamId;
 
     if (contract) {
@@ -139,7 +135,7 @@ void Footballer::addMinutes(int additionalMinutes) {
 
 //print
 void Footballer::print(std::ostream& os) const {
-    os << "Name: " << name << ", Id: " << playerId << ", Age: " << age << ", Position: " << position << ", Team: " << team;
+    os << "Name: " << name << ", Id: " << playerId << ", Age: " << age << ", Position: " << position << ", TeamId: " << teamId;
 }
 
 std::ostream& operator<<(std::ostream& os, const Footballer& f) {

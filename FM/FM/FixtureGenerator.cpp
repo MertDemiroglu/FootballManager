@@ -14,8 +14,9 @@ void FixtureGenerator::generateSeasonFixture(League& league, const SeasonPlan& p
     teamsByName.reserve(league.getTeams().size());
 
 
-    for (const auto& [teamName, team] : league.getTeams()) {
-        teamsByName.emplace_back(teamName, team->getId());
+    for (const auto& [teamId, team] : league.getTeams()) {
+        (void)teamId;
+        teamsByName.emplace_back(team->getName(), team->getId());
     }
 
     std::sort(teamsByName.begin(), teamsByName.end(), [](const auto& lhs, const auto& rhs) {

@@ -40,12 +40,7 @@ public:
 
 	//Oyuncuyu serbest birakir (pointer'ini birakir)
 	std::unique_ptr<Footballer> releasePlayer(PlayerId playerId);
-	//Oyuncuyu serbest birakir (pointer'ini birakir)
-	std::unique_ptr<Footballer> releasePlayer(const std::string& playerName);
 
-	//Oyuncuyu ismine gore bulur pointer'ini verir
-	Footballer* findPlayer(const std::string& name);
-	const Footballer* findPlayer(const std::string& name) const;
 
 	//Oyuncuyu ID'sine gore bulur pointer'ini verir
 	Footballer* findPlayerById(PlayerId id);

@@ -43,25 +43,6 @@ int Team::calculateTeamRating() const {
     return total / players.size();
 }
 
-//Takimda oyuncu bulur (isim ile bulup ptr verir)
-Footballer* Team::findPlayer(const std::string& name) {
-    for (auto& p : players) {
-        if (p->getName() == name) {
-            return p.get();
-        }
-    }
-    return nullptr;
-}
-
-const Footballer* Team::findPlayer(const std::string& name) const {
-    for (const auto& p : players) {
-        if (p->getName() == name) {
-            return p.get();
-        }
-    }
-    return nullptr;
-}
-
 Footballer* Team::findPlayerById(PlayerId playerId) {
     for (auto& p : players) {
         if (p->getId() == playerId) {
@@ -88,26 +69,8 @@ void Team::addPlayer(std::unique_ptr<Footballer> player) {
     if (!player) {
         return;
     }
-    player->setTeam(name, id);
+    player->setTeam(id);
     players.push_back(std::move(player));
-}
-
-//Oyuncu serbest birakma fonksiyonu
-std::unique_ptr<Footballer> Team::releasePlayer(const std::string& playerName) {
-    //transferler icin
-    auto it = std::find_if(players.begin(), players.end(),[&](const std::unique_ptr<Footballer>& p) {
-            return p->getName() == playerName;
-        });
-
-    if (it == players.end())
-        return nullptr;
-
-    std::unique_ptr<Footballer> released = std::move(*it);
-
-    released->setTeam("Free Agent", 0);
-    players.erase(it);
-
-    return released;
 }
 
 std::unique_ptr<Footballer> Team::releasePlayer(PlayerId playerId) {
@@ -120,7 +83,7 @@ std::unique_ptr<Footballer> Team::releasePlayer(PlayerId playerId) {
     }
 
     std::unique_ptr<Footballer> released = std::move(*it);
-    released->setTeam("Free Agent", 0);
+    released->setTeam(0);
     players.erase(it);
     return released;
 }
@@ -160,7 +123,7 @@ std::vector<std::unique_ptr<Footballer>> Team::collectExpiredContracts() {
     while (it != players.end()) {
        auto c = (*it)->getContract();
        if (c && c->isExpired()) {
-           (*it)->setTeam("Free Agent", 0);
+           (*it)->setTeam(0);
            leavingPlayers.push_back(std::move(*it));
            it = players.erase(it);
        }

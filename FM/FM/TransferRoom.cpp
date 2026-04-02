@@ -26,15 +26,20 @@ void TransferRoom::listFreeAgents() const {
 	}
 }
 
-bool TransferRoom::transferPlayer(const std::string& fromTeam, const std::string& toTeam, const std::string& playerName, Money fee) {
+bool TransferRoom::transferPlayer(LeagueId fromLeagueId, TeamId fromTeamId, LeagueId toLeagueId, TeamId toTeamId, PlayerId playerId, Money fee) {
 	if (!world) {
 		return false;
 	}
 
-	LeagueId sellerLeagueId = 0;
-	LeagueId buyerLeagueId = 0;
-	Team* seller = world->findTeamByName(fromTeam, &sellerLeagueId);
-	Team* buyer = world->findTeamByName(toTeam, &buyerLeagueId);
+	League* sellerLeague = world->findLeagueById(fromLeagueId);
+	League* buyerLeague = world->findLeagueById(toLeagueId);
+
+	if (!sellerLeague || !buyerLeague) {
+		return false;
+	}
+
+	Team* seller = sellerLeague->findTeamById(fromTeamId);
+	Team* buyer = buyerLeague->findTeamById(toTeamId);
 
 	if (!seller || !buyer) {
 		return false;
@@ -43,12 +48,10 @@ bool TransferRoom::transferPlayer(const std::string& fromTeam, const std::string
 		return false;
 	}
 
-	Footballer* player = seller->findPlayer(playerName);
+	Footballer* player = seller->findPlayerById(playerId);
 	if (!player) {
 		return false;
 	}
-
-	const PlayerId playerId = player->getId();
 
 	if (!negotiateContract(buyer, player)) {
 		return false;
@@ -63,33 +66,36 @@ bool TransferRoom::transferPlayer(const std::string& fromTeam, const std::string
 	}
 
 	buyer->addPlayer(std::move(soldPlayer));
-	Footballer* transferredPlayer = buyer->findPlayer(playerName);
-	League* buyerLeague = world->findLeagueById(buyerLeagueId);
+
+	Footballer* transferredPlayer = buyer->findPlayerById(playerId);
 	if (transferredPlayer && buyerLeague && buyerLeague->getCurrentSeasonYear() >= 0 &&	transferredPlayer->getCurrentSeasonStats().seasonYear != buyerLeague->getCurrentSeasonYear()) {
 		transferredPlayer->initializeSeasonStats(buyerLeague->getCurrentSeasonYear());
 	}
 	return true;
 }
 
-bool TransferRoom::transferFreeAgent(const std::string& teamName, const std::string& playerName) {
+bool TransferRoom::transferFreeAgent(LeagueId toLeagueId, TeamId toTeamId, PlayerId playerId) {
 	if (!world) {
 		return false;
 	}
 
-	LeagueId buyerLeagueId = 0;
-	Team* team = world->findTeamByName(teamName, &buyerLeagueId);
+	League* buyerLeague = world->findLeagueById(toLeagueId);
+	if (!buyerLeague) {
+		return false;
+	}
+	Team* team = buyerLeague->findTeamById(toTeamId);
 	if (!team) {
 		return false;
 	}
 
-	auto it = std::find_if(freeAgents.begin(), freeAgents.end(), [&](const std::unique_ptr<Footballer>& p) { return p->getName() == playerName; });
+	auto it = std::find_if(freeAgents.begin(), freeAgents.end(), [&](const std::unique_ptr<Footballer>& p) { return p->getId() == playerId; });
 	
 	if (it == freeAgents.end()) {
 		return false;
 	}
 
 	auto player = it->get();
-	player->setTeam(team->getName(), team->getId());
+	player->setTeam(team->getId());
 	negotiateContract(team, player);
 
 	std::unique_ptr<Footballer> movingPlayer = std::move(*it);
@@ -97,8 +103,7 @@ bool TransferRoom::transferFreeAgent(const std::string& teamName, const std::str
 
 	team->addPlayer(std::move(movingPlayer));
 
-	Footballer* signedPlayer = team->findPlayer(playerName);
-	League* buyerLeague = world->findLeagueById(buyerLeagueId);
+	Footballer* signedPlayer = team->findPlayerById(playerId);
 	if (signedPlayer && buyerLeague && buyerLeague->getCurrentSeasonYear() >= 0 &&signedPlayer->getCurrentSeasonStats().seasonYear != buyerLeague->getCurrentSeasonYear()) {
 		signedPlayer->initializeSeasonStats(buyerLeague->getCurrentSeasonYear());
 	}
@@ -112,7 +117,7 @@ bool TransferRoom::negotiateContract(Team* team, Footballer* player) {
 	if (!team->canAffordWage(wage)) {
 		return false;
 	}
-	player->setTeam(team->getName(), team->getId());
+	player->setTeam(team->getId());
 	player->signContract(wage, years);
 	return true;
 }
@@ -135,12 +140,12 @@ void TransferRoom::collectFreeAgentsFromLeague(LeagueId leagueId) {
 		return;
 	}
 
-	for (const auto& [name, teamPtr] : context->getLeague().getTeams()) {
-		(void)name;
+	for (const auto& [teamId, teamPtr] : context->getLeague().getTeams()) {
+		(void)teamId;
 		auto expiredPlayers = teamPtr->collectExpiredContracts();
 
 		for (auto& p : expiredPlayers) {
-			p->setTeam("Free Agent", 0);
+			p->setTeam(0);
 			addFreeAgent(std::move(p));
 		}
 	}
@@ -165,8 +170,8 @@ void TransferRoom::updatePlayersContractYearsInLeague(LeagueId leagueId) {
 		return;
 	}
 
-	for (const auto& [name, teamPtr] : context->getLeague().getTeams()) {
-		(void)name;
+	for (const auto& [teamId, teamPtr] : context->getLeague().getTeams()) {
+		(void)teamId;
 		teamPtr->updateContracts();
 	}
 }

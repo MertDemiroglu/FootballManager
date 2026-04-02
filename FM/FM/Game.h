@@ -55,15 +55,11 @@ public:
 	void updateTransferWindow();
 
 
-	//Transfer room nesnesini verir non-const
-	TransferRoom& getTransferRoom();
-	//Transfer room nesnesini verir const
-	const TransferRoom& getTransferRoom() const;
-
 	//Blocking event var ise zamani durdurur
 	void stopTime();
 	//Oyuncunun karar vermesi gereken eventin islendigi fonksiyon
 	void processBlockingEvent();
+
 
 	//zamanin akmasini kontrol eder (true/false)
 	bool isTimePaused() const;
@@ -76,17 +72,16 @@ public:
 	//tarihi verir const
 	const Date& getDate() const;
 
-	//lig nesnesini verir non-const
-	League& getLeague();
-	//lig nesnesini verir const
-	const League& getLeague() const;
-	//lig nesnesini id ile aratip bulur non-const
+	
 
+	//lig nesnesini id ile aratip bulur non-const
 	League* findLeagueById(LeagueId id);
 	//lig nesnesini id ile aratip bulur const
 	const League* findLeagueById(LeagueId id) const;
-	//lig context nesnesini id ile aratip bulur non-const
 
+
+
+	//lig context nesnesini id ile aratip bulur non-const
 	LeagueContext* findLeagueContextById(LeagueId id);
 	//lig context nesnesini id ile aratip bulur const
 	const LeagueContext* findLeagueContextById(LeagueId id) const;
@@ -99,11 +94,6 @@ public:
 
 	//state'i verir
 	GameState getState() const;
-
-	//aktif lig kurallarini verir
-	const LeagueRules& getRules() const;
-	//aktif sezon planini verir
-	const SeasonPlan& getSeasonPlan() const;
 
 	//debug
 	const MatchScheduler& getMatchScheduler() const;

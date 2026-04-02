@@ -31,9 +31,9 @@ public:
 	void listFreeAgents() const;
 
 	//Takýmdan takýma transfer, fonksiyon düzeltilecek sözleþme ile transfer ayrýlacak.
-	bool transferPlayer(const std::string& fromTeam, const std::string& toTeam, const std::string& playerName, Money fee);
+	bool transferPlayer(LeagueId fromLeagueId, TeamId fromTeamId, LeagueId toLeagueId, TeamId toTeamId, PlayerId playerId, Money fee);
 	//Boþtaki oyuncuyu transfer
-	bool transferFreeAgent(const std::string& teamName, const std::string& playerName);
+	bool transferFreeAgent(LeagueId toLeagueId, TeamId toTeamId, PlayerId playerId);
 	//Sözleþme anlaþmalarýnda çaðýrýlan fonksiyon
 	bool negotiateContract(Team* team, Footballer* player);
 

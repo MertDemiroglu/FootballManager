@@ -103,8 +103,8 @@ TeamSeasonStatsTotals computeTeamSeasonStatsTotals(const std::unordered_map<Team
 }
 
 void validateCurrentPlayerSeasonStats(const League& league, int expectedSeasonYear) {
-    for (const auto& [teamName, team] : league.getTeams()) {
-        (void)teamName;
+    for (const auto& [teamId, team] : league.getTeams()) {
+        (void)teamId;
         for (const auto& player : team->getPlayers()) {
             const PlayerSeasonStats& stats = player->getCurrentSeasonStats();
             assertOrThrow(stats.playerId == player->getId(),
@@ -179,9 +179,8 @@ void validateSeasonRolloverState(const League& league, int archivedSeasonYear, c
     assertOrThrow(static_cast<int>(archivedSeasonIt->second.size()) == rules.teamCount,
         "Archived team season stats entry count must match team count.");
 
-    for (const auto& [teamName, team] : league.getTeams()) {
-        (void)teamName;
-        const TeamId teamId = team->getId();
+    for (const auto& [teamId, team] : league.getTeams()) {
+        (void)teamId;
         const TeamSeasonStats* archivedStats = league.getArchivedTeamSeasonStatsFor(teamId, archivedSeasonYear);
         assertOrThrow(archivedStats != nullptr,
             "Archived team season stats lookup must not return null.");
@@ -202,8 +201,8 @@ void validateSeasonRolloverState(const League& league, int archivedSeasonYear, c
 
     validateCurrentPlayerSeasonStats(league, league.getCurrentSeasonYear());
 
-    for (const auto& [teamName, team] : league.getTeams()) {
-        (void)teamName;
+    for (const auto& [teamId, team] : league.getTeams()) {
+        (void)teamId;
         for (const auto& player : team->getPlayers()) {
             const auto& archivedStatsByYear = player->getArchivedSeasonStatsByYear();
             const auto archivedPlayerIt = archivedStatsByYear.find(archivedSeasonYear);
@@ -260,8 +259,8 @@ void validateTeamHistoryQueries(const League& league, const LeagueRules& rules) 
     const int expectedMatchesPerTeam = (rules.teamCount - 1) * 2;
     bool checkedAnyTeam = false;
 
-    for (const auto& [teamName, team] : league.getTeams()) {
-        (void)teamName;
+    for (const auto& [teamId, team] : league.getTeams()) {
+        (void)teamId;
         const TeamId teamId = team->getId();
         const auto currentSeasonMatches = league.getMatchesForTeamInCurrentSeason(teamId);
         const auto seasonMatches = league.getMatchesForTeamInSeason(teamId, league.getCurrentSeasonYear());
@@ -421,11 +420,12 @@ void maybeLogMonthBoundary(const Date& date,
         return;
     }
 
+    const bool transferOpen = summer.contains(date) || winter.contains(date);
     std::cout << "[NewMonth] date=" << dateToString(date)
         << " state=" << stateToString(game.getState())
         << " summerOpen=" << (summer.contains(date) ? "true" : "false")
         << " winterOpen=" << (winter.contains(date) ? "true" : "false")
-        << " transferOpen=" << (game.getTransferRoom().isOpen() ? "true" : "false")
+        << " transferOpen=" << (transferOpen ? "true" : "false")
         << "\n";
     lastNewMonthLogKey = monthLogKey;
 }
@@ -496,9 +496,8 @@ void validateSortedStandings(const League& league) {
 
 void validateUpcomingMatchQueries(const League& league) {
     bool validatedAnyTeam = false;
-    for (const auto& [teamName, team] : league.getTeams()) {
-        (void)teamName;
-        const TeamId teamId = team->getId();
+    for (const auto& [teamId, team] : league.getTeams()) {
+        (void)teamId;
         const auto nextMatch = league.getNextMatchForTeam(teamId);
         const auto upcomingMatches = league.getUpcomingMatchesForTeam(teamId, 3);
 
@@ -693,7 +692,7 @@ int main() {
                 std::cout << "[Tick] simDay=" << simDay
                     << " date=" << dateToString(date)
                     << " state=" << stateToString(game.getState())
-                    << " transferOpen=" << (game.getTransferRoom().isOpen() ? "true" : "false")
+                    << " transferOpen=" << ((summer.contains(date) || winter.contains(date)) ? "true" : "false")
                     << " matchEvents=" << game.getMatchScheduler().debugGeneratedMatchEvents()
                     << "\n";
             }

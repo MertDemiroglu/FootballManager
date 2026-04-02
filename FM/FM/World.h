@@ -35,9 +35,6 @@ public:
 	TransferRoom& getTransferRoom();
 	const TransferRoom& getTransferRoom() const;
 
-	Team* findTeamByName(const std::string& teamName, LeagueId* leagueIdOut = nullptr);
-	const Team* findTeamByName(const std::string& teamName, LeagueId* leagueIdOut = nullptr) const;
-
 	bool hasPrimaryLeagueContext() const;
 
 	LeagueContext& getPrimaryLeagueContext();

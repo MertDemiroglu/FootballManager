@@ -30,57 +30,38 @@ void League::addTeam(std::unique_ptr<Team> team) {
 	const std::string teamName = team->getName();
 	const TeamId teamId = team->getId();
 
-	if (teams.find(teamName) != teams.end()) {
+	if (teamNameToId.find(teamName) != teamNameToId.end()) {
 		throw std::runtime_error("duplicate team name: " + teamName);
 	}
-	if (teamIndexById.find(teamId) != teamIndexById.end()) {
+	if (teams.find(teamId) != teams.end()) {
 		throw std::runtime_error("duplicate team id");
 	}
-	Team* rawTeam = team.get();
-	teams.emplace(teamName, std::move(team));
-	teamIndexById.emplace(teamId, rawTeam);
+
+	teams.emplace(teamId, std::move(team));
+	teamNameToId.emplace(teamName, teamId);
+
 	standings[teamId] = StandingsEntry{ teamId };
 
 	if (currentSeasonYear >= 0) {
 		currentTeamSeasonStats[teamId] = TeamSeasonStats{ teamId, currentSeasonYear };
-		rawTeam->resetPlayerSeasonStats(currentSeasonYear);
+		teams.at(teamId)->resetPlayerSeasonStats(currentSeasonYear);
 	}
-}
-
-bool League::teamExists(const std::string& teamName) const {
-	return teams.find(teamName) != teams.end();
-}
-
-Team* League::getTeam(const std::string& teamName) {
-	auto it = teams.find(teamName);
-	if (it != teams.end()) {
-		return it->second.get();
-	}
-	return nullptr;
-}
-
-const Team* League::getTeam(const std::string& teamName) const {
-	auto it = teams.find(teamName);
-	if (it != teams.end()) {
-		return it->second.get();
-	}
-	return nullptr;
 }
 
 Team* League::findTeamById(TeamId id) {
-	auto it = teamIndexById.find(id);
-	if (it != teamIndexById.end()) {
-		return it->second;
+	auto it = teams.find(id);
+	if (it != teams.end()) {
+		return it->second.get();
 	}
 	return nullptr;
 }
 
 const Team* League::findTeamById(TeamId id) const {
-	auto it = teamIndexById.find(id);
-	if (it == teamIndexById.end()) {
+	auto it = teams.find(id);
+	if (it == teams.end()) {
 		return nullptr;
 	}
-	return it->second;
+	return it->second.get();
 }
 
 const std::string& League::getTeamName(TeamId id) const {
@@ -92,12 +73,12 @@ const std::string& League::getTeamName(TeamId id) const {
 }
 
 bool League::hasTeam(TeamId id) const {
-	return teamIndexById.find(id) != teamIndexById.end();
+	return teams.find(id) != teams.end();
 }
 
 Footballer* League::findPlayerById(PlayerId id) {
-	for (auto& [teamName, team] : teams) {
-		(void)teamName;
+	for (auto& [teamId, team] : teams) {
+		(void)teamId;
 		if (Footballer* player = team->findPlayerById(id)) {
 			return player;
 		}
@@ -106,8 +87,8 @@ Footballer* League::findPlayerById(PlayerId id) {
 }
 
 const Footballer* League::findPlayerById(PlayerId id) const {
-	for (const auto& [teamName, team] : teams) {
-		(void)teamName;
+	for (const auto& [teamId, team] : teams) {
+		(void)teamId;
 		if (const Footballer* player = team->findPlayerById(id)) {
 			return player;
 		}
@@ -115,7 +96,7 @@ const Footballer* League::findPlayerById(PlayerId id) const {
 	return nullptr;
 }
 
-const std::unordered_map<std::string, std::unique_ptr<Team>>& League::getTeams() const {
+const std::unordered_map<TeamId, std::unique_ptr<Team>>& League::getTeams() const {
 	return teams;
 }
 
@@ -278,8 +259,8 @@ bool League::hasCurrentSeasonHistoryRecord(const Date& date, TeamId homeId, Team
 
 void League::initializeStandings() {
 	standings.clear();
-	for (const auto& [teamName, team] : teams) {
-		(void)teamName;
+	for (const auto& [teamId, team] : teams) {
+		(void)teamId;
 		standings.emplace(team->getId(), StandingsEntry{ team->getId() });
 	}
 }
@@ -294,8 +275,8 @@ void League::initializeTeamSeasonStats() {
 	}
 
 	currentTeamSeasonStats.clear();
-	for (const auto& [teamName, team] : teams) {
-		(void)teamName;
+	for (const auto& [teamId, team] : teams) {
+		(void)teamId;
 		currentTeamSeasonStats.emplace(team->getId(), TeamSeasonStats{ team->getId(), currentSeasonYear });
 	}
 }
@@ -736,8 +717,8 @@ void League::resetForNewSeason(int newSeasonYear) {
 	resetCurrentSeasonHistory();
 	setCurrentSeasonYear(newSeasonYear);
 	resetCurrentTeamSeasonStats();
-	for (auto& [teamName, team] : teams) {
-		(void)teamName;
+	for (auto& [teamId, team] : teams) {
+		(void)teamId;
 		team->archiveAndResetPlayerSeasonStats(newSeasonYear);
 	}
 	seasonFixtureGenerated = false;

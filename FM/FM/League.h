@@ -56,7 +56,7 @@ enum class MatchOutcome {
 };
 
 struct StandingsEntry {
-	TeamId teamId;
+	TeamId teamId = 0;
 	int played = 0;
 	int wins = 0;
 	int draws = 0;
@@ -111,8 +111,8 @@ private:
 	//Lig id'si
 	LeagueId id = 0;
 	//Takimlari tutan map
-	std::unordered_map<std::string, std::unique_ptr<Team>> teams;
-	std::unordered_map<TeamId, Team*> teamIndexById;
+	std::unordered_map<TeamId, std::unique_ptr<Team>> teams;
+	std::unordered_map<std::string, TeamId> teamNameToId;
 
 	std::map<Date, std::vector<FixtureMatch>> fixture;
 	std::vector<std::optional<Date>> matchWeekEndDates;
@@ -149,21 +149,21 @@ public:
 	//League constructor
 	explicit League(const std::string& leagueName, LeagueId leagueId = 1);
 
+
 	const std::string& getName() const;
+
 
 	//Lig id'sini verir
 	LeagueId getId() const;
 
+
 	//Lige takim ekler
 	void addTeam(std::unique_ptr<Team> team);
-	//Takimin pointerini verir
-	Team* getTeam(const std::string& teamName);
-	//Takimin pointerini verir overloaded
-	const Team* getTeam(const std::string& teamName) const;
-	//Takimin ismini alir, var ise true verir
-	bool teamExists(const std::string& teamName) const;
+	
+
 	//Butun takimlari unordered map olarak verir
-	const std::unordered_map<std::string, std::unique_ptr<Team>>& getTeams() const;
+	const std::unordered_map<TeamId, std::unique_ptr<Team>>& getTeams() const;
+
 
 	//Takimi ID'sinden bulup poninterini verir
 	Team* findTeamById(TeamId id);

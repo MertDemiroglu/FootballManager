@@ -164,8 +164,8 @@ QVariantList GameFacade::getTeamSelectionList() const {
     std::vector<TeamSummary> summaries;
     ensureGame()->forEachLeagueContext([&](const LeagueContext& context) {
         const League& league = context.getLeague();
-        for (const auto& [teamName, team] : league.getTeams()) {
-            (void)teamName;
+        for (const auto& [teamId, team] : league.getTeams()) {
+            (void)teamId;
             summaries.push_back(TeamSummary{
                 league.getId(),
                 team->getId(),
@@ -624,7 +624,7 @@ QVariantMap GameFacade::toPlayerDetailsMap(const Footballer& player) const {
         map.insert(QStringLiteral("teamName"), fromStd(league->getTeamName(player.getTeamId())));
     }
     else {
-        map.insert(QStringLiteral("teamName"), fromStd(player.getTeam()));
+        map.insert(QStringLiteral("teamName"), QStringLiteral("Free Agent"));
     }
 
     map.insert(QStringLiteral("currentSeasonStats"),
