@@ -10,10 +10,16 @@
 #include"FixtureGenerator.h"
 #include"DomainEventPublisher.h"
 #include"World.h"
+#include"InteractionManager.h"
 
 enum class GameState {
 	PreSeason, InSeason, PostSeason
 };
+
+class GameInteraction;
+class PostMatchInteraction;
+class TransferOfferDecisionInteraction;
+
 class Game {
 private:
 	Date date;
@@ -23,12 +29,14 @@ private:
 	MatchScheduler matchScheduler;
 	FixtureGenerator fixtureGenerator;
 	DomainEventPublisher domainEventPublisher;
+	InteractionManager interactionManager;
 	User user;
 	bool timePaused;
 	bool dateWasReset;
 
 	void seasonStartChecksForContext(LeagueContext& context);
 	void seasonEndChecksForContext(LeagueContext& context);
+	void refreshTimePauseState();
 public:
 	//Game constructor
 	Game();
@@ -63,6 +71,12 @@ public:
 
 	//zamanin akmasini kontrol eder (true/false)
 	bool isTimePaused() const;
+
+	bool hasActiveBlockingInteraction() const;
+	const GameInteraction* getActiveInteraction() const;
+	const PostMatchInteraction* getActivePostMatchInteraction() const;
+	const TransferOfferDecisionInteraction* getActiveTransferOfferDecisionInteraction() const;
+	bool resolveActiveInteraction();
 
 	//Kullanici takimini disaridan set eder
 	void setUserTeam(LeagueId leagueId, TeamId teamId);

@@ -14,7 +14,9 @@ add_library(fm_core STATIC
     Footballer.cpp
     FootballerFactory.cpp
     Forward.cpp
+    GameInteraction.cpp
     Goalkeeper.cpp
+    InteractionManager.cpp
     League.cpp
     World.cpp
     LeagueContext.cpp
@@ -22,11 +24,13 @@ add_library(fm_core STATIC
     LeagueRules.cpp 
     MatchScheduler.cpp
     MatchSimulation.cpp
+    PostMatchInteraction.cpp
     PlayMatchCommandHandler.cpp
     Midfielder.cpp
     RosterLoader.cpp
     SeasonPlan.cpp
     Team.cpp    
+    TransferOfferDecisionInteraction.cpp
     TransferRoom.cpp
     User.cpp)
 

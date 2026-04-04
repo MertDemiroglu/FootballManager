@@ -206,7 +206,6 @@ public:
 	void resetStandings();
 	void updateStandingsForMatch(TeamId homeId, TeamId awayId, const MatchResult& result);
 	void updateTeamSeasonStatsForMatch(TeamId homeId, TeamId awayId, const MatchResult& result);
-	void applyMatchResult(const Date& date, TeamId homeId, TeamId awayId, const MatchResult& result);
 	void applyMatchPlayedEvent(const MatchPlayedEvent& event);
 	std::vector<StandingsEntry> getSortedStandings() const;
 	const std::unordered_map<TeamId, StandingsEntry>& getStandings() const;

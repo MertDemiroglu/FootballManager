@@ -469,14 +469,6 @@ void League::applyMatchPlayedEvent(const MatchPlayedEvent& event) {
 	updateTeamSeasonStatsForMatch(event.homeId, event.awayId, result);
 }
 
-void League::applyMatchResult(const Date& date, TeamId homeId, TeamId awayId, const MatchResult& result) {
-	FixtureMatch* match = findFixtureMatch(date, homeId, awayId);
-	if (!match) {
-		throw std::runtime_error("fixture match not found for applyMatchResult");
-	}
-	applyMatchPlayedEvent(MatchPlayedEvent{ id, currentSeasonYear, date, homeId, awayId, match->matchweek, result.homeGoals, result.awayGoals });
-}
-
 std::vector<StandingsEntry> League::getSortedStandings() const {
 	std::vector<StandingsEntry> sorted;
 	sorted.reserve(standings.size());

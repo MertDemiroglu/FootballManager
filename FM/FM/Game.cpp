@@ -1,5 +1,7 @@
 #include"Game.h"
 #include"RosterLoader.h"
+#include "PostMatchInteraction.h"
+#include "TransferOfferDecisionInteraction.h"
 
 #include<stdexcept>
 #include<utility>
@@ -14,6 +16,7 @@ Game::Game()
     matchScheduler(),
     fixtureGenerator(),
     domainEventPublisher(),
+    interactionManager(),
     user(),
     timePaused(false),
     dateWasReset(false) {
@@ -35,6 +38,51 @@ Game::Game()
         }
         context->getLeagueProjection().onMatchPlayed(event);
     });
+
+    domainEventPublisher.subscribeMatchPlayed([this](const MatchPlayedEvent& event) {
+        const LeagueId managedLeagueId = user.getManagedLeagueId();
+        const TeamId managedTeamId = user.getManagedTeamId();
+        if (managedLeagueId == 0 || managedTeamId == 0) {
+            return;
+        }
+        if (event.leagueId != managedLeagueId) {
+            return;
+        }
+        if (event.homeId != managedTeamId && event.awayId != managedTeamId) {
+            return;
+        }
+
+        interactionManager.enqueue(std::make_unique<PostMatchInteraction>(
+            event.leagueId,
+            event.date,
+            event.homeId,
+            event.awayId,
+            event.homeGoals,
+            event.awayGoals,
+            event.matchweek));
+        refreshTimePauseState();
+        });
+
+    domainEventPublisher.subscribeTransferOfferCreated([this](const TransferOfferCreatedEvent& event) {
+        const LeagueId managedLeagueId = user.getManagedLeagueId();
+        const TeamId managedTeamId = user.getManagedTeamId();
+        if (managedLeagueId == 0 || managedTeamId == 0) {
+            return;
+        }
+        if (event.sellerLeagueId != managedLeagueId || event.sellerTeamId != managedTeamId) {
+            return;
+        }
+
+        interactionManager.enqueue(std::make_unique<TransferOfferDecisionInteraction>(
+            event.offerId,
+            event.sellerLeagueId,
+            event.sellerTeamId,
+            event.buyerLeagueId,
+            event.buyerTeamId,
+            event.playerId,
+            event.fee));
+        refreshTimePauseState();
+        });
 
     updateState();         
     seasonStartChecks();
@@ -91,6 +139,7 @@ void Game::updateState() {
 }
 
 void Game::updateDaily() {
+    refreshTimePauseState();
 
     if (timePaused) {
         processBlockingEvent();
@@ -231,8 +280,33 @@ bool Game::isTimePaused() const {
 }
 
 void Game::processBlockingEvent() {
- 
-    timePaused = false;
+    refreshTimePauseState();
+}
+
+void Game::refreshTimePauseState() {
+    timePaused = interactionManager.hasActiveBlockingInteraction();
+}
+
+bool Game::hasActiveBlockingInteraction() const {
+    return interactionManager.hasActiveBlockingInteraction();
+}
+
+const GameInteraction* Game::getActiveInteraction() const {
+    return interactionManager.getActiveInteraction();
+}
+
+const PostMatchInteraction* Game::getActivePostMatchInteraction() const {
+    return dynamic_cast<const PostMatchInteraction*>(interactionManager.getActiveInteraction());
+}
+
+const TransferOfferDecisionInteraction* Game::getActiveTransferOfferDecisionInteraction() const {
+    return dynamic_cast<const TransferOfferDecisionInteraction*>(interactionManager.getActiveInteraction());
+}
+
+bool Game::resolveActiveInteraction() {
+    const bool resolved = interactionManager.resolveActiveInteraction();
+    refreshTimePauseState();
+    return resolved;
 }
 
 Date& Game::getDate() {
