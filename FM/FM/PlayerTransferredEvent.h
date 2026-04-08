@@ -1,11 +1,11 @@
 #pragma once
 
-#include"Types.h"
 #include"Date.h"
+#include"Types.h"
 
-struct TransferOfferCreatedEvent {
-	OfferId offerId = 0;
-    Date createdAt{ 1900, Month::January, 1 };
+struct PlayerTransferredEvent {
+    Date date{ 1900, Month::January, 1 };
+    OfferId offerId = 0;
     LeagueId sellerLeagueId = 0;
     TeamId sellerTeamId = 0;
     LeagueId buyerLeagueId = 0;

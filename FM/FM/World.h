@@ -1,30 +1,33 @@
 #pragma once
 
-#include<functional>
-#include<optional>
-#include<unordered_map>
+#include <functional>
+#include <optional>
+#include <unordered_map>
 
-#include"League.h"
-#include"LeagueContext.h"
-#include"LeagueRules.h"
-#include"SeasonPlan.h"
-#include"TransferRoom.h"
-#include"Types.h"
+#include "DomainEventPublisher.h"
+#include "League.h"
+#include "LeagueContext.h"
+#include "LeagueRules.h"
+#include "SeasonPlan.h"
+#include "TransferOfferService.h"
+#include "TransferRoom.h"
+#include "Types.h"
 
-class DomainEventPublisher;
 class Team;
 
 class World {
 private:
 	std::unordered_map<LeagueId, LeagueContext> leagueContexts;
 	std::optional<LeagueId> primaryLeagueId;
+	DomainEventPublisher domainEventPublisher;
 	TransferRoom transferRoom;
+	TransferOfferService transferOfferService;
 
 public: 
 
 	World();
 
-	LeagueContext& addLeagueContext(League league, LeagueRules rules, SeasonPlan seasonPlan, DomainEventPublisher& publisher);
+	LeagueContext& addLeagueContext(League league, LeagueRules rules, SeasonPlan seasonPlan);
 
 	LeagueContext* findLeagueContext(LeagueId leagueId);
 	const LeagueContext* findLeagueContext(LeagueId leagueId) const;
@@ -32,8 +35,14 @@ public:
 	League* findLeagueById(LeagueId leagueId);
 	const League* findLeagueById(LeagueId leagueId) const;
 
+	DomainEventPublisher& getDomainEventPublisher();
+	const DomainEventPublisher& getDomainEventPublisher() const;
+
 	TransferRoom& getTransferRoom();
 	const TransferRoom& getTransferRoom() const;
+
+	TransferOfferService& getTransferOfferService();
+	const TransferOfferService& getTransferOfferService() const;
 
 	bool hasPrimaryLeagueContext() const;
 

@@ -5,15 +5,12 @@
 #include "DomainEventPublisher.h"
 #include "Team.h"
 
-World::World() : leagueContexts(), primaryLeagueId(std::nullopt), transferRoom(*this) {
+World::World() : leagueContexts(), primaryLeagueId(std::nullopt), domainEventPublisher(), transferRoom(*this), transferOfferService(*this) {
 }
 
-LeagueContext& World::addLeagueContext(League league,
-    LeagueRules rules,
-    SeasonPlan seasonPlan,
-    DomainEventPublisher& publisher) {
+LeagueContext& World::addLeagueContext(League league, LeagueRules rules, SeasonPlan seasonPlan) {
     const LeagueId leagueId = league.getId();
-    auto [it, inserted] = leagueContexts.try_emplace(leagueId, std::move(league), std::move(rules), std::move(seasonPlan), publisher);
+    auto [it, inserted] = leagueContexts.try_emplace(leagueId, std::move(league), std::move(rules), std::move(seasonPlan), domainEventPublisher);
 
     if (!inserted) {
         throw std::logic_error("league context already exists");
@@ -52,6 +49,14 @@ const League* World::findLeagueById(LeagueId leagueId) const {
     return context ? &context->getLeague() : nullptr;
 }
 
+DomainEventPublisher& World::getDomainEventPublisher() {
+    return domainEventPublisher;
+}
+
+const DomainEventPublisher& World::getDomainEventPublisher() const {
+    return domainEventPublisher;
+}
+
 bool World::hasPrimaryLeagueContext() const {
     return primaryLeagueId.has_value();
 }
@@ -62,6 +67,14 @@ TransferRoom& World::getTransferRoom() {
 
 const TransferRoom& World::getTransferRoom() const {
     return transferRoom;
+}
+
+TransferOfferService& World::getTransferOfferService() {
+    return transferOfferService;
+}
+
+const TransferOfferService& World::getTransferOfferService() const {
+    return transferOfferService;
 }
 
 LeagueContext& World::getPrimaryLeagueContext() {
@@ -91,7 +104,6 @@ void World::forEachLeagueContext(const std::function<void(LeagueContext&)>& visi
         (void)leagueId;
         visitor(context);
     }
-
 }
 
 void World::forEachLeagueContext(const std::function<void(const LeagueContext&)>& visitor) const {

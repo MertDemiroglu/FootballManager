@@ -1,0 +1,34 @@
+#pragma once
+
+#include<unordered_map>
+
+#include"Date.h"
+#include"TransferOffer.h"
+#include"Types.h"
+
+class World;
+
+class TransferOfferService {
+private:
+	World* world = nullptr;
+	std::unordered_map<OfferId, TransferOffer> offersById;
+	OfferId nextOfferId = 1;
+
+	bool hasValidOfferIdentifiers(LeagueId sellerLeagueId, TeamId sellerTeamId, LeagueId buyerLeagueId, TeamId buyerTeamId, PlayerId playerId) const;
+	bool hasDuplicatePendingOffer(LeagueId sellerLeagueId, TeamId sellerTeamId, LeagueId buyerLeagueId, TeamId buyerTeamId, PlayerId playerId) const;
+	bool validateOfferCreation(LeagueId sellerLeagueId, TeamId sellerTeamId, LeagueId buyerLeagueId, TeamId buyerTeamId, PlayerId playerId, Money fee) const;
+
+public:
+	TransferOfferService();
+	explicit TransferOfferService(World& world);
+
+	void bindWorld(World& world);
+
+	OfferId createOffer(const Date& createdAt, LeagueId sellerLeagueId, TeamId sellerTeamId, LeagueId buyerLeagueId, TeamId buyerTeamId, PlayerId playerId, Money fee);
+
+	bool acceptOffer(OfferId offerId);
+	bool acceptOffer(OfferId offerId, const Date& transferDate);
+	bool rejectOffer(OfferId offerId);
+
+	const TransferOffer* findOfferById(OfferId offerId) const;
+};

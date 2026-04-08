@@ -8,7 +8,6 @@
 #include"User.h"
 #include"MatchScheduler.h"
 #include"FixtureGenerator.h"
-#include"DomainEventPublisher.h"
 #include"World.h"
 #include"InteractionManager.h"
 
@@ -28,7 +27,6 @@ private:
 	EventQueue eventsQueue;
 	MatchScheduler matchScheduler;
 	FixtureGenerator fixtureGenerator;
-	DomainEventPublisher domainEventPublisher;
 	InteractionManager interactionManager;
 	User user;
 	bool timePaused;
@@ -77,6 +75,9 @@ public:
 	const PostMatchInteraction* getActivePostMatchInteraction() const;
 	const TransferOfferDecisionInteraction* getActiveTransferOfferDecisionInteraction() const;
 	bool resolveActiveInteraction();
+
+	bool acceptTransferOffer(OfferId offerId);
+	bool rejectTransferOffer(OfferId offerId);
 
 	//Kullanici takimini disaridan set eder
 	void setUserTeam(LeagueId leagueId, TeamId teamId);

@@ -15,7 +15,6 @@ Game::Game()
     eventsQueue(),
     matchScheduler(),
     fixtureGenerator(),
-    domainEventPublisher(),
     interactionManager(),
     user(),
     timePaused(false),
@@ -29,9 +28,9 @@ Game::Game()
     const std::string rosterPath = R"(C:\Users\user\Desktop\FootballManager\out\build\x64-Debug\FM_UI\FM\FM\database.txt)";
     RosterLoader::loadFromFile(league, rosterPath);
 
-    world.addLeagueContext(std::move(league), std::move(rules), std::move(seasonPlan), domainEventPublisher);
+    world.addLeagueContext(std::move(league), std::move(rules), std::move(seasonPlan));
 
-    domainEventPublisher.subscribeMatchPlayed([this](const MatchPlayedEvent& event) {
+    world.getDomainEventPublisher().subscribeMatchPlayed([this](const MatchPlayedEvent& event) {
         LeagueContext* context = world.findLeagueContext(event.leagueId);
         if (!context) {
             throw std::logic_error("match played event references unknown league context");
@@ -39,7 +38,7 @@ Game::Game()
         context->getLeagueProjection().onMatchPlayed(event);
     });
 
-    domainEventPublisher.subscribeMatchPlayed([this](const MatchPlayedEvent& event) {
+    world.getDomainEventPublisher().subscribeMatchPlayed([this](const MatchPlayedEvent& event) {
         const LeagueId managedLeagueId = user.getManagedLeagueId();
         const TeamId managedTeamId = user.getManagedTeamId();
         if (managedLeagueId == 0 || managedTeamId == 0) {
@@ -63,7 +62,7 @@ Game::Game()
         refreshTimePauseState();
         });
 
-    domainEventPublisher.subscribeTransferOfferCreated([this](const TransferOfferCreatedEvent& event) {
+    world.getDomainEventPublisher().subscribeTransferOfferCreated([this](const TransferOfferCreatedEvent& event) {
         const LeagueId managedLeagueId = user.getManagedLeagueId();
         const TeamId managedTeamId = user.getManagedTeamId();
         if (managedLeagueId == 0 || managedTeamId == 0) {
@@ -307,6 +306,52 @@ bool Game::resolveActiveInteraction() {
     const bool resolved = interactionManager.resolveActiveInteraction();
     refreshTimePauseState();
     return resolved;
+}
+
+bool Game::acceptTransferOffer(OfferId offerId) {
+    if (offerId == 0) {
+        return false;
+    }
+
+    const TransferOfferDecisionInteraction* interaction = getActiveTransferOfferDecisionInteraction();
+    if (!interaction) {
+        return false;
+    }
+
+    if (interaction->getOfferId() != offerId) {
+        return false;
+    }
+
+    if (!world.getTransferOfferService().acceptOffer(offerId, date)) {
+        return false;
+    }
+
+    interactionManager.resolveActiveInteraction();
+    refreshTimePauseState();
+    return true;
+}
+
+bool Game::rejectTransferOffer(OfferId offerId) {
+    if (offerId == 0) {
+        return false;
+    }
+
+    const TransferOfferDecisionInteraction* interaction = getActiveTransferOfferDecisionInteraction();
+    if (!interaction) {
+        return false;
+    }
+
+    if (interaction->getOfferId() != offerId) {
+        return false;
+    }
+
+    if (!world.getTransferOfferService().rejectOffer(offerId)) {
+        return false;
+    }
+
+    interactionManager.resolveActiveInteraction();
+    refreshTimePauseState();
+    return true;
 }
 
 Date& Game::getDate() {
