@@ -27,7 +27,7 @@ bool TransferOfferService::hasDuplicatePendingOffer(LeagueId sellerLeagueId, Tea
     for (const auto& [offerId, offer] : offersById) {
         (void)offerId;
         if (offer.status != TransferOfferStatus::Pending) {
-
+            continue;
         }
         if (offer.sellerLeagueId == sellerLeagueId &&
             offer.sellerTeamId == sellerTeamId &&

@@ -35,6 +35,8 @@ private:
 	void seasonStartChecksForContext(LeagueContext& context);
 	void seasonEndChecksForContext(LeagueContext& context);
 	void refreshTimePauseState();
+
+	void temporaryForDebug_tryCreateWeeklyManagedTransferOffer();
 public:
 	//Game constructor
 	Game();

@@ -1,7 +1,9 @@
 #include"Game.h"
+#include"Team.h"
+#include"League.h"
 #include"RosterLoader.h"
-#include "PostMatchInteraction.h"
-#include "TransferOfferDecisionInteraction.h"
+#include"PostMatchInteraction.h"
+#include"TransferOfferDecisionInteraction.h"
 
 #include<stdexcept>
 #include<utility>
@@ -155,18 +157,46 @@ void Game::updateDaily() {
             throw std::logic_error("play command references unknown league context");
         }
         context->getPlayMatchCommandHandler().handle(context->getLeague(), command);
+
+        refreshTimePauseState();
+        if (timePaused) {
+            return;
+        }
     }
 
     handleSeasonalEvents();
+    refreshTimePauseState();
+    if (timePaused) {
+        return;
+    }
+
     updateTransferWindow();
+    refreshTimePauseState();
+    if (timePaused) {
+        return;
+    }
 
     if (date.isNewWeek()) {
         handleWeeklyEvents();
+        refreshTimePauseState();
+        if (timePaused) {
+            return;
+        }
     }
+
     if (date.isNewMonth()) { 
-        handleMonthlyEvents();   
+        handleMonthlyEvents();
+        refreshTimePauseState();
+        if (timePaused) {
+            return;
+        }
     }
+
     updateState();
+    refreshTimePauseState();
+    if (timePaused) {
+        return;
+    }
     if (!dateWasReset) {
         date.advanceDay();
     }
@@ -197,7 +227,56 @@ void Game::handleMonthlyEvents() {
 }
 
 void Game::handleWeeklyEvents() {
-    // Haftalik otomatik event uretimi burada genisletilebilir
+    temporaryForDebug_tryCreateWeeklyManagedTransferOffer();
+}
+
+void Game::temporaryForDebug_tryCreateWeeklyManagedTransferOffer() {
+    const LeagueId managedLeagueId = user.getManagedLeagueId();
+    const TeamId managedTeamId = user.getManagedTeamId();
+    if (managedLeagueId == 0 || managedTeamId == 0) {
+        return;
+    }
+
+    if (!world.getTransferRoom().isOpenForLeague(managedLeagueId)) {
+        return;
+    }
+
+    LeagueContext* context = world.findLeagueContext(managedLeagueId);
+    if (!context) {
+        return;
+    }
+
+    League& league = context->getLeague();
+    Team* sellerTeam = league.findTeamById(managedTeamId);
+    if (!sellerTeam || sellerTeam->getPlayers().empty()) {
+        return;
+    }
+
+    TeamId buyerTeamId = 0;
+    for (const auto& [candidateTeamId, candidateTeam] : league.getTeams()) {
+        (void)candidateTeam;
+        if (candidateTeamId == managedTeamId) {
+            continue;
+        }
+        if (buyerTeamId == 0 || candidateTeamId < buyerTeamId) {
+            buyerTeamId = candidateTeamId;
+        }
+    }
+
+    if (buyerTeamId == 0) {
+        return;
+    }
+
+    const PlayerId playerId = sellerTeam->getPlayers().front()->getId();
+    constexpr Money weeklyRuntimeOfferFee = 1;
+    world.getTransferOfferService().createOffer(
+        date,
+        managedLeagueId,
+        managedTeamId,
+        managedLeagueId,
+        buyerTeamId,
+        playerId,
+        weeklyRuntimeOfferFee);
 }
 
 void Game::seasonStartChecks() {
