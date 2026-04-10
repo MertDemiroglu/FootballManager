@@ -16,7 +16,7 @@ Item {
         color: "#66000000"
     }
 
-      MouseArea {
+    MouseArea {
         anchors.fill: parent
         onClicked: function(mouse) { mouse.accepted = true }
     }
@@ -51,7 +51,7 @@ Item {
 
             Label {
                 width: parent.width
-                text: "Player: " + (interactionData.playerName || (interactionData.playerId !== undefined ? ("#" + interactionData.playerId) : "—"))
+                text: "Player: " + (interactionData.playerName || (interactionData.playerId !== undefined ? ("#" + interactionData.playerId) : "â€”"))
                 font.pixelSize: 16
                 color: "#344054"
                 wrapMode: Text.WordWrap
@@ -59,7 +59,7 @@ Item {
 
             Label {
                 width: parent.width
-                text: "From: " + (interactionData.sellerTeamName || "—")
+                text: "From: " + (interactionData.sellerTeamName || "â€”")
                 font.pixelSize: 16
                 color: "#344054"
                 wrapMode: Text.WordWrap
@@ -67,7 +67,7 @@ Item {
 
             Label {
                 width: parent.width
-                text: "To: " + (interactionData.buyerTeamName || "—")
+                text: "To: " + (interactionData.buyerTeamName || "â€”")
                 font.pixelSize: 16
                 color: "#344054"
                 wrapMode: Text.WordWrap
@@ -75,13 +75,12 @@ Item {
 
             Label {
                 width: parent.width
-                text: "Fee: " + (interactionData.fee !== undefined ? interactionData.fee : "—")
+                text: "Fee: " + (interactionData.fee !== undefined ? interactionData.fee : "â€”")
                 font.pixelSize: 16
                 color: "#344054"
                 wrapMode: Text.WordWrap
             }
 
-     
             RowLayout {
                 width: parent.width
                 spacing: 10

@@ -17,6 +17,7 @@ Item {
     MouseArea {
         anchors.fill: parent
         onClicked: function(mouse) { mouse.accepted = true }
+    }
 
     Rectangle {
         id: dialogCard
@@ -28,7 +29,7 @@ Item {
         color: "#ffffff"
         border.color: "#d0d5dd"
 
-       Column {
+        Column {
             id: contentColumn
             anchors.top: parent.top
             anchors.topMargin: 20
@@ -74,7 +75,6 @@ Item {
                 wrapMode: Text.WordWrap
             }
 
-
             Button {
                 width: parent.width
                 height: 42
@@ -83,5 +83,4 @@ Item {
             }
         }
     }
-  }
 }
