@@ -231,6 +231,32 @@ void Game::handleWeeklyEvents() {
     temporaryForDebug_tryCreateWeeklyManagedTransferOffer();
 }
 
+PlayerId Game::pickNextDebugOfferCandidatePlayerId(const Team& sellerTeam) {
+    const auto& sellerPlayers = sellerTeam.getPlayers();
+    if (sellerPlayers.empty()) {
+        return 0;
+    }
+
+    const std::size_t playerCount = sellerPlayers.size();
+    const std::size_t startIndex = debugOfferPlayerCursor % playerCount;
+
+    for (std::size_t offset = 0; offset < playerCount; ++offset) {
+        const std::size_t index = (startIndex + offset) % playerCount;
+        if (!sellerPlayers[index]) {
+            continue;
+        }
+        const PlayerId playerId = sellerPlayers[index]->getId();
+        if (playerId == 0) {
+            continue;
+        }
+
+        debugOfferPlayerCursor = (index + 1) % playerCount;
+        return playerId;
+    }
+
+    return 0;
+}
+
 void Game::temporaryForDebug_tryCreateWeeklyManagedTransferOffer() {
     const LeagueId managedLeagueId = user.getManagedLeagueId();
     const TeamId managedTeamId = user.getManagedTeamId();
@@ -262,8 +288,6 @@ void Game::temporaryForDebug_tryCreateWeeklyManagedTransferOffer() {
         return;
     }
 
-    Team* buyerTeam = nullptr;
-
     for (const auto& [candidateTeamId, candidateTeam] : league.getTeams()) {
         if (candidateTeamId == managedTeamId) {
             continue;
@@ -283,33 +307,19 @@ void Game::temporaryForDebug_tryCreateWeeklyManagedTransferOffer() {
             continue;
         }
 
-        if (!buyerTeam || candidateTeamId < buyerTeam->getId()) {
-            buyerTeam = candidateTeam.get();
-        }
-
+        Team* buyerTeam = candidateTeam.get();
         if (!buyerTeam) {
             return;
         }
 
-        const auto& sellerPlayers = sellerTeam->getPlayers();
-        if (sellerPlayers.empty()) {
-            return;
+        const PlayerId selectedPlayerId = pickNextDebugOfferCandidatePlayerId(*sellerTeam);
+        if (selectedPlayerId == 0) {
+            continue;
         }
 
-        const std::size_t startIndex = debugOfferPlayerCursor % sellerPlayers.size();
-        PlayerId playerId = sellerPlayers[startIndex]->getId();
-        if (playerId == lastDebugOfferPlayerId && sellerPlayers.size() > 1) {
-            playerId = sellerPlayers[(startIndex + 1) % sellerPlayers.size()]->getId();
-            debugOfferPlayerCursor = (startIndex + 2) % sellerPlayers.size();
+        if (world.getTransferOfferService().hasPendingOfferForSellerPlayer(managedLeagueId, managedTeamId, selectedPlayerId)) {
+            continue;
         }
-        else {
-            debugOfferPlayerCursor = (startIndex + 1) % sellerPlayers.size();
-        }
-
-        if (playerId == 0) {
-            return;
-        }
-
 
         constexpr Money weeklyRuntimeOfferFee = 1;
         const OfferId createdOfferId = world.getTransferOfferService().createOffer(
@@ -318,16 +328,16 @@ void Game::temporaryForDebug_tryCreateWeeklyManagedTransferOffer() {
             managedTeamId,
             managedLeagueId,
             buyerTeam->getId(),
-            playerId,
+            selectedPlayerId,
             weeklyRuntimeOfferFee);
 
         if (createdOfferId == 0) {
-            return;
+            continue;
         }
 
         lastDebugOfferYear = currentYear;
         lastDebugOfferMonth = currentMonth;
-        lastDebugOfferPlayerId = playerId;
+        return;
     }
 }
 
@@ -450,6 +460,9 @@ const TransferOfferDecisionInteraction* Game::getActiveTransferOfferDecisionInte
 
 bool Game::resolveActiveInteraction() {
     const bool resolved = interactionManager.resolveActiveInteraction();
+    if (resolved) {
+        userPaused = true;
+    }
     refreshTimePauseState();
     return resolved;
 }
@@ -473,6 +486,7 @@ bool Game::acceptTransferOffer(OfferId offerId) {
     }
 
     interactionManager.resolveActiveInteraction();
+    userPaused = true;
     refreshTimePauseState();
     return true;
 }
@@ -496,6 +510,7 @@ bool Game::rejectTransferOffer(OfferId offerId) {
     }
 
     interactionManager.resolveActiveInteraction();
+    userPaused = true;
     refreshTimePauseState();
     return true;
 }

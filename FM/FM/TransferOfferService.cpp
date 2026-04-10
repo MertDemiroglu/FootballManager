@@ -111,6 +111,26 @@ OfferId TransferOfferService::createOffer(const Date& createdAt, LeagueId seller
     return createdOfferId;
 }
 
+bool TransferOfferService::hasPendingOfferForSellerPlayer(LeagueId sellerLeagueId, TeamId sellerTeamId, PlayerId playerId) const {
+    if (sellerLeagueId == 0 || sellerTeamId == 0 || playerId == 0) {
+        return false;
+    }
+
+    for (const auto& [offerId, offer] : offersById) {
+        (void)offerId;
+        if (offer.status != TransferOfferStatus::Pending) {
+            continue;
+        }
+        if (offer.sellerLeagueId == sellerLeagueId &&
+            offer.sellerTeamId == sellerTeamId &&
+            offer.playerId == playerId) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool TransferOfferService::acceptOffer(OfferId offerId) {
     const TransferOffer* offer = findOfferById(offerId);
     if (!offer) {
