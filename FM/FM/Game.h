@@ -30,6 +30,7 @@ private:
 	InteractionManager interactionManager;
 	User user;
 	bool timePaused;
+	bool userPaused;
 	bool dateWasReset;
 
 	void seasonStartChecksForContext(LeagueContext& context);
@@ -67,6 +68,9 @@ public:
 	void stopTime();
 	//Oyuncunun karar vermesi gereken eventin islendigi fonksiyon
 	void processBlockingEvent();
+
+	bool pauseSimulation();
+	bool resumeSimulation();
 
 
 	//zamanin akmasini kontrol eder (true/false)

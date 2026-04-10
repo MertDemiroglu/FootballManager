@@ -28,6 +28,8 @@ qt_add_qml_module(FM_UI
         StandingsView.qml
         TeamView.qml
         PlayerDetailsDialog.qml
+        PostMatchDialog.qml
+        TransferOfferDialog.qml
 )
 
 qt_add_executable(game_facade_smoke

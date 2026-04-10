@@ -16,10 +16,19 @@ ApplicationWindow {
     property string currentView: gameFacade.hasStartedGame() ? "dashboard" : "home"
     property string headerTeamName: gameFacade.hasStartedGame() ? (gameFacade.getSelectedTeamName() || "No Team") : "Football Manager"
     property string headerDateText: gameFacade.getCurrentDateText() || ""
+    property bool hasActiveInteraction: gameFacade.hasActiveInteraction()
+    property string activeInteractionKind: gameFacade.getActiveInteractionKind() || ""
+    property bool simulationPaused: gameFacade.isTimePaused()
 
     function refreshHeader() {
         headerTeamName = gameFacade.hasStartedGame() ? (gameFacade.getSelectedTeamName() || "No Team") : "Football Manager"
         headerDateText = gameFacade.getCurrentDateText() || ""
+    }
+
+    function refreshInteractionState() {
+        hasActiveInteraction = gameFacade.hasActiveInteraction()
+        activeInteractionKind = gameFacade.getActiveInteractionKind() || ""
+        simulationPaused = gameFacade.isTimePaused()
     }
 
     function goTo(viewName) {
@@ -32,7 +41,10 @@ ApplicationWindow {
         }
     }
 
-    Component.onCompleted: refreshHeader()
+    Component.onCompleted: {
+        refreshHeader()
+        refreshInteractionState()
+    }
 
     header: ToolBar {
         visible: root.currentView !== "home" && root.currentView !== "teamSelection"
@@ -78,6 +90,7 @@ ApplicationWindow {
         onLoaded: {
             root.refreshHeader()
             root.refreshActiveView()
+            root.refreshInteractionState()
         }
     }
 
@@ -90,7 +103,16 @@ ApplicationWindow {
             }
             root.refreshHeader()
             root.refreshActiveView()
+            root.refreshInteractionState()
         }
+    }
+
+        Timer {
+        id: simulationTimer
+        interval: 300
+        repeat: true
+        running: gameFacade.hasStartedGame() && !root.simulationPaused && !root.hasActiveInteraction
+        onTriggered: gameFacade.advanceOneDay()
     }
 
     Component {
@@ -139,5 +161,24 @@ ApplicationWindow {
         TeamView {
             onBackRequested: root.goTo("dashboard")
         }
+    }
+
+
+    PostMatchDialog {
+        id: postMatchDialog
+        anchors.fill: parent
+        visible: root.hasActiveInteraction && root.activeInteractionKind === "post_match"
+        interactionData: gameFacade.getActivePostMatchInteraction()
+        onContinueRequested: gameFacade.resolveActiveInteraction()
+    }
+
+    TransferOfferDialog {
+        id: transferOfferDialog
+        anchors.fill: parent
+        visible: root.hasActiveInteraction && root.activeInteractionKind === "transfer_offer"
+        interactionData: gameFacade.getActiveTransferOfferInteraction()
+        onAcceptRequested: gameFacade.acceptActiveTransferOffer()
+        onRejectRequested: gameFacade.rejectActiveTransferOffer()
+        onLaterRequested: gameFacade.deferActiveTransferOffer()
     }
 }

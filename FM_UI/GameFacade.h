@@ -1,16 +1,18 @@
 #pragma once
 
-#include <QObject>
-#include <QString>
-#include <QVariantList>
-#include <QVariantMap>
+#include<QObject>
+#include<QString>
+#include<QVariantList>
+#include<QVariantMap>
 
-#include <memory>
+#include<memory>
 
-#include "Types.h"
+#include"Types.h"
 
 class Game;
 class Footballer;
+class PostMatchInteraction;
+class TransferOfferDecisionInteraction;
 
 struct Date;
 struct FixtureMatchPreview;
@@ -51,6 +53,18 @@ public:
 
     Q_INVOKABLE bool advanceOneDay();
     Q_INVOKABLE bool advanceDays(int count);
+    Q_INVOKABLE bool isTimePaused() const;
+    Q_INVOKABLE bool pauseSimulation();
+    Q_INVOKABLE bool resumeSimulation();
+
+    Q_INVOKABLE bool hasActiveInteraction() const;
+    Q_INVOKABLE QString getActiveInteractionKind() const;
+    Q_INVOKABLE QVariantMap getActivePostMatchInteraction() const;
+    Q_INVOKABLE QVariantMap getActiveTransferOfferInteraction() const;
+    Q_INVOKABLE bool resolveActiveInteraction();
+    Q_INVOKABLE bool acceptActiveTransferOffer();
+    Q_INVOKABLE bool rejectActiveTransferOffer();
+    Q_INVOKABLE bool deferActiveTransferOffer();
 
     Q_INVOKABLE QVariantList getStandingsTable() const;
     Q_INVOKABLE QVariantMap getCurrentTeamSeasonStats() const;
@@ -91,4 +105,7 @@ private:
     QVariantMap toPlayerMap(const Footballer& player) const;
     QVariantMap toPlayerDetailsMap(const Footballer& player) const;
     QVariantMap toPlayerSeasonStatsMap(const PlayerSeasonStats& stats) const;
+
+    QVariantMap toPostMatchInteractionMap(const PostMatchInteraction& interaction) const;
+    QVariantMap toTransferOfferInteractionMap(const TransferOfferDecisionInteraction& interaction) const;
 };

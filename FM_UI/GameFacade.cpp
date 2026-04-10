@@ -4,6 +4,9 @@
 #include"Team.h"
 #include"Footballer.h"
 #include"LeagueContext.h"
+#include"GameInteraction.h"
+#include"PostMatchInteraction.h"
+#include"TransferOfferDecisionInteraction.h"
 
 #include<QDebug>
 
@@ -136,6 +139,7 @@ bool GameFacade::startNewGameInternal(LeagueId leagueId, TeamId teamId, const QS
     }
 
     currentGame->setUserTeam(leagueId, teamInNewGame->getId());
+    currentGame->pauseSimulation();
     selectedLeagueId = leagueId;
     selectedTeamId = teamInNewGame->getId();
     managerName = trimmedManagerName;
@@ -379,6 +383,196 @@ bool GameFacade::advanceDays(int count) {
 
     emit gameStateChanged();
     return true;
+}
+
+bool GameFacade::isTimePaused() const {
+    if (!gameStarted) {
+        return true;
+    }
+
+    const Game* currentGame = ensureGame();
+    return currentGame ? currentGame->isTimePaused() : true;
+}
+
+bool GameFacade::pauseSimulation() {
+    if (!gameStarted) {
+        return false;
+    }
+
+    Game* currentGame = ensureGame();
+    if (!currentGame) {
+        return false;
+    }
+
+    const bool paused = currentGame->pauseSimulation();
+    if (paused) {
+        emit gameStateChanged();
+    }
+    return paused;
+}
+
+bool GameFacade::resumeSimulation() {
+    if (!gameStarted) {
+        return false;
+    }
+
+    Game* currentGame = ensureGame();
+    if (!currentGame) {
+        return false;
+    }
+
+    const bool resumed = currentGame->resumeSimulation();
+    if (resumed) {
+        emit gameStateChanged();
+    }
+    return resumed;
+}
+
+bool GameFacade::hasActiveInteraction() const {
+    if (!gameStarted) {
+        return false;
+    }
+    const Game* currentGame = ensureGame();
+    return currentGame ? currentGame->hasActiveBlockingInteraction() : false;
+}
+
+QString GameFacade::getActiveInteractionKind() const {
+    if (!gameStarted) {
+        return QString();
+    }
+
+    const Game* currentGame = ensureGame();
+    if (!currentGame || !currentGame->hasActiveBlockingInteraction()) {
+        return QString();
+    }
+
+    const GameInteraction* interaction = currentGame->getActiveInteraction();
+    if (!interaction) {
+        return QString();
+    }
+
+    switch (interaction->getKind()) {
+    case GameInteraction::Kind::PostMatch:
+        return QStringLiteral("post_match");
+    case GameInteraction::Kind::TransferOfferDecision:
+        return QStringLiteral("transfer_offer");
+    }
+
+    return QString();
+}
+
+QVariantMap GameFacade::getActivePostMatchInteraction() const {
+    if (!gameStarted) {
+        return {};
+    }
+
+    const Game* currentGame = ensureGame();
+    if (!currentGame) {
+        return {};
+    }
+
+    const PostMatchInteraction* interaction = currentGame->getActivePostMatchInteraction();
+    if (!interaction) {
+        return {};
+    }
+
+    return toPostMatchInteractionMap(*interaction);
+}
+
+QVariantMap GameFacade::getActiveTransferOfferInteraction() const {
+    if (!gameStarted) {
+        return {};
+    }
+
+    const Game* currentGame = ensureGame();
+    if (!currentGame) {
+        return {};
+    }
+
+    const TransferOfferDecisionInteraction* interaction = currentGame->getActiveTransferOfferDecisionInteraction();
+    if (!interaction) {
+        return {};
+    }
+
+    return toTransferOfferInteractionMap(*interaction);
+}
+
+bool GameFacade::resolveActiveInteraction() {
+    if (!gameStarted) {
+        return false;
+    }
+
+    Game* currentGame = ensureGame();
+    if (!currentGame) {
+        return false;
+    }
+
+    const bool resolved = currentGame->resolveActiveInteraction();
+    if (resolved) {
+        emit gameStateChanged();
+    }
+    return resolved;
+}
+
+bool GameFacade::acceptActiveTransferOffer() {
+    if (!gameStarted) {
+        return false;
+    }
+
+    Game* currentGame = ensureGame();
+    if (!currentGame) {
+        return false;
+    }
+
+    const TransferOfferDecisionInteraction* interaction = currentGame->getActiveTransferOfferDecisionInteraction();
+    if (!interaction) {
+        return false;
+    }
+
+    const bool accepted = currentGame->acceptTransferOffer(interaction->getOfferId());
+    if (accepted) {
+        emit gameStateChanged();
+    }
+    return accepted;
+}
+
+bool GameFacade::rejectActiveTransferOffer() {
+    if (!gameStarted) {
+        return false;
+    }
+
+    Game* currentGame = ensureGame();
+    if (!currentGame) {
+        return false;
+    }
+
+    const TransferOfferDecisionInteraction* interaction = currentGame->getActiveTransferOfferDecisionInteraction();
+    if (!interaction) {
+        return false;
+    }
+
+    const bool rejected = currentGame->rejectTransferOffer(interaction->getOfferId());
+    if (rejected) {
+        emit gameStateChanged();
+    }
+    return rejected;
+}
+
+bool GameFacade::deferActiveTransferOffer() {
+    if (!gameStarted) {
+        return false;
+    }
+
+    Game* currentGame = ensureGame();
+    if (!currentGame || !currentGame->getActiveTransferOfferDecisionInteraction()) {
+        return false;
+    }
+
+    const bool deferred = currentGame->resolveActiveInteraction();
+    if (deferred) {
+        emit gameStateChanged();
+    }
+    return deferred;
 }
 
 QVariantList GameFacade::getStandingsTable() const {
@@ -661,6 +855,51 @@ QVariantMap GameFacade::toPlayerDetailsMap(const Footballer& player) const {
     archivedSummary.insert(QStringLiteral("totalAssists"), archivedAssists);
     archivedSummary.insert(QStringLiteral("seasons"), archivedSeasons);
     map.insert(QStringLiteral("archivedStatsSummary"), archivedSummary);
+
+    return map;
+}
+
+QVariantMap GameFacade::toPostMatchInteractionMap(const PostMatchInteraction& interaction) const {
+    QVariantMap map;
+    map.insert(QStringLiteral("kind"), QStringLiteral("post_match"));
+    map.insert(QStringLiteral("dateText"), formatDate(interaction.getDate()));
+    map.insert(QStringLiteral("matchweek"), interaction.getMatchweek());
+    map.insert(QStringLiteral("homeTeamId"), static_cast<int>(interaction.getHomeId()));
+    map.insert(QStringLiteral("awayTeamId"), static_cast<int>(interaction.getAwayId()));
+    map.insert(QStringLiteral("homeGoals"), interaction.getHomeGoals());
+    map.insert(QStringLiteral("awayGoals"), interaction.getAwayGoals());
+
+    const League* league = resolveLeague(interaction.getLeagueId());
+    map.insert(QStringLiteral("homeTeamName"), league ? fromStd(league->getTeamName(interaction.getHomeId())) : QString());
+    map.insert(QStringLiteral("awayTeamName"), league ? fromStd(league->getTeamName(interaction.getAwayId())) : QString());
+    return map;
+}
+
+QVariantMap GameFacade::toTransferOfferInteractionMap(const TransferOfferDecisionInteraction& interaction) const {
+    QVariantMap map;
+    map.insert(QStringLiteral("kind"), QStringLiteral("transfer_offer"));
+    map.insert(QStringLiteral("offerId"), static_cast<int>(interaction.getOfferId()));
+    map.insert(QStringLiteral("sellerLeagueId"), static_cast<int>(interaction.getSellerLeagueId()));
+    map.insert(QStringLiteral("sellerTeamId"), static_cast<int>(interaction.getSellerTeamId()));
+    map.insert(QStringLiteral("buyerLeagueId"), static_cast<int>(interaction.getBuyerLeagueId()));
+    map.insert(QStringLiteral("buyerTeamId"), static_cast<int>(interaction.getBuyerTeamId()));
+    map.insert(QStringLiteral("playerId"), static_cast<int>(interaction.getPlayerId()));
+    map.insert(QStringLiteral("fee"), static_cast<qlonglong>(interaction.getFee()));
+
+    const League* sellerLeague = resolveLeague(interaction.getSellerLeagueId());
+    const League* buyerLeague = resolveLeague(interaction.getBuyerLeagueId());
+    map.insert(QStringLiteral("sellerTeamName"),
+        sellerLeague ? fromStd(sellerLeague->getTeamName(interaction.getSellerTeamId())) : QString());
+    map.insert(QStringLiteral("buyerTeamName"),
+        buyerLeague ? fromStd(buyerLeague->getTeamName(interaction.getBuyerTeamId())) : QString());
+
+    QString playerName;
+    if (sellerLeague) {
+        if (const Footballer* player = sellerLeague->findPlayerById(interaction.getPlayerId())) {
+            playerName = fromStd(player->getName());
+        }
+    }
+    map.insert(QStringLiteral("playerName"), playerName);
 
     return map;
 }

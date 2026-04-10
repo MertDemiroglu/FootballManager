@@ -20,6 +20,7 @@ Game::Game()
     interactionManager(),
     user(),
     timePaused(false),
+    userPaused(false),
     dateWasReset(false) {
     League league("Super Lig");
     LeagueRules rules = LeagueRules::makeSuperLig();
@@ -357,12 +358,27 @@ bool Game::isTimePaused() const {
     return timePaused;
 }
 
+bool Game::pauseSimulation() {
+    userPaused = true;
+    refreshTimePauseState();
+    return true;
+}
+
+bool Game::resumeSimulation() {
+    if (hasActiveBlockingInteraction()) {
+        return false;
+    }
+    userPaused = false;
+    refreshTimePauseState();
+    return true;
+}
+
 void Game::processBlockingEvent() {
     refreshTimePauseState();
 }
 
 void Game::refreshTimePauseState() {
-    timePaused = interactionManager.hasActiveBlockingInteraction();
+    timePaused = userPaused || interactionManager.hasActiveBlockingInteraction();
 }
 
 bool Game::hasActiveBlockingInteraction() const {

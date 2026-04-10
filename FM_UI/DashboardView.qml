@@ -519,20 +519,38 @@ Item {
                             spacing: 12
 
                             Button {
-                                text: "Next Day"
+                                text: "Resume"
+                                Layout.preferredHeight: 46
+                                font.pixelSize: 15
+                                enabled: root.hasActiveGame && !gameFacade.hasActiveInteraction() && gameFacade.isTimePaused()
+                                onClicked: gameFacade.resumeSimulation()
+                            }
+
+                            Button {
+                                text: "Pause"
+                                Layout.preferredHeight: 46
+                                font.pixelSize: 15
+                                enabled: root.hasActiveGame && !gameFacade.isTimePaused()
+                                onClicked: gameFacade.pauseSimulation()
+                            }
+
+                            Button {
+                                text: "Next Day (Debug)"
                                 Layout.preferredHeight: 46
                                 font.pixelSize: 15
                                 onClicked: gameFacade.advanceOneDay()
                             }
 
-                            Button {
-                                text: "Advance 7 Days"
-                                Layout.preferredHeight: 46
-                                font.pixelSize: 15
-                                onClicked: gameFacade.advanceDays(7)
-                            }
-
                             Item { Layout.fillWidth: true }
+
+                                                        Label {
+                                text: gameFacade.hasActiveInteraction()
+                                      ? "Interaction Active"
+                                      : (gameFacade.isTimePaused() ? "Paused" : "Running")
+                                color: gameFacade.hasActiveInteraction() ? "#b42318" : "#475467"
+                                font.pixelSize: 14
+                                Layout.alignment: Qt.AlignVCenter
+                            }
 
                             Button {
                                 text: "Standings"
