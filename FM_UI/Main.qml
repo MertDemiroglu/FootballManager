@@ -31,6 +31,11 @@ ApplicationWindow {
         simulationPaused = gameFacade.isTimePaused()
     }
 
+    function refreshTopLevelState() {
+        refreshInteractionState()
+        refreshHeader()
+    }
+
     function goTo(viewName) {
         currentView = viewName
     }
@@ -42,8 +47,7 @@ ApplicationWindow {
     }
 
     Component.onCompleted: {
-        refreshHeader()
-        refreshInteractionState()
+        refreshTopLevelState()
     }
 
     header: ToolBar {
@@ -88,9 +92,8 @@ ApplicationWindow {
                                ? teamComponent
                                : dashboardComponent
         onLoaded: {
-            root.refreshHeader()
+            root.refreshTopLevelState()
             root.refreshActiveView()
-            root.refreshInteractionState()
         }
     }
 
@@ -101,9 +104,8 @@ ApplicationWindow {
            if (gameFacade.hasStartedGame() && root.currentView === "teamSelection") {
                 root.currentView = "dashboard"
             }
-            root.refreshHeader()
+            root.refreshTopLevelState()
             root.refreshActiveView()
-            root.refreshInteractionState()
         }
     }
 
@@ -114,8 +116,7 @@ ApplicationWindow {
         running: gameFacade.hasStartedGame() && !root.simulationPaused && !root.hasActiveInteraction
         onTriggered: {
             gameFacade.advanceOneDay()
-            root.refreshInteractionState()
-            root.refreshHeader()
+            root.refreshTopLevelState()
         }
     }
 
@@ -175,8 +176,7 @@ ApplicationWindow {
         interactionData: gameFacade.getActivePostMatchInteraction()
         onContinueRequested: {
             gameFacade.resolveActiveInteraction()
-            root.refreshInteractionState()
-            root.refreshHeader()
+            root.refreshTopLevelState()
         }
     }
 
@@ -187,18 +187,15 @@ ApplicationWindow {
         interactionData: gameFacade.getActiveTransferOfferInteraction()
         onAcceptRequested: {
             gameFacade.acceptActiveTransferOffer()
-            root.refreshInteractionState()
-            root.refreshHeader()
+            root.refreshTopLevelState()
         }
         onRejectRequested: {
             gameFacade.rejectActiveTransferOffer()
-            root.refreshInteractionState()
-            root.refreshHeader()
+            root.refreshTopLevelState()
         }
         onLaterRequested: {
             gameFacade.deferActiveTransferOffer()
-            root.refreshInteractionState()
-            root.refreshHeader()
+            root.refreshTopLevelState()
         }
     }
 }

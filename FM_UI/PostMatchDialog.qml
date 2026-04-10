@@ -12,29 +12,34 @@ Item {
     Rectangle {
         anchors.fill: parent
         color: "#66000000"
-        z: 0
     }
+
+    MouseArea {
+        anchors.fill: parent
+        onClicked: function(mouse) { mouse.accepted = true }
 
     Rectangle {
         id: dialogCard
         width: Math.min(parent.width - 48, 520)
-        implicitHeight: contentLayout.implicitHeight + 40
+        implicitHeight: contentColumn.implicitHeight + 40
         height: implicitHeight
         anchors.centerIn: parent
         radius: 12
         color: "#ffffff"
         border.color: "#d0d5dd"
-        z: 1
 
-        ColumnLayout {
-            id: contentLayout
-            width: parent.width - 40
-            anchors.horizontalCenter: parent.horizontalCenter
+       Column {
+            id: contentColumn
             anchors.top: parent.top
             anchors.topMargin: 20
+            anchors.left: parent.left
+            anchors.leftMargin: 20
+            anchors.right: parent.right
+            anchors.rightMargin: 20
             spacing: 12
 
             Label {
+                width: parent.width
                 text: "Match Finished"
                 font.pixelSize: 24
                 font.bold: true
@@ -42,6 +47,7 @@ Item {
             }
 
             Label {
+                width: parent.width
                 text: (interactionData.homeTeamName || "Home") + " "
                       + (interactionData.homeGoals !== undefined ? interactionData.homeGoals : "-")
                       + " - "
@@ -50,36 +56,32 @@ Item {
                 wrapMode: Text.WordWrap
                 font.pixelSize: 18
                 color: "#344054"
-                Layout.fillWidth: true
             }
 
             Label {
+                width: parent.width
                 text: "Date: " + (interactionData.dateText || "-")
                 font.pixelSize: 15
                 color: "#475467"
-                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
             }
 
             Label {
+                width: parent.width
                 text: "Matchweek: " + (interactionData.matchweek !== undefined ? interactionData.matchweek : "-")
                 font.pixelSize: 15
                 color: "#475467"
-                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
             }
 
-            Item { Layout.fillHeight: true }
 
             Button {
+                width: parent.width
+                height: 42
                 text: "Continue"
-                Layout.fillWidth: true
-                Layout.preferredHeight: 42
                 onClicked: root.continueRequested()
-            }
-
-                   Item {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 0
             }
         }
     }
+  }
 }

@@ -405,9 +405,7 @@ bool GameFacade::pauseSimulation() {
     }
 
     const bool paused = currentGame->pauseSimulation();
-    if (paused) {
-        emit gameStateChanged();
-    }
+    emit gameStateChanged();
     return paused;
 }
 
@@ -422,9 +420,7 @@ bool GameFacade::resumeSimulation() {
     }
 
     const bool resumed = currentGame->resumeSimulation();
-    if (resumed) {
-        emit gameStateChanged();
-    }
+    emit gameStateChanged();
     return resumed;
 }
 
@@ -508,9 +504,7 @@ bool GameFacade::resolveActiveInteraction() {
     }
 
     const bool resolved = currentGame->resolveActiveInteraction();
-    if (resolved) {
-        emit gameStateChanged();
-    }
+    emit gameStateChanged();
     return resolved;
 }
 
@@ -530,9 +524,7 @@ bool GameFacade::acceptActiveTransferOffer() {
     }
 
     const bool accepted = currentGame->acceptTransferOffer(interaction->getOfferId());
-    if (accepted) {
-        emit gameStateChanged();
-    }
+    emit gameStateChanged();
     return accepted;
 }
 
@@ -552,9 +544,7 @@ bool GameFacade::rejectActiveTransferOffer() {
     }
 
     const bool rejected = currentGame->rejectTransferOffer(interaction->getOfferId());
-    if (rejected) {
-        emit gameStateChanged();
-    }
+    emit gameStateChanged();
     return rejected;
 }
 
@@ -569,9 +559,7 @@ bool GameFacade::deferActiveTransferOffer() {
     }
 
     const bool deferred = currentGame->resolveActiveInteraction();
-    if (deferred) {
-        emit gameStateChanged();
-    }
+    emit gameStateChanged();
     return deferred;
 }
 
