@@ -520,6 +520,7 @@ bool GameFacade::acceptActiveTransferOffer() {
 
     const TransferOfferDecisionInteraction* interaction = currentGame->getActiveTransferOfferDecisionInteraction();
     if (!interaction) {
+        emit gameStateChanged();
         return false;
     }
 
@@ -540,6 +541,7 @@ bool GameFacade::rejectActiveTransferOffer() {
 
     const TransferOfferDecisionInteraction* interaction = currentGame->getActiveTransferOfferDecisionInteraction();
     if (!interaction) {
+        emit gameStateChanged();
         return false;
     }
 
@@ -554,7 +556,12 @@ bool GameFacade::deferActiveTransferOffer() {
     }
 
     Game* currentGame = ensureGame();
-    if (!currentGame || !currentGame->getActiveTransferOfferDecisionInteraction()) {
+    if (!currentGame) {
+        return false;
+    }
+
+    if (!currentGame->getActiveTransferOfferDecisionInteraction()) {
+        emit gameStateChanged();
         return false;
     }
 

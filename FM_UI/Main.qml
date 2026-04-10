@@ -14,14 +14,18 @@ ApplicationWindow {
     color: "#f5f5f5"
 
     property string currentView: gameFacade.hasStartedGame() ? "dashboard" : "home"
-    property string headerTeamName: gameFacade.hasStartedGame() ? (gameFacade.getSelectedTeamName() || "No Team") : "Football Manager"
+    property bool gameStarted: gameFacade.hasStartedGame()
+    property string headerTeamName: gameStarted ? (gameFacade.getSelectedTeamName() || "No Team") : "Football Manager"
     property string headerDateText: gameFacade.getCurrentDateText() || ""
     property bool hasActiveInteraction: gameFacade.hasActiveInteraction()
     property string activeInteractionKind: gameFacade.getActiveInteractionKind() || ""
     property bool simulationPaused: gameFacade.isTimePaused()
+    property var activePostMatchData: ({})
+    property var activeTransferOfferData: ({})
 
     function refreshHeader() {
-        headerTeamName = gameFacade.hasStartedGame() ? (gameFacade.getSelectedTeamName() || "No Team") : "Football Manager"
+        gameStarted = gameFacade.hasStartedGame()
+        headerTeamName = gameStarted ? (gameFacade.getSelectedTeamName() || "No Team") : "Football Manager"
         headerDateText = gameFacade.getCurrentDateText() || ""
     }
 
@@ -29,15 +33,13 @@ ApplicationWindow {
         hasActiveInteraction = gameFacade.hasActiveInteraction()
         activeInteractionKind = gameFacade.getActiveInteractionKind() || ""
         simulationPaused = gameFacade.isTimePaused()
-    }
 
-    function refreshTopLevelState() {
-        refreshInteractionState()
-        refreshHeader()
-    }
-
-    function goTo(viewName) {
-        currentView = viewName
+        activePostMatchData = (hasActiveInteraction && activeInteractionKind === "post_match")
+                              ? (gameFacade.getActivePostMatchInteraction() || {})
+                              : ({})
+        activeTransferOfferData = (hasActiveInteraction && activeInteractionKind === "transfer_offer")
+                                  ? (gameFacade.getActiveTransferOfferInteraction() || {})
+                                  : ({})
     }
 
     function refreshActiveView() {
@@ -46,8 +48,18 @@ ApplicationWindow {
         }
     }
 
+    function refreshUiState() {
+        refreshInteractionState()
+        refreshHeader()
+        refreshActiveView()
+    }
+
+    function goTo(viewName) {
+        currentView = viewName
+    }
+
     Component.onCompleted: {
-        refreshTopLevelState()
+        refreshUiState()
     }
 
     header: ToolBar {
@@ -70,7 +82,7 @@ ApplicationWindow {
             Item { Layout.fillWidth: true }
 
             Label {
-                visible: gameFacade.hasStartedGame()
+                visible: root.gameStarted
                 text: root.headerDateText
                 color: "#444444"
                 font.pixelSize: 14
@@ -81,7 +93,7 @@ ApplicationWindow {
     Loader {
         id: viewLoader
         anchors.fill: parent
-       anchors.margins: (root.currentView === "dashboard" || root.currentView === "standings" || root.currentView === "team") ? 16 : 0
+        anchors.margins: (root.currentView === "dashboard" || root.currentView === "standings" || root.currentView === "team") ? 16 : 0
         sourceComponent: root.currentView === "home"
                          ? homeComponent
                          : root.currentView === "teamSelection"
@@ -92,8 +104,7 @@ ApplicationWindow {
                                ? teamComponent
                                : dashboardComponent
         onLoaded: {
-            root.refreshTopLevelState()
-            root.refreshActiveView()
+            root.refreshUiState()
         }
     }
 
@@ -101,22 +112,21 @@ ApplicationWindow {
         target: gameFacade
 
         function onGameStateChanged() {
-           if (gameFacade.hasStartedGame() && root.currentView === "teamSelection") {
+            if (gameFacade.hasStartedGame() && root.currentView === "teamSelection") {
                 root.currentView = "dashboard"
             }
-            root.refreshTopLevelState()
-            root.refreshActiveView()
+            root.refreshUiState()
         }
     }
 
-        Timer {
+    Timer {
         id: simulationTimer
         interval: 300
         repeat: true
-        running: gameFacade.hasStartedGame() && !root.simulationPaused && !root.hasActiveInteraction
+        running: root.gameStarted && !root.simulationPaused && !root.hasActiveInteraction
         onTriggered: {
             gameFacade.advanceOneDay()
-            root.refreshTopLevelState()
+            root.refreshUiState()
         }
     }
 
@@ -127,6 +137,7 @@ ApplicationWindow {
             onNewGameRequested: {
                 gameFacade.clearLastError()
                 root.goTo("teamSelection")
+                root.refreshUiState()
             }
             onQuitRequested: Qt.quit()
         }
@@ -136,11 +147,15 @@ ApplicationWindow {
         id: newGameComponent
 
         NewGameView {
-        onBackRequested: {
+            onBackRequested: {
                 gameFacade.clearLastError()
                 root.goTo("home")
+                root.refreshUiState()
             }
-            onGameStarted: root.goTo("dashboard")
+            onGameStarted: {
+                root.goTo("dashboard")
+                root.refreshUiState()
+            }
         }
     }
 
@@ -148,8 +163,14 @@ ApplicationWindow {
         id: dashboardComponent
 
         DashboardView {
-            onOpenStandingsRequested: root.goTo("standings")
-            onOpenTeamRequested: root.goTo("team")
+            onOpenStandingsRequested: {
+                root.goTo("standings")
+                root.refreshUiState()
+            }
+            onOpenTeamRequested: {
+                root.goTo("team")
+                root.refreshUiState()
+            }
         }
     }
 
@@ -157,26 +178,31 @@ ApplicationWindow {
         id: standingsComponent
 
         StandingsView {
-            onBackRequested: root.goTo("dashboard")
+            onBackRequested: {
+                root.goTo("dashboard")
+                root.refreshUiState()
+            }
         }
     }
 
     Component {
         id: teamComponent
         TeamView {
-            onBackRequested: root.goTo("dashboard")
+            onBackRequested: {
+                root.goTo("dashboard")
+                root.refreshUiState()
+            }
         }
     }
-
 
     PostMatchDialog {
         id: postMatchDialog
         anchors.fill: parent
         visible: root.hasActiveInteraction && root.activeInteractionKind === "post_match"
-        interactionData: gameFacade.getActivePostMatchInteraction()
+        interactionData: root.activePostMatchData
         onContinueRequested: {
             gameFacade.resolveActiveInteraction()
-            root.refreshTopLevelState()
+            root.refreshUiState()
         }
     }
 
@@ -184,18 +210,18 @@ ApplicationWindow {
         id: transferOfferDialog
         anchors.fill: parent
         visible: root.hasActiveInteraction && root.activeInteractionKind === "transfer_offer"
-        interactionData: gameFacade.getActiveTransferOfferInteraction()
+        interactionData: root.activeTransferOfferData
         onAcceptRequested: {
             gameFacade.acceptActiveTransferOffer()
-            root.refreshTopLevelState()
+            root.refreshUiState()
         }
         onRejectRequested: {
             gameFacade.rejectActiveTransferOffer()
-            root.refreshTopLevelState()
+            root.refreshUiState()
         }
         onLaterRequested: {
             gameFacade.deferActiveTransferOffer()
-            root.refreshTopLevelState()
+            root.refreshUiState()
         }
     }
 }
