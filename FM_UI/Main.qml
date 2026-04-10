@@ -171,6 +171,14 @@ ApplicationWindow {
                 root.goTo("team")
                 root.refreshUiState()
             }
+            onPauseRequested: {
+                gameFacade.pauseSimulation()
+                root.refreshUiState()
+            }
+            onResumeRequested: {
+                gameFacade.resumeSimulation()
+                root.refreshUiState()
+            }
         }
     }
 

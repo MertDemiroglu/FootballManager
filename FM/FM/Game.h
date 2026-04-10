@@ -18,6 +18,7 @@ enum class GameState {
 class GameInteraction;
 class PostMatchInteraction;
 class TransferOfferDecisionInteraction;
+class Team;
 
 class Game {
 private:
@@ -36,8 +37,8 @@ private:
 	//debug icin
 	int lastDebugOfferYear = -1;
 	int lastDebugOfferMonth = -1;
-	PlayerId lastDebugOfferPlayerId = 0;
 	std::size_t debugOfferPlayerCursor = 0;
+	PlayerId pickNextDebugOfferCandidatePlayerId(const Team& sellerTeam);
 
 	void seasonStartChecksForContext(LeagueContext& context);
 	void seasonEndChecksForContext(LeagueContext& context);

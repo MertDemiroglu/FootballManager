@@ -25,6 +25,7 @@ public:
 	void bindWorld(World& world);
 
 	OfferId createOffer(const Date& createdAt, LeagueId sellerLeagueId, TeamId sellerTeamId, LeagueId buyerLeagueId, TeamId buyerTeamId, PlayerId playerId, Money fee);
+	bool hasPendingOfferForSellerPlayer(LeagueId sellerLeagueId, TeamId sellerTeamId, PlayerId playerId) const;
 
 	bool acceptOffer(OfferId offerId);
 	bool acceptOffer(OfferId offerId, const Date& transferDate);

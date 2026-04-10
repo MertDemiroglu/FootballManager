@@ -8,6 +8,8 @@ Item {
 
     signal openStandingsRequested()
     signal openTeamRequested()
+    signal pauseRequested()
+    signal resumeRequested()
 
     readonly property int pagePadding: 24
     readonly property int sectionSpacing: 20
@@ -522,16 +524,16 @@ Item {
                                 text: "Resume"
                                 Layout.preferredHeight: 46
                                 font.pixelSize: 15
-                                enabled: root.hasActiveGame && !gameFacade.hasActiveInteraction() && gameFacade.isTimePaused()
-                                onClicked: gameFacade.resumeSimulation()
+                                enabled: root.hasActiveGame
+                                onClicked: root.resumeRequested()
                             }
 
                             Button {
                                 text: "Pause"
                                 Layout.preferredHeight: 46
                                 font.pixelSize: 15
-                                enabled: root.hasActiveGame && !gameFacade.isTimePaused()
-                                onClicked: gameFacade.pauseSimulation()
+                                enabled: root.hasActiveGame
+                                onClicked: root.pauseRequested()
                             }
 
                             Button {
