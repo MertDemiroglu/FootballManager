@@ -112,7 +112,11 @@ ApplicationWindow {
         interval: 300
         repeat: true
         running: gameFacade.hasStartedGame() && !root.simulationPaused && !root.hasActiveInteraction
-        onTriggered: gameFacade.advanceOneDay()
+        onTriggered: {
+            gameFacade.advanceOneDay()
+            root.refreshInteractionState()
+            root.refreshHeader()
+        }
     }
 
     Component {
@@ -169,7 +173,11 @@ ApplicationWindow {
         anchors.fill: parent
         visible: root.hasActiveInteraction && root.activeInteractionKind === "post_match"
         interactionData: gameFacade.getActivePostMatchInteraction()
-        onContinueRequested: gameFacade.resolveActiveInteraction()
+        onContinueRequested: {
+            gameFacade.resolveActiveInteraction()
+            root.refreshInteractionState()
+            root.refreshHeader()
+        }
     }
 
     TransferOfferDialog {
@@ -177,8 +185,20 @@ ApplicationWindow {
         anchors.fill: parent
         visible: root.hasActiveInteraction && root.activeInteractionKind === "transfer_offer"
         interactionData: gameFacade.getActiveTransferOfferInteraction()
-        onAcceptRequested: gameFacade.acceptActiveTransferOffer()
-        onRejectRequested: gameFacade.rejectActiveTransferOffer()
-        onLaterRequested: gameFacade.deferActiveTransferOffer()
+        onAcceptRequested: {
+            gameFacade.acceptActiveTransferOffer()
+            root.refreshInteractionState()
+            root.refreshHeader()
+        }
+        onRejectRequested: {
+            gameFacade.rejectActiveTransferOffer()
+            root.refreshInteractionState()
+            root.refreshHeader()
+        }
+        onLaterRequested: {
+            gameFacade.deferActiveTransferOffer()
+            root.refreshInteractionState()
+            root.refreshHeader()
+        }
     }
 }

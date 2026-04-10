@@ -241,6 +241,9 @@ void Game::temporaryForDebug_tryCreateWeeklyManagedTransferOffer() {
     if (!world.getTransferRoom().isOpenForLeague(managedLeagueId)) {
         return;
     }
+    if (hasActiveBlockingInteraction()) {
+        return;
+    }
 
     LeagueContext* context = world.findLeagueContext(managedLeagueId);
     if (!context) {
@@ -253,31 +256,79 @@ void Game::temporaryForDebug_tryCreateWeeklyManagedTransferOffer() {
         return;
     }
 
-    TeamId buyerTeamId = 0;
-    for (const auto& [candidateTeamId, candidateTeam] : league.getTeams()) {
-        (void)candidateTeam;
-        if (candidateTeamId == managedTeamId) {
-            continue;
-        }
-        if (buyerTeamId == 0 || candidateTeamId < buyerTeamId) {
-            buyerTeamId = candidateTeamId;
-        }
-    }
-
-    if (buyerTeamId == 0) {
+    const int currentYear = date.getYear();
+    const int currentMonth = static_cast<int>(date.getMonth());
+    if (lastDebugOfferYear == currentYear && lastDebugOfferMonth == currentMonth) {
         return;
     }
 
-    const PlayerId playerId = sellerTeam->getPlayers().front()->getId();
-    constexpr Money weeklyRuntimeOfferFee = 1;
-    world.getTransferOfferService().createOffer(
-        date,
-        managedLeagueId,
-        managedTeamId,
-        managedLeagueId,
-        buyerTeamId,
-        playerId,
-        weeklyRuntimeOfferFee);
+    Team* buyerTeam = nullptr;
+
+    for (const auto& [candidateTeamId, candidateTeam] : league.getTeams()) {
+        if (candidateTeamId == managedTeamId) {
+            continue;
+        }
+        if (!candidateTeam) {
+            continue;
+        }
+
+        // Temporary debug funding guard so that generated offers are actually testable via Accept.
+        constexpr Money debugFundingBoost = 5000000;
+        if (!candidateTeam->canAffordTransfer(1) || !candidateTeam->canAffordWage(1000)) {
+            candidateTeam->earn(debugFundingBoost);
+            candidateTeam->setBudgets();
+        }
+
+        if (!candidateTeam->canAffordTransfer(1) || !candidateTeam->canAffordWage(1000)) {
+            continue;
+        }
+
+        if (!buyerTeam || candidateTeamId < buyerTeam->getId()) {
+            buyerTeam = candidateTeam.get();
+        }
+
+        if (!buyerTeam) {
+            return;
+        }
+
+        const auto& sellerPlayers = sellerTeam->getPlayers();
+        if (sellerPlayers.empty()) {
+            return;
+        }
+
+        const std::size_t startIndex = debugOfferPlayerCursor % sellerPlayers.size();
+        PlayerId playerId = sellerPlayers[startIndex]->getId();
+        if (playerId == lastDebugOfferPlayerId && sellerPlayers.size() > 1) {
+            playerId = sellerPlayers[(startIndex + 1) % sellerPlayers.size()]->getId();
+            debugOfferPlayerCursor = (startIndex + 2) % sellerPlayers.size();
+        }
+        else {
+            debugOfferPlayerCursor = (startIndex + 1) % sellerPlayers.size();
+        }
+
+        if (playerId == 0) {
+            return;
+        }
+
+
+        constexpr Money weeklyRuntimeOfferFee = 1;
+        const OfferId createdOfferId = world.getTransferOfferService().createOffer(
+            date,
+            managedLeagueId,
+            managedTeamId,
+            managedLeagueId,
+            buyerTeam->getId(),
+            playerId,
+            weeklyRuntimeOfferFee);
+
+        if (createdOfferId == 0) {
+            return;
+        }
+
+        lastDebugOfferYear = currentYear;
+        lastDebugOfferMonth = currentMonth;
+        lastDebugOfferPlayerId = playerId;
+    }
 }
 
 void Game::seasonStartChecks() {

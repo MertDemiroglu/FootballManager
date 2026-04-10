@@ -33,6 +33,12 @@ private:
 	bool userPaused;
 	bool dateWasReset;
 
+	//debug icin
+	int lastDebugOfferYear = -1;
+	int lastDebugOfferMonth = -1;
+	PlayerId lastDebugOfferPlayerId = 0;
+	std::size_t debugOfferPlayerCursor = 0;
+
 	void seasonStartChecksForContext(LeagueContext& context);
 	void seasonEndChecksForContext(LeagueContext& context);
 	void refreshTimePauseState();
