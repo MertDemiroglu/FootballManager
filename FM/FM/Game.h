@@ -2,6 +2,7 @@
 #include<memory>
 #include<string>
 #include<functional>
+#include<optional>
 
 #include"Date.h"
 #include"EventQueue.h"
@@ -17,6 +18,7 @@ enum class GameState {
 
 class GameInteraction;
 class PostMatchInteraction;
+class PreMatchInteraction;
 class TransferOfferDecisionInteraction;
 class Team;
 
@@ -33,12 +35,14 @@ private:
 	bool timePaused;
 	bool userPaused;
 	bool dateWasReset;
+	std::optional<PlayMatchCommand> pendingPreMatchCommand;
 
-	//debug icin
+	//debug icin---------------------------------------------------------
 	int lastDebugOfferYear = -1;
 	int lastDebugOfferMonth = -1;
 	std::size_t debugOfferPlayerCursor = 0;
 	PlayerId pickNextDebugOfferCandidatePlayerId(const Team& sellerTeam);
+	//-------------------------------------------------------------------
 
 	void seasonStartChecksForContext(LeagueContext& context);
 	void seasonEndChecksForContext(LeagueContext& context);
@@ -85,9 +89,11 @@ public:
 
 	bool hasActiveBlockingInteraction() const;
 	const GameInteraction* getActiveInteraction() const;
+	const PreMatchInteraction* getActivePreMatchInteraction() const;
 	const PostMatchInteraction* getActivePostMatchInteraction() const;
 	const TransferOfferDecisionInteraction* getActiveTransferOfferDecisionInteraction() const;
 	bool resolveActiveInteraction();
+	bool playPendingPreMatch();
 
 	bool acceptTransferOffer(OfferId offerId);
 	bool rejectTransferOffer(OfferId offerId);

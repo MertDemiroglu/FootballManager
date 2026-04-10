@@ -6,6 +6,7 @@
 #include"LeagueContext.h"
 #include"GameInteraction.h"
 #include"PostMatchInteraction.h"
+#include"PreMatchInteraction.h"
 #include"TransferOfferDecisionInteraction.h"
 
 #include<QDebug>
@@ -448,6 +449,8 @@ QString GameFacade::getActiveInteractionKind() const {
     }
 
     switch (interaction->getKind()) {
+    case GameInteraction::Kind::PreMatch:
+        return QStringLiteral("pre_match");
     case GameInteraction::Kind::PostMatch:
         return QStringLiteral("post_match");
     case GameInteraction::Kind::TransferOfferDecision:
@@ -455,6 +458,24 @@ QString GameFacade::getActiveInteractionKind() const {
     }
 
     return QString();
+}
+
+QVariantMap GameFacade::getActivePreMatchInteraction() const {
+    if (!gameStarted) {
+        return {};
+    }
+
+    const Game* currentGame = ensureGame();
+    if (!currentGame) {
+        return {};
+    }
+
+    const PreMatchInteraction* interaction = currentGame->getActivePreMatchInteraction();
+    if (!interaction) {
+        return {};
+    }
+
+    return toPreMatchInteractionMap(*interaction);
 }
 
 QVariantMap GameFacade::getActivePostMatchInteraction() const {
@@ -506,6 +527,21 @@ bool GameFacade::resolveActiveInteraction() {
     const bool resolved = currentGame->resolveActiveInteraction();
     emit gameStateChanged();
     return resolved;
+}
+
+bool GameFacade::playActiveMatch() {
+    if (!gameStarted) {
+        return false;
+    }
+
+    Game* currentGame = ensureGame();
+    if (!currentGame) {
+        return false;
+    }
+
+    const bool played = currentGame->playPendingPreMatch();
+    emit gameStateChanged();
+    return played;
 }
 
 bool GameFacade::acceptActiveTransferOffer() {
@@ -851,6 +887,20 @@ QVariantMap GameFacade::toPlayerDetailsMap(const Footballer& player) const {
     archivedSummary.insert(QStringLiteral("seasons"), archivedSeasons);
     map.insert(QStringLiteral("archivedStatsSummary"), archivedSummary);
 
+    return map;
+}
+
+QVariantMap GameFacade::toPreMatchInteractionMap(const PreMatchInteraction& interaction) const {
+    QVariantMap map;
+    map.insert(QStringLiteral("kind"), QStringLiteral("pre_match"));
+    map.insert(QStringLiteral("dateText"), formatDate(interaction.getDate()));
+    map.insert(QStringLiteral("matchweek"), interaction.getMatchweek());
+    map.insert(QStringLiteral("homeTeamId"), static_cast<int>(interaction.getHomeId()));
+    map.insert(QStringLiteral("awayTeamId"), static_cast<int>(interaction.getAwayId()));
+
+    const League* league = resolveLeague(interaction.getLeagueId());
+    map.insert(QStringLiteral("homeTeamName"), league ? fromStd(league->getTeamName(interaction.getHomeId())) : QString());
+    map.insert(QStringLiteral("awayTeamName"), league ? fromStd(league->getTeamName(interaction.getAwayId())) : QString());
     return map;
 }
 

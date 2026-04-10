@@ -19,6 +19,7 @@ ApplicationWindow {
     property string headerDateText: gameFacade.getCurrentDateText() || ""
     property bool hasActiveInteraction: gameFacade.hasActiveInteraction()
     property string activeInteractionKind: gameFacade.getActiveInteractionKind() || ""
+    property var activePreMatchData: ({})
     property bool simulationPaused: gameFacade.isTimePaused()
     property var activePostMatchData: ({})
     property var activeTransferOfferData: ({})
@@ -33,6 +34,10 @@ ApplicationWindow {
         hasActiveInteraction = gameFacade.hasActiveInteraction()
         activeInteractionKind = gameFacade.getActiveInteractionKind() || ""
         simulationPaused = gameFacade.isTimePaused()
+
+       activePreMatchData = (hasActiveInteraction && activeInteractionKind === "pre_match")
+                             ? (gameFacade.getActivePreMatchInteraction() || {})
+                             : ({})
 
         activePostMatchData = (hasActiveInteraction && activeInteractionKind === "post_match")
                               ? (gameFacade.getActivePostMatchInteraction() || {})
@@ -210,6 +215,17 @@ ApplicationWindow {
         interactionData: root.activePostMatchData
         onContinueRequested: {
             gameFacade.resolveActiveInteraction()
+            root.refreshUiState()
+        }
+    }
+
+    PreMatchDialog {
+        id: preMatchDialog
+        anchors.fill: parent
+        visible: root.hasActiveInteraction && root.activeInteractionKind === "pre_match"
+        interactionData: root.activePreMatchData
+        onPlayMatchRequested: {
+            gameFacade.playActiveMatch()
             root.refreshUiState()
         }
     }

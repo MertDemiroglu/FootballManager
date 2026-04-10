@@ -4,6 +4,7 @@
 #include"RosterLoader.h"
 #include"PostMatchInteraction.h"
 #include"TransferOfferDecisionInteraction.h"
+#include"PreMatchInteraction.h"
 
 #include<stdexcept>
 #include<utility>
@@ -21,7 +22,8 @@ Game::Game()
     user(),
     timePaused(false),
     userPaused(false),
-    dateWasReset(false) {
+    dateWasReset(false),
+    pendingPreMatchCommand(std::nullopt) {
     League league("Super Lig");
     LeagueRules rules = LeagueRules::makeSuperLig();
     SeasonPlan seasonPlan = SeasonPlan::build(2025, rules);
@@ -153,6 +155,20 @@ void Game::updateDaily() {
 
     while (!eventsQueue.empty()) {
         const PlayMatchCommand command = eventsQueue.popNext();
+
+        const LeagueId managedLeagueId = user.getManagedLeagueId();
+        const TeamId managedTeamId = user.getManagedTeamId();
+        const bool hasManagedTeam = managedLeagueId != 0 && managedTeamId != 0;
+        const bool isManagedTeamMatch = hasManagedTeam && command.leagueId == managedLeagueId && (command.homeId == managedTeamId || command.awayId == managedTeamId);
+
+        if (isManagedTeamMatch) {
+            pendingPreMatchCommand = command;
+
+            interactionManager.enqueue(std::make_unique<PreMatchInteraction>(command.leagueId, command.date, command.homeId, command.awayId, command.matchweek));
+            refreshTimePauseState();
+            return;
+        }
+
         LeagueContext* context = world.findLeagueContext(command.leagueId);
         if (!context) {
             throw std::logic_error("play command references unknown league context");
@@ -458,7 +474,34 @@ const TransferOfferDecisionInteraction* Game::getActiveTransferOfferDecisionInte
     return dynamic_cast<const TransferOfferDecisionInteraction*>(interactionManager.getActiveInteraction());
 }
 
+const PreMatchInteraction* Game::getActivePreMatchInteraction() const {
+    return dynamic_cast<const PreMatchInteraction*>(interactionManager.getActiveInteraction());
+}
+
+bool Game::playPendingPreMatch() {
+    const PreMatchInteraction* interaction = getActivePreMatchInteraction();
+    if (!interaction || !pendingPreMatchCommand.has_value()) {
+        return false;
+    }
+
+    const PlayMatchCommand command = *pendingPreMatchCommand;
+    LeagueContext* context = world.findLeagueContext(command.leagueId);
+    if (!context) {
+        throw std::logic_error("pending pre-match command references unknown league context");
+    }
+
+    context->getPlayMatchCommandHandler().handle(context->getLeague(), command);
+    pendingPreMatchCommand.reset();
+    interactionManager.resolveActiveInteraction();
+    refreshTimePauseState();
+    return true;
+}
+
 bool Game::resolveActiveInteraction() {
+    if (getActivePreMatchInteraction()) {
+        refreshTimePauseState();
+        return false;
+    }
     const bool resolved = interactionManager.resolveActiveInteraction();
     if (resolved) {
         userPaused = true;

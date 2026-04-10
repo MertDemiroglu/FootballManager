@@ -11,6 +11,7 @@
 
 class Game;
 class Footballer;
+class PreMatchInteraction;
 class PostMatchInteraction;
 class TransferOfferDecisionInteraction;
 
@@ -59,8 +60,10 @@ public:
 
     Q_INVOKABLE bool hasActiveInteraction() const;
     Q_INVOKABLE QString getActiveInteractionKind() const;
+    Q_INVOKABLE QVariantMap getActivePreMatchInteraction() const;
     Q_INVOKABLE QVariantMap getActivePostMatchInteraction() const;
     Q_INVOKABLE QVariantMap getActiveTransferOfferInteraction() const;
+    Q_INVOKABLE bool playActiveMatch();
     Q_INVOKABLE bool resolveActiveInteraction();
     Q_INVOKABLE bool acceptActiveTransferOffer();
     Q_INVOKABLE bool rejectActiveTransferOffer();
@@ -106,6 +109,7 @@ private:
     QVariantMap toPlayerDetailsMap(const Footballer& player) const;
     QVariantMap toPlayerSeasonStatsMap(const PlayerSeasonStats& stats) const;
 
+    QVariantMap toPreMatchInteractionMap(const PreMatchInteraction& interaction) const;
     QVariantMap toPostMatchInteractionMap(const PostMatchInteraction& interaction) const;
     QVariantMap toTransferOfferInteractionMap(const TransferOfferDecisionInteraction& interaction) const;
 };

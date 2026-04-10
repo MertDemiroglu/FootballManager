@@ -24,6 +24,7 @@ add_library(fm_core STATIC
     LeagueRules.cpp 
     MatchScheduler.cpp
     MatchSimulation.cpp
+    PreMatchInteraction.cpp
     PostMatchInteraction.cpp
     PlayMatchCommandHandler.cpp
     Midfielder.cpp

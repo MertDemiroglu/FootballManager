@@ -5,6 +5,7 @@
 class GameInteraction {
 public: 
 	enum class Kind : std::uint8_t {
+		PreMatch,
 		PostMatch,
 		TransferOfferDecision
 	};
