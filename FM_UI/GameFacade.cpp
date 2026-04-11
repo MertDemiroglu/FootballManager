@@ -10,6 +10,7 @@
 #include"TransferOfferDecisionInteraction.h"
 #include"TransferOffer.h"
 #include"StandingsTableModel.h"
+#include"TeamPlayersModel.h"
 
 #include<QDebug>
 
@@ -60,7 +61,8 @@ namespace {
 
 GameFacade::GameFacade(QObject* parent)
     : QObject(parent),
-      standingsModel(this) {
+      standingsModel(this),
+      teamPlayersModel(this) {
 }
 
 GameFacade::~GameFacade() {}
@@ -313,6 +315,10 @@ void GameFacade::clearLastError() {
 
 QAbstractListModel* GameFacade::getStandingsModel() const {
     return const_cast<StandingsTableModel*>(&standingsModel);
+}
+
+QAbstractListModel* GameFacade::getCurrentTeamPlayersModel() const {
+    return const_cast<TeamPlayersModel*>(&teamPlayersModel);
 }
 
 QVariantMap GameFacade::getDashboard() const {
@@ -843,8 +849,47 @@ void GameFacade::refreshStandingsModel() {
     standingsModel.setRows(std::move(rows));
 }
 
+void GameFacade::refreshCurrentTeamPlayersModel() {
+    if (!hasValidSelectedTeam()) {
+        teamPlayersModel.clear();
+        return;
+    }
+
+    const League* league = resolveLeague(selectedLeagueId);
+    if (!league) {
+        teamPlayersModel.clear();
+        return;
+    }
+
+    const Team* team = league->findTeamById(selectedTeamId);
+    if (!team) {
+        teamPlayersModel.clear();
+        return;
+    }
+
+    QVector<TeamPlayersModel::Row> rows;
+    rows.reserve(static_cast<qsizetype>(team->getPlayers().size()));
+    for (const auto& player : team->getPlayers()) {
+        const PlayerSeasonStats& stats = player->getCurrentSeasonStats();
+        TeamPlayersModel::Row row;
+        row.playerId = static_cast<int>(player->getId());
+        row.name = fromStd(player->getName());
+        row.age = player->getAge();
+        row.position = fromStd(player->getPosition());
+        row.overallSummary = QStringLiteral("OVR %1").arg(player->totalPower());
+        row.appearances = stats.appearances;
+        row.minutes = stats.minutesPlayed;
+        row.goals = stats.goals;
+        row.assists = stats.assists;
+        rows.push_back(std::move(row));
+    }
+
+    teamPlayersModel.setRows(std::move(rows));
+}
+
 void GameFacade::publishGameStateChanged() {
     refreshStandingsModel();
+    refreshCurrentTeamPlayersModel();
     emit gameStateChanged();
 }
 

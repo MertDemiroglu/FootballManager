@@ -15,7 +15,6 @@ Item {
     property var seasonStats: ({})
     property var recentMatches: []
     property var upcomingMatches: []
-    property var players: []
     property var selectedPlayerDetails: ({})
     property bool hasActiveGame: gameFacade.hasStartedGame()
 
@@ -24,7 +23,6 @@ Item {
         seasonStats = hasActiveGame ? gameFacade.getCurrentTeamSeasonStats() : ({})
         recentMatches = hasActiveGame ? gameFacade.getCurrentTeamMatches() : []
         upcomingMatches = hasActiveGame ? gameFacade.getCurrentTeamUpcomingMatches(5) : []
-        players = hasActiveGame ? gameFacade.getCurrentTeamPlayers() : []
     }
 
     function openPlayerDetails(playerId) {
@@ -443,10 +441,10 @@ Item {
                                 }
 
                                 Repeater {
-                                    model: root.players
+                                    id: playersRepeater
+                                    model: gameFacade.currentTeamPlayersModel
 
                                     delegate: Rectangle {
-                                        required property var modelData
                                         Layout.fillWidth: true
                                         radius: 12
                                         color: "#f8fafc"
@@ -465,7 +463,7 @@ Item {
 
                                                 Label {
                                                     Layout.fillWidth: true
-                                                    text: modelData.name || "Unknown"
+                                                    text: name || "Unknown"
                                                     font.pixelSize: 17
                                                     font.bold: true
                                                     color: "#17212f"
@@ -473,7 +471,7 @@ Item {
                                                 }
 
                                                 Label {
-                                                    text: modelData.position || "—"
+                                                    text: position || "—"
                                                     font.pixelSize: 15
                                                     color: "#475467"
                                                 }
@@ -482,7 +480,7 @@ Item {
                                                     text: "Details"
                                                     Layout.preferredHeight: 40
                                                     font.pixelSize: 14
-                                                    onClicked: root.openPlayerDetails(modelData.playerId)
+                                                    onClicked: root.openPlayerDetails(playerId)
                                                 }
                                             }
 
@@ -490,18 +488,18 @@ Item {
                                                 Layout.fillWidth: true
                                                 spacing: 12
 
-                                                Label { text: "Age: " + UiHelpers.displayValue(modelData, "age"); font.pixelSize: 15; color: "#667085" }
-                                                Label { text: modelData.overallSummary || "—"; font.pixelSize: 15; color: "#667085" }
-                                                Label { text: "Apps " + UiHelpers.displayValue(modelData, "appearances"); font.pixelSize: 15; color: "#667085" }
-                                                Label { text: "G " + UiHelpers.displayValue(modelData, "goals"); font.pixelSize: 15; color: "#667085" }
-                                                Label { text: "A " + UiHelpers.displayValue(modelData, "assists"); font.pixelSize: 15; color: "#667085" }
+                                                Label { text: "Age: " + age; font.pixelSize: 15; color: "#667085" }
+                                                Label { text: overallSummary || "—"; font.pixelSize: 15; color: "#667085" }
+                                                Label { text: "Apps " + appearances; font.pixelSize: 15; color: "#667085" }
+                                                Label { text: "G " + goals; font.pixelSize: 15; color: "#667085" }
+                                                Label { text: "A " + assists; font.pixelSize: 15; color: "#667085" }
                                             }
                                         }
                                     }
                                 }
 
                                 Label {
-                                    visible: root.players.length === 0
+                                    visible: playersRepeater.count === 0
                                     text: "No player data available."
                                     font.pixelSize: 15
                                     color: "#667085"
