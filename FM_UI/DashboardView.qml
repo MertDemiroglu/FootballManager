@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "UiHelpers.js" as UiHelpers
 
 Item {
     id: root
@@ -17,33 +18,21 @@ Item {
 
     property var dashboard: ({})
     property bool hasActiveGame: gameFacade.hasStartedGame()
-    property var teamStats: mapValue(dashboard, "shortTeamStats", ({}))
-    property var standingsRow: mapValue(dashboard, "standingsRow", ({}))
-    property var nextMatch: mapValue(dashboard, "nextMatch", ({}))
-    property var upcomingMatches: mapValue(dashboard, "upcomingMatches", [])
+    property var teamStats: UiHelpers.mapValue(dashboard, "shortTeamStats", ({}))
+    property var standingsRow: UiHelpers.mapValue(dashboard, "standingsRow", ({}))
+    property var nextMatch: UiHelpers.mapValue(dashboard, "nextMatch", ({}))
+    property var upcomingMatches: UiHelpers.mapValue(dashboard, "upcomingMatches", [])
 
     function refreshData() {
         hasActiveGame = gameFacade.hasStartedGame()
         dashboard = hasActiveGame ? gameFacade.getDashboard() : ({})
     }
 
-    function mapValue(mapObject, key, fallbackValue) {
-        if (!mapObject || mapObject[key] === undefined || mapObject[key] === null) {
-            return fallbackValue
-        }
-        return mapObject[key]
-    }
 
-    function hasMapValue(mapObject, key) {
-        return !!mapObject && mapObject[key] !== undefined && mapObject[key] !== null
-    }
 
-    function displayValue(mapObject, key) {
-        return hasMapValue(mapObject, key) ? String(mapObject[key]) : "—"
-    }
 
     function formCharacters() {
-        const rawForm = String(mapValue(dashboard, "recentForm", "") || "")
+        const rawForm = String(UiHelpers.mapValue(dashboard, "recentForm", "") || "")
         if (!rawForm.length) {
             return []
         }
@@ -52,31 +41,7 @@ Item {
         return cleaned.length ? cleaned.split("") : []
     }
 
-    function formColor(resultLetter) {
-        if (resultLetter === "W") {
-            return "#067647"
-        }
-        if (resultLetter === "D") {
-            return "#b54708"
-        }
-        if (resultLetter === "L") {
-            return "#b42318"
-        }
-        return "#667085"
-    }
 
-    function formBackground(resultLetter) {
-        if (resultLetter === "W") {
-            return "#ecfdf3"
-        }
-        if (resultLetter === "D") {
-            return "#fffaeb"
-        }
-        if (resultLetter === "L") {
-            return "#fef3f2"
-        }
-        return "#f2f4f7"
-    }
 
     Component.onCompleted: refreshData()
 
@@ -124,7 +89,7 @@ Item {
                             spacing: 18
 
                             Label {
-                                text: root.mapValue(root.dashboard, "selectedTeamName", "No Team")
+                                text: UiHelpers.mapValue(root.dashboard, "selectedTeamName", "No Team")
                                 font.pixelSize: 34
                                 font.bold: true
                                 color: "#17212f"
@@ -148,7 +113,7 @@ Item {
 
                                 Label { text: "Date"; font.bold: true; font.pixelSize: 16; color: "#344054" }
                                 Label {
-                                    text: root.displayValue(root.dashboard, "currentDateText")
+                                    text: UiHelpers.displayValue(root.dashboard, "currentDateText")
                                     font.pixelSize: 16
                                     color: "#475467"
                                     Layout.fillWidth: true
@@ -156,7 +121,7 @@ Item {
                                 }
                                 Label { text: "State"; font.bold: true; font.pixelSize: 16; color: "#344054" }
                                 Label {
-                                    text: root.displayValue(root.dashboard, "gameStateText")
+                                    text: UiHelpers.displayValue(root.dashboard, "gameStateText")
                                     font.pixelSize: 16
                                     color: "#475467"
                                     Layout.fillWidth: true
@@ -172,7 +137,7 @@ Item {
                                 }
                                 Label { text: "Club"; font.bold: true; font.pixelSize: 16; color: "#344054" }
                                 Label {
-                                    text: root.displayValue(root.dashboard, "selectedTeamName")
+                                    text: UiHelpers.displayValue(root.dashboard, "selectedTeamName")
                                     font.pixelSize: 16
                                     color: "#475467"
                                     Layout.fillWidth: true
@@ -307,8 +272,8 @@ Item {
                                             delegate: Rectangle {
                                                 required property string modelData
                                                 radius: 999
-                                                color: root.formBackground(modelData)
-                                                border.color: root.formColor(modelData)
+                                                color: UiHelpers.resultBackground(modelData)
+                                                border.color: UiHelpers.resultColor(modelData)
                                                 width: 38
                                                 height: 38
 
@@ -317,7 +282,7 @@ Item {
                                                     text: modelData
                                                     font.pixelSize: 15
                                                     font.bold: true
-                                                    color: root.formColor(modelData)
+                                                    color: UiHelpers.resultColor(modelData)
                                                 }
                                             }
                                         }
@@ -428,21 +393,21 @@ Item {
                                     columnSpacing: 18
 
                                     Label { text: "Played"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.displayValue(root.teamStats, "played"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: UiHelpers.displayValue(root.teamStats, "played"); font.pixelSize: 17; color: "#475467" }
                                     Label { text: "Wins"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.displayValue(root.teamStats, "wins"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: UiHelpers.displayValue(root.teamStats, "wins"); font.pixelSize: 17; color: "#475467" }
                                     Label { text: "Draws"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.displayValue(root.teamStats, "draws"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: UiHelpers.displayValue(root.teamStats, "draws"); font.pixelSize: 17; color: "#475467" }
                                     Label { text: "Losses"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.displayValue(root.teamStats, "losses"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: UiHelpers.displayValue(root.teamStats, "losses"); font.pixelSize: 17; color: "#475467" }
                                     Label { text: "Goals For"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.displayValue(root.teamStats, "goalsFor"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: UiHelpers.displayValue(root.teamStats, "goalsFor"); font.pixelSize: 17; color: "#475467" }
                                     Label { text: "Goals Against"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.displayValue(root.teamStats, "goalsAgainst"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: UiHelpers.displayValue(root.teamStats, "goalsAgainst"); font.pixelSize: 17; color: "#475467" }
                                     Label { text: "Goal Difference"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.displayValue(root.teamStats, "goalDifference"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: UiHelpers.displayValue(root.teamStats, "goalDifference"); font.pixelSize: 17; color: "#475467" }
                                     Label { text: "Points"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.displayValue(root.teamStats, "points"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: UiHelpers.displayValue(root.teamStats, "points"); font.pixelSize: 17; color: "#475467" }
                                 }
                             }
                         }
@@ -475,28 +440,28 @@ Item {
                                     columnSpacing: 18
 
                                     Label { text: "Position"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.displayValue(root.standingsRow, "position"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: UiHelpers.displayValue(root.standingsRow, "position"); font.pixelSize: 17; color: "#475467" }
                                     Label { text: "Points"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.displayValue(root.standingsRow, "points"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: UiHelpers.displayValue(root.standingsRow, "points"); font.pixelSize: 17; color: "#475467" }
                                     Label { text: "Played"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.displayValue(root.standingsRow, "played"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: UiHelpers.displayValue(root.standingsRow, "played"); font.pixelSize: 17; color: "#475467" }
                                     Label { text: "Goal Difference"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.displayValue(root.standingsRow, "goalDifference"); font.pixelSize: 17; color: "#475467" }
+                                    Label { text: UiHelpers.displayValue(root.standingsRow, "goalDifference"); font.pixelSize: 17; color: "#475467" }
                                     Label { text: "Record"; font.bold: true; font.pixelSize: 16; color: "#344054" }
                                     Label {
-                                        text: root.hasMapValue(root.standingsRow, "wins")
-                                              ? root.displayValue(root.standingsRow, "wins") + "W "
-                                                + root.displayValue(root.standingsRow, "draws") + "D "
-                                                + root.displayValue(root.standingsRow, "losses") + "L"
+                                        text: UiHelpers.hasMapValue(root.standingsRow, "wins")
+                                              ? UiHelpers.displayValue(root.standingsRow, "wins") + "W "
+                                                + UiHelpers.displayValue(root.standingsRow, "draws") + "D "
+                                                + UiHelpers.displayValue(root.standingsRow, "losses") + "L"
                                               : "—"
                                         font.pixelSize: 17
                                         color: "#475467"
                                     }
                                     Label { text: "Team"; font.bold: true; font.pixelSize: 16; color: "#344054" }
                                     Label {
-                                        text: root.hasMapValue(root.standingsRow, "teamName")
-                                              ? root.displayValue(root.standingsRow, "teamName")
-                                              : root.displayValue(root.dashboard, "selectedTeamName")
+                                        text: UiHelpers.hasMapValue(root.standingsRow, "teamName")
+                                              ? UiHelpers.displayValue(root.standingsRow, "teamName")
+                                              : UiHelpers.displayValue(root.dashboard, "selectedTeamName")
                                         font.pixelSize: 17
                                         color: "#475467"
                                         Layout.fillWidth: true
