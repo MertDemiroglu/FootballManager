@@ -223,6 +223,7 @@ void Game::updateDaily() {
     else {
         dateWasReset = false;
     }
+    world.getTransferOfferService().expirePendingOffers(date);//gecici cozum 2. kere expire kontrolu
 }
 
 void Game::handleSeasonalEvents() {
