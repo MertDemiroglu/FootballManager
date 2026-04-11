@@ -5,8 +5,6 @@ project(FM_UI LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(CMAKE_PREFIX_PATH "C:/Qt/6.10.1/msvc2022_64")
-
 find_package(Qt6 REQUIRED COMPONENTS Core Quick)
 
 qt_standard_project_setup()
