@@ -247,6 +247,7 @@ Item {
                                 }
 
                                 Repeater {
+                                    id: recentMatchesRepeater
                                     model: gameFacade.currentTeamRecentMatchesModel
 
                                     delegate: Rectangle {
@@ -327,7 +328,7 @@ Item {
                                 }
 
                                 Label {
-                                    visible: gameFacade.currentTeamRecentMatchesModel.count === 0
+                                    visible: recentMatchesRepeater.count === 0
                                     text: "No played matches available yet."
                                     font.pixelSize: 15
                                     color: "#667085"
