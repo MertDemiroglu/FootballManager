@@ -5,7 +5,7 @@
 
 struct TransferOfferResolvedEvent {
     OfferId offerId = 0;
-    TransferOfferResolution resolution = TransferOfferResolution::Rejected;
+    TransferOfferResolution resolution = TransferOfferResolution::ExpiredByDeadline;
     LeagueId sellerLeagueId = 0;
     TeamId sellerTeamId = 0;
     LeagueId buyerLeagueId = 0;

@@ -118,7 +118,7 @@ Item {
 
                                 Label {
                                     Layout.fillWidth: true
-                                    text: "Expires: " + (modelData.expiresAtText || "—")
+                                    text: "Last valid date: " + (modelData.lastDateText || "")
                                     font.pixelSize: 15
                                     color: "#344054"
                                 }

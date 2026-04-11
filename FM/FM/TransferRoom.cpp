@@ -38,6 +38,10 @@ bool TransferRoom::transferPlayer(LeagueId fromLeagueId, TeamId fromTeamId, Leag
 		return false;
 	}
 
+	if (!isOpenForLeague(fromLeagueId) || !isOpenForLeague(toLeagueId)) {
+		return false;
+	}
+
 	Team* seller = sellerLeague->findTeamById(fromTeamId);
 	Team* buyer = buyerLeague->findTeamById(toTeamId);
 

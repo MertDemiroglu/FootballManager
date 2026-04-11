@@ -26,7 +26,7 @@ struct MatchRecord;
 struct PlayerSeasonStats;
 struct TransferOffer;
 
-
+enum class TransferOfferExpiryPolicy;
 enum class GameState;
 
 class GameFacade : public QObject {
@@ -108,6 +108,7 @@ private:
 
     QString formatDate(const Date& date) const;
     QString formatGameState(GameState state) const;
+    QString formatTransferOfferExpiryPolicy(TransferOfferExpiryPolicy policy) const;
 
     QVariantMap toNextMatchMap(const FixtureMatchPreview& preview) const;
     QVariantMap toStandingsRowMap(const StandingsEntry& entry, int position) const;

@@ -6,6 +6,7 @@
 #include"Date.h"
 #include"TransferOffer.h"
 #include"Types.h"
+#include<optional>
 
 class World;
 
@@ -18,6 +19,9 @@ private:
 	bool hasValidOfferIdentifiers(LeagueId sellerLeagueId, TeamId sellerTeamId, LeagueId buyerLeagueId, TeamId buyerTeamId, PlayerId playerId) const;
 	bool hasDuplicatePendingOffer(LeagueId sellerLeagueId, TeamId sellerTeamId, LeagueId buyerLeagueId, TeamId buyerTeamId, PlayerId playerId) const;
 	bool validateOfferCreation(LeagueId sellerLeagueId, TeamId sellerTeamId, LeagueId buyerLeagueId, TeamId buyerTeamId, PlayerId playerId, Money fee) const;
+
+	std::optional<Date> tryGetCurrentWindowLastOpenDate(LeagueId leagueId, const Date& referenceDate) const;
+	TransferOfferResolution resolvePendingOfferInvalidity(const TransferOffer& offer, const Date& currentDate) const;
 
 public:
 	TransferOfferService();

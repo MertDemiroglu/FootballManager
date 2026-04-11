@@ -792,6 +792,18 @@ QString GameFacade::formatGameState(GameState state) const {
     }
 }
 
+QString GameFacade::formatTransferOfferExpiryPolicy(TransferOfferExpiryPolicy policy) const {
+    switch (policy) {
+    case TransferOfferExpiryPolicy::FourteenDayLimit:
+        return QStringLiteral("14-day limit");
+    case TransferOfferExpiryPolicy::WindowCloseLimit:
+        return QStringLiteral("Window close limit");
+    default:
+        break;
+    }
+    return QStringLiteral("Unknown");
+}
+
 QVariantMap GameFacade::toNextMatchMap(const FixtureMatchPreview& preview) const {
     QVariantMap map;
     const League* league = resolveLeague(selectedLeagueId); 
@@ -1013,7 +1025,8 @@ QVariantMap GameFacade::toPendingTransferOfferMap(const TransferOffer& offer) co
     map.insert(QStringLiteral("playerId"), static_cast<int>(offer.playerId));
     map.insert(QStringLiteral("fee"), static_cast<qlonglong>(offer.fee));
     map.insert(QStringLiteral("createdAtText"), formatDate(offer.createdAt));
-    map.insert(QStringLiteral("expiresAtText"), formatDate(offer.expiresAt));
+    map.insert(QStringLiteral("lastDateText"), formatDate(offer.lastValidDate));
+    map.insert(QStringLiteral("expiryPolicyText"), formatTransferOfferExpiryPolicy(offer.expiryPolicy));
 
     const League* sellerLeague = resolveLeague(offer.sellerLeagueId);
     const League* buyerLeague = resolveLeague(offer.buyerLeagueId);
