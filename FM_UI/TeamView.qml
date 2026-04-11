@@ -441,6 +441,7 @@ Item {
                                 }
 
                                 Repeater {
+                                    id: playersRepeater
                                     model: gameFacade.currentTeamPlayersModel
 
                                     delegate: Rectangle {
@@ -498,7 +499,7 @@ Item {
                                 }
 
                                 Label {
-                                    visible: gameFacade.currentTeamPlayersModel.count === 0
+                                    visible: playersRepeater.count === 0
                                     text: "No player data available."
                                     font.pixelSize: 15
                                     color: "#667085"
