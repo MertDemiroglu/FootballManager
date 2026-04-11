@@ -28,6 +28,7 @@ qt_add_qml_module(FM_UI
         TeamView.qml
         PlayerDetailsDialog.qml
         UiHelpers.js
+        InteractionModalShell.qml
         PreMatchDialog.qml
         PostMatchDialog.qml
         TransferOfferDialog.qml
