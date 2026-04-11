@@ -1,7 +1,0 @@
-<RCC>
-  <qresource prefix="/FM_UI/">
-    <file alias="Main.qml">C:/Users/user/Documents/FM_UI/Main.qml</file>
-    <file alias="MainMenu.qml">C:/Users/user/Documents/FM_UI/MainMenu.qml</file>
-  </qresource>
-</RCC>
-
