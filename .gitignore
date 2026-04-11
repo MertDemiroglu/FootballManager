@@ -361,3 +361,18 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# CMake / Qt build artifacts for FootballManager
+/build/
+/**/build/
+/cmake-build-*/
+
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+
+.qtc/
+.rcc/
+.qmlcache/
+qmlcache/
