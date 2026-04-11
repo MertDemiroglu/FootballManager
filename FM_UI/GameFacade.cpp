@@ -11,6 +11,7 @@
 #include"TransferOffer.h"
 #include"StandingsTableModel.h"
 #include"TeamPlayersModel.h"
+#include "TeamRecentMatchesModel.h"
 
 #include<QDebug>
 
@@ -62,7 +63,8 @@ namespace {
 GameFacade::GameFacade(QObject* parent)
     : QObject(parent),
       standingsModel(this),
-      teamPlayersModel(this) {
+      teamPlayersModel(this),
+      teamRecentMatchesModel(this) {
 }
 
 GameFacade::~GameFacade() {}
@@ -319,6 +321,10 @@ QAbstractListModel* GameFacade::getStandingsModel() const {
 
 QAbstractListModel* GameFacade::getCurrentTeamPlayersModel() const {
     return const_cast<TeamPlayersModel*>(&teamPlayersModel);
+}
+
+QAbstractListModel* GameFacade::getCurrentTeamRecentMatchesModel() const {
+    return const_cast<TeamRecentMatchesModel*>(&teamRecentMatchesModel);
 }
 
 QVariantMap GameFacade::getDashboard() const {
@@ -887,9 +893,49 @@ void GameFacade::refreshCurrentTeamPlayersModel() {
     teamPlayersModel.setRows(std::move(rows));
 }
 
+void GameFacade::refreshCurrentTeamRecentMatchesModel() {
+    if (!hasValidSelectedTeam()) {
+        teamRecentMatchesModel.clear();
+        return;
+    }
+
+    const League* league = resolveLeague(selectedLeagueId);
+    if (!league) {
+        teamRecentMatchesModel.clear();
+        return;
+    }
+
+    std::vector<MatchRecord> records = league->getMatchesForTeamInCurrentSeason(selectedTeamId);
+    std::reverse(records.begin(), records.end());
+
+    QVector<TeamRecentMatchesModel::Row> rows;
+    rows.reserve(static_cast<qsizetype>(records.size()));
+
+    for (const MatchRecord& record : records) {
+        const bool isHome = record.homeId == selectedTeamId;
+        const TeamId opponentId = isHome ? record.awayId : record.homeId;
+        const int goalsFor = isHome ? record.homeGoals : record.awayGoals;
+        const int goalsAgainst = isHome ? record.awayGoals : record.homeGoals;
+
+        TeamRecentMatchesModel::Row row;
+        row.dateText = formatDate(record.date);
+        row.matchweek = record.matchweek;
+        row.opponentId = static_cast<int>(opponentId);
+        row.opponentName = fromStd(league->getTeamName(opponentId));
+        row.isHome = isHome;
+        row.goalsFor = goalsFor;
+        row.goalsAgainst = goalsAgainst;
+        row.resultLetter = resultLetterForRecord(record, selectedTeamId);
+        rows.push_back(std::move(row));
+    }
+
+    teamRecentMatchesModel.setRows(std::move(rows));
+}
+
 void GameFacade::publishGameStateChanged() {
     refreshStandingsModel();
     refreshCurrentTeamPlayersModel();
+    refreshCurrentTeamRecentMatchesModel();
     emit gameStateChanged();
 }
 

@@ -13,7 +13,6 @@ Item {
     readonly property int sectionSpacing: 20
 
     property var seasonStats: ({})
-    property var recentMatches: []
     property var upcomingMatches: []
     property var selectedPlayerDetails: ({})
     property bool hasActiveGame: gameFacade.hasStartedGame()
@@ -21,7 +20,6 @@ Item {
     function refreshData() {
         hasActiveGame = gameFacade.hasStartedGame()
         seasonStats = hasActiveGame ? gameFacade.getCurrentTeamSeasonStats() : ({})
-        recentMatches = hasActiveGame ? gameFacade.getCurrentTeamMatches() : []
         upcomingMatches = hasActiveGame ? gameFacade.getCurrentTeamUpcomingMatches(5) : []
     }
 
@@ -249,10 +247,10 @@ Item {
                                 }
 
                                 Repeater {
-                                    model: root.recentMatches
+                                    id: recentMatchesRepeater
+                                    model: gameFacade.currentTeamRecentMatchesModel
 
                                     delegate: Rectangle {
-                                        required property var modelData
                                         Layout.fillWidth: true
                                         radius: 12
                                         color: "#f8fafc"
@@ -270,7 +268,7 @@ Item {
                                                 spacing: 12
 
                                                 Label {
-                                                    text: modelData.dateText || "—"
+                                                    text: dateText || "—"
                                                     font.pixelSize: 15
                                                     color: "#475467"
                                                     Layout.preferredWidth: 150
@@ -278,7 +276,7 @@ Item {
 
                                                 Label {
                                                     Layout.fillWidth: true
-                                                    text: modelData.opponentName || "Unknown opponent"
+                                                    text: opponentName || "Unknown opponent"
                                                     font.pixelSize: 17
                                                     font.bold: true
                                                     color: "#17212f"
@@ -287,17 +285,17 @@ Item {
 
                                                 Rectangle {
                                                     radius: 999
-                                                    color: UiHelpers.resultBackground(modelData.resultLetter || "")
-                                                    border.color: UiHelpers.resultColor(modelData.resultLetter || "")
+                                                    color: UiHelpers.resultBackground(resultLetter || "")
+                                                    border.color: UiHelpers.resultColor(resultLetter || "")
                                                     implicitWidth: 42
                                                     implicitHeight: 30
 
                                                     Label {
                                                         anchors.centerIn: parent
-                                                        text: modelData.resultLetter || "-"
+                                                        text: resultLetter || "-"
                                                         font.pixelSize: 14
                                                         font.bold: true
-                                                        color: UiHelpers.resultColor(modelData.resultLetter || "")
+                                                        color: UiHelpers.resultColor(resultLetter || "")
                                                     }
                                                 }
                                             }
@@ -307,20 +305,20 @@ Item {
                                                 spacing: 12
 
                                                 Label {
-                                                    text: "Score: " + UiHelpers.displayValue(modelData, "goalsFor") + " - " + UiHelpers.displayValue(modelData, "goalsAgainst")
+                                                    text: "Score: " + goalsFor + " - " + goalsAgainst
                                                     font.pixelSize: 15
                                                     font.bold: true
                                                     color: "#17212f"
                                                 }
 
                                                 Label {
-                                                    text: modelData.isHome ? "Home" : "Away"
+                                                    text: isHome ? "Home" : "Away"
                                                     font.pixelSize: 15
                                                     color: "#667085"
                                                 }
 
                                                 Label {
-                                                    text: "Matchweek " + (modelData.matchweek || "—")
+                                                    text: "Matchweek " + (matchweek || "—")
                                                     font.pixelSize: 15
                                                     color: "#667085"
                                                 }
@@ -330,7 +328,7 @@ Item {
                                 }
 
                                 Label {
-                                    visible: root.recentMatches.length === 0
+                                    visible: recentMatchesRepeater.count === 0
                                     text: "No played matches available yet."
                                     font.pixelSize: 15
                                     color: "#667085"
