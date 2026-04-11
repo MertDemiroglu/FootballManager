@@ -13,14 +13,12 @@ Item {
     readonly property int sectionSpacing: 20
 
     property var seasonStats: ({})
-    property var upcomingMatches: []
     property var selectedPlayerDetails: ({})
     property bool hasActiveGame: gameFacade.hasStartedGame()
 
     function refreshData() {
         hasActiveGame = gameFacade.hasStartedGame()
         seasonStats = hasActiveGame ? gameFacade.getCurrentTeamSeasonStats() : ({})
-        upcomingMatches = hasActiveGame ? gameFacade.getCurrentTeamUpcomingMatches(5) : []
     }
 
     function openPlayerDetails(playerId) {
@@ -357,10 +355,10 @@ Item {
                                 }
 
                                 Repeater {
-                                    model: root.upcomingMatches
+                                    id: upcomingMatchesRepeater
+                                    model: gameFacade.currentTeamUpcomingMatchesModel
 
                                     delegate: Rectangle {
-                                        required property var modelData
                                         Layout.fillWidth: true
                                         radius: 12
                                         color: "#f8fafc"
@@ -375,14 +373,14 @@ Item {
 
                                             Label {
                                                 Layout.fillWidth: true
-                                                text: modelData.dateText || "—"
+                                                text: dateText || "—"
                                                 font.pixelSize: 15
                                                 color: "#475467"
                                             }
 
                                             Label {
                                                 Layout.fillWidth: true
-                                                text: (modelData.homeTeamName || "") + " vs " + (modelData.awayTeamName || "")
+                                                text: (homeTeamName || "") + " vs " + (awayTeamName || "")
                                                 font.pixelSize: 17
                                                 font.bold: true
                                                 color: "#17212f"
@@ -394,13 +392,13 @@ Item {
                                                 spacing: 12
 
                                                 Label {
-                                                    text: modelData.isHome ? "Home" : "Away"
+                                                    text: isHome ? "Home" : "Away"
                                                     font.pixelSize: 15
                                                     color: "#667085"
                                                 }
 
                                                 Label {
-                                                    text: "Matchweek " + (modelData.matchweek || "—")
+                                                    text: "Matchweek " + (matchweek || "—")
                                                     font.pixelSize: 15
                                                     color: "#667085"
                                                 }
@@ -410,7 +408,7 @@ Item {
                                 }
 
                                 Label {
-                                    visible: root.upcomingMatches.length === 0
+                                    visible: upcomingMatchesRepeater.count === 0
                                     text: "No upcoming match scheduled."
                                     font.pixelSize: 15
                                     color: "#667085"

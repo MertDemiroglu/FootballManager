@@ -12,6 +12,7 @@
 #include"StandingsTableModel.h"
 #include"TeamPlayersModel.h"
 #include "TeamRecentMatchesModel.h"
+#include "TeamUpcomingMatchesModel.h"
 
 #include<QDebug>
 
@@ -64,7 +65,8 @@ GameFacade::GameFacade(QObject* parent)
     : QObject(parent),
       standingsModel(this),
       teamPlayersModel(this),
-      teamRecentMatchesModel(this) {
+      teamRecentMatchesModel(this),
+      teamUpcomingMatchesModel(this) {
 }
 
 GameFacade::~GameFacade() {}
@@ -325,6 +327,10 @@ QAbstractListModel* GameFacade::getCurrentTeamPlayersModel() const {
 
 QAbstractListModel* GameFacade::getCurrentTeamRecentMatchesModel() const {
     return const_cast<TeamRecentMatchesModel*>(&teamRecentMatchesModel);
+}
+
+QAbstractListModel* GameFacade::getCurrentTeamUpcomingMatchesModel() const {
+    return const_cast<TeamUpcomingMatchesModel*>(&teamUpcomingMatchesModel);
 }
 
 QVariantMap GameFacade::getDashboard() const {
@@ -932,10 +938,42 @@ void GameFacade::refreshCurrentTeamRecentMatchesModel() {
     teamRecentMatchesModel.setRows(std::move(rows));
 }
 
+void GameFacade::refreshCurrentTeamUpcomingMatchesModel() {
+    if (!hasValidSelectedTeam()) {
+        teamUpcomingMatchesModel.clear();
+        return;
+    }
+
+    const League* league = resolveLeague(selectedLeagueId);
+    if (!league) {
+        teamUpcomingMatchesModel.clear();
+        return;
+    }
+
+    const auto previews = league->getUpcomingMatchesForTeam(selectedTeamId, 5);
+    QVector<TeamUpcomingMatchesModel::Row> rows;
+    rows.reserve(static_cast<qsizetype>(previews.size()));
+
+    for (const auto& preview : previews) {
+        TeamUpcomingMatchesModel::Row row;
+        row.dateText = formatDate(preview.date);
+        row.homeTeamId = static_cast<int>(preview.homeId);
+        row.awayTeamId = static_cast<int>(preview.awayId);
+        row.homeTeamName = fromStd(league->getTeamName(preview.homeId));
+        row.awayTeamName = fromStd(league->getTeamName(preview.awayId));
+        row.isHome = preview.homeId == selectedTeamId;
+        row.matchweek = preview.matchweek;
+        rows.push_back(std::move(row));
+    }
+
+    teamUpcomingMatchesModel.setRows(std::move(rows));
+}
+
 void GameFacade::publishGameStateChanged() {
     refreshStandingsModel();
     refreshCurrentTeamPlayersModel();
     refreshCurrentTeamRecentMatchesModel();
+    refreshCurrentTeamUpcomingMatchesModel();
     emit gameStateChanged();
 }
 
