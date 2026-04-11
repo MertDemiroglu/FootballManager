@@ -17,6 +17,8 @@ qt_add_executable(FM_UI
     StandingsTableModel.h
     TeamPlayersModel.cpp
     TeamPlayersModel.h
+    TeamRecentMatchesModel.cpp
+    TeamRecentMatchesModel.h
 )
 
 qt_add_qml_module(FM_UI
@@ -46,6 +48,8 @@ qt_add_executable(game_facade_smoke
     StandingsTableModel.h
     TeamPlayersModel.cpp
     TeamPlayersModel.h
+    TeamRecentMatchesModel.cpp
+    TeamRecentMatchesModel.h
 )
 
 set_target_properties(game_facade_smoke PROPERTIES

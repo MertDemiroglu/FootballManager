@@ -7,6 +7,7 @@
 
 #include"StandingsTableModel.h"
 #include"TeamPlayersModel.h"
+#include "TeamRecentMatchesModel.h"
 
 #include<memory>
 
@@ -39,6 +40,7 @@ class GameFacade : public QObject {
     Q_PROPERTY(QString lastError READ getLastError NOTIFY gameStateChanged)
     Q_PROPERTY(QAbstractListModel* standingsModel READ getStandingsModel CONSTANT)
     Q_PROPERTY(QAbstractListModel* currentTeamPlayersModel READ getCurrentTeamPlayersModel CONSTANT)
+    Q_PROPERTY(QAbstractListModel* currentTeamRecentMatchesModel READ getCurrentTeamRecentMatchesModel CONSTANT)
 
 public:
     explicit GameFacade(QObject* parent = nullptr);
@@ -84,6 +86,7 @@ public:
 
     QAbstractListModel* getStandingsModel() const;
     QAbstractListModel* getCurrentTeamPlayersModel() const;
+    QAbstractListModel* getCurrentTeamRecentMatchesModel() const;
 
     Q_INVOKABLE QVariantList getStandingsTable() const;
     Q_INVOKABLE QVariantMap getCurrentTeamSeasonStats() const;
@@ -100,6 +103,7 @@ private:
     std::unique_ptr<Game> game;
     StandingsTableModel standingsModel;
     TeamPlayersModel teamPlayersModel;
+    TeamRecentMatchesModel teamRecentMatchesModel;
     LeagueId selectedLeagueId = 0;
     TeamId selectedTeamId = 0;
     bool gameStarted = false;
@@ -117,6 +121,7 @@ private:
     void setLastError(const QString& errorMessage);
     void refreshStandingsModel();
     void refreshCurrentTeamPlayersModel();
+    void refreshCurrentTeamRecentMatchesModel();
     void publishGameStateChanged();
 
     QString formatDate(const Date& date) const;
