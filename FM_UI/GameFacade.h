@@ -5,6 +5,8 @@
 #include<QVariantList>
 #include<QVariantMap>
 
+#include"StandingsTableModel.h"
+
 #include<memory>
 
 #include"Types.h"
@@ -34,6 +36,7 @@ class GameFacade : public QObject {
 
     Q_DISABLE_COPY_MOVE(GameFacade)
     Q_PROPERTY(QString lastError READ getLastError NOTIFY gameStateChanged)
+    Q_PROPERTY(QAbstractListModel* standingsModel READ getStandingsModel CONSTANT)
 
 public:
     explicit GameFacade(QObject* parent = nullptr);
@@ -77,6 +80,8 @@ public:
     Q_INVOKABLE bool acceptTransferOfferById(int offerId);
     Q_INVOKABLE bool rejectTransferOfferById(int offerId);
 
+    QAbstractListModel* getStandingsModel() const;
+
     Q_INVOKABLE QVariantList getStandingsTable() const;
     Q_INVOKABLE QVariantMap getCurrentTeamSeasonStats() const;
     Q_INVOKABLE QVariantList getCurrentTeamMatches() const;
@@ -90,6 +95,7 @@ signals:
 
 private:
     std::unique_ptr<Game> game;
+    StandingsTableModel standingsModel;
     LeagueId selectedLeagueId = 0;
     TeamId selectedTeamId = 0;
     bool gameStarted = false;
@@ -105,13 +111,14 @@ private:
     bool hasValidLeagueSelection() const;
     bool startNewGameInternal(LeagueId leagueId, TeamId teamId, const QString& managerName);
     void setLastError(const QString& errorMessage);
+    void refreshStandingsModel();
+    void publishGameStateChanged();
 
     QString formatDate(const Date& date) const;
     QString formatGameState(GameState state) const;
     QString formatTransferOfferExpiryPolicy(TransferOfferExpiryPolicy policy) const;
 
     QVariantMap toNextMatchMap(const FixtureMatchPreview& preview) const;
-    QVariantMap toStandingsRowMap(const StandingsEntry& entry, int position) const;
     QVariantMap toTeamStatsMap(const TeamSeasonStats& stats) const;
     QVariantMap toMatchRecordMap(const MatchRecord& record) const;
     QVariantMap toPlayerMap(const Footballer& player) const;

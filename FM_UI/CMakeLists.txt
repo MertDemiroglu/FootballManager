@@ -13,6 +13,8 @@ qt_add_executable(FM_UI
     main.cpp
     GameFacade.cpp
     GameFacade.h
+    StandingsTableModel.cpp
+    StandingsTableModel.h
 )
 
 qt_add_qml_module(FM_UI
@@ -38,6 +40,8 @@ qt_add_executable(game_facade_smoke
     GameFacadeSmoke.cpp
     GameFacade.cpp
     GameFacade.h
+    StandingsTableModel.cpp
+    StandingsTableModel.h
 )
 
 set_target_properties(game_facade_smoke PROPERTIES

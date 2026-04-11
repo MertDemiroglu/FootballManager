@@ -6,13 +6,11 @@ Item {
     id: root
     signal backRequested()
 
-    property var standingsTable: []
     property bool hasActiveGame: gameFacade.hasStartedGame()
 
 
     function refreshData() {
         hasActiveGame = gameFacade.hasStartedGame()
-        standingsTable = gameFacade.getStandingsTable()
     }
 
     Component.onCompleted: refreshData()
@@ -93,37 +91,36 @@ Item {
                 spacing: 6
 
                 Repeater {
-                    model: root.standingsTable
+                    model: gameFacade.standingsModel
 
                     delegate: Rectangle {
-                        required property var modelData
                         width: parent.width
                         height: 44
                         radius: 8
-                        color: modelData.teamId === gameFacade.getSelectedTeamId() ? "#e6f0ff" : "white"
-                        border.color: modelData.teamId === gameFacade.getSelectedTeamId() ? "#5b8def" : "#d8d8d8"
+                        color: isSelectedTeam ? "#e6f0ff" : "white"
+                        border.color: isSelectedTeam ? "#5b8def" : "#d8d8d8"
 
                         RowLayout {
                             anchors.fill: parent
                             anchors.margins: 8
                             spacing: 8
 
-                            Label { Layout.preferredWidth: 50; text: modelData.position || "-" }
-                            Label { Layout.preferredWidth: 230; text: modelData.teamName || "-"; elide: Text.ElideRight }
-                            Label { Layout.preferredWidth: 50; text: modelData.played || 0 }
-                            Label { Layout.preferredWidth: 50; text: modelData.wins || 0 }
-                            Label { Layout.preferredWidth: 50; text: modelData.draws || 0 }
-                            Label { Layout.preferredWidth: 50; text: modelData.losses || 0 }
-                            Label { Layout.preferredWidth: 60; text: modelData.goalsFor || 0 }
-                            Label { Layout.preferredWidth: 60; text: modelData.goalsAgainst || 0 }
-                            Label { Layout.preferredWidth: 60; text: modelData.goalDifference || 0 }
-                            Label { Layout.preferredWidth: 60; text: modelData.points || 0; font.bold: true }
+                            Label { Layout.preferredWidth: 50; text: position || "-" }
+                            Label { Layout.preferredWidth: 230; text: teamName || "-"; elide: Text.ElideRight }
+                            Label { Layout.preferredWidth: 50; text: played || 0 }
+                            Label { Layout.preferredWidth: 50; text: wins || 0 }
+                            Label { Layout.preferredWidth: 50; text: draws || 0 }
+                            Label { Layout.preferredWidth: 50; text: losses || 0 }
+                            Label { Layout.preferredWidth: 60; text: goalsFor || 0 }
+                            Label { Layout.preferredWidth: 60; text: goalsAgainst || 0 }
+                            Label { Layout.preferredWidth: 60; text: goalDifference || 0 }
+                            Label { Layout.preferredWidth: 60; text: points || 0; font.bold: true }
                         }
                     }
                 }
 
                 Label {
-                    visible: root.standingsTable.length === 0
+                    visible: gameFacade.standingsModel.rowCount() === 0
                     text: "No data"
                     color: "#666666"
                 }
