@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "UiHelpers.js" as UiHelpers
 
 Dialog {
     id: root
@@ -11,15 +12,9 @@ Dialog {
     title: playerDetails && playerDetails.hasPlayer ? (playerDetails.name || "Player") : "Player Details"
 
     property var playerDetails: ({})
-    property var currentSeasonStats: mapValue(playerDetails, "currentSeasonStats", {})
-    property var archivedSummary: mapValue(playerDetails, "archivedStatsSummary", {})
+    property var currentSeasonStats: UiHelpers.mapValue(playerDetails, "currentSeasonStats", {})
+    property var archivedSummary: UiHelpers.mapValue(playerDetails, "archivedStatsSummary", {})
 
-    function mapValue(mapObject, key, fallbackValue) {
-        if (!mapObject || mapObject[key] === undefined || mapObject[key] === null) {
-            return fallbackValue
-        }
-        return mapObject[key]
-    }
 
     ScrollView {
         anchors.fill: parent
@@ -53,13 +48,13 @@ Dialog {
                     rowSpacing: 8
 
                     Label { text: "Age"; font.bold: true; font.pixelSize: 15 }
-                    Label { text: root.mapValue(root.playerDetails, "age", "-"); font.pixelSize: 15 }
+                    Label { text: UiHelpers.mapValue(root.playerDetails, "age", "-"); font.pixelSize: 15 }
                     Label { text: "Position"; font.bold: true; font.pixelSize: 15 }
-                    Label { text: root.mapValue(root.playerDetails, "position", "-"); font.pixelSize: 15 }
+                    Label { text: UiHelpers.mapValue(root.playerDetails, "position", "-"); font.pixelSize: 15 }
                     Label { text: "Team"; font.bold: true; font.pixelSize: 15 }
-                    Label { text: root.mapValue(root.playerDetails, "teamName", "-"); font.pixelSize: 15 }
+                    Label { text: UiHelpers.mapValue(root.playerDetails, "teamName", "-"); font.pixelSize: 15 }
                     Label { text: "Overall"; font.bold: true; font.pixelSize: 15 }
-                    Label { text: root.mapValue(root.playerDetails, "overallSummary", "-"); font.pixelSize: 15 }
+                    Label { text: UiHelpers.mapValue(root.playerDetails, "overallSummary", "-"); font.pixelSize: 15 }
                 }
 
                 Rectangle { Layout.fillWidth: true; height: 1; color: "#dddddd" }
@@ -78,17 +73,17 @@ Dialog {
                     rowSpacing: 8
 
                     Label { text: "Appearances"; font.bold: true; font.pixelSize: 15 }
-                    Label { text: root.mapValue(root.currentSeasonStats, "appearances", 0); font.pixelSize: 15 }
+                    Label { text: UiHelpers.mapValue(root.currentSeasonStats, "appearances", 0); font.pixelSize: 15 }
                     Label { text: "Starts"; font.bold: true; font.pixelSize: 15 }
-                    Label { text: root.mapValue(root.currentSeasonStats, "starts", 0); font.pixelSize: 15 }
+                    Label { text: UiHelpers.mapValue(root.currentSeasonStats, "starts", 0); font.pixelSize: 15 }
                     Label { text: "Minutes"; font.bold: true; font.pixelSize: 15 }
-                    Label { text: root.mapValue(root.currentSeasonStats, "minutes", 0); font.pixelSize: 15 }
+                    Label { text: UiHelpers.mapValue(root.currentSeasonStats, "minutes", 0); font.pixelSize: 15 }
                     Label { text: "Goals"; font.bold: true; font.pixelSize: 15 }
-                    Label { text: root.mapValue(root.currentSeasonStats, "goals", 0); font.pixelSize: 15 }
+                    Label { text: UiHelpers.mapValue(root.currentSeasonStats, "goals", 0); font.pixelSize: 15 }
                     Label { text: "Assists"; font.bold: true; font.pixelSize: 15 }
-                    Label { text: root.mapValue(root.currentSeasonStats, "assists", 0); font.pixelSize: 15 }
+                    Label { text: UiHelpers.mapValue(root.currentSeasonStats, "assists", 0); font.pixelSize: 15 }
                     Label { text: "Yellow / Red"; font.bold: true; font.pixelSize: 15 }
-                    Label { text: root.mapValue(root.currentSeasonStats, "yellowCards", 0) + " / " + root.mapValue(root.currentSeasonStats, "redCards", 0); font.pixelSize: 15 }
+                    Label { text: UiHelpers.mapValue(root.currentSeasonStats, "yellowCards", 0) + " / " + UiHelpers.mapValue(root.currentSeasonStats, "redCards", 0); font.pixelSize: 15 }
                 }
 
                 Rectangle { Layout.fillWidth: true; height: 1; color: "#dddddd" }
@@ -107,13 +102,13 @@ Dialog {
                     rowSpacing: 8
 
                     Label { text: "Seasons"; font.bold: true; font.pixelSize: 15 }
-                    Label { text: root.mapValue(root.archivedSummary, "seasonCount", 0); font.pixelSize: 15 }
+                    Label { text: UiHelpers.mapValue(root.archivedSummary, "seasonCount", 0); font.pixelSize: 15 }
                     Label { text: "Appearances"; font.bold: true; font.pixelSize: 15 }
-                    Label { text: root.mapValue(root.archivedSummary, "totalAppearances", 0); font.pixelSize: 15 }
+                    Label { text: UiHelpers.mapValue(root.archivedSummary, "totalAppearances", 0); font.pixelSize: 15 }
                     Label { text: "Goals"; font.bold: true; font.pixelSize: 15 }
-                    Label { text: root.mapValue(root.archivedSummary, "totalGoals", 0); font.pixelSize: 15 }
+                    Label { text: UiHelpers.mapValue(root.archivedSummary, "totalGoals", 0); font.pixelSize: 15 }
                     Label { text: "Assists"; font.bold: true; font.pixelSize: 15 }
-                    Label { text: root.mapValue(root.archivedSummary, "totalAssists", 0); font.pixelSize: 15 }
+                    Label { text: UiHelpers.mapValue(root.archivedSummary, "totalAssists", 0); font.pixelSize: 15 }
                 }
             }
         }

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "UiHelpers.js" as UiHelpers
 
 Item {
     id: root
@@ -34,46 +35,10 @@ Item {
         playerDialog.open()
     }
 
-    function mapValue(mapObject, key, fallbackValue) {
-        if (!mapObject || mapObject[key] === undefined || mapObject[key] === null) {
-            return fallbackValue
-        }
-        return mapObject[key]
-    }
 
-    function hasMapValue(mapObject, key) {
-        return !!mapObject && mapObject[key] !== undefined && mapObject[key] !== null
-    }
 
-    function displayValue(mapObject, key) {
-        return hasMapValue(mapObject, key) ? String(mapObject[key]) : "—"
-    }
 
-    function resultColor(resultLetter) {
-        if (resultLetter === "W") {
-            return "#067647"
-        }
-        if (resultLetter === "D") {
-            return "#b54708"
-        }
-        if (resultLetter === "L") {
-            return "#b42318"
-        }
-        return "#667085"
-    }
 
-    function resultBackground(resultLetter) {
-        if (resultLetter === "W") {
-            return "#ecfdf3"
-        }
-        if (resultLetter === "D") {
-            return "#fffaeb"
-        }
-        if (resultLetter === "L") {
-            return "#fef3f2"
-        }
-        return "#f2f4f7"
-    }
 
     Component.onCompleted: refreshData()
 
@@ -220,14 +185,14 @@ Item {
 
                                     Repeater {
                                         model: [
-                                            ["Played", root.displayValue(root.seasonStats, "played")],
-                                            ["Wins", root.displayValue(root.seasonStats, "wins")],
-                                            ["Draws", root.displayValue(root.seasonStats, "draws")],
-                                            ["Losses", root.displayValue(root.seasonStats, "losses")],
-                                            ["Goals For", root.displayValue(root.seasonStats, "goalsFor")],
-                                            ["Goals Against", root.displayValue(root.seasonStats, "goalsAgainst")],
-                                            ["Clean Sheets", root.displayValue(root.seasonStats, "cleanSheets")],
-                                            ["Failed To Score", root.displayValue(root.seasonStats, "failedToScore")]
+                                            ["Played", UiHelpers.displayValue(root.seasonStats, "played")],
+                                            ["Wins", UiHelpers.displayValue(root.seasonStats, "wins")],
+                                            ["Draws", UiHelpers.displayValue(root.seasonStats, "draws")],
+                                            ["Losses", UiHelpers.displayValue(root.seasonStats, "losses")],
+                                            ["Goals For", UiHelpers.displayValue(root.seasonStats, "goalsFor")],
+                                            ["Goals Against", UiHelpers.displayValue(root.seasonStats, "goalsAgainst")],
+                                            ["Clean Sheets", UiHelpers.displayValue(root.seasonStats, "cleanSheets")],
+                                            ["Failed To Score", UiHelpers.displayValue(root.seasonStats, "failedToScore")]
                                         ]
 
                                         delegate: Rectangle {
@@ -324,8 +289,8 @@ Item {
 
                                                 Rectangle {
                                                     radius: 999
-                                                    color: root.resultBackground(modelData.resultLetter || "")
-                                                    border.color: root.resultColor(modelData.resultLetter || "")
+                                                    color: UiHelpers.resultBackground(modelData.resultLetter || "")
+                                                    border.color: UiHelpers.resultColor(modelData.resultLetter || "")
                                                     implicitWidth: 42
                                                     implicitHeight: 30
 
@@ -334,7 +299,7 @@ Item {
                                                         text: modelData.resultLetter || "-"
                                                         font.pixelSize: 14
                                                         font.bold: true
-                                                        color: root.resultColor(modelData.resultLetter || "")
+                                                        color: UiHelpers.resultColor(modelData.resultLetter || "")
                                                     }
                                                 }
                                             }
@@ -344,7 +309,7 @@ Item {
                                                 spacing: 12
 
                                                 Label {
-                                                    text: "Score: " + root.displayValue(modelData, "goalsFor") + " - " + root.displayValue(modelData, "goalsAgainst")
+                                                    text: "Score: " + UiHelpers.displayValue(modelData, "goalsFor") + " - " + UiHelpers.displayValue(modelData, "goalsAgainst")
                                                     font.pixelSize: 15
                                                     font.bold: true
                                                     color: "#17212f"
@@ -525,11 +490,11 @@ Item {
                                                 Layout.fillWidth: true
                                                 spacing: 12
 
-                                                Label { text: "Age: " + root.displayValue(modelData, "age"); font.pixelSize: 15; color: "#667085" }
+                                                Label { text: "Age: " + UiHelpers.displayValue(modelData, "age"); font.pixelSize: 15; color: "#667085" }
                                                 Label { text: modelData.overallSummary || "—"; font.pixelSize: 15; color: "#667085" }
-                                                Label { text: "Apps " + root.displayValue(modelData, "appearances"); font.pixelSize: 15; color: "#667085" }
-                                                Label { text: "G " + root.displayValue(modelData, "goals"); font.pixelSize: 15; color: "#667085" }
-                                                Label { text: "A " + root.displayValue(modelData, "assists"); font.pixelSize: 15; color: "#667085" }
+                                                Label { text: "Apps " + UiHelpers.displayValue(modelData, "appearances"); font.pixelSize: 15; color: "#667085" }
+                                                Label { text: "G " + UiHelpers.displayValue(modelData, "goals"); font.pixelSize: 15; color: "#667085" }
+                                                Label { text: "A " + UiHelpers.displayValue(modelData, "assists"); font.pixelSize: 15; color: "#667085" }
                                             }
                                         }
                                     }
