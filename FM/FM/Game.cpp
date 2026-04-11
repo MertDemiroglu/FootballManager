@@ -5,6 +5,7 @@
 #include"PostMatchInteraction.h"
 #include"TransferOfferDecisionInteraction.h"
 #include"PreMatchInteraction.h"
+#include"TransferOffer.h"
 
 #include<stdexcept>
 #include<utility>
@@ -141,9 +142,11 @@ void Game::updateState() {
         state = GameState::PreSeason;
       
 }
-
+    
 void Game::updateDaily() {
     refreshTimePauseState();
+
+    world.getTransferOfferService().expirePendingOffers(date);
 
     if (timePaused) {
         processBlockingEvent();
@@ -515,12 +518,18 @@ bool Game::acceptTransferOffer(OfferId offerId) {
         return false;
     }
 
-    const TransferOfferDecisionInteraction* interaction = getActiveTransferOfferDecisionInteraction();
-    if (!interaction) {
+    const LeagueId managedLeagueId = user.getManagedLeagueId();
+    const TeamId managedTeamId = user.getManagedTeamId();
+    if (managedLeagueId == 0 || managedTeamId == 0) {
         return false;
     }
 
-    if (interaction->getOfferId() != offerId) {
+    const TransferOffer* offer = world.getTransferOfferService().findOfferById(offerId);
+    if (!offer || offer->status != TransferOfferStatus::Pending) {
+        return false;
+    }
+
+    if (offer->sellerLeagueId != managedLeagueId || offer->sellerTeamId != managedTeamId) {
         return false;
     }
 
@@ -528,7 +537,11 @@ bool Game::acceptTransferOffer(OfferId offerId) {
         return false;
     }
 
-    interactionManager.resolveActiveInteraction();
+    const TransferOfferDecisionInteraction* interaction = getActiveTransferOfferDecisionInteraction();
+    if (interaction && interaction->getOfferId() == offerId) {
+        interactionManager.resolveActiveInteraction();
+    }
+
     userPaused = true;
     refreshTimePauseState();
     return true;
@@ -539,12 +552,18 @@ bool Game::rejectTransferOffer(OfferId offerId) {
         return false;
     }
 
-    const TransferOfferDecisionInteraction* interaction = getActiveTransferOfferDecisionInteraction();
-    if (!interaction) {
+    const LeagueId managedLeagueId = user.getManagedLeagueId();
+    const TeamId managedTeamId = user.getManagedTeamId();
+    if (managedLeagueId == 0 || managedTeamId == 0) {
         return false;
     }
 
-    if (interaction->getOfferId() != offerId) {
+    const TransferOffer* offer = world.getTransferOfferService().findOfferById(offerId);
+    if (!offer || offer->status != TransferOfferStatus::Pending) {
+        return false;
+    }
+
+    if (offer->sellerLeagueId != managedLeagueId || offer->sellerTeamId != managedTeamId) {
         return false;
     }
 
@@ -552,10 +571,23 @@ bool Game::rejectTransferOffer(OfferId offerId) {
         return false;
     }
 
-    interactionManager.resolveActiveInteraction();
+    const TransferOfferDecisionInteraction* interaction = getActiveTransferOfferDecisionInteraction();
+    if (interaction && interaction->getOfferId() == offerId) {
+        interactionManager.resolveActiveInteraction();
+    }
     userPaused = true;
     refreshTimePauseState();
     return true;
+}
+
+std::vector<const TransferOffer*> Game::getPendingTransferOffersForManagedTeam() const {
+    const LeagueId managedLeagueId = user.getManagedLeagueId();
+    const TeamId managedTeamId = user.getManagedTeamId();
+    if (managedLeagueId == 0 || managedTeamId == 0) {
+        return {};
+    }
+
+    return world.getTransferOfferService().getPendingOffersForSellerTeam(managedLeagueId, managedTeamId);
 }
 
 Date& Game::getDate() {

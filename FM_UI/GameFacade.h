@@ -14,6 +14,9 @@ class Footballer;
 class PreMatchInteraction;
 class PostMatchInteraction;
 class TransferOfferDecisionInteraction;
+class League;
+class LeagueContext;
+
 
 struct Date;
 struct FixtureMatchPreview;
@@ -21,8 +24,8 @@ struct StandingsEntry;
 struct TeamSeasonStats;
 struct MatchRecord;
 struct PlayerSeasonStats;
-class League;
-class LeagueContext;
+struct TransferOffer;
+
 
 enum class GameState;
 
@@ -60,14 +63,19 @@ public:
 
     Q_INVOKABLE bool hasActiveInteraction() const;
     Q_INVOKABLE QString getActiveInteractionKind() const;
+
     Q_INVOKABLE QVariantMap getActivePreMatchInteraction() const;
     Q_INVOKABLE QVariantMap getActivePostMatchInteraction() const;
     Q_INVOKABLE QVariantMap getActiveTransferOfferInteraction() const;
     Q_INVOKABLE bool playActiveMatch();
     Q_INVOKABLE bool resolveActiveInteraction();
+
     Q_INVOKABLE bool acceptActiveTransferOffer();
     Q_INVOKABLE bool rejectActiveTransferOffer();
     Q_INVOKABLE bool deferActiveTransferOffer();
+    Q_INVOKABLE QVariantList getPendingTransferOffers() const;
+    Q_INVOKABLE bool acceptTransferOfferById(int offerId);
+    Q_INVOKABLE bool rejectTransferOfferById(int offerId);
 
     Q_INVOKABLE QVariantList getStandingsTable() const;
     Q_INVOKABLE QVariantMap getCurrentTeamSeasonStats() const;
@@ -112,4 +120,5 @@ private:
     QVariantMap toPreMatchInteractionMap(const PreMatchInteraction& interaction) const;
     QVariantMap toPostMatchInteractionMap(const PostMatchInteraction& interaction) const;
     QVariantMap toTransferOfferInteractionMap(const TransferOfferDecisionInteraction& interaction) const;
+    QVariantMap toPendingTransferOfferMap(const TransferOffer& offer) const;
 };

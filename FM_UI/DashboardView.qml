@@ -8,6 +8,7 @@ Item {
 
     signal openStandingsRequested()
     signal openTeamRequested()
+    signal openTransfersRequested()
     signal pauseRequested()
     signal resumeRequested()
 
@@ -566,6 +567,13 @@ Item {
                                 Layout.preferredHeight: 46
                                 font.pixelSize: 15
                                 onClicked: root.openTeamRequested()
+                            }
+
+                            Button{
+                                text: "Transfers"
+                                Layout.preferredHeight: 46
+                                font.pixelSize: 15
+                                onClicked: root.openTransfersRequested()
                             }
                         }
                     }

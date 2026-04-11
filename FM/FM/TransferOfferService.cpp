@@ -1,5 +1,7 @@
 #include"TransferOfferService.h"
+#include<algorithm>
 
+#include"DateUtils.h"
 #include"DomainEventPublisher.h"
 #include"League.h"
 #include"PlayerTransferredEvent.h"
@@ -89,6 +91,7 @@ OfferId TransferOfferService::createOffer(const Date& createdAt, LeagueId seller
     TransferOffer offer;
     offer.id = createdOfferId;
     offer.createdAt = createdAt;
+    offer.expiresAt = DateUtils::addDays(createdAt, 14);
     offer.sellerLeagueId = sellerLeagueId;
     offer.sellerTeamId = sellerTeamId;
     offer.buyerLeagueId = buyerLeagueId;
@@ -129,6 +132,74 @@ bool TransferOfferService::hasPendingOfferForSellerPlayer(LeagueId sellerLeagueI
     }
 
     return false;
+}
+
+std::vector<const TransferOffer*> TransferOfferService::getPendingOffersForSellerTeam(LeagueId sellerLeagueId, TeamId sellerTeamId) const {
+    std::vector<const TransferOffer*> pendingOffers;
+    if (sellerLeagueId == 0 || sellerTeamId == 0) {
+        return pendingOffers;
+    }
+    pendingOffers.reserve(offersById.size());
+
+    for (const auto& [offerId, offer] : offersById) {
+        (void)offerId;
+        if (offer.status != TransferOfferStatus::Pending) {
+            continue;
+        }
+        if (offer.sellerLeagueId != sellerLeagueId || offer.sellerTeamId != sellerTeamId) {
+            continue;
+        }
+        pendingOffers.push_back(&offer);
+    }
+    std::sort(pendingOffers.begin(), pendingOffers.end(), [](const TransferOffer* lhs, const TransferOffer* rhs) {
+        if (lhs == nullptr || rhs == nullptr) {
+            return lhs != nullptr;
+        }
+        if (lhs->createdAt < rhs->createdAt) {
+            return true;
+        }
+        if (rhs->createdAt < lhs->createdAt) {
+            return false;
+        }
+        return lhs->id < rhs->id;
+        });
+
+    return pendingOffers;
+}
+
+int TransferOfferService::expirePendingOffers(const Date& currentDate) {
+    if (!world) {
+        return 0;
+    }
+
+    std::vector<OfferId> expiredOfferIds;
+    expiredOfferIds.reserve(offersById.size());
+    for (const auto& [offerId, offer] : offersById) {
+        if (offer.status != TransferOfferStatus::Pending) {
+            continue;
+        }
+        if (!(offer.expiresAt < currentDate)) {
+            continue;
+        }
+        expiredOfferIds.push_back(offerId);
+    }
+
+    for (const OfferId offerId : expiredOfferIds) {
+        auto offerIt = offersById.find(offerId);
+        if (offerIt == offersById.end()) {
+            continue;
+        }
+
+        TransferOffer& offer = offerIt->second;
+        if (offer.status != TransferOfferStatus::Pending) {
+            continue;
+        }
+
+        offer.status = TransferOfferStatus::Resolved;
+        world->getDomainEventPublisher().publish(TransferOfferResolvedEvent{ offer.id, TransferOfferResolution::Expired, offer.sellerLeagueId, offer.sellerTeamId, offer.buyerLeagueId, offer.buyerTeamId, offer.playerId, offer.fee });
+    }
+
+    return static_cast<int>(expiredOfferIds.size());
 }
 
 bool TransferOfferService::acceptOffer(OfferId offerId) {

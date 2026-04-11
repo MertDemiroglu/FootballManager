@@ -25,6 +25,7 @@ qt_add_qml_module(FM_UI
         HomeView.qml
         NewGameView.qml
         DashboardView.qml
+        TransferOffersView.qml
         StandingsView.qml
         TeamView.qml
         PlayerDetailsDialog.qml

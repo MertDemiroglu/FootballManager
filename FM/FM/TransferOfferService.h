@@ -1,6 +1,7 @@
 #pragma once
 
 #include<unordered_map>
+#include<vector>
 
 #include"Date.h"
 #include"TransferOffer.h"
@@ -26,6 +27,8 @@ public:
 
 	OfferId createOffer(const Date& createdAt, LeagueId sellerLeagueId, TeamId sellerTeamId, LeagueId buyerLeagueId, TeamId buyerTeamId, PlayerId playerId, Money fee);
 	bool hasPendingOfferForSellerPlayer(LeagueId sellerLeagueId, TeamId sellerTeamId, PlayerId playerId) const;
+	std::vector<const TransferOffer*> getPendingOffersForSellerTeam(LeagueId sellerLeagueId, TeamId sellerTeamId) const;
+	int expirePendingOffers(const Date& currentDate);
 
 	bool acceptOffer(OfferId offerId);
 	bool acceptOffer(OfferId offerId, const Date& transferDate);

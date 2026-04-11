@@ -98,7 +98,7 @@ ApplicationWindow {
     Loader {
         id: viewLoader
         anchors.fill: parent
-        anchors.margins: (root.currentView === "dashboard" || root.currentView === "standings" || root.currentView === "team") ? 16 : 0
+        anchors.margins: (root.currentView === "dashboard" || root.currentView === "standings" || root.currentView === "team" || root.currentView === "transfers") ? 16 : 0
         sourceComponent: root.currentView === "home"
                          ? homeComponent
                          : root.currentView === "teamSelection"
@@ -107,6 +107,8 @@ ApplicationWindow {
                              ? standingsComponent
                              : root.currentView === "team"
                                ? teamComponent
+                               : root.currentView === "transfers"
+                                 ? transfersComponent
                                : dashboardComponent
         onLoaded: {
             root.refreshUiState()
@@ -176,6 +178,10 @@ ApplicationWindow {
                 root.goTo("team")
                 root.refreshUiState()
             }
+            onOpenTransfersRequested: {
+                root.goTo("transfers")
+                root.refreshUiState()
+            }
             onPauseRequested: {
                 gameFacade.pauseSimulation()
                 root.refreshUiState()
@@ -201,6 +207,16 @@ ApplicationWindow {
     Component {
         id: teamComponent
         TeamView {
+            onBackRequested: {
+                root.goTo("dashboard")
+                root.refreshUiState()
+            }
+        }
+    }
+
+    Component {
+        id: transfersComponent
+        TransferOffersView {
             onBackRequested: {
                 root.goTo("dashboard")
                 root.refreshUiState()

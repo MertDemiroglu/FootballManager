@@ -8,6 +8,7 @@
 #include"PostMatchInteraction.h"
 #include"PreMatchInteraction.h"
 #include"TransferOfferDecisionInteraction.h"
+#include"TransferOffer.h"
 
 #include<QDebug>
 
@@ -606,6 +607,59 @@ bool GameFacade::deferActiveTransferOffer() {
     return deferred;
 }
 
+QVariantList GameFacade::getPendingTransferOffers() const {
+    QVariantList pendingOffers;
+    if (!gameStarted) {
+        return pendingOffers;
+    }
+
+    const Game* currentGame = ensureGame();
+    if (!currentGame) {
+        return pendingOffers;
+    }
+
+    const std::vector<const TransferOffer*> offers = currentGame->getPendingTransferOffersForManagedTeam();
+    for (const TransferOffer* offer : offers) {
+        if (!offer) {
+            continue;
+        }
+        pendingOffers.push_back(toPendingTransferOfferMap(*offer));
+    }
+
+    return pendingOffers;
+}
+
+bool GameFacade::acceptTransferOfferById(int offerId) {
+    if (!gameStarted || offerId <= 0) {
+        return false;
+    }
+
+    Game* currentGame = ensureGame();
+    if (!currentGame) {
+        return false;
+    }
+
+    const bool accepted = currentGame->acceptTransferOffer(static_cast<OfferId>(offerId));
+    emit gameStateChanged();
+    return accepted;
+}
+
+bool GameFacade::rejectTransferOfferById(int offerId) {
+    if (!gameStarted || offerId <= 0) {
+        return false;
+    }
+
+    Game* currentGame = ensureGame();
+    if (!currentGame) {
+        return false;
+    }
+
+    const bool rejected = currentGame->rejectTransferOffer(static_cast<OfferId>(offerId));
+    emit gameStateChanged();
+    return rejected;
+}
+
+
 QVariantList GameFacade::getStandingsTable() const {
     QVariantList table;
     if (!gameStarted) {
@@ -941,6 +995,37 @@ QVariantMap GameFacade::toTransferOfferInteractionMap(const TransferOfferDecisio
     QString playerName;
     if (sellerLeague) {
         if (const Footballer* player = sellerLeague->findPlayerById(interaction.getPlayerId())) {
+            playerName = fromStd(player->getName());
+        }
+    }
+    map.insert(QStringLiteral("playerName"), playerName);
+
+    return map;
+}
+
+QVariantMap GameFacade::toPendingTransferOfferMap(const TransferOffer& offer) const {
+    QVariantMap map;
+    map.insert(QStringLiteral("offerId"), static_cast<int>(offer.id));
+    map.insert(QStringLiteral("sellerLeagueId"), static_cast<int>(offer.sellerLeagueId));
+    map.insert(QStringLiteral("sellerTeamId"), static_cast<int>(offer.sellerTeamId));
+    map.insert(QStringLiteral("buyerLeagueId"), static_cast<int>(offer.buyerLeagueId));
+    map.insert(QStringLiteral("buyerTeamId"), static_cast<int>(offer.buyerTeamId));
+    map.insert(QStringLiteral("playerId"), static_cast<int>(offer.playerId));
+    map.insert(QStringLiteral("fee"), static_cast<qlonglong>(offer.fee));
+    map.insert(QStringLiteral("createdAtText"), formatDate(offer.createdAt));
+    map.insert(QStringLiteral("expiresAtText"), formatDate(offer.expiresAt));
+
+    const League* sellerLeague = resolveLeague(offer.sellerLeagueId);
+    const League* buyerLeague = resolveLeague(offer.buyerLeagueId);
+
+    map.insert(QStringLiteral("sellerTeamName"),
+        sellerLeague ? fromStd(sellerLeague->getTeamName(offer.sellerTeamId)) : QString());
+    map.insert(QStringLiteral("buyerTeamName"),
+        buyerLeague ? fromStd(buyerLeague->getTeamName(offer.buyerTeamId)) : QString());
+
+    QString playerName;
+    if (sellerLeague) {
+        if (const Footballer* player = sellerLeague->findPlayerById(offer.playerId)) {
             playerName = fromStd(player->getName());
         }
     }

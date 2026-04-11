@@ -3,6 +3,7 @@
 #include<string>
 #include<functional>
 #include<optional>
+#include<vector>
 
 #include"Date.h"
 #include"EventQueue.h"
@@ -21,6 +22,8 @@ class PostMatchInteraction;
 class PreMatchInteraction;
 class TransferOfferDecisionInteraction;
 class Team;
+
+struct TransferOffer;
 
 class Game {
 private:
@@ -97,6 +100,7 @@ public:
 
 	bool acceptTransferOffer(OfferId offerId);
 	bool rejectTransferOffer(OfferId offerId);
+	std::vector<const TransferOffer*> getPendingTransferOffersForManagedTeam() const;
 
 	//Kullanici takimini disaridan set eder
 	void setUserTeam(LeagueId leagueId, TeamId teamId);
