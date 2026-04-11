@@ -6,6 +6,7 @@
 #include<QVariantMap>
 
 #include"StandingsTableModel.h"
+#include"TeamPlayersModel.h"
 
 #include<memory>
 
@@ -37,6 +38,7 @@ class GameFacade : public QObject {
     Q_DISABLE_COPY_MOVE(GameFacade)
     Q_PROPERTY(QString lastError READ getLastError NOTIFY gameStateChanged)
     Q_PROPERTY(QAbstractListModel* standingsModel READ getStandingsModel CONSTANT)
+    Q_PROPERTY(QAbstractListModel* currentTeamPlayersModel READ getCurrentTeamPlayersModel CONSTANT)
 
 public:
     explicit GameFacade(QObject* parent = nullptr);
@@ -81,6 +83,7 @@ public:
     Q_INVOKABLE bool rejectTransferOfferById(int offerId);
 
     QAbstractListModel* getStandingsModel() const;
+    QAbstractListModel* getCurrentTeamPlayersModel() const;
 
     Q_INVOKABLE QVariantList getStandingsTable() const;
     Q_INVOKABLE QVariantMap getCurrentTeamSeasonStats() const;
@@ -96,6 +99,7 @@ signals:
 private:
     std::unique_ptr<Game> game;
     StandingsTableModel standingsModel;
+    TeamPlayersModel teamPlayersModel;
     LeagueId selectedLeagueId = 0;
     TeamId selectedTeamId = 0;
     bool gameStarted = false;
@@ -112,6 +116,7 @@ private:
     bool startNewGameInternal(LeagueId leagueId, TeamId teamId, const QString& managerName);
     void setLastError(const QString& errorMessage);
     void refreshStandingsModel();
+    void refreshCurrentTeamPlayersModel();
     void publishGameStateChanged();
 
     QString formatDate(const Date& date) const;
