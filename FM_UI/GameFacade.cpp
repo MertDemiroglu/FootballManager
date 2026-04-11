@@ -9,6 +9,7 @@
 #include"PreMatchInteraction.h"
 #include"TransferOfferDecisionInteraction.h"
 #include"TransferOffer.h"
+#include"StandingsTableModel.h"
 
 #include<QDebug>
 
@@ -18,6 +19,7 @@
 #include<optional>
 #include<string>
 #include<vector>
+#include<utility>
 
 namespace {
     QVariantMap missingPlayerMap() {
@@ -57,7 +59,8 @@ namespace {
 }
 
 GameFacade::GameFacade(QObject* parent)
-    : QObject(parent) {
+    : QObject(parent),
+      standingsModel(this) {
 }
 
 GameFacade::~GameFacade() {}
@@ -107,19 +110,19 @@ bool GameFacade::startNewGameInternal(LeagueId leagueId, TeamId teamId, const QS
     if (leagueId == 0) {
         setLastError(QStringLiteral("Please choose a valid league."));
         qWarning() << "[GameFacade::startNewGame] Rejected invalid league id:" << leagueId;
-        emit gameStateChanged();
+        publishGameStateChanged();
         return false;
     }
     if (teamId == 0) {
         setLastError(QStringLiteral("Please choose a valid team."));
         qWarning() << "[GameFacade::startNewGame] Rejected invalid team id:" << teamId;
-        emit gameStateChanged();
+        publishGameStateChanged();
         return false;
     }
     if (trimmedManagerName.isEmpty()) {
         setLastError(QStringLiteral("Please enter a manager name."));
         qWarning() << "[GameFacade::startNewGame] Rejected empty manager name.";
-        emit gameStateChanged();
+        publishGameStateChanged();
         return false;
     }
 
@@ -128,7 +131,7 @@ bool GameFacade::startNewGameInternal(LeagueId leagueId, TeamId teamId, const QS
     if (!selectedContext) {
         setLastError(QStringLiteral("Selected league could not be found."));
         qWarning() << "[GameFacade::startNewGame] League id is not present in active game:" << leagueId;
-        emit gameStateChanged();
+        publishGameStateChanged();
         return false;
     }
 
@@ -136,7 +139,7 @@ bool GameFacade::startNewGameInternal(LeagueId leagueId, TeamId teamId, const QS
     if (!teamInNewGame) {
         setLastError(QStringLiteral("Selected team could not be found in the selected league."));
         qWarning() << "[GameFacade::startNewGame] Team id" << teamId << "not found in league" << leagueId;
-        emit gameStateChanged();
+        publishGameStateChanged();
         return false;
     }
 
@@ -148,7 +151,7 @@ bool GameFacade::startNewGameInternal(LeagueId leagueId, TeamId teamId, const QS
     gameStarted = true;
     setLastError(QString());
     qDebug() << "[GameFacade::startNewGame] Started new game with league" << selectedLeagueId << "team id" << selectedTeamId;
-    emit gameStateChanged();
+    publishGameStateChanged();
     return true;
 }
 
@@ -219,7 +222,7 @@ bool GameFacade::startNewGame(int teamId, const QString& newManagerName) {
             managerName.clear();
         }
         setLastError(QStringLiteral("Failed to start a new game. Please try again."));
-        emit gameStateChanged();
+        publishGameStateChanged();
         return false;
     }
     catch (...) {
@@ -230,7 +233,7 @@ bool GameFacade::startNewGame(int teamId, const QString& newManagerName) {
             managerName.clear();
         }
         setLastError(QStringLiteral("Failed to start a new game. Please try again."));
-        emit gameStateChanged();
+        publishGameStateChanged();
         return false;
     }
 }
@@ -242,13 +245,13 @@ bool GameFacade::startNewGameForLeagueTeam(int leagueId, int teamId, const QStri
     catch (const std::exception& ex) {
         qWarning() << "[GameFacade::startNewGameForLeagueTeam] Exception:" << ex.what();
         setLastError(QStringLiteral("Failed to start a new game. Please try again."));
-        emit gameStateChanged();
+        publishGameStateChanged();
         return false;
     }
     catch (...) {
         qWarning() << "[GameFacade::startNewGameForLeagueTeam] Unknown exception";
         setLastError(QStringLiteral("Failed to start a new game. Please try again."));
-        emit gameStateChanged();
+        publishGameStateChanged();
         return false;
     }
 }
@@ -305,7 +308,11 @@ void GameFacade::clearLastError() {
     }
 
     lastError.clear();
-    emit gameStateChanged();
+    publishGameStateChanged();
+}
+
+QAbstractListModel* GameFacade::getStandingsModel() const {
+    return const_cast<StandingsTableModel*>(&standingsModel);
 }
 
 QVariantMap GameFacade::getDashboard() const {
@@ -347,8 +354,20 @@ QVariantMap GameFacade::getDashboard() const {
     const std::vector<StandingsEntry> standings = league->getSortedStandings();
     for (std::size_t index = 0; index < standings.size(); ++index) {
         if (standings[index].teamId == selectedTeamId) {
-            dashboard.insert(QStringLiteral("standingsRow"),
-                toStandingsRowMap(standings[index], static_cast<int>(index + 1)));
+            const StandingsEntry& entry = standings[index];
+            QVariantMap standingsRow;
+            standingsRow.insert(QStringLiteral("position"), static_cast<int>(index + 1));
+            standingsRow.insert(QStringLiteral("teamId"), static_cast<int>(entry.teamId));
+            standingsRow.insert(QStringLiteral("teamName"), fromStd(league->getTeamName(entry.teamId)));
+            standingsRow.insert(QStringLiteral("played"), entry.played);
+            standingsRow.insert(QStringLiteral("wins"), entry.wins);
+            standingsRow.insert(QStringLiteral("draws"), entry.draws);
+            standingsRow.insert(QStringLiteral("losses"), entry.losses);
+            standingsRow.insert(QStringLiteral("goalsFor"), entry.goalsFor);
+            standingsRow.insert(QStringLiteral("goalsAgainst"), entry.goalsAgainst);
+            standingsRow.insert(QStringLiteral("goalDifference"), entry.goalDifference);
+            standingsRow.insert(QStringLiteral("points"), entry.points);
+            dashboard.insert(QStringLiteral("standingsRow"), standingsRow);
             break;
         }
     }
@@ -383,7 +402,7 @@ bool GameFacade::advanceDays(int count) {
         currentGame->updateDaily();
     }
 
-    emit gameStateChanged();
+    publishGameStateChanged();
     return true;
 }
 
@@ -407,7 +426,7 @@ bool GameFacade::pauseSimulation() {
     }
 
     const bool paused = currentGame->pauseSimulation();
-    emit gameStateChanged();
+    publishGameStateChanged();
     return paused;
 }
 
@@ -422,7 +441,7 @@ bool GameFacade::resumeSimulation() {
     }
 
     const bool resumed = currentGame->resumeSimulation();
-    emit gameStateChanged();
+    publishGameStateChanged();
     return resumed;
 }
 
@@ -526,7 +545,7 @@ bool GameFacade::resolveActiveInteraction() {
     }
 
     const bool resolved = currentGame->resolveActiveInteraction();
-    emit gameStateChanged();
+    publishGameStateChanged();
     return resolved;
 }
 
@@ -541,7 +560,7 @@ bool GameFacade::playActiveMatch() {
     }
 
     const bool played = currentGame->playPendingPreMatch();
-    emit gameStateChanged();
+    publishGameStateChanged();
     return played;
 }
 
@@ -557,12 +576,12 @@ bool GameFacade::acceptActiveTransferOffer() {
 
     const TransferOfferDecisionInteraction* interaction = currentGame->getActiveTransferOfferDecisionInteraction();
     if (!interaction) {
-        emit gameStateChanged();
+        publishGameStateChanged();
         return false;
     }
 
     const bool accepted = currentGame->acceptTransferOffer(interaction->getOfferId());
-    emit gameStateChanged();
+    publishGameStateChanged();
     return accepted;
 }
 
@@ -578,12 +597,12 @@ bool GameFacade::rejectActiveTransferOffer() {
 
     const TransferOfferDecisionInteraction* interaction = currentGame->getActiveTransferOfferDecisionInteraction();
     if (!interaction) {
-        emit gameStateChanged();
+        publishGameStateChanged();
         return false;
     }
 
     const bool rejected = currentGame->rejectTransferOffer(interaction->getOfferId());
-    emit gameStateChanged();
+    publishGameStateChanged();
     return rejected;
 }
 
@@ -598,12 +617,12 @@ bool GameFacade::deferActiveTransferOffer() {
     }
 
     if (!currentGame->getActiveTransferOfferDecisionInteraction()) {
-        emit gameStateChanged();
+        publishGameStateChanged();
         return false;
     }
 
     const bool deferred = currentGame->resolveActiveInteraction();
-    emit gameStateChanged();
+    publishGameStateChanged();
     return deferred;
 }
 
@@ -640,7 +659,7 @@ bool GameFacade::acceptTransferOfferById(int offerId) {
     }
 
     const bool accepted = currentGame->acceptTransferOffer(static_cast<OfferId>(offerId));
-    emit gameStateChanged();
+    publishGameStateChanged();
     return accepted;
 }
 
@@ -655,7 +674,7 @@ bool GameFacade::rejectTransferOfferById(int offerId) {
     }
 
     const bool rejected = currentGame->rejectTransferOffer(static_cast<OfferId>(offerId));
-    emit gameStateChanged();
+    publishGameStateChanged();
     return rejected;
 }
 
@@ -665,15 +684,29 @@ QVariantList GameFacade::getStandingsTable() const {
     if (!gameStarted) {
         return table;
     }
+
     const League* league = resolveLeague(selectedLeagueId);
     if (!league) {
         return table;
     }
-    const std::vector<StandingsEntry> standings = league->getSortedStandings();
 
+    const std::vector<StandingsEntry> standings = league->getSortedStandings();
     for (std::size_t index = 0; index < standings.size(); ++index) {
-        QVariantMap row = toStandingsRowMap(standings[index], static_cast<int>(index + 1));
-        row.insert(QStringLiteral("recentForm"), fromStd(league->getRecentFormString(standings[index].teamId, 5)));
+        const StandingsEntry& entry = standings[index];
+        QVariantMap row;
+        row.insert(QStringLiteral("position"), static_cast<int>(index + 1));
+        row.insert(QStringLiteral("teamId"), static_cast<int>(entry.teamId));
+        row.insert(QStringLiteral("teamName"), fromStd(league->getTeamName(entry.teamId)));
+        row.insert(QStringLiteral("played"), entry.played);
+        row.insert(QStringLiteral("wins"), entry.wins);
+        row.insert(QStringLiteral("draws"), entry.draws);
+        row.insert(QStringLiteral("losses"), entry.losses);
+        row.insert(QStringLiteral("goalsFor"), entry.goalsFor);
+        row.insert(QStringLiteral("goalsAgainst"), entry.goalsAgainst);
+        row.insert(QStringLiteral("goalDifference"), entry.goalDifference);
+        row.insert(QStringLiteral("points"), entry.points);
+        row.insert(QStringLiteral("recentForm"), fromStd(league->getRecentFormString(entry.teamId, 5)));
+        row.insert(QStringLiteral("isSelectedTeam"), entry.teamId == selectedTeamId);
         table.push_back(row);
     }
 
@@ -772,6 +805,49 @@ QVariantMap GameFacade::getPlayerDetails(int playerId) const {
     return toPlayerDetailsMap(*player);
 }
 
+void GameFacade::refreshStandingsModel() {
+    if (!gameStarted) {
+        standingsModel.clear();
+        return;
+    }
+
+    const League* league = resolveLeague(selectedLeagueId);
+    if (!league) {
+        standingsModel.clear();
+        return;
+    }
+
+    const std::vector<StandingsEntry> standings = league->getSortedStandings();
+    QVector<StandingsTableModel::Row> rows;
+    rows.reserve(static_cast<qsizetype>(standings.size()));
+
+    for (std::size_t index = 0; index < standings.size(); ++index) {
+        const StandingsEntry& entry = standings[index];
+        StandingsTableModel::Row row;
+        row.position = static_cast<int>(index + 1);
+        row.teamId = static_cast<int>(entry.teamId);
+        row.teamName = fromStd(league->getTeamName(entry.teamId));
+        row.played = entry.played;
+        row.wins = entry.wins;
+        row.draws = entry.draws;
+        row.losses = entry.losses;
+        row.goalsFor = entry.goalsFor;
+        row.goalsAgainst = entry.goalsAgainst;
+        row.goalDifference = entry.goalDifference;
+        row.points = entry.points;
+        row.recentForm = fromStd(league->getRecentFormString(entry.teamId, 5));
+        row.isSelectedTeam = entry.teamId == selectedTeamId;
+        rows.push_back(std::move(row));
+    }
+
+    standingsModel.setRows(std::move(rows));
+}
+
+void GameFacade::publishGameStateChanged() {
+    refreshStandingsModel();
+    emit gameStateChanged();
+}
+
 QString GameFacade::formatDate(const Date& date) const {
     return QStringLiteral("%1 %2, %3")
         .arg(monthName(date.getMonth()))
@@ -815,23 +891,6 @@ QVariantMap GameFacade::toNextMatchMap(const FixtureMatchPreview& preview) const
     map.insert(QStringLiteral("awayTeamName"), league ? fromStd(league->getTeamName(preview.awayId)) : QString());
     map.insert(QStringLiteral("isHome"), preview.homeId == selectedTeamId);
     map.insert(QStringLiteral("matchweek"), preview.matchweek);
-    return map;
-}
-
-QVariantMap GameFacade::toStandingsRowMap(const StandingsEntry& entry, int position) const {
-    QVariantMap map;
-    const League* league = resolveLeague(selectedLeagueId);
-    map.insert(QStringLiteral("position"), position);
-    map.insert(QStringLiteral("teamId"), static_cast<int>(entry.teamId));
-    map.insert(QStringLiteral("teamName"), league ? fromStd(league->getTeamName(entry.teamId)) : QString());
-    map.insert(QStringLiteral("played"), entry.played);
-    map.insert(QStringLiteral("wins"), entry.wins);
-    map.insert(QStringLiteral("draws"), entry.draws);
-    map.insert(QStringLiteral("losses"), entry.losses);
-    map.insert(QStringLiteral("goalsFor"), entry.goalsFor);
-    map.insert(QStringLiteral("goalsAgainst"), entry.goalsAgainst);
-    map.insert(QStringLiteral("goalDifference"), entry.goalDifference);
-    map.insert(QStringLiteral("points"), entry.points);
     return map;
 }
 
