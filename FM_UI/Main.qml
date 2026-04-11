@@ -13,7 +13,22 @@ ApplicationWindow {
     title: "Football Manager"
     color: "#f5f5f5"
 
-    property string currentView: gameFacade.hasStartedGame() ? "dashboard" : "home"
+    readonly property QtObject routes: QtObject {
+        readonly property string home: "home"
+        readonly property string teamSelection: "teamSelection"
+        readonly property string dashboard: "dashboard"
+        readonly property string standings: "standings"
+        readonly property string team: "team"
+        readonly property string transfers: "transfers"
+    }
+
+    readonly property QtObject interactionKinds: QtObject {
+        readonly property string preMatch: "pre_match"
+        readonly property string postMatch: "post_match"
+        readonly property string transferOffer: "transfer_offer"
+    }
+
+    property string currentView: gameFacade.hasStartedGame() ? routes.dashboard : routes.home
     property bool gameStarted: gameFacade.hasStartedGame()
     property string headerTeamName: gameStarted ? (gameFacade.getSelectedTeamName() || "No Team") : "Football Manager"
     property string headerDateText: gameFacade.getCurrentDateText() || ""
@@ -23,6 +38,32 @@ ApplicationWindow {
     property bool simulationPaused: gameFacade.isTimePaused()
     property var activePostMatchData: ({})
     property var activeTransferOfferData: ({})
+
+    function componentForView(viewName) {
+        if (viewName === routes.home) {
+            return homeComponent
+        }
+        if (viewName === routes.teamSelection) {
+            return newGameComponent
+        }
+        if (viewName === routes.standings) {
+            return standingsComponent
+        }
+        if (viewName === routes.team) {
+            return teamComponent
+        }
+        if (viewName === routes.transfers) {
+            return transfersComponent
+        }
+        return dashboardComponent
+    }
+
+    function viewUsesPageMargins(viewName) {
+        return viewName === routes.dashboard
+               || viewName === routes.standings
+               || viewName === routes.team
+               || viewName === routes.transfers
+    }
 
     function refreshHeader() {
         gameStarted = gameFacade.hasStartedGame()
@@ -35,14 +76,14 @@ ApplicationWindow {
         activeInteractionKind = gameFacade.getActiveInteractionKind() || ""
         simulationPaused = gameFacade.isTimePaused()
 
-       activePreMatchData = (hasActiveInteraction && activeInteractionKind === "pre_match")
+        activePreMatchData = (hasActiveInteraction && activeInteractionKind === interactionKinds.preMatch)
                              ? (gameFacade.getActivePreMatchInteraction() || {})
                              : ({})
 
-        activePostMatchData = (hasActiveInteraction && activeInteractionKind === "post_match")
+        activePostMatchData = (hasActiveInteraction && activeInteractionKind === interactionKinds.postMatch)
                               ? (gameFacade.getActivePostMatchInteraction() || {})
                               : ({})
-        activeTransferOfferData = (hasActiveInteraction && activeInteractionKind === "transfer_offer")
+        activeTransferOfferData = (hasActiveInteraction && activeInteractionKind === interactionKinds.transferOffer)
                                   ? (gameFacade.getActiveTransferOfferInteraction() || {})
                                   : ({})
     }
@@ -63,12 +104,52 @@ ApplicationWindow {
         currentView = viewName
     }
 
+    function navigateTo(viewName) {
+        goTo(viewName)
+        refreshUiState()
+    }
+
+    function pauseSimulation() {
+        gameFacade.pauseSimulation()
+        refreshUiState()
+    }
+
+    function resumeSimulation() {
+        gameFacade.resumeSimulation()
+        refreshUiState()
+    }
+
+    function resolveActiveInteraction() {
+        gameFacade.resolveActiveInteraction()
+        refreshUiState()
+    }
+
+    function playActiveMatch() {
+        gameFacade.playActiveMatch()
+        refreshUiState()
+    }
+
+    function acceptActiveTransferOffer() {
+        gameFacade.acceptActiveTransferOffer()
+        refreshUiState()
+    }
+
+    function rejectActiveTransferOffer() {
+        gameFacade.rejectActiveTransferOffer()
+        refreshUiState()
+    }
+
+    function deferActiveTransferOffer() {
+        gameFacade.deferActiveTransferOffer()
+        refreshUiState()
+    }
+
     Component.onCompleted: {
         refreshUiState()
     }
 
     header: ToolBar {
-        visible: root.currentView !== "home" && root.currentView !== "teamSelection"
+        visible: root.currentView !== root.routes.home && root.currentView !== root.routes.teamSelection
         contentHeight: 52
 
         RowLayout {
@@ -98,18 +179,8 @@ ApplicationWindow {
     Loader {
         id: viewLoader
         anchors.fill: parent
-        anchors.margins: (root.currentView === "dashboard" || root.currentView === "standings" || root.currentView === "team" || root.currentView === "transfers") ? 16 : 0
-        sourceComponent: root.currentView === "home"
-                         ? homeComponent
-                         : root.currentView === "teamSelection"
-                           ? newGameComponent
-                           : root.currentView === "standings"
-                             ? standingsComponent
-                             : root.currentView === "team"
-                               ? teamComponent
-                               : root.currentView === "transfers"
-                                 ? transfersComponent
-                               : dashboardComponent
+        anchors.margins: root.viewUsesPageMargins(root.currentView) ? 16 : 0
+        sourceComponent: root.componentForView(root.currentView)
         onLoaded: {
             root.refreshUiState()
         }
@@ -119,8 +190,8 @@ ApplicationWindow {
         target: gameFacade
 
         function onGameStateChanged() {
-            if (gameFacade.hasStartedGame() && root.currentView === "teamSelection") {
-                root.currentView = "dashboard"
+            if (gameFacade.hasStartedGame() && root.currentView === root.routes.teamSelection) {
+                root.currentView = root.routes.dashboard
             }
             root.refreshUiState()
         }
@@ -143,8 +214,7 @@ ApplicationWindow {
         HomeView {
             onNewGameRequested: {
                 gameFacade.clearLastError()
-                root.goTo("teamSelection")
-                root.refreshUiState()
+                root.navigateTo(root.routes.teamSelection)
             }
             onQuitRequested: Qt.quit()
         }
@@ -156,12 +226,10 @@ ApplicationWindow {
         NewGameView {
             onBackRequested: {
                 gameFacade.clearLastError()
-                root.goTo("home")
-                root.refreshUiState()
+                root.navigateTo(root.routes.home)
             }
             onGameStarted: {
-                root.goTo("dashboard")
-                root.refreshUiState()
+                root.navigateTo(root.routes.dashboard)
             }
         }
     }
@@ -171,24 +239,19 @@ ApplicationWindow {
 
         DashboardView {
             onOpenStandingsRequested: {
-                root.goTo("standings")
-                root.refreshUiState()
+                root.navigateTo(root.routes.standings)
             }
             onOpenTeamRequested: {
-                root.goTo("team")
-                root.refreshUiState()
+                root.navigateTo(root.routes.team)
             }
             onOpenTransfersRequested: {
-                root.goTo("transfers")
-                root.refreshUiState()
+                root.navigateTo(root.routes.transfers)
             }
             onPauseRequested: {
-                gameFacade.pauseSimulation()
-                root.refreshUiState()
+                root.pauseSimulation()
             }
             onResumeRequested: {
-                gameFacade.resumeSimulation()
-                root.refreshUiState()
+                root.resumeSimulation()
             }
         }
     }
@@ -198,8 +261,7 @@ ApplicationWindow {
 
         StandingsView {
             onBackRequested: {
-                root.goTo("dashboard")
-                root.refreshUiState()
+                root.navigateTo(root.routes.dashboard)
             }
         }
     }
@@ -208,8 +270,7 @@ ApplicationWindow {
         id: teamComponent
         TeamView {
             onBackRequested: {
-                root.goTo("dashboard")
-                root.refreshUiState()
+                root.navigateTo(root.routes.dashboard)
             }
         }
     }
@@ -218,8 +279,7 @@ ApplicationWindow {
         id: transfersComponent
         TransferOffersView {
             onBackRequested: {
-                root.goTo("dashboard")
-                root.refreshUiState()
+                root.navigateTo(root.routes.dashboard)
             }
         }
     }
@@ -227,41 +287,36 @@ ApplicationWindow {
     PostMatchDialog {
         id: postMatchDialog
         anchors.fill: parent
-        visible: root.hasActiveInteraction && root.activeInteractionKind === "post_match"
+        visible: root.hasActiveInteraction && root.activeInteractionKind === root.interactionKinds.postMatch
         interactionData: root.activePostMatchData
         onContinueRequested: {
-            gameFacade.resolveActiveInteraction()
-            root.refreshUiState()
+            root.resolveActiveInteraction()
         }
     }
 
     PreMatchDialog {
         id: preMatchDialog
         anchors.fill: parent
-        visible: root.hasActiveInteraction && root.activeInteractionKind === "pre_match"
+        visible: root.hasActiveInteraction && root.activeInteractionKind === root.interactionKinds.preMatch
         interactionData: root.activePreMatchData
         onPlayMatchRequested: {
-            gameFacade.playActiveMatch()
-            root.refreshUiState()
+            root.playActiveMatch()
         }
     }
 
     TransferOfferDialog {
         id: transferOfferDialog
         anchors.fill: parent
-        visible: root.hasActiveInteraction && root.activeInteractionKind === "transfer_offer"
+        visible: root.hasActiveInteraction && root.activeInteractionKind === root.interactionKinds.transferOffer
         interactionData: root.activeTransferOfferData
         onAcceptRequested: {
-            gameFacade.acceptActiveTransferOffer()
-            root.refreshUiState()
+            root.acceptActiveTransferOffer()
         }
         onRejectRequested: {
-            gameFacade.rejectActiveTransferOffer()
-            root.refreshUiState()
+            root.rejectActiveTransferOffer()
         }
         onLaterRequested: {
-            gameFacade.deferActiveTransferOffer()
-            root.refreshUiState()
+            root.deferActiveTransferOffer()
         }
     }
 }
