@@ -519,19 +519,6 @@ void League::applyMatchReport(const MatchReport& report) {
 	currentSeasonMatchReports.push_back(report);
 }
 
-void League::applyMatchPlayedEvent(const MatchPlayedEvent& event) {
-	MatchReport report;
-	report.leagueId = event.leagueId;
-	report.seasonYear = event.seasonYear;
-	report.date = event.date;
-	report.homeId = event.homeId;
-	report.awayId = event.awayId;
-	report.matchweek = event.matchweek;
-	report.homeGoals = event.homeGoals;
-	report.awayGoals = event.awayGoals;
-	applyMatchReport(report);
-}
-
 std::vector<StandingsEntry> League::getSortedStandings() const {
 	std::vector<StandingsEntry> sorted;
 	sorted.reserve(standings.size());
