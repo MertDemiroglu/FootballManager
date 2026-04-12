@@ -10,6 +10,7 @@
 #include "TeamRecentMatchesModel.h"
 #include "TeamUpcomingMatchesModel.h"
 #include "PendingTransferOffersModel.h"
+#include "TeamSeasonStatsObject.h"
 
 #include<memory>
 
@@ -45,6 +46,7 @@ class GameFacade : public QObject {
     Q_PROPERTY(QAbstractListModel* currentTeamRecentMatchesModel READ getCurrentTeamRecentMatchesModel CONSTANT)
     Q_PROPERTY(QAbstractListModel* currentTeamUpcomingMatchesModel READ getCurrentTeamUpcomingMatchesModel CONSTANT)
     Q_PROPERTY(QAbstractListModel* pendingTransferOffersModel READ getPendingTransferOffersModel CONSTANT)
+    Q_PROPERTY(TeamSeasonStatsObject* currentTeamSeasonStatsObject READ getCurrentTeamSeasonStatsObject CONSTANT)
 
 public:
     explicit GameFacade(QObject* parent = nullptr);
@@ -93,6 +95,7 @@ public:
     QAbstractListModel* getCurrentTeamRecentMatchesModel() const;
     QAbstractListModel* getCurrentTeamUpcomingMatchesModel() const;
     QAbstractListModel* getPendingTransferOffersModel() const;
+    TeamSeasonStatsObject* getCurrentTeamSeasonStatsObject() const;
 
     Q_INVOKABLE QVariantList getStandingsTable() const;
     Q_INVOKABLE QVariantMap getCurrentTeamSeasonStats() const;
@@ -112,6 +115,7 @@ private:
     TeamRecentMatchesModel teamRecentMatchesModel;
     TeamUpcomingMatchesModel teamUpcomingMatchesModel;
     PendingTransferOffersModel pendingTransferOffersModel;
+    TeamSeasonStatsObject currentTeamSeasonStatsObject;
     LeagueId selectedLeagueId = 0;
     TeamId selectedTeamId = 0;
     bool gameStarted = false;
@@ -132,6 +136,7 @@ private:
     void refreshCurrentTeamRecentMatchesModel();
     void refreshCurrentTeamUpcomingMatchesModel();
     void refreshPendingTransferOffersModel();
+    void refreshCurrentTeamSeasonStatsObject();
     void publishGameStateChanged();
 
     QString formatDate(const Date& date) const;
