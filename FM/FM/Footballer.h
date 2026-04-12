@@ -79,6 +79,8 @@ public:
 	void addGoal();
 	void addAssist();
 	void addMinutes(int additionalMinutes);
+	void addYellowCard();
+	void addRedCard();
 	//------------------------------------------------------------------------------------
 
 	virtual void print(std::ostream& os) const;

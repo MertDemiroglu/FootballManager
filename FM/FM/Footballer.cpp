@@ -133,6 +133,14 @@ void Footballer::addMinutes(int additionalMinutes) {
     currentSeasonStats.minutesPlayed += additionalMinutes;
 }
 
+void Footballer::addYellowCard() {
+    ++currentSeasonStats.yellowCards;
+}
+
+void Footballer::addRedCard() {
+    ++currentSeasonStats.redCards;
+}
+
 //print
 void Footballer::print(std::ostream& os) const {
     os << "Name: " << name << ", Id: " << playerId << ", Age: " << age << ", Position: " << position << ", TeamId: " << teamId;

@@ -2,6 +2,7 @@
 #include<algorithm>
 #include<stdexcept>
 #include<cassert>
+#include<unordered_set>
 
 namespace {
 	bool datesEqual(const Date& lhs, const Date& rhs) {
@@ -257,6 +258,15 @@ bool League::hasCurrentSeasonHistoryRecord(const Date& date, TeamId homeId, Team
 		});
 }
 
+bool League::hasCurrentSeasonMatchReport(const Date& date, TeamId homeId, TeamId awayId) const {
+	return std::any_of(currentSeasonMatchReports.begin(), currentSeasonMatchReports.end(),
+		[&](const MatchReport& existing) {
+			return datesEqual(existing.date, date)
+				&& existing.homeId == homeId
+				&& existing.awayId == awayId;
+		});
+}
+
 void League::initializeStandings() {
 	standings.clear();
 	for (const auto& [teamId, team] : teams) {
@@ -412,30 +422,30 @@ void League::updateTeamSeasonStatsForMatch(TeamId homeId, TeamId awayId, const M
 	}
 }
 
-void League::applyMatchPlayedEvent(const MatchPlayedEvent& event) {
+void League::applyMatchReport(const MatchReport& report) {
 
-	if (event.leagueId != id) {
-		throw std::logic_error("match played event league id mismatch");;
+	if (report.leagueId != id) {
+		throw std::logic_error("match report league id mismatch");
 	}
 
 	if (currentSeasonYear < 0) {
 		throw std::logic_error("current season year is not initialized");
 	}
 
-	if (event.seasonYear != currentSeasonYear) {
-		throw std::logic_error("match played event season year mismatch");
+	if (report.seasonYear != currentSeasonYear) {
+		throw std::logic_error("match report season year mismatch");
 	}
-	if (event.homeGoals < 0 || event.awayGoals < 0) {
-		throw std::invalid_argument("match played event goals cannot be negative");
+	if (report.homeGoals < 0 || report.awayGoals < 0) {
+		throw std::invalid_argument("match report goals cannot be negative");
 	}
 
-	FixtureMatch* match = findFixtureMatch(event.date, event.homeId, event.awayId);
+	FixtureMatch* match = findFixtureMatch(report.date, report.homeId, report.awayId);
 
 	if (!match) {
-	    throw std::runtime_error("fixture match not found for MatchPlayedEvent");
+		throw std::runtime_error("fixture match not found for MatchReport");
 	}
-	if (match->homeId != event.homeId || match->awayId != event.awayId) {
-		throw std::logic_error("fixture team ids do not match match played event");
+	if (match->homeId != report.homeId || match->awayId != report.awayId) {
+		throw std::logic_error("fixture team ids do not match match report");
 	}
 
 	if (match->played) {
@@ -446,27 +456,80 @@ void League::applyMatchPlayedEvent(const MatchPlayedEvent& event) {
 		throw std::logic_error("fixture match result cannot be applied before event enqueue");
 	}
 
-	if (match->matchweek <= 0 || match->matchweek != event.matchweek) {
-		throw std::logic_error("match played event matchweek mismatch");
+	if (match->matchweek <= 0 || match->matchweek != report.matchweek) {
+		throw std::logic_error("match report matchweek mismatch");
 	}
 
-	if (hasCurrentSeasonHistoryRecord(event.date, event.homeId, event.awayId)) {
+	if (hasCurrentSeasonHistoryRecord(report.date, report.homeId, report.awayId)) {
 		throw std::logic_error("duplicate match history record");
 	}
 
-	match->homeGoals = event.homeGoals;
-	match->awayGoals = event.awayGoals;
+	if (hasCurrentSeasonMatchReport(report.date, report.homeId, report.awayId)) {
+		throw std::logic_error("duplicate match report record");
+	}
+
+	match->homeGoals = report.homeGoals;
+	match->awayGoals = report.awayGoals;
 	match->played = true;
 	match->eventEnqueued = false;
 
-	//Match result (skor) diger fonksiyonlarda kullaniliyor
-	const MatchResult result{ event.homeGoals, event.awayGoals };
-	//Standingse sonuclar islenir
-	updateStandingsForMatch(event.homeId, event.awayId, result);
-	//Sezon gecmisine mac eklenir
-	currentSeasonHistory.push_back(MatchRecord{ event.date, currentSeasonYear, event.homeId, event.awayId, event.homeGoals, event.awayGoals, match->matchweek });
-	//Takimin istatistikleri islenir
-	updateTeamSeasonStatsForMatch(event.homeId, event.awayId, result);
+	const MatchResult result{ report.homeGoals, report.awayGoals };
+	updateStandingsForMatch(report.homeId, report.awayId, result);
+	currentSeasonHistory.push_back(MatchRecord{ report.date, currentSeasonYear, report.homeId, report.awayId, report.homeGoals, report.awayGoals, match->matchweek });
+	updateTeamSeasonStatsForMatch(report.homeId, report.awayId, result);
+
+	std::unordered_set<PlayerId> playersWithAppearance;
+	for (const MatchPlayerReport& playerReport : report.playerReports) {
+		if (playerReport.playerId == 0) {
+			continue;
+		}
+		if (playerReport.teamId != report.homeId && playerReport.teamId != report.awayId) {
+			throw std::logic_error("match player report has invalid team id");
+		}
+		Footballer* player = findPlayerById(playerReport.playerId);
+		if (!player) {
+			throw std::logic_error("match player report references unknown player");
+		}
+		if (player->getTeamId() != playerReport.teamId) {
+			throw std::logic_error("match player report team mismatch");
+		}
+		if (playerReport.minutesPlayed < 0) {
+			throw std::logic_error("match player report minutes cannot be negative");
+		}
+
+		const bool countedAppearance = playersWithAppearance.emplace(playerReport.playerId).second;
+		if (countedAppearance) {
+			player->addAppearance(playerReport.started, playerReport.minutesPlayed);
+		}
+
+		for (int i = 0; i < playerReport.goals; ++i) {
+			player->addGoal();
+		}
+		for (int i = 0; i < playerReport.assists; ++i) {
+			player->addAssist();
+		}
+		for (int i = 0; i < playerReport.yellowCards; ++i) {
+			player->addYellowCard();
+		}
+		for (int i = 0; i < playerReport.redCards; ++i) {
+			player->addRedCard();
+		}
+	}
+
+	currentSeasonMatchReports.push_back(report);
+}
+
+void League::applyMatchPlayedEvent(const MatchPlayedEvent& event) {
+	MatchReport report;
+	report.leagueId = event.leagueId;
+	report.seasonYear = event.seasonYear;
+	report.date = event.date;
+	report.homeId = event.homeId;
+	report.awayId = event.awayId;
+	report.matchweek = event.matchweek;
+	report.homeGoals = event.homeGoals;
+	report.awayGoals = event.awayGoals;
+	applyMatchReport(report);
 }
 
 std::vector<StandingsEntry> League::getSortedStandings() const {
@@ -616,6 +679,15 @@ const std::vector<MatchRecord>& League::getCurrentSeasonHistory() const {
 	return currentSeasonHistory;
 }
 
+const MatchReport* League::findCurrentSeasonMatchReport(const Date& date, TeamId homeId, TeamId awayId) const {
+	for (const MatchReport& report : currentSeasonMatchReports) {
+		if (datesEqual(report.date, date) && report.homeId == homeId && report.awayId == awayId) {
+			return &report;
+		}
+	}
+	return nullptr;
+}
+
 const std::unordered_map<int, std::vector<MatchRecord>>& League::getArchivedHistoryBySeason() const {
 	return archivedHistoryBySeason;
 }
@@ -678,6 +750,7 @@ void League::archiveCompletedSeasonHistory(int seasonYear) {
 
 void League::resetCurrentSeasonHistory() {
 	currentSeasonHistory.clear();
+	currentSeasonMatchReports.clear();
 }
 
 void League::setCurrentSeasonYear(int seasonYear) {

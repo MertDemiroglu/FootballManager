@@ -10,6 +10,7 @@
 #include"Team.h"
 #include"Date.h"
 #include"MatchPlayedEvent.h"
+#include"MatchReport.h"
 
 struct FixtureMatch {
 
@@ -120,6 +121,7 @@ private:
 
 	std::vector<MatchRecord> currentSeasonHistory;
 	std::unordered_map<int, std::vector<MatchRecord>> archivedHistoryBySeason;
+	std::vector<MatchReport> currentSeasonMatchReports;
 
 	//O sezondaki takim istatistiklerini tutan map
 	std::unordered_map<TeamId, TeamSeasonStats> currentTeamSeasonStats;
@@ -134,6 +136,7 @@ private:
 	static MatchOutcome toOutcome(const MatchRecord& record, TeamId teamId);
 	static bool recordBelongsToTeam(const MatchRecord& record, TeamId teamId);
 	bool hasCurrentSeasonHistoryRecord(const Date& date, TeamId homeId, TeamId awayId) const;
+	bool hasCurrentSeasonMatchReport(const Date& date, TeamId homeId, TeamId awayId) const;
 
 	//Bu 6 fonksiyon tek bir rollover fonksiyonundan cagirilacak disari acilmayacak
 	void archiveCompletedSeasonHistory(int seasonYear);
@@ -206,6 +209,7 @@ public:
 	void resetStandings();
 	void updateStandingsForMatch(TeamId homeId, TeamId awayId, const MatchResult& result);
 	void updateTeamSeasonStatsForMatch(TeamId homeId, TeamId awayId, const MatchResult& result);
+	void applyMatchReport(const MatchReport& report);
 	void applyMatchPlayedEvent(const MatchPlayedEvent& event);
 	std::vector<StandingsEntry> getSortedStandings() const;
 	const std::unordered_map<TeamId, StandingsEntry>& getStandings() const;
@@ -214,6 +218,7 @@ public:
 
 	//history fonksiyonlari-------------------------------------------------------------------------
 	const std::vector<MatchRecord>& getCurrentSeasonHistory() const;
+	const MatchReport* findCurrentSeasonMatchReport(const Date& date, TeamId homeId, TeamId awayId) const;
 	const std::unordered_map<int, std::vector<MatchRecord>>& getArchivedHistoryBySeason() const;
 	std::vector<MatchRecord> getMatchesForTeamInCurrentSeason(TeamId teamId) const;
 	std::vector<MatchRecord> getMatchesForTeamInSeason(TeamId teamId, int seasonYear) const;

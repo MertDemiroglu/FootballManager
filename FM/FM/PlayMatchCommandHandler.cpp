@@ -33,7 +33,23 @@ void PlayMatchCommandHandler::handle(League& league, const PlayMatchCommand& com
         throw std::out_of_range("play command contains unknown team id");
     }
 
-    const MatchResult result = MatchSimulation::buildStrengthBasedResult(*homeTeam, *awayTeam, command.date);
+    const MatchReport report = MatchSimulation::buildStrengthBasedReport(
+        command.leagueId,
+        command.seasonYear,
+        command.matchweek,
+        *homeTeam,
+        *awayTeam,
+        command.date);
 
-    publisher.publish(MatchPlayedEvent{ command.leagueId, command.seasonYear, command.date, command.homeId, command.awayId, command.matchweek, result.homeGoals, result.awayGoals });
+    league.applyMatchReport(report);
+
+    publisher.publish(MatchPlayedEvent{
+        report.leagueId,
+        report.seasonYear,
+        report.date,
+        report.homeId,
+        report.awayId,
+        report.matchweek,
+        report.homeGoals,
+        report.awayGoals });
 }
