@@ -14,6 +14,8 @@
 #include "TeamRecentMatchesModel.h"
 #include "TeamUpcomingMatchesModel.h"
 #include "PendingTransferOffersModel.h"
+#include "DashboardStateObject.h"
+#include "DashboardUpcomingMatchesModel.h"
 
 #include<QDebug>
 
@@ -69,7 +71,9 @@ GameFacade::GameFacade(QObject* parent)
       teamRecentMatchesModel(this),
       teamUpcomingMatchesModel(this),
       pendingTransferOffersModel(this),
-      currentTeamSeasonStatsObject(this) {
+      currentTeamSeasonStatsObject(this),
+      dashboardStateObject(this),
+      dashboardUpcomingMatchesModel(this) {
 }
 
 GameFacade::~GameFacade() {}
@@ -342,6 +346,14 @@ QAbstractListModel* GameFacade::getPendingTransferOffersModel() const {
 
 TeamSeasonStatsObject* GameFacade::getCurrentTeamSeasonStatsObject() const {
     return const_cast<TeamSeasonStatsObject*>(&currentTeamSeasonStatsObject);
+}
+
+DashboardStateObject* GameFacade::getDashboardState() const {
+    return const_cast<DashboardStateObject*>(&dashboardStateObject);
+}
+
+QAbstractListModel* GameFacade::getDashboardUpcomingMatchesModel() const {
+    return const_cast<DashboardUpcomingMatchesModel*>(&dashboardUpcomingMatchesModel);
 }
 
 QVariantMap GameFacade::getDashboard() const {
@@ -1045,6 +1057,102 @@ void GameFacade::refreshPendingTransferOffersModel() {
     pendingTransferOffersModel.setRows(std::move(rows));
 }
 
+void GameFacade::refreshDashboardState() {
+    if (!hasValidSelectedTeam()) {
+        dashboardStateObject.clear();
+        return;
+    }
+
+    const League* league = resolveLeague(selectedLeagueId);
+    if (!league) {
+        dashboardStateObject.clear();
+        return;
+    }
+
+    const QString selectedTeamName = fromStd(league->getTeamName(selectedTeamId));
+    dashboardStateObject.setRootValues(
+        true,
+        selectedTeamName,
+        formatDate(ensureGame()->getDate()),
+        formatGameState(ensureGame()->getState()),
+        managerName,
+        fromStd(league->getRecentFormString(selectedTeamId, 5))
+    );
+
+    if (const std::optional<FixtureMatchPreview> nextMatch = league->getNextMatchForTeam(selectedTeamId);
+        nextMatch.has_value()) {
+        dashboardStateObject.nextMatch()->setFromValues(
+            formatDate(nextMatch->date),
+            fromStd(league->getTeamName(nextMatch->homeId)),
+            fromStd(league->getTeamName(nextMatch->awayId)),
+            nextMatch->homeId == selectedTeamId,
+            nextMatch->matchweek
+        );
+    } else {
+        dashboardStateObject.nextMatch()->clear();
+    }
+
+    if (const TeamSeasonStats* stats = league->getCurrentTeamSeasonStatsFor(selectedTeamId)) {
+        dashboardStateObject.teamStats()->setFrom(*stats);
+    } else {
+        dashboardStateObject.teamStats()->clear();
+    }
+
+    const std::vector<StandingsEntry> standings = league->getSortedStandings();
+    bool hasStandingsRow = false;
+    for (std::size_t index = 0; index < standings.size(); ++index) {
+        const StandingsEntry& entry = standings[index];
+        if (entry.teamId != selectedTeamId) {
+            continue;
+        }
+        dashboardStateObject.standingsRow()->setFromValues(
+            static_cast<int>(index + 1),
+            selectedTeamName,
+            entry.played,
+            entry.wins,
+            entry.draws,
+            entry.losses,
+            entry.goalDifference,
+            entry.points
+        );
+        hasStandingsRow = true;
+        break;
+    }
+
+    if (!hasStandingsRow) {
+        dashboardStateObject.standingsRow()->clear();
+    }
+}
+
+void GameFacade::refreshDashboardUpcomingMatchesModel() {
+    if (!hasValidSelectedTeam()) {
+        dashboardUpcomingMatchesModel.clear();
+        return;
+    }
+
+    const League* league = resolveLeague(selectedLeagueId);
+    if (!league) {
+        dashboardUpcomingMatchesModel.clear();
+        return;
+    }
+
+    const auto previews = league->getUpcomingMatchesForTeam(selectedTeamId, 3);
+    QVector<DashboardUpcomingMatchesModel::Row> rows;
+    rows.reserve(static_cast<qsizetype>(previews.size()));
+
+    for (const auto& preview : previews) {
+        DashboardUpcomingMatchesModel::Row row;
+        row.dateText = formatDate(preview.date);
+        row.homeTeamName = fromStd(league->getTeamName(preview.homeId));
+        row.awayTeamName = fromStd(league->getTeamName(preview.awayId));
+        row.isHome = preview.homeId == selectedTeamId;
+        row.matchweek = preview.matchweek;
+        rows.push_back(std::move(row));
+    }
+
+    dashboardUpcomingMatchesModel.setRows(std::move(rows));
+}
+
 void GameFacade::publishGameStateChanged() {
     refreshStandingsModel();
     refreshCurrentTeamPlayersModel();
@@ -1052,6 +1160,8 @@ void GameFacade::publishGameStateChanged() {
     refreshCurrentTeamUpcomingMatchesModel();
     refreshPendingTransferOffersModel();
     refreshCurrentTeamSeasonStatsObject();
+    refreshDashboardState();
+    refreshDashboardUpcomingMatchesModel();
     emit gameStateChanged();
 }
 
