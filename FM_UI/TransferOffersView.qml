@@ -102,14 +102,14 @@ Item {
 
                                 Label {
                                     Layout.fillWidth: true
-                                    text: "Buyer: " + (buyerTeamName || "�")
+                                    text: "Buyer: " + (buyerTeamName || "—")
                                     font.pixelSize: 15
                                     color: "#344054"
                                 }
 
                                 Label {
                                     Layout.fillWidth: true
-                                    text: "Fee: " + (fee !== undefined ? fee : "�")
+                                    text: "Fee: " + (fee !== undefined ? fee : "—")
                                     font.pixelSize: 15
                                     color: "#344054"
                                 }
@@ -123,7 +123,7 @@ Item {
 
                                 Label {
                                     Layout.fillWidth: true
-                                    text: "Offer ID: " + (offerId !== undefined ? offerId : "�")
+                                    text: "Offer ID: " + (offerId !== undefined ? offerId : "—")
                                     font.pixelSize: 13
                                     color: "#667085"
                                 }
