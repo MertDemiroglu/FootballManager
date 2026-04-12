@@ -8,10 +8,8 @@ Item {
 
     signal backRequested()
 
-    property var pendingOffers: []
-
     function refreshData() {
-        pendingOffers = gameFacade.getPendingTransferOffers()
+        // no-op: data is provided by gameFacade.pendingTransferOffersModel
     }
 
     Component.onCompleted: refreshData()
@@ -60,7 +58,7 @@ Item {
             }
 
             Label {
-                visible: root.pendingOffers.length === 0
+                visible: pendingOffersRepeater.count === 0
                 Layout.fillWidth: true
                 text: "No pending transfer offers."
                 color: "#667085"
@@ -70,7 +68,7 @@ Item {
             ScrollView {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                visible: root.pendingOffers.length > 0
+                visible: pendingOffersRepeater.count > 0
                 clip: true
 
                 Column {
@@ -78,10 +76,10 @@ Item {
                     spacing: 12
 
                     Repeater {
-                        model: root.pendingOffers
+                        id: pendingOffersRepeater
+                        model: gameFacade.pendingTransferOffersModel
 
                         delegate: Rectangle {
-                            required property var modelData
                             width: parent.width
                             radius: 12
                             color: "#ffffff"
@@ -96,7 +94,7 @@ Item {
 
                                 Label {
                                     Layout.fillWidth: true
-                                    text: (modelData.playerName || ("#" + modelData.playerId))
+                                    text: (playerName || ("#" + playerId))
                                     font.pixelSize: 18
                                     font.bold: true
                                     color: "#17212f"
@@ -104,28 +102,28 @@ Item {
 
                                 Label {
                                     Layout.fillWidth: true
-                                    text: "Buyer: " + (modelData.buyerTeamName || "—")
+                                    text: "Buyer: " + (buyerTeamName || "â€”")
                                     font.pixelSize: 15
                                     color: "#344054"
                                 }
 
                                 Label {
                                     Layout.fillWidth: true
-                                    text: "Fee: " + (modelData.fee !== undefined ? modelData.fee : "—")
+                                    text: "Fee: " + (fee !== undefined ? fee : "â€”")
                                     font.pixelSize: 15
                                     color: "#344054"
                                 }
 
                                 Label {
                                     Layout.fillWidth: true
-                                    text: "Last valid date: " + (modelData.lastDateText || "")
+                                    text: "Last valid date: " + (lastDateText || "")
                                     font.pixelSize: 15
                                     color: "#344054"
                                 }
 
                                 Label {
                                     Layout.fillWidth: true
-                                    text: "Offer ID: " + (modelData.offerId !== undefined ? modelData.offerId : "—")
+                                    text: "Offer ID: " + (offerId !== undefined ? offerId : "â€”")
                                     font.pixelSize: 13
                                     color: "#667085"
                                 }
@@ -138,7 +136,7 @@ Item {
                                         text: "Accept"
                                         Layout.fillWidth: true
                                         onClicked: {
-                                            gameFacade.acceptTransferOfferById(modelData.offerId)
+                                            gameFacade.acceptTransferOfferById(offerId)
                                             root.refreshData()
                                         }
                                     }
@@ -147,7 +145,7 @@ Item {
                                         text: "Reject"
                                         Layout.fillWidth: true
                                         onClicked: {
-                                            gameFacade.rejectTransferOfferById(modelData.offerId)
+                                            gameFacade.rejectTransferOfferById(offerId)
                                             root.refreshData()
                                         }
                                     }

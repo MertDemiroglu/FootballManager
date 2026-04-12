@@ -21,6 +21,8 @@ qt_add_executable(FM_UI
     TeamRecentMatchesModel.h
     TeamUpcomingMatchesModel.cpp
     TeamUpcomingMatchesModel.h
+    PendingTransferOffersModel.cpp
+    PendingTransferOffersModel.h
 )
 
 qt_add_qml_module(FM_UI
@@ -54,6 +56,8 @@ qt_add_executable(game_facade_smoke
     TeamRecentMatchesModel.h
     TeamUpcomingMatchesModel.cpp
     TeamUpcomingMatchesModel.h
+    PendingTransferOffersModel.cpp
+    PendingTransferOffersModel.h
 )
 
 set_target_properties(game_facade_smoke PROPERTIES

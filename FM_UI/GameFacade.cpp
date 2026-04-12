@@ -13,6 +13,7 @@
 #include"TeamPlayersModel.h"
 #include "TeamRecentMatchesModel.h"
 #include "TeamUpcomingMatchesModel.h"
+#include "PendingTransferOffersModel.h"
 
 #include<QDebug>
 
@@ -66,7 +67,8 @@ GameFacade::GameFacade(QObject* parent)
       standingsModel(this),
       teamPlayersModel(this),
       teamRecentMatchesModel(this),
-      teamUpcomingMatchesModel(this) {
+      teamUpcomingMatchesModel(this),
+      pendingTransferOffersModel(this) {
 }
 
 GameFacade::~GameFacade() {}
@@ -331,6 +333,10 @@ QAbstractListModel* GameFacade::getCurrentTeamRecentMatchesModel() const {
 
 QAbstractListModel* GameFacade::getCurrentTeamUpcomingMatchesModel() const {
     return const_cast<TeamUpcomingMatchesModel*>(&teamUpcomingMatchesModel);
+}
+
+QAbstractListModel* GameFacade::getPendingTransferOffersModel() const {
+    return const_cast<PendingTransferOffersModel*>(&pendingTransferOffersModel);
 }
 
 QVariantMap GameFacade::getDashboard() const {
@@ -969,11 +975,56 @@ void GameFacade::refreshCurrentTeamUpcomingMatchesModel() {
     teamUpcomingMatchesModel.setRows(std::move(rows));
 }
 
+void GameFacade::refreshPendingTransferOffersModel() {
+    if (!gameStarted) {
+        pendingTransferOffersModel.clear();
+        return;
+    }
+
+    const Game* currentGame = ensureGame();
+    if (!currentGame) {
+        pendingTransferOffersModel.clear();
+        return;
+    }
+
+    const std::vector<const TransferOffer*> offers = currentGame->getPendingTransferOffersForManagedTeam();
+    QVector<PendingTransferOffersModel::Row> rows;
+    rows.reserve(static_cast<qsizetype>(offers.size()));
+
+    for (const TransferOffer* offer : offers) {
+        if (!offer) {
+            continue;
+        }
+
+        PendingTransferOffersModel::Row row;
+        row.offerId = static_cast<int>(offer->id);
+        row.playerId = static_cast<int>(offer->playerId);
+        row.buyerTeamId = static_cast<int>(offer->buyerTeamId);
+        row.fee = static_cast<qlonglong>(offer->fee);
+        row.lastDateText = formatDate(offer->lastValidDate);
+
+        const League* sellerLeague = resolveLeague(offer->sellerLeagueId);
+        const League* buyerLeague = resolveLeague(offer->buyerLeagueId);
+        row.buyerTeamName = buyerLeague ? fromStd(buyerLeague->getTeamName(offer->buyerTeamId)) : QString();
+
+        if (sellerLeague) {
+            if (const Footballer* player = sellerLeague->findPlayerById(offer->playerId)) {
+                row.playerName = fromStd(player->getName());
+            }
+        }
+
+        rows.push_back(std::move(row));
+    }
+
+    pendingTransferOffersModel.setRows(std::move(rows));
+}
+
 void GameFacade::publishGameStateChanged() {
     refreshStandingsModel();
     refreshCurrentTeamPlayersModel();
     refreshCurrentTeamRecentMatchesModel();
     refreshCurrentTeamUpcomingMatchesModel();
+    refreshPendingTransferOffersModel();
     emit gameStateChanged();
 }
 
