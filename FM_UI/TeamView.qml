@@ -12,13 +12,19 @@ Item {
     readonly property int pagePadding: 24
     readonly property int sectionSpacing: 20
 
-    property var seasonStats: ({})
     property var selectedPlayerDetails: ({})
     property bool hasActiveGame: gameFacade.hasStartedGame()
 
     function refreshData() {
         hasActiveGame = gameFacade.hasStartedGame()
-        seasonStats = hasActiveGame ? gameFacade.getCurrentTeamSeasonStats() : ({})
+    }
+
+    function seasonStatText(value) {
+        const statsObject = gameFacade.currentTeamSeasonStatsObject
+        if (!statsObject || !statsObject.hasData) {
+            return "—"
+        }
+        return String(value)
     }
 
     function openPlayerDetails(playerId) {
@@ -179,14 +185,14 @@ Item {
 
                                     Repeater {
                                         model: [
-                                            ["Played", UiHelpers.displayValue(root.seasonStats, "played")],
-                                            ["Wins", UiHelpers.displayValue(root.seasonStats, "wins")],
-                                            ["Draws", UiHelpers.displayValue(root.seasonStats, "draws")],
-                                            ["Losses", UiHelpers.displayValue(root.seasonStats, "losses")],
-                                            ["Goals For", UiHelpers.displayValue(root.seasonStats, "goalsFor")],
-                                            ["Goals Against", UiHelpers.displayValue(root.seasonStats, "goalsAgainst")],
-                                            ["Clean Sheets", UiHelpers.displayValue(root.seasonStats, "cleanSheets")],
-                                            ["Failed To Score", UiHelpers.displayValue(root.seasonStats, "failedToScore")]
+                                            ["Played", root.seasonStatText(gameFacade.currentTeamSeasonStatsObject.played)],
+                                            ["Wins", root.seasonStatText(gameFacade.currentTeamSeasonStatsObject.wins)],
+                                            ["Draws", root.seasonStatText(gameFacade.currentTeamSeasonStatsObject.draws)],
+                                            ["Losses", root.seasonStatText(gameFacade.currentTeamSeasonStatsObject.losses)],
+                                            ["Goals For", root.seasonStatText(gameFacade.currentTeamSeasonStatsObject.goalsFor)],
+                                            ["Goals Against", root.seasonStatText(gameFacade.currentTeamSeasonStatsObject.goalsAgainst)],
+                                            ["Clean Sheets", root.seasonStatText(gameFacade.currentTeamSeasonStatsObject.cleanSheets)],
+                                            ["Failed To Score", root.seasonStatText(gameFacade.currentTeamSeasonStatsObject.failedToScore)]
                                         ]
 
                                         delegate: Rectangle {

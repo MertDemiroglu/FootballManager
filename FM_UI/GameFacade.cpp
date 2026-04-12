@@ -68,7 +68,8 @@ GameFacade::GameFacade(QObject* parent)
       teamPlayersModel(this),
       teamRecentMatchesModel(this),
       teamUpcomingMatchesModel(this),
-      pendingTransferOffersModel(this) {
+      pendingTransferOffersModel(this),
+      currentTeamSeasonStatsObject(this) {
 }
 
 GameFacade::~GameFacade() {}
@@ -337,6 +338,10 @@ QAbstractListModel* GameFacade::getCurrentTeamUpcomingMatchesModel() const {
 
 QAbstractListModel* GameFacade::getPendingTransferOffersModel() const {
     return const_cast<PendingTransferOffersModel*>(&pendingTransferOffersModel);
+}
+
+TeamSeasonStatsObject* GameFacade::getCurrentTeamSeasonStatsObject() const {
+    return const_cast<TeamSeasonStatsObject*>(&currentTeamSeasonStatsObject);
 }
 
 QVariantMap GameFacade::getDashboard() const {
@@ -975,6 +980,27 @@ void GameFacade::refreshCurrentTeamUpcomingMatchesModel() {
     teamUpcomingMatchesModel.setRows(std::move(rows));
 }
 
+void GameFacade::refreshCurrentTeamSeasonStatsObject() {
+    if (!hasValidSelectedTeam()) {
+        currentTeamSeasonStatsObject.clear();
+        return;
+    }
+
+    const League* league = resolveLeague(selectedLeagueId);
+    if (!league) {
+        currentTeamSeasonStatsObject.clear();
+        return;
+    }
+
+    const TeamSeasonStats* stats = league->getCurrentTeamSeasonStatsFor(selectedTeamId);
+    if (!stats) {
+        currentTeamSeasonStatsObject.clear();
+        return;
+    }
+
+    currentTeamSeasonStatsObject.setFrom(*stats);
+}
+
 void GameFacade::refreshPendingTransferOffersModel() {
     if (!gameStarted) {
         pendingTransferOffersModel.clear();
@@ -1025,6 +1051,7 @@ void GameFacade::publishGameStateChanged() {
     refreshCurrentTeamRecentMatchesModel();
     refreshCurrentTeamUpcomingMatchesModel();
     refreshPendingTransferOffersModel();
+    refreshCurrentTeamSeasonStatsObject();
     emit gameStateChanged();
 }
 
