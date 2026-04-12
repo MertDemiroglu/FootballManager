@@ -25,6 +25,16 @@ qt_add_executable(FM_UI
     PendingTransferOffersModel.h
     TeamSeasonStatsObject.cpp
     TeamSeasonStatsObject.h
+    DashboardStateObject.cpp
+    DashboardStateObject.h
+    DashboardNextMatchObject.cpp
+    DashboardNextMatchObject.h
+    DashboardTeamStatsObject.cpp
+    DashboardTeamStatsObject.h
+    DashboardStandingsRowObject.cpp
+    DashboardStandingsRowObject.h
+    DashboardUpcomingMatchesModel.cpp
+    DashboardUpcomingMatchesModel.h
 )
 
 qt_add_qml_module(FM_UI
@@ -62,6 +72,16 @@ qt_add_executable(game_facade_smoke
     PendingTransferOffersModel.h
     TeamSeasonStatsObject.cpp
     TeamSeasonStatsObject.h
+    DashboardStateObject.cpp
+    DashboardStateObject.h
+    DashboardNextMatchObject.cpp
+    DashboardNextMatchObject.h
+    DashboardTeamStatsObject.cpp
+    DashboardTeamStatsObject.h
+    DashboardStandingsRowObject.cpp
+    DashboardStandingsRowObject.h
+    DashboardUpcomingMatchesModel.cpp
+    DashboardUpcomingMatchesModel.h
 )
 
 set_target_properties(game_facade_smoke PROPERTIES
