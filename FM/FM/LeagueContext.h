@@ -2,7 +2,6 @@
 
 #include "DomainEventPublisher.h"
 #include "League.h"
-#include "LeagueProjection.h"
 #include "LeagueRules.h"
 #include "PlayMatchCommandHandler.h"
 #include "SeasonPlan.h"
@@ -12,7 +11,6 @@ private:
     League league;
     LeagueRules rules;
     SeasonPlan seasonPlan;
-    LeagueProjection leagueProjection;
     PlayMatchCommandHandler playMatchCommandHandler;
     int lastSeasonRolloverYear = -1;
 
@@ -32,9 +30,6 @@ public:
 
     SeasonPlan& getSeasonPlan();
     const SeasonPlan& getSeasonPlan() const;
-
-    LeagueProjection& getLeagueProjection();
-    const LeagueProjection& getLeagueProjection() const;
 
     PlayMatchCommandHandler& getPlayMatchCommandHandler();
     const PlayMatchCommandHandler& getPlayMatchCommandHandler() const;

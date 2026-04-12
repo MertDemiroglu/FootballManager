@@ -37,14 +37,6 @@ Game::Game()
     world.addLeagueContext(std::move(league), std::move(rules), std::move(seasonPlan));
 
     world.getDomainEventPublisher().subscribeMatchPlayed([this](const MatchPlayedEvent& event) {
-        LeagueContext* context = world.findLeagueContext(event.leagueId);
-        if (!context) {
-            throw std::logic_error("match played event references unknown league context");
-        }
-        context->getLeagueProjection().onMatchPlayed(event);
-    });
-
-    world.getDomainEventPublisher().subscribeMatchPlayed([this](const MatchPlayedEvent& event) {
         const LeagueId managedLeagueId = user.getManagedLeagueId();
         const TeamId managedTeamId = user.getManagedTeamId();
         if (managedLeagueId == 0 || managedTeamId == 0) {

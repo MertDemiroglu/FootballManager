@@ -9,7 +9,6 @@
 #include"Types.h"
 #include"Team.h"
 #include"Date.h"
-#include"MatchPlayedEvent.h"
 #include"MatchReport.h"
 
 struct FixtureMatch {
@@ -210,7 +209,6 @@ public:
 	void updateStandingsForMatch(TeamId homeId, TeamId awayId, const MatchResult& result);
 	void updateTeamSeasonStatsForMatch(TeamId homeId, TeamId awayId, const MatchResult& result);
 	void applyMatchReport(const MatchReport& report);
-	void applyMatchPlayedEvent(const MatchPlayedEvent& event);
 	std::vector<StandingsEntry> getSortedStandings() const;
 	const std::unordered_map<TeamId, StandingsEntry>& getStandings() const;
 	//----------------------------------------------------------------------------------------------

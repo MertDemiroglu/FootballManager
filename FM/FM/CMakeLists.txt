@@ -20,7 +20,6 @@ add_library(fm_core STATIC
     League.cpp
     World.cpp
     LeagueContext.cpp
-    LeagueProjection.cpp
     LeagueRules.cpp 
     MatchScheduler.cpp
     MatchSimulation.cpp

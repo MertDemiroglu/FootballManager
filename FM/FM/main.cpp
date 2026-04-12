@@ -259,8 +259,8 @@ void validateTeamHistoryQueries(const League& league, const LeagueRules& rules) 
     const int expectedMatchesPerTeam = (rules.teamCount - 1) * 2;
     bool checkedAnyTeam = false;
 
-    for (const auto& [teamId, team] : league.getTeams()) {
-        (void)teamId;
+    for (const auto& [mapTeamId, team] : league.getTeams()) {
+        (void)mapTeamId;
         const TeamId teamId = team->getId();
         const auto currentSeasonMatches = league.getMatchesForTeamInCurrentSeason(teamId);
         const auto seasonMatches = league.getMatchesForTeamInSeason(teamId, league.getCurrentSeasonYear());
@@ -579,16 +579,16 @@ void validateSeasonOutcome(Game& game, LeagueId leagueId, const LeagueRules& rul
             }
             const std::size_t historySizeBeforeDuplicateAttempt = league.getCurrentSeasonHistory().size();
             try {
-                league.applyMatchPlayedEvent(MatchPlayedEvent{
-    league.getId(),
-    league.getCurrentSeasonYear(),
-    date,
-    match.homeId,
-    match.awayId,
-    match.matchweek,
-    match.homeGoals,
-    match.awayGoals
-                    });
+                MatchReport duplicateReport;
+                duplicateReport.leagueId = league.getId();
+                duplicateReport.seasonYear = league.getCurrentSeasonYear();
+                duplicateReport.date = date;
+                duplicateReport.homeId = match.homeId;
+                duplicateReport.awayId = match.awayId;
+                duplicateReport.matchweek = match.matchweek;
+                duplicateReport.homeGoals = match.homeGoals;
+                duplicateReport.awayGoals = match.awayGoals;
+                league.applyMatchReport(duplicateReport);
             }
             catch (const std::logic_error&) {
                 duplicateResolveBlocked = true;
