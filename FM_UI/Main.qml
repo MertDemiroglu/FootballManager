@@ -28,8 +28,8 @@ ApplicationWindow {
         readonly property string transferOffer: "transfer_offer"
     }
 
-    readonly property ShellStateObject shellState: gameFacade.shellState
-    readonly property InteractionStateObject interactionState: gameFacade.interactionState
+    readonly property var shellState: gameFacade.shellState
+    readonly property var interactionState: gameFacade.interactionState
 
     property string currentView: shellState.hasStartedGame ? routes.dashboard : routes.home
 
