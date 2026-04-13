@@ -35,6 +35,16 @@ qt_add_executable(FM_UI
     DashboardStandingsRowObject.h
     DashboardUpcomingMatchesModel.cpp
     DashboardUpcomingMatchesModel.h
+    ShellStateObject.cpp
+    ShellStateObject.h
+    InteractionStateObject.cpp
+    InteractionStateObject.h
+    PreMatchInteractionObject.cpp
+    PreMatchInteractionObject.h
+    PostMatchInteractionObject.cpp
+    PostMatchInteractionObject.h
+    TransferOfferInteractionObject.cpp
+    TransferOfferInteractionObject.h
 )
 
 qt_add_qml_module(FM_UI
@@ -82,6 +92,16 @@ qt_add_executable(game_facade_smoke
     DashboardStandingsRowObject.h
     DashboardUpcomingMatchesModel.cpp
     DashboardUpcomingMatchesModel.h
+    ShellStateObject.cpp
+    ShellStateObject.h
+    InteractionStateObject.cpp
+    InteractionStateObject.h
+    PreMatchInteractionObject.cpp
+    PreMatchInteractionObject.h
+    PostMatchInteractionObject.cpp
+    PostMatchInteractionObject.h
+    TransferOfferInteractionObject.cpp
+    TransferOfferInteractionObject.h
 )
 
 set_target_properties(game_facade_smoke PROPERTIES
