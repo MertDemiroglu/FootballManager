@@ -28,16 +28,10 @@ ApplicationWindow {
         readonly property string transferOffer: "transfer_offer"
     }
 
-    property string currentView: gameFacade.hasStartedGame() ? routes.dashboard : routes.home
-    property bool gameStarted: gameFacade.hasStartedGame()
-    property string headerTeamName: gameStarted ? (gameFacade.getSelectedTeamName() || "No Team") : "Football Manager"
-    property string headerDateText: gameFacade.getCurrentDateText() || ""
-    property bool hasActiveInteraction: gameFacade.hasActiveInteraction()
-    property string activeInteractionKind: gameFacade.getActiveInteractionKind() || ""
-    property var activePreMatchData: ({})
-    property bool simulationPaused: gameFacade.isTimePaused()
-    property var activePostMatchData: ({})
-    property var activeTransferOfferData: ({})
+    readonly property var shellState: gameFacade.shellState
+    readonly property var interactionState: gameFacade.interactionState
+
+    property string currentView: shellState.hasStartedGame ? routes.dashboard : routes.home
 
     function componentForView(viewName) {
         if (viewName === routes.home) {
@@ -65,87 +59,40 @@ ApplicationWindow {
                || viewName === routes.transfers
     }
 
-    function refreshHeader() {
-        gameStarted = gameFacade.hasStartedGame()
-        headerTeamName = gameStarted ? (gameFacade.getSelectedTeamName() || "No Team") : "Football Manager"
-        headerDateText = gameFacade.getCurrentDateText() || ""
-    }
-
-    function refreshInteractionState() {
-        hasActiveInteraction = gameFacade.hasActiveInteraction()
-        activeInteractionKind = gameFacade.getActiveInteractionKind() || ""
-        simulationPaused = gameFacade.isTimePaused()
-
-        activePreMatchData = (hasActiveInteraction && activeInteractionKind === interactionKinds.preMatch)
-                             ? (gameFacade.getActivePreMatchInteraction() || {})
-                             : ({})
-
-        activePostMatchData = (hasActiveInteraction && activeInteractionKind === interactionKinds.postMatch)
-                              ? (gameFacade.getActivePostMatchInteraction() || {})
-                              : ({})
-        activeTransferOfferData = (hasActiveInteraction && activeInteractionKind === interactionKinds.transferOffer)
-                                  ? (gameFacade.getActiveTransferOfferInteraction() || {})
-                                  : ({})
-    }
-
-    function refreshActiveView() {
-        if (viewLoader.item && viewLoader.item.refreshData) {
-            viewLoader.item.refreshData()
-        }
-    }
-
-    function refreshUiState() {
-        refreshInteractionState()
-        refreshHeader()
-        refreshActiveView()
-    }
-
     function goTo(viewName) {
         currentView = viewName
     }
 
     function navigateTo(viewName) {
         goTo(viewName)
-        refreshUiState()
     }
 
     function pauseSimulation() {
         gameFacade.pauseSimulation()
-        refreshUiState()
     }
 
     function resumeSimulation() {
         gameFacade.resumeSimulation()
-        refreshUiState()
     }
 
     function resolveActiveInteraction() {
         gameFacade.resolveActiveInteraction()
-        refreshUiState()
     }
 
     function playActiveMatch() {
         gameFacade.playActiveMatch()
-        refreshUiState()
     }
 
     function acceptActiveTransferOffer() {
         gameFacade.acceptActiveTransferOffer()
-        refreshUiState()
     }
 
     function rejectActiveTransferOffer() {
         gameFacade.rejectActiveTransferOffer()
-        refreshUiState()
     }
 
     function deferActiveTransferOffer() {
         gameFacade.deferActiveTransferOffer()
-        refreshUiState()
-    }
-
-    Component.onCompleted: {
-        refreshUiState()
     }
 
     header: ToolBar {
@@ -159,7 +106,9 @@ ApplicationWindow {
             spacing: 12
 
             Label {
-                text: root.headerTeamName
+                text: root.shellState.hasStartedGame
+                      ? (root.shellState.selectedTeamName || "No Team")
+                      : "Football Manager"
                 font.pixelSize: 20
                 font.bold: true
                 color: "#202020"
@@ -168,8 +117,8 @@ ApplicationWindow {
             Item { Layout.fillWidth: true }
 
             Label {
-                visible: root.gameStarted
-                text: root.headerDateText
+                visible: root.shellState.hasStartedGame
+                text: root.shellState.currentDateText || ""
                 color: "#444444"
                 font.pixelSize: 14
             }
@@ -181,19 +130,15 @@ ApplicationWindow {
         anchors.fill: parent
         anchors.margins: root.viewUsesPageMargins(root.currentView) ? 16 : 0
         sourceComponent: root.componentForView(root.currentView)
-        onLoaded: {
-            root.refreshUiState()
-        }
     }
 
     Connections {
         target: gameFacade
 
         function onGameStateChanged() {
-            if (gameFacade.hasStartedGame() && root.currentView === root.routes.teamSelection) {
+            if (root.shellState.hasStartedGame && root.currentView === root.routes.teamSelection) {
                 root.currentView = root.routes.dashboard
             }
-            root.refreshUiState()
         }
     }
 
@@ -201,10 +146,11 @@ ApplicationWindow {
         id: simulationTimer
         interval: 300
         repeat: true
-        running: root.gameStarted && !root.simulationPaused && !root.hasActiveInteraction
+        running: root.shellState.hasStartedGame
+                 && !root.shellState.timePaused
+                 && !root.interactionState.hasActiveInteraction
         onTriggered: {
             gameFacade.advanceOneDay()
-            root.refreshUiState()
         }
     }
 
@@ -287,8 +233,9 @@ ApplicationWindow {
     PostMatchDialog {
         id: postMatchDialog
         anchors.fill: parent
-        visible: root.hasActiveInteraction && root.activeInteractionKind === root.interactionKinds.postMatch
-        interactionData: root.activePostMatchData
+        visible: root.interactionState.hasActiveInteraction
+                 && root.interactionState.kind === root.interactionKinds.postMatch
+        interactionData: root.interactionState.postMatch
         onContinueRequested: {
             root.resolveActiveInteraction()
         }
@@ -297,8 +244,9 @@ ApplicationWindow {
     PreMatchDialog {
         id: preMatchDialog
         anchors.fill: parent
-        visible: root.hasActiveInteraction && root.activeInteractionKind === root.interactionKinds.preMatch
-        interactionData: root.activePreMatchData
+        visible: root.interactionState.hasActiveInteraction
+                 && root.interactionState.kind === root.interactionKinds.preMatch
+        interactionData: root.interactionState.preMatch
         onPlayMatchRequested: {
             root.playActiveMatch()
         }
@@ -307,8 +255,9 @@ ApplicationWindow {
     TransferOfferDialog {
         id: transferOfferDialog
         anchors.fill: parent
-        visible: root.hasActiveInteraction && root.activeInteractionKind === root.interactionKinds.transferOffer
-        interactionData: root.activeTransferOfferData
+        visible: root.interactionState.hasActiveInteraction
+                 && root.interactionState.kind === root.interactionKinds.transferOffer
+        interactionData: root.interactionState.transferOffer
         onAcceptRequested: {
             root.acceptActiveTransferOffer()
         }
