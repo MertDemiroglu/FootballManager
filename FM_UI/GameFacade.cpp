@@ -16,6 +16,8 @@
 #include "PendingTransferOffersModel.h"
 #include "DashboardStateObject.h"
 #include "DashboardUpcomingMatchesModel.h"
+#include "InteractionStateObject.h"
+#include "ShellStateObject.h"
 
 #include<QDebug>
 
@@ -73,7 +75,9 @@ GameFacade::GameFacade(QObject* parent)
       pendingTransferOffersModel(this),
       currentTeamSeasonStatsObject(this),
       dashboardStateObject(this),
-      dashboardUpcomingMatchesModel(this) {
+      dashboardUpcomingMatchesModel(this),
+      shellStateObject(this),
+      interactionStateObject(this) {
 }
 
 GameFacade::~GameFacade() {}
@@ -354,6 +358,14 @@ DashboardStateObject* GameFacade::getDashboardState() const {
 
 QAbstractListModel* GameFacade::getDashboardUpcomingMatchesModel() const {
     return const_cast<DashboardUpcomingMatchesModel*>(&dashboardUpcomingMatchesModel);
+}
+
+ShellStateObject* GameFacade::getShellState() const {
+    return const_cast<ShellStateObject*>(&shellStateObject);
+}
+
+InteractionStateObject* GameFacade::getInteractionState() const {
+    return const_cast<InteractionStateObject*>(&interactionStateObject);
 }
 
 QVariantMap GameFacade::getDashboard() const {
@@ -1153,6 +1165,123 @@ void GameFacade::refreshDashboardUpcomingMatchesModel() {
     dashboardUpcomingMatchesModel.setRows(std::move(rows));
 }
 
+void GameFacade::refreshShellStateObject() {
+    if (!gameStarted) {
+        shellStateObject.clear();
+        return;
+    }
+
+    const Game* currentGame = ensureGame();
+    if (!currentGame) {
+        shellStateObject.clear();
+        return;
+    }
+
+    shellStateObject.setFromValues(
+        true,
+        getSelectedTeamName(),
+        formatDate(currentGame->getDate()),
+        formatGameState(currentGame->getState()),
+        managerName,
+        currentGame->isTimePaused()
+    );
+}
+
+void GameFacade::refreshInteractionStateObject() {
+    if (!gameStarted) {
+        interactionStateObject.clear();
+        return;
+    }
+
+    const Game* currentGame = ensureGame();
+    if (!currentGame || !currentGame->hasActiveBlockingInteraction()) {
+        interactionStateObject.clear();
+        return;
+    }
+
+    const GameInteraction* interaction = currentGame->getActiveInteraction();
+    if (!interaction) {
+        interactionStateObject.clear();
+        return;
+    }
+
+    switch (interaction->getKind()) {
+    case GameInteraction::Kind::PreMatch: {
+        const PreMatchInteraction* preMatch = currentGame->getActivePreMatchInteraction();
+        if (!preMatch) {
+            interactionStateObject.clear();
+            return;
+        }
+
+        const League* league = resolveLeague(preMatch->getLeagueId());
+        interactionStateObject.preMatch()->setFromValues(
+            formatDate(preMatch->getDate()),
+            preMatch->getMatchweek(),
+            static_cast<int>(preMatch->getHomeId()),
+            static_cast<int>(preMatch->getAwayId()),
+            league ? fromStd(league->getTeamName(preMatch->getHomeId())) : QString(),
+            league ? fromStd(league->getTeamName(preMatch->getAwayId())) : QString()
+        );
+        interactionStateObject.postMatch()->clear();
+        interactionStateObject.transferOffer()->clear();
+        interactionStateObject.setFromValues(true, QStringLiteral("pre_match"));
+        return;
+    }
+    case GameInteraction::Kind::PostMatch: {
+        const PostMatchInteraction* postMatch = currentGame->getActivePostMatchInteraction();
+        if (!postMatch) {
+            interactionStateObject.clear();
+            return;
+        }
+
+        const League* league = resolveLeague(postMatch->getLeagueId());
+        interactionStateObject.postMatch()->setFromValues(
+            formatDate(postMatch->getDate()),
+            postMatch->getMatchweek(),
+            static_cast<int>(postMatch->getHomeId()),
+            static_cast<int>(postMatch->getAwayId()),
+            league ? fromStd(league->getTeamName(postMatch->getHomeId())) : QString(),
+            league ? fromStd(league->getTeamName(postMatch->getAwayId())) : QString(),
+            postMatch->getHomeGoals(),
+            postMatch->getAwayGoals()
+        );
+        interactionStateObject.preMatch()->clear();
+        interactionStateObject.transferOffer()->clear();
+        interactionStateObject.setFromValues(true, QStringLiteral("post_match"));
+        return;
+    }
+    case GameInteraction::Kind::TransferOfferDecision: {
+        const TransferOfferDecisionInteraction* transferOffer = currentGame->getActiveTransferOfferDecisionInteraction();
+        if (!transferOffer) {
+            interactionStateObject.clear();
+            return;
+        }
+
+        const League* sellerLeague = resolveLeague(transferOffer->getSellerLeagueId());
+        const League* buyerLeague = resolveLeague(transferOffer->getBuyerLeagueId());
+        QString playerName;
+        if (sellerLeague) {
+            if (const Footballer* player = sellerLeague->findPlayerById(transferOffer->getPlayerId())) {
+                playerName = fromStd(player->getName());
+            }
+        }
+
+        interactionStateObject.transferOffer()->setFromValues(
+            static_cast<int>(transferOffer->getOfferId()),
+            static_cast<int>(transferOffer->getPlayerId()),
+            playerName,
+            sellerLeague ? fromStd(sellerLeague->getTeamName(transferOffer->getSellerTeamId())) : QString(),
+            buyerLeague ? fromStd(buyerLeague->getTeamName(transferOffer->getBuyerTeamId())) : QString(),
+            static_cast<qlonglong>(transferOffer->getFee())
+        );
+        interactionStateObject.preMatch()->clear();
+        interactionStateObject.postMatch()->clear();
+        interactionStateObject.setFromValues(true, QStringLiteral("transfer_offer"));
+        return;
+    }
+    }
+}
+
 void GameFacade::publishGameStateChanged() {
     refreshStandingsModel();
     refreshCurrentTeamPlayersModel();
@@ -1162,6 +1291,8 @@ void GameFacade::publishGameStateChanged() {
     refreshCurrentTeamSeasonStatsObject();
     refreshDashboardState();
     refreshDashboardUpcomingMatchesModel();
+    refreshShellStateObject();
+    refreshInteractionStateObject();
     emit gameStateChanged();
 }
 

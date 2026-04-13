@@ -13,6 +13,8 @@
 #include "TeamSeasonStatsObject.h"
 #include "DashboardStateObject.h"
 #include "DashboardUpcomingMatchesModel.h"
+#include "InteractionStateObject.h"
+#include "ShellStateObject.h"
 
 #include<memory>
 
@@ -51,6 +53,8 @@ class GameFacade : public QObject {
     Q_PROPERTY(TeamSeasonStatsObject* currentTeamSeasonStatsObject READ getCurrentTeamSeasonStatsObject CONSTANT)
     Q_PROPERTY(DashboardStateObject* dashboardState READ getDashboardState CONSTANT)
     Q_PROPERTY(QAbstractListModel* dashboardUpcomingMatchesModel READ getDashboardUpcomingMatchesModel CONSTANT)
+    Q_PROPERTY(ShellStateObject* shellState READ getShellState CONSTANT)
+    Q_PROPERTY(InteractionStateObject* interactionState READ getInteractionState CONSTANT)
 
 public:
     explicit GameFacade(QObject* parent = nullptr);
@@ -102,6 +106,8 @@ public:
     TeamSeasonStatsObject* getCurrentTeamSeasonStatsObject() const;
     DashboardStateObject* getDashboardState() const;
     QAbstractListModel* getDashboardUpcomingMatchesModel() const;
+    ShellStateObject* getShellState() const;
+    InteractionStateObject* getInteractionState() const;
 
     Q_INVOKABLE QVariantList getStandingsTable() const;
     Q_INVOKABLE QVariantMap getCurrentTeamSeasonStats() const;
@@ -124,6 +130,8 @@ private:
     TeamSeasonStatsObject currentTeamSeasonStatsObject;
     DashboardStateObject dashboardStateObject;
     DashboardUpcomingMatchesModel dashboardUpcomingMatchesModel;
+    ShellStateObject shellStateObject;
+    InteractionStateObject interactionStateObject;
     LeagueId selectedLeagueId = 0;
     TeamId selectedTeamId = 0;
     bool gameStarted = false;
@@ -147,6 +155,8 @@ private:
     void refreshCurrentTeamSeasonStatsObject();
     void refreshDashboardState();
     void refreshDashboardUpcomingMatchesModel();
+    void refreshShellStateObject();
+    void refreshInteractionStateObject();
     void publishGameStateChanged();
 
     QString formatDate(const Date& date) const;
