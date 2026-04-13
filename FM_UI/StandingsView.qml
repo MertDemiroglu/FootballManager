@@ -6,22 +6,8 @@ Item {
     id: root
     signal backRequested()
 
-    property bool hasActiveGame: gameFacade.hasStartedGame()
-
-
-    function refreshData() {
-        hasActiveGame = gameFacade.hasStartedGame()
-    }
-
-    Component.onCompleted: refreshData()
-
-    Connections {
-        target: gameFacade
-
-        function onGameStateChanged() {
-            refreshData()
-        }
-    }
+    readonly property var shellState: gameFacade.shellState
+    readonly property bool hasActiveGame: shellState.hasStartedGame
 
     ColumnLayout {
         anchors.fill: parent

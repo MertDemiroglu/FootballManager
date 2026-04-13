@@ -13,11 +13,8 @@ Item {
     readonly property int sectionSpacing: 20
 
     property var selectedPlayerDetails: ({})
-    property bool hasActiveGame: gameFacade.hasStartedGame()
-
-    function refreshData() {
-        hasActiveGame = gameFacade.hasStartedGame()
-    }
+    readonly property var shellState: gameFacade.shellState
+    readonly property bool hasActiveGame: shellState.hasStartedGame
 
     function seasonStatText(value) {
         const statsObject = gameFacade.currentTeamSeasonStatsObject
@@ -39,16 +36,6 @@ Item {
 
 
 
-
-    Component.onCompleted: refreshData()
-
-    Connections {
-        target: gameFacade
-
-        function onGameStateChanged() {
-            refreshData()
-        }
-    }
 
     Rectangle {
         anchors.fill: parent
@@ -77,7 +64,7 @@ Item {
                         spacing: 8
 
                         Label {
-                            text: gameFacade.getSelectedTeamName() || "Team"
+                            text: root.shellState.selectedTeamName || "Team"
                             font.pixelSize: 34
                             font.bold: true
                             color: "#17212f"

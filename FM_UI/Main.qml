@@ -132,16 +132,6 @@ ApplicationWindow {
         sourceComponent: root.componentForView(root.currentView)
     }
 
-    Connections {
-        target: gameFacade
-
-        function onGameStateChanged() {
-            if (root.shellState.hasStartedGame && root.currentView === root.routes.teamSelection) {
-                root.currentView = root.routes.dashboard
-            }
-        }
-    }
-
     Timer {
         id: simulationTimer
         interval: 300

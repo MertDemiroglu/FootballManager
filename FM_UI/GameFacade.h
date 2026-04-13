@@ -44,7 +44,7 @@ class GameFacade : public QObject {
     Q_OBJECT
 
     Q_DISABLE_COPY_MOVE(GameFacade)
-    Q_PROPERTY(QString lastError READ getLastError NOTIFY gameStateChanged)
+    Q_PROPERTY(QString lastError READ getLastError NOTIFY lastErrorChanged)
     Q_PROPERTY(QAbstractListModel* standingsModel READ getStandingsModel CONSTANT)
     Q_PROPERTY(QAbstractListModel* currentTeamPlayersModel READ getCurrentTeamPlayersModel CONSTANT)
     Q_PROPERTY(QAbstractListModel* currentTeamRecentMatchesModel READ getCurrentTeamRecentMatchesModel CONSTANT)
@@ -119,6 +119,7 @@ public:
 
 signals:
     void gameStateChanged();
+    void lastErrorChanged();
 
 private:
     std::unique_ptr<Game> game;
