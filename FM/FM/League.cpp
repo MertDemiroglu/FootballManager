@@ -119,13 +119,19 @@ void League::addFixtureMatch(MatchId matchId, int matchWeekIndex, const Date& da
 		throw std::invalid_argument("fixture match cannot contain same team twice");
 	}
 
+	if (fixtureIndexById.find(matchId) != fixtureIndexById.end()) {
+		throw std::logic_error("duplicate fixture match id");
+	}
+
 	const std::size_t zeroBased = static_cast<std::size_t>(matchWeekIndex - 1);
 	if (zeroBased >= matchWeekEndDates.size()) {
 		throw std::out_of_range("matchday index exceeds initialized tracking range");
 	}
 
 	auto& dayMatches = fixture[date];
+	const std::size_t matchIndex = dayMatches.size();
 	dayMatches.push_back(FixtureMatch{ matchId, homeId, awayId, matchWeekIndex});
+	fixtureIndexById.emplace(matchId, FixtureMatchLocator{ date, matchIndex });
 
 	auto& endDate = matchWeekEndDates[zeroBased];
 	if (!endDate.has_value() || *endDate < date) {
@@ -135,6 +141,7 @@ void League::addFixtureMatch(MatchId matchId, int matchWeekIndex, const Date& da
 
 void League::clearFixture() {
 	fixture.clear();
+	fixtureIndexById.clear();
 	matchWeekEndDates.clear();
 }
 
@@ -189,54 +196,36 @@ std::vector<FixtureMatch*> League::getMatchesForDate(const Date& date) {
 	return matches;
 }
 
-FixtureMatch* League::findFixtureMatch(const Date& date, TeamId homeId, TeamId awayId) {
-	auto it = fixture.find(date);
-	if (it == fixture.end()) {
-		return nullptr;
-	}
-	for (auto& m : it->second) {
-		if (m.homeId == homeId && m.awayId == awayId) {
-			return &m;
-		}
-	}
-	return nullptr;
-}
-
-const FixtureMatch* League::findFixtureMatch(const Date& date, TeamId homeId, TeamId awayId) const {
-	auto it = fixture.find(date);
-	if (it == fixture.end()) {
-		return nullptr;
-	}
-	for (const auto& m : it->second) {
-		if (m.homeId == homeId && m.awayId == awayId) {
-			return &m;
-		}
-	}
-	return nullptr;
-}
-
 FixtureMatch* League::findFixtureMatchById(MatchId id) {
-	for (auto& [date, matches] : fixture) {
-		(void)date;
-		for (auto& match : matches) {
-			if (match.matchId == id) {
-				return &match;
-			}
-		}
+	const auto locatorIt = fixtureIndexById.find(id);
+	if (locatorIt == fixtureIndexById.end()) {
+		return nullptr;
 	}
-	return nullptr;
+	const FixtureMatchLocator& locator = locatorIt->second;
+	auto dateIt = fixture.find(locator.date);
+	if (dateIt == fixture.end()) {
+		return nullptr;
+	}
+	if (locator.index >= dateIt->second.size()) {
+		return nullptr;
+	}
+	return &dateIt->second[locator.index];
 }
 
 const FixtureMatch* League::findFixtureMatchById(MatchId id) const {
-	for (const auto& [date, matches] : fixture) {
-		(void)date;
-		for (const auto& match : matches) {
-			if (match.matchId == id) {
-				return &match;
-			}
-		}
+	const auto locatorIt = fixtureIndexById.find(id);
+	if (locatorIt == fixtureIndexById.end()) {
+		return nullptr;
 	}
-	return nullptr;
+	const FixtureMatchLocator& locator = locatorIt->second;
+	auto dateIt = fixture.find(locator.date);
+	if (dateIt == fixture.end()) {
+		return nullptr;
+	}
+	if (locator.index >= dateIt->second.size()) {
+		return nullptr;
+	}
+	return &dateIt->second[locator.index];
 }
 
 std::vector<FixtureMatchPreview> League::getUpcomingMatchesForTeam(TeamId teamId, std::size_t count) const {
@@ -272,10 +261,7 @@ std::optional<FixtureMatchPreview> League::getNextMatchForTeam(TeamId teamId) co
 }
 
 bool League::hasCurrentSeasonHistoryRecord(MatchId matchId) const {
-	return std::any_of(currentSeasonHistory.begin(), currentSeasonHistory.end(),
-		[&](const MatchRecord& existing) {
-			return existing.matchId == matchId;
-		});
+	return currentSeasonHistoryIndexById.find(matchId) != currentSeasonHistoryIndexById.end();
 }
 
 bool League::hasCurrentSeasonMatchReport(MatchId matchId) const {
@@ -494,17 +480,31 @@ void League::applyMatchReport(const MatchReport& report) {
 	const MatchResult result{ report.homeGoals, report.awayGoals };
 	updateStandingsForMatch(report.homeId, report.awayId, result);
 	currentSeasonHistory.push_back(MatchRecord{ report.matchId, report.date, currentSeasonYear, report.homeId, report.awayId, report.homeGoals, report.awayGoals, match->matchweek });
+	currentSeasonHistoryIndexById.emplace(report.matchId, currentSeasonHistory.size() - 1);
 	updateTeamSeasonStatsForMatch(report.homeId, report.awayId, result);
+
+	Team* homeTeam = findTeamById(report.homeId);
+	Team* awayTeam = findTeamById(report.awayId);
+	if (!homeTeam || !awayTeam) {
+		throw std::logic_error("match report contains unknown team id");
+	}
 
 	std::unordered_set<PlayerId> playersWithAppearance;
 	for (const MatchPlayerReport& playerReport : report.playerReports) {
 		if (playerReport.playerId == 0) {
 			continue;
 		}
-		if (playerReport.teamId != report.homeId && playerReport.teamId != report.awayId) {
+		Team* reportTeam = nullptr;
+		if (playerReport.teamId == report.homeId) {
+			reportTeam = homeTeam;
+		}
+		else if (playerReport.teamId == report.awayId) {
+			reportTeam = awayTeam;
+		}
+		else {
 			throw std::logic_error("match player report has invalid team id");
 		}
-		Footballer* player = findPlayerById(playerReport.playerId);
+		Footballer* player = reportTeam->findPlayerById(playerReport.playerId);
 		if (!player) {
 			throw std::logic_error("match player report references unknown player");
 		}
@@ -705,13 +705,15 @@ const MatchReport* League::findArchivedMatchReportById(int seasonYear, MatchId i
 }
 
 const MatchRecord* League::findCurrentSeasonMatchRecordById(MatchId id) const {
-	const auto it = std::find_if(currentSeasonHistory.begin(), currentSeasonHistory.end(), [id](const MatchRecord& record) {
-		return record.matchId == id;
-		});
-	if (it == currentSeasonHistory.end()) {
+	const auto indexIt = currentSeasonHistoryIndexById.find(id);
+	if (indexIt == currentSeasonHistoryIndexById.end()) {
 		return nullptr;
 	}
-	return &(*it);
+	const std::size_t index = indexIt->second;
+	if (index >= currentSeasonHistory.size()) {
+		return nullptr;
+	}
+	return &currentSeasonHistory[index];
 }
 
 const std::unordered_map<int, std::vector<MatchRecord>>& League::getArchivedHistoryBySeason() const {
@@ -784,6 +786,7 @@ void League::archiveCompletedSeasonHistory(int seasonYear) {
 
 void League::resetCurrentSeasonHistory() {
 	currentSeasonHistory.clear();
+	currentSeasonHistoryIndexById.clear();
 	currentSeasonMatchReportsById.clear();
 }
 

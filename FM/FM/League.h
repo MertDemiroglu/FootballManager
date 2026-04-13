@@ -36,6 +36,11 @@ struct FixtureMatchPreview {
 	int matchweek = 0;
 };
 
+struct FixtureMatchLocator {
+	Date date{ 1900, Month::January, 1 };
+	std::size_t index = 0;
+};
+
 struct MatchResult {
 	int homeGoals = 0;
 	int awayGoals = 0;
@@ -118,13 +123,20 @@ private:
 	std::unordered_map<std::string, TeamId> teamNameToId;
 
 	std::map<Date, std::vector<FixtureMatch>> fixture;
+	std::unordered_map<MatchId, FixtureMatchLocator> fixtureIndexById;
+
 	std::vector<std::optional<Date>> matchWeekEndDates;
 	std::unordered_map<TeamId, StandingsEntry> standings;
 
+	//Mevcut sezonun maclari
 	std::vector<MatchRecord> currentSeasonHistory;
+	//Lookup icin index
+	std::unordered_map<MatchId, std::size_t> currentSeasonHistoryIndexById;
+
 	std::unordered_map<int, std::vector<MatchRecord>> archivedHistoryBySeason;
 
 	std::unordered_map<MatchId, MatchReport> currentSeasonMatchReportsById;
+
 	std::unordered_map<int, std::unordered_map<MatchId, MatchReport>> archivedMatchReportsBySeason;
 
 
@@ -199,20 +211,19 @@ public:
 	//O gunun maclarini vector olarak verir
 	std::vector<FixtureMatch*> getMatchesForDate(const Date& date);
 
-	//mac arama fonksiyonlari----------------------------------------------------------------------
-	FixtureMatch* findFixtureMatch(const Date& date, TeamId homeId, TeamId awayId);
-	const FixtureMatch* findFixtureMatch(const Date& date, TeamId homeId, TeamId awayId) const;
-
+	//mac arama fonksiyonlari------------------------------------------------------------------------
 	FixtureMatch* findFixtureMatchById(MatchId id);
 	const FixtureMatch* findFixtureMatchById(MatchId id) const;
-	//---------------------------------------------------------------------------------------------
+	//-----------------------------------------------------------------------------------------------
 
-	//Sonraki maci bulup preview saglar
+
+	//Sonraki maci bulup preview saglar--------------------------------------------------------------
 	std::optional<FixtureMatchPreview> getNextMatchForTeam(TeamId teamId) const;
 	std::vector<FixtureMatchPreview> getUpcomingMatchesForTeam(TeamId teamId, std::size_t count) const;
+	//-----------------------------------------------------------------------------------------------
 
 
-	//standings fonksiyonlari-----------------------------------------------------------------------
+	//standings fonksiyonlari------------------------------------------------------------------------
 	void initializeStandings();
 	void resetStandings();
 	void updateStandingsForMatch(TeamId homeId, TeamId awayId, const MatchResult& result);
@@ -220,10 +231,10 @@ public:
 	void applyMatchReport(const MatchReport& report);
 	std::vector<StandingsEntry> getSortedStandings() const;
 	const std::unordered_map<TeamId, StandingsEntry>& getStandings() const;
-	//----------------------------------------------------------------------------------------------
+	//-----------------------------------------------------------------------------------------------
 
 
-	//history fonksiyonlari-------------------------------------------------------------------------
+	//history fonksiyonlari--------------------------------------------------------------------------
 	const std::vector<MatchRecord>& getCurrentSeasonHistory() const;
 	const MatchReport* findCurrentSeasonMatchReportById(MatchId id) const;
 	const MatchReport* findArchivedMatchReportById(int seasonYear, MatchId id) const;
@@ -239,7 +250,7 @@ public:
 	const std::unordered_map<int, std::unordered_map<TeamId, TeamSeasonStats>>& getArchivedTeamSeasonStatsBySeason() const;
 	const TeamSeasonStats* getCurrentTeamSeasonStatsFor(TeamId teamId) const;
 	const TeamSeasonStats* getArchivedTeamSeasonStatsFor(TeamId teamId, int seasonYear) const;
-   //-----------------------------------------------------------------------------------------------
+   //------------------------------------------------------------------------------------------------
 
 
 	std::optional<Date> tryGetMatchWeekEndDate(int matchWeekIndex) const;
