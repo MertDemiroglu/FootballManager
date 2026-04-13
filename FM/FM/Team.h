@@ -11,6 +11,7 @@
 #include<ostream>
 #include<algorithm>
 #include<iostream>
+#include<unordered_map>
 
 
 class Team {
@@ -20,6 +21,7 @@ private:
 	Money transferBudget, wageBudget, totalBudget;
 	std::string name;
 	std::vector<std::unique_ptr<Footballer>> players;
+	std::unordered_map<PlayerId, Footballer*> playerIndexById;
 
 public:
 

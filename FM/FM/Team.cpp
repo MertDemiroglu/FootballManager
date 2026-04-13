@@ -11,6 +11,7 @@
 #include<algorithm>
 #include<iostream>
 #include<atomic>
+#include<unordered_map>
 
 namespace {
     TeamId generateTeamId() {
@@ -44,21 +45,13 @@ int Team::calculateTeamRating() const {
 }
 
 Footballer* Team::findPlayerById(PlayerId playerId) {
-    for (auto& p : players) {
-        if (p->getId() == playerId) {
-            return p.get();
-        }
-    }
-    return nullptr;
+    const auto it = playerIndexById.find(playerId);
+    return it != playerIndexById.end() ? it->second : nullptr;
 }
 
 const Footballer* Team::findPlayerById(PlayerId playerId) const {
-    for (const auto& p : players) {
-        if (p->getId() == playerId) {
-            return p.get();
-        }
-    }
-    return nullptr;
+    const auto it = playerIndexById.find(playerId);
+    return it != playerIndexById.end() ? it->second : nullptr;
 }
 
 const std::vector<std::unique_ptr<Footballer>>& Team::getPlayers() const {
@@ -70,12 +63,18 @@ void Team::addPlayer(std::unique_ptr<Footballer> player) {
         return;
     }
     player->setTeam(id);
+    playerIndexById[player->getId()] = player.get();
     players.push_back(std::move(player));
 }
 
 std::unique_ptr<Footballer> Team::releasePlayer(PlayerId playerId) {
-    auto it = std::find_if(players.begin(), players.end(), [&](const std::unique_ptr<Footballer>& p) {
-        return p->getId() == playerId;
+    Footballer* indexedPlayer = findPlayerById(playerId);
+    if (!indexedPlayer) {
+        return nullptr;
+    }
+
+     auto it = std::find_if(players.begin(), players.end(), [indexedPlayer](const std::unique_ptr<Footballer>& p) {
+        return p.get() == indexedPlayer;
         });
 
     if (it == players.end()) {
@@ -84,6 +83,7 @@ std::unique_ptr<Footballer> Team::releasePlayer(PlayerId playerId) {
 
     std::unique_ptr<Footballer> released = std::move(*it);
     released->setTeam(0);
+    playerIndexById.erase(playerId);
     players.erase(it);
     return released;
 }
@@ -123,6 +123,7 @@ std::vector<std::unique_ptr<Footballer>> Team::collectExpiredContracts() {
     while (it != players.end()) {
        auto c = (*it)->getContract();
        if (c && c->isExpired()) {
+           playerIndexById.erase((*it)->getId());
            (*it)->setTeam(0);
            leavingPlayers.push_back(std::move(*it));
            it = players.erase(it);
