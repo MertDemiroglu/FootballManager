@@ -7,3 +7,4 @@ using TeamId = std::uint32_t;
 using PlayerId = std::uint32_t;
 using ContractId = std::uint32_t;
 using OfferId = std::uint32_t;
+using MatchId = std::uint64_t;

@@ -1,16 +1,22 @@
 #include "PreMatchInteraction.h"
 
-PreMatchInteraction::PreMatchInteraction(LeagueId leagueId,
+PreMatchInteraction::PreMatchInteraction(MatchId matchId,
+    LeagueId leagueId,
     const Date& date,
     TeamId homeId,
     TeamId awayId,
     int matchweek)
     : GameInteraction(Kind::PreMatch, true),
+    matchId(matchId),
     leagueId(leagueId),
     date(date),
     homeId(homeId),
     awayId(awayId),
     matchweek(matchweek) {
+}
+
+MatchId PreMatchInteraction::getMatchId() const {
+    return matchId;
 }
 
 LeagueId PreMatchInteraction::getLeagueId() const {

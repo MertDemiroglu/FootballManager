@@ -6,8 +6,9 @@
 
 class PostMatchInteraction : public GameInteraction {
 public:
-    PostMatchInteraction(LeagueId leagueId, const Date& date, TeamId homeId, TeamId awayId, int homeGoals, int awayGoals, int matchweek);
+    PostMatchInteraction(MatchId matchId, LeagueId leagueId, const Date& date, TeamId homeId, TeamId awayId, int homeGoals, int awayGoals, int matchweek);
 
+    MatchId getMatchId() const;
     LeagueId getLeagueId() const;
     const Date& getDate() const;
     TeamId getHomeId() const;
@@ -17,6 +18,7 @@ public:
     int getMatchweek() const;
 
 private:
+    MatchId matchId;
     LeagueId leagueId;
     Date date;
     TeamId homeId;

@@ -8,22 +8,33 @@
 PlayMatchCommandHandler::PlayMatchCommandHandler(DomainEventPublisher& publisher)   : publisher(publisher) {}
 
 void PlayMatchCommandHandler::handle(League& league, const PlayMatchCommand& command) {
-	FixtureMatch* match = league.findFixtureMatch(command.date, command.homeId, command.awayId);
+    if (command.matchId == 0) {
+        throw std::invalid_argument("play command match id cannot be zero");
+    }
+    FixtureMatch* match = league.findFixtureMatchById(command.matchId);
 
     if (!match) {
         throw std::runtime_error("fixture match not found for PlayMatchCommand");
     }
+
     if (match->played) {
         return;
     }
+
     if (command.leagueId != league.getId()) {
         throw std::logic_error("play command league id mismatch");
     }
+
     if (command.seasonYear != league.getCurrentSeasonYear()) {
         throw std::logic_error("play command season year mismatch");
     }
+
     if (match->matchweek != command.matchweek) {
         throw std::logic_error("play command matchweek mismatch");
+    }
+
+    if (match->homeId != command.homeId || match->awayId != command.awayId) {
+        throw std::logic_error("play command team ids mismatch");
     }
 
     const Team* homeTeam = league.findTeamById(command.homeId);
@@ -34,6 +45,7 @@ void PlayMatchCommandHandler::handle(League& league, const PlayMatchCommand& com
     }
 
     const MatchReport report = MatchSimulation::buildStrengthBasedReport(
+        command.matchId,
         command.leagueId,
         command.seasonYear,
         command.matchweek,
@@ -44,6 +56,7 @@ void PlayMatchCommandHandler::handle(League& league, const PlayMatchCommand& com
     league.applyMatchReport(report);
 
     publisher.publish(MatchPlayedEvent{
+        report.matchId,
         report.leagueId,
         report.seasonYear,
         report.date,

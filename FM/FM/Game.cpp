@@ -50,6 +50,7 @@ Game::Game()
         }
 
         interactionManager.enqueue(std::make_unique<PostMatchInteraction>(
+            event.matchId,
             event.leagueId,
             event.date,
             event.homeId,
@@ -159,7 +160,7 @@ void Game::updateDaily() {
         if (isManagedTeamMatch) {
             pendingPreMatchCommand = command;
 
-            interactionManager.enqueue(std::make_unique<PreMatchInteraction>(command.leagueId, command.date, command.homeId, command.awayId, command.matchweek));
+            interactionManager.enqueue(std::make_unique<PreMatchInteraction>(command.matchId, command.leagueId, command.date, command.homeId, command.awayId, command.matchweek));
             refreshTimePauseState();
             return;
         }
@@ -391,7 +392,7 @@ void Game::seasonStartChecksForContext(LeagueContext& context) {
 
     // Plan + fixture
     seasonPlan = SeasonPlan::build(y, rules);
-    fixtureGenerator.generateSeasonFixture(league, seasonPlan, rules);
+    fixtureGenerator.generateSeasonFixture(league, seasonPlan, rules, [this]() { return world.allocateMatchId(); });
     seasonPlan.finalizeFromFixture(league, rules);
     league.setSeasonFixtureGenerated(true);
 }

@@ -4,6 +4,7 @@
 #include"Types.h"
 
 struct PlayMatchCommand {
+    MatchId matchId = 0;
     LeagueId leagueId = 0;
     int seasonYear = 0;
     Date date;

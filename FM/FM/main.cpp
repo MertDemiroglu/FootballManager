@@ -233,7 +233,7 @@ void validateMatchHistoryIntegrity(const League& league, const LeagueRules& rule
     assertOrThrow(static_cast<int>(history.size()) == expectedTotalMatches,
         "Current season history size mismatch at season completion.");
 
-    std::unordered_set<std::string> dedupe;
+    std::unordered_set<MatchId> dedupe;
     for (const MatchRecord& record : history) {
         assertOrThrow(record.seasonYear == league.getCurrentSeasonYear(),
             "MatchRecord seasonYear does not match current league season.");
@@ -245,12 +245,8 @@ void validateMatchHistoryIntegrity(const League& league, const LeagueRules& rule
             "History record cannot contain same team twice.");
         assertOrThrow(record.homeGoals >= 0 && record.awayGoals >= 0,
             "History record cannot contain negative goals.");
-        const std::string key = std::to_string(record.seasonYear) + ":" +
-            std::to_string(record.date.getYear()) + "-" +
-            std::to_string(static_cast<int>(record.date.getMonth())) + "-" +
-            std::to_string(record.date.getDay()) + ":" +
-            std::to_string(record.homeId) + ":" + std::to_string(record.awayId);
-        assertOrThrow(dedupe.insert(key).second,
+        assertOrThrow(record.matchId != 0, "History record MatchId cannot be zero.");
+        assertOrThrow(dedupe.insert(record.matchId).second,
             "Duplicate history record detected for a played match.");
     }
 }
@@ -580,6 +576,7 @@ void validateSeasonOutcome(Game& game, LeagueId leagueId, const LeagueRules& rul
             const std::size_t historySizeBeforeDuplicateAttempt = league.getCurrentSeasonHistory().size();
             try {
                 MatchReport duplicateReport;
+                duplicateReport.matchId = match.matchId;
                 duplicateReport.leagueId = league.getId();
                 duplicateReport.seasonYear = league.getCurrentSeasonYear();
                 duplicateReport.date = date;

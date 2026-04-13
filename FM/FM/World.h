@@ -22,6 +22,7 @@ private:
 	DomainEventPublisher domainEventPublisher;
 	TransferRoom transferRoom;
 	TransferOfferService transferOfferService;
+	MatchId nextMatchId = 1;
 
 public: 
 
@@ -43,6 +44,8 @@ public:
 
 	TransferOfferService& getTransferOfferService();
 	const TransferOfferService& getTransferOfferService() const;
+
+	MatchId allocateMatchId();
 
 	bool hasPrimaryLeagueContext() const;
 

@@ -77,6 +77,10 @@ const TransferOfferService& World::getTransferOfferService() const {
     return transferOfferService;
 }
 
+MatchId World::allocateMatchId() {
+    return nextMatchId++;
+}
+
 LeagueContext& World::getPrimaryLeagueContext() {
     if (!primaryLeagueId.has_value()) {
         throw std::logic_error("world has no primary league context");

@@ -1,9 +1,9 @@
 #pragma once
 
-#include <vector>
+#include<vector>
 
-#include "Date.h"
-#include "Types.h"
+#include"Date.h"
+#include"Types.h"
 
 enum class MatchEventKind {
     Goal,
@@ -31,6 +31,7 @@ struct MatchEventRecord {
 };
 
 struct MatchReport {
+    MatchId matchId = 0;
     LeagueId leagueId = 0;
     int seasonYear = 0;
     Date date{ 1900, Month::January, 1 };

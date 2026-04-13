@@ -93,18 +93,24 @@ int randomMinute(std::mt19937& rng) {
 }
 
 MatchReport MatchSimulation::buildStrengthBasedReport(
+    MatchId matchId,
     LeagueId leagueId,
     int seasonYear,
     int matchweek,
     const Team& homeTeam,
     const Team& awayTeam,
     const Date& date) {
+
+    if (matchId == 0) {
+        throw std::invalid_argument("matchId cannot be zero");
+    }
     if (leagueId == 0) {
         throw std::invalid_argument("leagueId cannot be zero");
     }
     if (seasonYear < 0) {
         throw std::invalid_argument("seasonYear cannot be negative");
     }
+
     const int homeRating = homeTeam.calculateTeamRating();
     const int awayRating = awayTeam.calculateTeamRating();
     const int ratingDiff = homeRating - awayRating;
@@ -123,6 +129,7 @@ MatchReport MatchSimulation::buildStrengthBasedReport(
     std::poisson_distribution<int> awayDist(awayExpectedGoals);
 
     MatchReport report;
+    report.matchId = matchId;
     report.leagueId = leagueId;
     report.seasonYear = seasonYear;
     report.date = date;

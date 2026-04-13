@@ -28,7 +28,7 @@ void MatchScheduler::update(World& world, const Date& currentDate, EventQueue& q
                 throw std::logic_error("fixture contains unknown team id while scheduling match");
             }
 
-            queue.pushCommand(PlayMatchCommand{ league.getId(), league.getCurrentSeasonYear(), currentDate, home->getId(), away->getId(), match->matchweek });
+            queue.pushCommand(PlayMatchCommand{ match->matchId, league.getId(), league.getCurrentSeasonYear(), currentDate, home->getId(), away->getId(), match->matchweek });
             generatedMatchEvents++;
             match->eventEnqueued = true;
 

@@ -12,6 +12,7 @@
 #include"MatchReport.h"
 
 struct FixtureMatch {
+	MatchId matchId;
 
 	bool played = false;
 	bool eventEnqueued = false;
@@ -21,13 +22,14 @@ struct FixtureMatch {
 	int matchweek = 0;
 
 	FixtureMatch() = default;
-	FixtureMatch(TeamId h,const TeamId a, int mw): homeId(h), awayId(a), matchweek(mw) {}
+	FixtureMatch(MatchId id, TeamId h, const TeamId a, int mw) : matchId(id), homeId(h), awayId(a), matchweek(mw) {}
 
 	int homeGoals = -1;
 	int awayGoals = -1;
 };
 
 struct FixtureMatchPreview {
+	MatchId matchId = 0;
 	Date date{ 1900, Month::January, 1 };
 	TeamId homeId = 0;
 	TeamId awayId = 0;
@@ -40,6 +42,7 @@ struct MatchResult {
 };
 
 struct MatchRecord {
+	MatchId matchId = 0;
 	Date date{ 1900, Month::January, 1 };
 	int seasonYear = 0;
 	TeamId homeId = 0;
@@ -120,7 +123,10 @@ private:
 
 	std::vector<MatchRecord> currentSeasonHistory;
 	std::unordered_map<int, std::vector<MatchRecord>> archivedHistoryBySeason;
-	std::vector<MatchReport> currentSeasonMatchReports;
+
+	std::unordered_map<MatchId, MatchReport> currentSeasonMatchReportsById;
+	std::unordered_map<int, std::unordered_map<MatchId, MatchReport>> archivedMatchReportsBySeason;
+
 
 	//O sezondaki takim istatistiklerini tutan map
 	std::unordered_map<TeamId, TeamSeasonStats> currentTeamSeasonStats;
@@ -134,8 +140,8 @@ private:
 	std::vector<MatchRecord>getAllMatchesForTeam(TeamId teamId) const;
 	static MatchOutcome toOutcome(const MatchRecord& record, TeamId teamId);
 	static bool recordBelongsToTeam(const MatchRecord& record, TeamId teamId);
-	bool hasCurrentSeasonHistoryRecord(const Date& date, TeamId homeId, TeamId awayId) const;
-	bool hasCurrentSeasonMatchReport(const Date& date, TeamId homeId, TeamId awayId) const;
+	bool hasCurrentSeasonHistoryRecord(MatchId matchId) const;
+	bool hasCurrentSeasonMatchReport(MatchId matchId) const;
 
 	//Bu 6 fonksiyon tek bir rollover fonksiyonundan cagirilacak disari acilmayacak
 	void archiveCompletedSeasonHistory(int seasonYear);
@@ -182,7 +188,7 @@ public:
 	const Footballer* findPlayerById(PlayerId id) const;
 
 	//Fixture mac uretir
-	void addFixtureMatch(int matchWeekIndex, const Date& date, TeamId homeId, TeamId awayId);
+	void addFixtureMatch(MatchId matchId, int matchWeekIndex, const Date& date, TeamId homeId, TeamId awayId);
 
 	//Fixturu temizler
 	void clearFixture();
@@ -193,12 +199,15 @@ public:
 	//O gunun maclarini vector olarak verir
 	std::vector<FixtureMatch*> getMatchesForDate(const Date& date);
 
-	//Maci araryip bulur
+	//mac arama fonksiyonlari----------------------------------------------------------------------
 	FixtureMatch* findFixtureMatch(const Date& date, TeamId homeId, TeamId awayId);
-	//Maci arayip bulur overloaded
 	const FixtureMatch* findFixtureMatch(const Date& date, TeamId homeId, TeamId awayId) const;
 
-	//Sonraki maci bulup prewiew saglar
+	FixtureMatch* findFixtureMatchById(MatchId id);
+	const FixtureMatch* findFixtureMatchById(MatchId id) const;
+	//---------------------------------------------------------------------------------------------
+
+	//Sonraki maci bulup preview saglar
 	std::optional<FixtureMatchPreview> getNextMatchForTeam(TeamId teamId) const;
 	std::vector<FixtureMatchPreview> getUpcomingMatchesForTeam(TeamId teamId, std::size_t count) const;
 
@@ -216,7 +225,9 @@ public:
 
 	//history fonksiyonlari-------------------------------------------------------------------------
 	const std::vector<MatchRecord>& getCurrentSeasonHistory() const;
-	const MatchReport* findCurrentSeasonMatchReport(const Date& date, TeamId homeId, TeamId awayId) const;
+	const MatchReport* findCurrentSeasonMatchReportById(MatchId id) const;
+	const MatchReport* findArchivedMatchReportById(int seasonYear, MatchId id) const;
+	const MatchRecord* findCurrentSeasonMatchRecordById(MatchId id) const;
 	const std::unordered_map<int, std::vector<MatchRecord>>& getArchivedHistoryBySeason() const;
 	std::vector<MatchRecord> getMatchesForTeamInCurrentSeason(TeamId teamId) const;
 	std::vector<MatchRecord> getMatchesForTeamInSeason(TeamId teamId, int seasonYear) const;

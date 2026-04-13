@@ -1,6 +1,7 @@
 #include "PostMatchInteraction.h"
 
-PostMatchInteraction::PostMatchInteraction(LeagueId leagueId,
+PostMatchInteraction::PostMatchInteraction(MatchId matchId,
+    LeagueId leagueId,
     const Date& date,
     TeamId homeId,
     TeamId awayId,
@@ -8,6 +9,7 @@ PostMatchInteraction::PostMatchInteraction(LeagueId leagueId,
     int awayGoals,
     int matchweek)
     : GameInteraction(Kind::PostMatch, true),
+    matchId(matchId),
     leagueId(leagueId),
     date(date),
     homeId(homeId),
@@ -15,6 +17,10 @@ PostMatchInteraction::PostMatchInteraction(LeagueId leagueId,
     homeGoals(homeGoals),
     awayGoals(awayGoals),
     matchweek(matchweek) {
+}
+
+MatchId PostMatchInteraction::getMatchId() const {
+    return matchId;
 }
 
 LeagueId PostMatchInteraction::getLeagueId() const {

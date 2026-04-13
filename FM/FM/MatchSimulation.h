@@ -6,11 +6,5 @@
 class Team;
 
 namespace MatchSimulation {
-    MatchReport buildStrengthBasedReport(
-        LeagueId leagueId,
-        int seasonYear,
-        int matchweek,
-        const Team& homeTeam,
-        const Team& awayTeam,
-        const Date& date);
+    MatchReport buildStrengthBasedReport(MatchId matchId,  LeagueId leagueId, int seasonYear, int matchweek, const Team& homeTeam, const Team& awayTeam, const Date& date);
 }

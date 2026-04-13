@@ -9,7 +9,10 @@
 #include"DateUtils.h"
 #include"League.h"
 
-void FixtureGenerator::generateSeasonFixture(League& league, const SeasonPlan& plan, const LeagueRules& rules) const {
+void FixtureGenerator::generateSeasonFixture(League& league, const SeasonPlan& plan, const LeagueRules& rules, const std::function<MatchId()>& matchIdAllocator) const {
+    if (!matchIdAllocator) {
+        throw std::invalid_argument("matchIdAllocator cannot be empty");
+    }
     std::vector<std::pair<std::string, TeamId>> teamsByName;
     teamsByName.reserve(league.getTeams().size());
 
@@ -89,7 +92,7 @@ void FixtureGenerator::generateSeasonFixture(League& league, const SeasonPlan& p
         for (int i = 0; i < matchesPerMatchday; ++i) {
             const auto& [homeId, awayId] = roundPairings[static_cast<std::size_t>(i)];
             const Date matchDate = DateUtils::addDays(matchdayDate, rules.matchdayDistributionOffsets[static_cast<std::size_t>(i)]);
-            league.addFixtureMatch(matchdayIndex, matchDate, homeId, awayId);
+            league.addFixtureMatch(matchIdAllocator(), matchdayIndex, matchDate, homeId, awayId);
         }
         ++matchdayIndex;
         matchdayDate = DateUtils::addDays(matchdayDate, rules.matchSpacingDays);
@@ -103,7 +106,7 @@ void FixtureGenerator::generateSeasonFixture(League& league, const SeasonPlan& p
             for (int i = 0; i < matchesPerMatchday; ++i) {
                 const auto& [homeId, awayId] = roundPairings[static_cast<std::size_t>(i)];
                 const Date matchDate = DateUtils::addDays(matchdayDate, rules.matchdayDistributionOffsets[static_cast<std::size_t>(i)]);
-                league.addFixtureMatch(matchdayIndex, matchDate, awayId, homeId);
+                league.addFixtureMatch(matchIdAllocator(), matchdayIndex, matchDate, awayId, homeId);
             }
             ++matchdayIndex;
             matchdayDate = DateUtils::addDays(matchdayDate, rules.matchSpacingDays);

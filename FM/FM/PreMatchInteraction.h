@@ -6,6 +6,7 @@
 
 class PreMatchInteraction : public GameInteraction {
 private:
+    MatchId matchId;
     LeagueId leagueId;
     Date date;
     TeamId homeId;
@@ -13,8 +14,9 @@ private:
     int matchweek;
 
 public:
-	PreMatchInteraction(LeagueId leagueId, const Date& date, TeamId homeId, TeamId awayId, int matchweek);
+	PreMatchInteraction(MatchId matchId, LeagueId leagueId, const Date& date, TeamId homeId, TeamId awayId, int matchweek);
 
+    MatchId getMatchId() const;
     LeagueId getLeagueId() const;
     const Date& getDate() const;
     TeamId getHomeId() const;
