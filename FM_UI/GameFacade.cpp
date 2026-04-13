@@ -1183,15 +1183,11 @@ void GameFacade::refreshShellStateObject() {
         formatDate(currentGame->getDate()),
         formatGameState(currentGame->getState()),
         managerName,
-        currentGame->isSimulationPaused()
+        currentGame->isTimePaused()
     );
 }
 
 void GameFacade::refreshInteractionStateObject() {
-    interactionStateObject.preMatch()->clear();
-    interactionStateObject.postMatch()->clear();
-    interactionStateObject.transferOffer()->clear();
-
     if (!gameStarted) {
         interactionStateObject.clear();
         return;
@@ -1199,13 +1195,13 @@ void GameFacade::refreshInteractionStateObject() {
 
     const Game* currentGame = ensureGame();
     if (!currentGame || !currentGame->hasActiveBlockingInteraction()) {
-        interactionStateObject.setFromValues(false, QString());
+        interactionStateObject.clear();
         return;
     }
 
     const GameInteraction* interaction = currentGame->getActiveInteraction();
     if (!interaction) {
-        interactionStateObject.setFromValues(false, QString());
+        interactionStateObject.clear();
         return;
     }
 
@@ -1213,7 +1209,7 @@ void GameFacade::refreshInteractionStateObject() {
     case GameInteraction::Kind::PreMatch: {
         const PreMatchInteraction* preMatch = currentGame->getActivePreMatchInteraction();
         if (!preMatch) {
-            interactionStateObject.setFromValues(false, QString());
+            interactionStateObject.clear();
             return;
         }
 
@@ -1226,13 +1222,15 @@ void GameFacade::refreshInteractionStateObject() {
             league ? fromStd(league->getTeamName(preMatch->getHomeId())) : QString(),
             league ? fromStd(league->getTeamName(preMatch->getAwayId())) : QString()
         );
+        interactionStateObject.postMatch()->clear();
+        interactionStateObject.transferOffer()->clear();
         interactionStateObject.setFromValues(true, QStringLiteral("pre_match"));
         return;
     }
     case GameInteraction::Kind::PostMatch: {
         const PostMatchInteraction* postMatch = currentGame->getActivePostMatchInteraction();
         if (!postMatch) {
-            interactionStateObject.setFromValues(false, QString());
+            interactionStateObject.clear();
             return;
         }
 
@@ -1247,13 +1245,15 @@ void GameFacade::refreshInteractionStateObject() {
             postMatch->getHomeGoals(),
             postMatch->getAwayGoals()
         );
+        interactionStateObject.preMatch()->clear();
+        interactionStateObject.transferOffer()->clear();
         interactionStateObject.setFromValues(true, QStringLiteral("post_match"));
         return;
     }
     case GameInteraction::Kind::TransferOfferDecision: {
         const TransferOfferDecisionInteraction* transferOffer = currentGame->getActiveTransferOfferDecisionInteraction();
         if (!transferOffer) {
-            interactionStateObject.setFromValues(false, QString());
+            interactionStateObject.clear();
             return;
         }
 
@@ -1274,6 +1274,8 @@ void GameFacade::refreshInteractionStateObject() {
             buyerLeague ? fromStd(buyerLeague->getTeamName(transferOffer->getBuyerTeamId())) : QString(),
             static_cast<qlonglong>(transferOffer->getFee())
         );
+        interactionStateObject.preMatch()->clear();
+        interactionStateObject.postMatch()->clear();
         interactionStateObject.setFromValues(true, QStringLiteral("transfer_offer"));
         return;
     }
