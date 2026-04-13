@@ -173,7 +173,11 @@ bool GameFacade::startNewGameInternal(LeagueId leagueId, TeamId teamId, const QS
 }
 
 void GameFacade::setLastError(const QString& errorMessage) {
+    if (lastError == errorMessage) {
+        return;
+    }
     lastError = errorMessage;
+    emit lastErrorChanged();
 }
 
 QVariantList GameFacade::getTeamSelectionList() const {
@@ -320,12 +324,7 @@ QString GameFacade::getLastError() const {
 }
 
 void GameFacade::clearLastError() {
-    if (lastError.isEmpty()) {
-        return;
-    }
-
-    lastError.clear();
-    publishGameStateChanged();
+    setLastError(QString());
 }
 
 QAbstractListModel* GameFacade::getStandingsModel() const {

@@ -8,20 +8,6 @@ Item {
 
     signal backRequested()
 
-    function refreshData() {
-        // no-op: data is provided by gameFacade.pendingTransferOffersModel
-    }
-
-    Component.onCompleted: refreshData()
-
-    Connections {
-        target: gameFacade
-
-        function onGameStateChanged() {
-            refreshData()
-        }
-    }
-
     Rectangle {
         anchors.fill: parent
         color: "#f4f6fb"
@@ -137,7 +123,6 @@ Item {
                                         Layout.fillWidth: true
                                         onClicked: {
                                             gameFacade.acceptTransferOfferById(offerId)
-                                            root.refreshData()
                                         }
                                     }
 
@@ -146,7 +131,6 @@ Item {
                                         Layout.fillWidth: true
                                         onClicked: {
                                             gameFacade.rejectTransferOfferById(offerId)
-                                            root.refreshData()
                                         }
                                     }
                                 }

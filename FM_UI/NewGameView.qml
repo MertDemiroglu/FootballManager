@@ -44,14 +44,6 @@ Item {
 
     Component.onCompleted: refreshData()
 
-    Connections {
-        target: gameFacade
-
-        function onGameStateChanged() {
-            refreshData()
-        }
-    }
-
     Rectangle {
         anchors.fill: parent
         color: "#f5f5f5"
