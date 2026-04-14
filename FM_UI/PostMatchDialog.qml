@@ -5,6 +5,7 @@ InteractionModalShell {
     id: root
     property var interactionData: ({})
     signal continueRequested()
+    signal viewDetailsRequested(var matchId)
 
     visible: false
 
@@ -18,11 +19,12 @@ InteractionModalShell {
 
     Label {
         width: parent.width
-        text: (interactionData.homeTeamName || "Home") + " "
-              + (interactionData.homeGoals !== undefined ? interactionData.homeGoals : "-")
-              + " - "
-              + (interactionData.awayGoals !== undefined ? interactionData.awayGoals : "-")
-              + " " + (interactionData.awayTeamName || "Away")
+        text: interactionData.scoreLine
+              || ((interactionData.homeTeamName || "Home") + " "
+                  + (interactionData.homeGoals !== undefined ? interactionData.homeGoals : "-")
+                  + " - "
+                  + (interactionData.awayGoals !== undefined ? interactionData.awayGoals : "-")
+                  + " " + (interactionData.awayTeamName || "Away"))
         wrapMode: Text.WordWrap
         font.pixelSize: 18
         color: "#344054"
@@ -42,6 +44,38 @@ InteractionModalShell {
         font.pixelSize: 15
         color: "#475467"
         wrapMode: Text.WordWrap
+    }
+
+    Label {
+        width: parent.width
+        text: "Scorers: " + (interactionData.scorerSummary || "No goals recorded.")
+        font.pixelSize: 14
+        color: "#475467"
+        wrapMode: Text.WordWrap
+    }
+
+    Label {
+        width: parent.width
+        text: "Assists: " + (interactionData.assistSummary || "No assists recorded.")
+        font.pixelSize: 14
+        color: "#475467"
+        wrapMode: Text.WordWrap
+    }
+
+    Label {
+        width: parent.width
+        text: "Cards: " + (interactionData.cardSummary || "No cards recorded.")
+        font.pixelSize: 14
+        color: "#475467"
+        wrapMode: Text.WordWrap
+    }
+
+    Button {
+        width: parent.width
+        height: 42
+        text: "Open Match Report"
+        enabled: (interactionData.matchId || 0) > 0
+        onClicked: root.viewDetailsRequested(interactionData.matchId || 0)
     }
 
     Button {

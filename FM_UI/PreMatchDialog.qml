@@ -18,7 +18,8 @@ InteractionModalShell {
 
     Label {
         width: parent.width
-        text: (interactionData.homeTeamName || "Home") + " vs " + (interactionData.awayTeamName || "Away")
+        text: interactionData.fixtureLabel
+              || ((interactionData.homeTeamName || "Home") + " vs " + (interactionData.awayTeamName || "Away"))
         wrapMode: Text.WordWrap
         font.pixelSize: 18
         color: "#344054"

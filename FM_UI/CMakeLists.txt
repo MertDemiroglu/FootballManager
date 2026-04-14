@@ -63,6 +63,7 @@ qt_add_qml_module(FM_UI
         InteractionModalShell.qml
         PreMatchDialog.qml
         PostMatchDialog.qml
+        MatchDetailDialog.qml
         TransferOfferDialog.qml
 )
 
