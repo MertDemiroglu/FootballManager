@@ -8,6 +8,7 @@ class TeamRecentMatchesModel : public QAbstractListModel {
 
 public:
     struct Row {
+        qulonglong matchId = 0;
         QString dateText;
         int matchweek = 0;
         int opponentId = 0;
@@ -20,6 +21,7 @@ public:
 
     enum Role {
         DateTextRole = Qt::UserRole + 1,
+        MatchIdRole,
         MatchweekRole,
         OpponentIdRole,
         OpponentNameRole,

@@ -34,6 +34,7 @@ struct FixtureMatchPreview;
 struct StandingsEntry;
 struct TeamSeasonStats;
 struct MatchRecord;
+struct MatchReport;
 struct PlayerSeasonStats;
 struct TransferOffer;
 
@@ -116,6 +117,7 @@ public:
     Q_INVOKABLE QVariantList getCurrentTeamPlayers() const;
 
     Q_INVOKABLE QVariantMap getPlayerDetails(int playerId) const;
+    Q_INVOKABLE QVariantMap getMatchReportDetails(qulonglong matchId) const;
 
 signals:
     void gameStateChanged();
@@ -170,6 +172,7 @@ private:
     QVariantMap toPlayerMap(const Footballer& player) const;
     QVariantMap toPlayerDetailsMap(const Footballer& player) const;
     QVariantMap toPlayerSeasonStatsMap(const PlayerSeasonStats& stats) const;
+    QVariantMap toMatchReportDetailsMap(const MatchReport& report, const League* league) const;
 
     QVariantMap toPreMatchInteractionMap(const PreMatchInteraction& interaction) const;
     QVariantMap toPostMatchInteractionMap(const PostMatchInteraction& interaction) const;
