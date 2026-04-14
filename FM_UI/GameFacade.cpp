@@ -1676,9 +1676,17 @@ QVariantMap GameFacade::toMatchReportDetailsMap(const MatchReport& report, const
     map.insert(QStringLiteral("assists"), formatAssistSummary(report, homeTeam, awayTeam));
     map.insert(QStringLiteral("cards"), formatCardSummary(report, homeTeam, awayTeam));
 
+    std::vector<MatchEventRecord> orderedEvents = report.events;
+    std::stable_sort(
+        orderedEvents.begin(),
+        orderedEvents.end(),
+        [](const MatchEventRecord& lhs, const MatchEventRecord& rhs) {
+            return lhs.minute < rhs.minute;
+        });
+
     QVariantList eventList;
-    eventList.reserve(static_cast<qsizetype>(report.events.size()));
-    for (const MatchEventRecord& event : report.events) {
+    eventList.reserve(static_cast<qsizetype>(orderedEvents.size()));
+    for (const MatchEventRecord& event : orderedEvents) {
         QVariantMap eventMap;
         eventMap.insert(QStringLiteral("minute"), event.minute);
         eventMap.insert(QStringLiteral("kind"), eventKindText(event.kind));
