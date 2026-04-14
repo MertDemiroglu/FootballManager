@@ -209,7 +209,11 @@ FixtureMatch* League::findFixtureMatchById(MatchId id) {
 	if (locator.index >= dateIt->second.size()) {
 		return nullptr;
 	}
-	return &dateIt->second[locator.index];
+	FixtureMatch* resolved = &dateIt->second[locator.index];
+	if (resolved->matchId != id) {
+		return nullptr;
+	}
+	return resolved;
 }
 
 const FixtureMatch* League::findFixtureMatchById(MatchId id) const {
@@ -225,7 +229,11 @@ const FixtureMatch* League::findFixtureMatchById(MatchId id) const {
 	if (locator.index >= dateIt->second.size()) {
 		return nullptr;
 	}
-	return &dateIt->second[locator.index];
+	const FixtureMatch* resolved = &dateIt->second[locator.index];
+	if (resolved->matchId != id) {
+		return nullptr;
+	}
+	return resolved;
 }
 
 std::vector<FixtureMatchPreview> League::getUpcomingMatchesForTeam(TeamId teamId, std::size_t count) const {
@@ -266,6 +274,33 @@ bool League::hasCurrentSeasonHistoryRecord(MatchId matchId) const {
 
 bool League::hasCurrentSeasonMatchReport(MatchId matchId) const {
 	return currentSeasonMatchReportsById.find(matchId) != currentSeasonMatchReportsById.end();
+}
+
+void League::appendCurrentSeasonMatchRecord(const MatchRecord& record) {
+	currentSeasonHistory.push_back(record);
+	const std::size_t recordIndex = currentSeasonHistory.size() - 1;
+	try {
+		const auto [it, inserted] = currentSeasonHistoryIndexById.emplace(record.matchId, recordIndex);
+		if (!inserted) {
+			currentSeasonHistory.pop_back();
+			throw std::logic_error("duplicate match history index");
+		}
+		(void)it;
+	}
+	catch (...) {
+		if (!currentSeasonHistory.empty() && currentSeasonHistory.back().matchId == record.matchId) {
+			currentSeasonHistory.pop_back();
+		}
+		throw;
+	}
+}
+
+void League::storeCurrentSeasonMatchReport(const MatchReport& report) {
+	const auto [it, inserted] = currentSeasonMatchReportsById.emplace(report.matchId, report);
+	if (!inserted) {
+		throw std::logic_error("duplicate match report record");
+	}
+	(void)it;
 }
 
 void League::initializeStandings() {
@@ -479,8 +514,7 @@ void League::applyMatchReport(const MatchReport& report) {
 
 	const MatchResult result{ report.homeGoals, report.awayGoals };
 	updateStandingsForMatch(report.homeId, report.awayId, result);
-	currentSeasonHistory.push_back(MatchRecord{ report.matchId, report.date, currentSeasonYear, report.homeId, report.awayId, report.homeGoals, report.awayGoals, match->matchweek });
-	currentSeasonHistoryIndexById.emplace(report.matchId, currentSeasonHistory.size() - 1);
+	appendCurrentSeasonMatchRecord(MatchRecord{ report.matchId, report.date, currentSeasonYear, report.homeId, report.awayId, report.homeGoals, report.awayGoals, match->matchweek });
 	updateTeamSeasonStatsForMatch(report.homeId, report.awayId, result);
 
 	Team* homeTeam = findTeamById(report.homeId);
@@ -534,7 +568,7 @@ void League::applyMatchReport(const MatchReport& report) {
 		}
 	}
 
-	currentSeasonMatchReportsById.emplace(report.matchId, report);
+	storeCurrentSeasonMatchReport(report);
 }
 
 std::vector<StandingsEntry> League::getSortedStandings() const {
@@ -713,7 +747,11 @@ const MatchRecord* League::findCurrentSeasonMatchRecordById(MatchId id) const {
 	if (index >= currentSeasonHistory.size()) {
 		return nullptr;
 	}
-	return &currentSeasonHistory[index];
+	const MatchRecord* resolved = &currentSeasonHistory[index];
+	if (resolved->matchId != id) {
+		return nullptr;
+	}
+	return resolved;
 }
 
 const std::unordered_map<int, std::vector<MatchRecord>>& League::getArchivedHistoryBySeason() const {

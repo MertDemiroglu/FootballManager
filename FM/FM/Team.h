@@ -23,6 +23,8 @@ private:
 	std::vector<std::unique_ptr<Footballer>> players;
 	std::unordered_map<PlayerId, Footballer*> playerIndexById;
 
+	void rebuildPlayerIndexById();
+
 public:
 
 	//Team constructor

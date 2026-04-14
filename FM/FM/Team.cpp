@@ -12,6 +12,8 @@
 #include<iostream>
 #include<atomic>
 #include<unordered_map>
+#include<cassert>
+#include<stdexcept>
 
 namespace {
     TeamId generateTeamId() {
@@ -58,13 +60,50 @@ const std::vector<std::unique_ptr<Footballer>>& Team::getPlayers() const {
     return players;
 }
 
+void Team::rebuildPlayerIndexById() {
+    playerIndexById.clear();
+    playerIndexById.reserve(players.size());
+
+    for (const auto& player : players) {
+        if (!player) {
+            continue;
+        }
+        playerIndexById.emplace(player->getId(), player.get());
+    }
+}
+
 void Team::addPlayer(std::unique_ptr<Footballer> player) {
     if (!player) {
         return;
     }
+    const PlayerId playerId = player->getId();
+    if (playerId == 0) {
+        throw std::invalid_argument("player id cannot be zero");
+    }
+    if (playerIndexById.find(playerId) != playerIndexById.end()) {
+        throw std::logic_error("duplicate player id in team");
+    }
+
     player->setTeam(id);
-    playerIndexById[player->getId()] = player.get();
     players.push_back(std::move(player));
+
+    Footballer* insertedPlayer = players.back().get();
+
+    try {
+        const auto [it, inserted] = playerIndexById.emplace(playerId, insertedPlayer);
+        if (!inserted) {
+            players.pop_back();
+            throw std::logic_error("duplicate player id in team index");
+        }
+        (void)it;
+    }
+    catch (...) {
+        if (!players.empty() && players.back().get() == insertedPlayer) {
+            players.pop_back();
+        }
+        throw;
+    }
+    assert(playerIndexById.size() <= players.size());
 }
 
 std::unique_ptr<Footballer> Team::releasePlayer(PlayerId playerId) {
@@ -78,6 +117,7 @@ std::unique_ptr<Footballer> Team::releasePlayer(PlayerId playerId) {
         });
 
     if (it == players.end()) {
+        rebuildPlayerIndexById();
         return nullptr;
     }
 
@@ -85,6 +125,7 @@ std::unique_ptr<Footballer> Team::releasePlayer(PlayerId playerId) {
     released->setTeam(0);
     playerIndexById.erase(playerId);
     players.erase(it);
+    assert(playerIndexById.size() <= players.size());
     return released;
 }
 
@@ -132,6 +173,10 @@ std::vector<std::unique_ptr<Footballer>> Team::collectExpiredContracts() {
            ++it;
        }
     }
+    if (playerIndexById.size() != players.size()) {
+        rebuildPlayerIndexById();
+    }
+    assert(playerIndexById.size() <= players.size());
     return leavingPlayers;
 }
 //Kontrat yilini 1 azaltir (her oyuncu icin)

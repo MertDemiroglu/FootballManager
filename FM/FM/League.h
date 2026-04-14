@@ -128,15 +128,17 @@ private:
 	std::vector<std::optional<Date>> matchWeekEndDates;
 	std::unordered_map<TeamId, StandingsEntry> standings;
 
-	//Mevcut sezonun maclari
+	//Mevcut sezonun maclarinin (ozet) vektor icinde tuar
 	std::vector<MatchRecord> currentSeasonHistory;
+	//Yillara göre o sezonun tum maclarini (ozet) tutar
+	std::unordered_map<int, std::vector<MatchRecord>> archivedHistoryBySeason;
 	//Lookup icin index
 	std::unordered_map<MatchId, std::size_t> currentSeasonHistoryIndexById;
 
-	std::unordered_map<int, std::vector<MatchRecord>> archivedHistoryBySeason;
 
+	//Mevcut sezonun detayli mac sonuclarini ID ile map'te tutar
 	std::unordered_map<MatchId, MatchReport> currentSeasonMatchReportsById;
-
+	//Mevcut sezonun detayli mac sonuclarini ozetlerini tutan map'leri yillara gore tutar
 	std::unordered_map<int, std::unordered_map<MatchId, MatchReport>> archivedMatchReportsBySeason;
 
 
@@ -150,10 +152,15 @@ private:
 
 	std::vector<MatchRecord>filterMatchesForTeam(const std::vector<MatchRecord>& records, TeamId teamId) const;
 	std::vector<MatchRecord>getAllMatchesForTeam(TeamId teamId) const;
+
 	static MatchOutcome toOutcome(const MatchRecord& record, TeamId teamId);
 	static bool recordBelongsToTeam(const MatchRecord& record, TeamId teamId);
+
 	bool hasCurrentSeasonHistoryRecord(MatchId matchId) const;
 	bool hasCurrentSeasonMatchReport(MatchId matchId) const;
+
+	void appendCurrentSeasonMatchRecord(const MatchRecord& record);
+	void storeCurrentSeasonMatchReport(const MatchReport& report);
 
 	//Bu 6 fonksiyon tek bir rollover fonksiyonundan cagirilacak disari acilmayacak
 	void archiveCompletedSeasonHistory(int seasonYear);
