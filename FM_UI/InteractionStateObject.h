@@ -34,6 +34,8 @@ signals:
     void changed();
 
 private:
+    void connectNestedSignals();
+
     bool hasActiveInteractionValue = false;
     QString kindValue;
     PreMatchInteractionObject preMatchObject;

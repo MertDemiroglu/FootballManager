@@ -95,6 +95,10 @@ ApplicationWindow {
         gameFacade.deferActiveTransferOffer()
     }
 
+    function openMatchDetails(matchId) {
+        matchDetailDialog.openForMatch(matchId)
+    }
+
     header: ToolBar {
         visible: root.currentView !== root.routes.home && root.currentView !== root.routes.teamSelection
         contentHeight: 52
@@ -208,6 +212,9 @@ ApplicationWindow {
             onBackRequested: {
                 root.navigateTo(root.routes.dashboard)
             }
+            onOpenMatchDetailRequested: function(matchId) {
+                root.openMatchDetails(matchId)
+            }
         }
     }
 
@@ -226,6 +233,9 @@ ApplicationWindow {
         visible: root.interactionState.hasActiveInteraction
                  && root.interactionState.kind === root.interactionKinds.postMatch
         interactionData: root.interactionState.postMatch
+        onViewDetailsRequested: function(matchId) {
+            root.openMatchDetails(matchId)
+        }
         onContinueRequested: {
             root.resolveActiveInteraction()
         }
@@ -257,5 +267,11 @@ ApplicationWindow {
         onLaterRequested: {
             root.deferActiveTransferOffer()
         }
+    }
+
+    MatchDetailDialog {
+        id: matchDetailDialog
+        anchors.fill: parent
+        visible: false
     }
 }

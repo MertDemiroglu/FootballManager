@@ -5,6 +5,13 @@ InteractionStateObject::InteractionStateObject(QObject* parent)
       preMatchObject(this),
       postMatchObject(this),
       transferOfferObject(this) {
+    connectNestedSignals();
+}
+
+void InteractionStateObject::connectNestedSignals() {
+    connect(&preMatchObject, &PreMatchInteractionObject::changed, this, &InteractionStateObject::changed);
+    connect(&postMatchObject, &PostMatchInteractionObject::changed, this, &InteractionStateObject::changed);
+    connect(&transferOfferObject, &TransferOfferInteractionObject::changed, this, &InteractionStateObject::changed);
 }
 
 bool InteractionStateObject::hasActiveInteraction() const {

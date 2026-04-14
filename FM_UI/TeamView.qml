@@ -8,6 +8,7 @@ Item {
     anchors.fill: parent
 
     signal backRequested()
+    signal openMatchDetailRequested(var matchId)
 
     readonly property int pagePadding: 24
     readonly property int sectionSpacing: 20
@@ -312,6 +313,12 @@ Item {
                                                     text: "Matchweek " + (matchweek || "—")
                                                     font.pixelSize: 15
                                                     color: "#667085"
+                                                }
+
+                                                Button {
+                                                    text: "Details"
+                                                    enabled: (matchId || 0) > 0
+                                                    onClicked: root.openMatchDetailRequested(matchId || 0)
                                                 }
                                             }
                                         }

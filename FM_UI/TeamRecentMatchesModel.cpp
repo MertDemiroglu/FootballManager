@@ -22,6 +22,8 @@ QVariant TeamRecentMatchesModel::data(const QModelIndex& index, int role) const 
     switch (role) {
     case DateTextRole:
         return row.dateText;
+    case MatchIdRole:
+        return row.matchId;
     case MatchweekRole:
         return row.matchweek;
     case OpponentIdRole:
@@ -44,6 +46,7 @@ QVariant TeamRecentMatchesModel::data(const QModelIndex& index, int role) const 
 QHash<int, QByteArray> TeamRecentMatchesModel::roleNames() const {
     return {
         { DateTextRole, "dateText" },
+        { MatchIdRole, "matchId" },
         { MatchweekRole, "matchweek" },
         { OpponentIdRole, "opponentId" },
         { OpponentNameRole, "opponentName" },
