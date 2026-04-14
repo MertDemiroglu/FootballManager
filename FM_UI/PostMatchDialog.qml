@@ -19,11 +19,12 @@ InteractionModalShell {
 
     Label {
         width: parent.width
-        text: (interactionData.homeTeamName || "Home") + " "
-              + (interactionData.homeGoals !== undefined ? interactionData.homeGoals : "-")
-              + " - "
-              + (interactionData.awayGoals !== undefined ? interactionData.awayGoals : "-")
-              + " " + (interactionData.awayTeamName || "Away")
+        text: interactionData.scoreLine
+              || ((interactionData.homeTeamName || "Home") + " "
+                  + (interactionData.homeGoals !== undefined ? interactionData.homeGoals : "-")
+                  + " - "
+                  + (interactionData.awayGoals !== undefined ? interactionData.awayGoals : "-")
+                  + " " + (interactionData.awayTeamName || "Away"))
         wrapMode: Text.WordWrap
         font.pixelSize: 18
         color: "#344054"

@@ -41,14 +41,6 @@ InteractionModalShell {
         wrapMode: Text.WordWrap
     }
 
-    Label {
-        width: parent.width
-        text: "Match ID: " + (interactionData.matchId || "-")
-        font.pixelSize: 14
-        color: "#667085"
-        wrapMode: Text.WordWrap
-    }
-
     Button {
         width: parent.width
         height: 42

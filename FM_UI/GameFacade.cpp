@@ -71,85 +71,144 @@ namespace {
         return lines.isEmpty() ? emptyText : lines.join(QStringLiteral(", "));
     }
 
-    QString formatScorerSummary(const MatchReport& report, const League* league) {
+    const Team* resolveTeamForEvent(const Team* homeTeam,
+        const Team* awayTeam,
+        TeamId reportHomeId,
+        TeamId reportAwayId,
+        TeamId eventTeamId) {
+        if (eventTeamId == reportHomeId) {
+            return homeTeam;
+        }
+        if (eventTeamId == reportAwayId) {
+            return awayTeam;
+        }
+        return nullptr;
+    }
+
+    QString resolveMatchPlayerName(const Team* homeTeam,
+        const Team* awayTeam,
+        TeamId reportHomeId,
+        TeamId reportAwayId,
+        TeamId eventTeamId,
+        PlayerId playerId) {
+        if (playerId == 0) {
+            return QString();
+        }
+
+        if (const Team* teamForEvent = resolveTeamForEvent(homeTeam, awayTeam, reportHomeId, reportAwayId, eventTeamId)) {
+            if (const Footballer* player = teamForEvent->findPlayerById(playerId)) {
+                return fromStd(player->getName());
+            }
+        }
+
+        if (homeTeam) {
+            if (const Footballer* player = homeTeam->findPlayerById(playerId)) {
+                return fromStd(player->getName());
+            }
+        }
+        if (awayTeam) {
+            if (const Footballer* player = awayTeam->findPlayerById(playerId)) {
+                return fromStd(player->getName());
+            }
+        }
+
+        return QStringLiteral("Unknown");
+    }
+
+    QString formatScorerSummary(const MatchReport& report, const Team* homeTeam, const Team* awayTeam) {
         std::unordered_map<PlayerId, int> goalsByPlayer;
+        std::unordered_map<PlayerId, TeamId> playerTeamById;
         for (const MatchEventRecord& event : report.events) {
             if (event.kind != MatchEventKind::Goal || event.primaryPlayerId == 0) {
                 continue;
             }
             ++goalsByPlayer[event.primaryPlayerId];
+            playerTeamById[event.primaryPlayerId] = event.teamId;
         }
 
         QStringList lines;
         lines.reserve(static_cast<qsizetype>(goalsByPlayer.size()));
         for (const auto& [playerId, goals] : goalsByPlayer) {
-            QString playerName = QStringLiteral("Unknown");
-            if (league) {
-                if (const Footballer* player = league->findPlayerById(playerId)) {
-                    playerName = fromStd(player->getName());
-                }
-            }
+            const TeamId teamId = playerTeamById[playerId];
+            const QString playerName = resolveMatchPlayerName(
+                homeTeam,
+                awayTeam,
+                report.homeId,
+                report.awayId,
+                teamId,
+                playerId);
             lines.push_back(QStringLiteral("%1 x%2").arg(playerName).arg(goals));
         }
         lines.sort();
         return joinSummaryLines(lines, QStringLiteral("No goals recorded."));
     }
 
-    QString formatAssistSummary(const MatchReport& report, const League* league) {
+    QString formatAssistSummary(const MatchReport& report, const Team* homeTeam, const Team* awayTeam) {
         std::unordered_map<PlayerId, int> assistsByPlayer;
+        std::unordered_map<PlayerId, TeamId> playerTeamById;
         for (const MatchEventRecord& event : report.events) {
             if (event.kind != MatchEventKind::Goal || event.secondaryPlayerId == 0) {
                 continue;
             }
             ++assistsByPlayer[event.secondaryPlayerId];
+            playerTeamById[event.secondaryPlayerId] = event.teamId;
         }
 
         QStringList lines;
         lines.reserve(static_cast<qsizetype>(assistsByPlayer.size()));
         for (const auto& [playerId, assists] : assistsByPlayer) {
-            QString playerName = QStringLiteral("Unknown");
-            if (league) {
-                if (const Footballer* player = league->findPlayerById(playerId)) {
-                    playerName = fromStd(player->getName());
-                }
-            }
+            const TeamId teamId = playerTeamById[playerId];
+            const QString playerName = resolveMatchPlayerName(
+                homeTeam,
+                awayTeam,
+                report.homeId,
+                report.awayId,
+                teamId,
+                playerId);
             lines.push_back(QStringLiteral("%1 x%2").arg(playerName).arg(assists));
         }
         lines.sort();
         return joinSummaryLines(lines, QStringLiteral("No assists recorded."));
     }
 
-    QString formatCardSummary(const MatchReport& report, const League* league) {
+    QString formatCardSummary(const MatchReport& report, const Team* homeTeam, const Team* awayTeam) {
         std::unordered_map<PlayerId, int> yellowByPlayer;
         std::unordered_map<PlayerId, int> redByPlayer;
+        std::unordered_map<PlayerId, TeamId> playerTeamById;
         for (const MatchEventRecord& event : report.events) {
             if (event.primaryPlayerId == 0) {
                 continue;
             }
             if (event.kind == MatchEventKind::YellowCard) {
                 ++yellowByPlayer[event.primaryPlayerId];
+                playerTeamById[event.primaryPlayerId] = event.teamId;
             } else if (event.kind == MatchEventKind::RedCard) {
                 ++redByPlayer[event.primaryPlayerId];
+                playerTeamById[event.primaryPlayerId] = event.teamId;
             }
         }
 
         QStringList lines;
         for (const auto& [playerId, count] : yellowByPlayer) {
-            QString playerName = QStringLiteral("Unknown");
-            if (league) {
-                if (const Footballer* player = league->findPlayerById(playerId)) {
-                    playerName = fromStd(player->getName());
-                }
-            }
+            const TeamId teamId = playerTeamById[playerId];
+            const QString playerName = resolveMatchPlayerName(
+                homeTeam,
+                awayTeam,
+                report.homeId,
+                report.awayId,
+                teamId,
+                playerId);
             lines.push_back(QStringLiteral("%1 %2Y").arg(playerName).arg(count));
         }
         for (const auto& [playerId, count] : redByPlayer) {
-            QString playerName = QStringLiteral("Unknown");
-            if (league) {
-                if (const Footballer* player = league->findPlayerById(playerId)) {
-                    playerName = fromStd(player->getName());
-                }
-            }
+            const TeamId teamId = playerTeamById[playerId];
+            const QString playerName = resolveMatchPlayerName(
+                homeTeam,
+                awayTeam,
+                report.homeId,
+                report.awayId,
+                teamId,
+                playerId);
             lines.push_back(QStringLiteral("%1 %2R").arg(playerName).arg(count));
         }
         lines.sort();
@@ -1363,9 +1422,11 @@ void GameFacade::refreshInteractionStateObject() {
         QString cardSummary = QStringLiteral("No cards recorded.");
         if (league) {
             if (const MatchReport* report = league->findCurrentSeasonMatchReportById(postMatch->getMatchId())) {
-                scorerSummary = formatScorerSummary(*report, league);
-                assistSummary = formatAssistSummary(*report, league);
-                cardSummary = formatCardSummary(*report, league);
+                const Team* homeTeam = league->findTeamById(report->homeId);
+                const Team* awayTeam = league->findTeamById(report->awayId);
+                scorerSummary = formatScorerSummary(*report, homeTeam, awayTeam);
+                assistSummary = formatAssistSummary(*report, homeTeam, awayTeam);
+                cardSummary = formatCardSummary(*report, homeTeam, awayTeam);
             }
         }
         interactionStateObject.postMatch()->setFromValues(
@@ -1603,15 +1664,17 @@ QVariantMap GameFacade::toPlayerDetailsMap(const Footballer& player) const {
 
 QVariantMap GameFacade::toMatchReportDetailsMap(const MatchReport& report, const League* league) const {
     QVariantMap map;
+    const Team* homeTeam = league ? league->findTeamById(report.homeId) : nullptr;
+    const Team* awayTeam = league ? league->findTeamById(report.awayId) : nullptr;
     map.insert(QStringLiteral("matchId"), static_cast<qulonglong>(report.matchId));
     map.insert(QStringLiteral("dateText"), formatDate(report.date));
     map.insert(QStringLiteral("homeTeamName"), league ? fromStd(league->getTeamName(report.homeId)) : QString());
     map.insert(QStringLiteral("awayTeamName"), league ? fromStd(league->getTeamName(report.awayId)) : QString());
     map.insert(QStringLiteral("score"), QStringLiteral("%1 - %2").arg(report.homeGoals).arg(report.awayGoals));
     map.insert(QStringLiteral("matchweek"), report.matchweek);
-    map.insert(QStringLiteral("scorers"), formatScorerSummary(report, league));
-    map.insert(QStringLiteral("assists"), formatAssistSummary(report, league));
-    map.insert(QStringLiteral("cards"), formatCardSummary(report, league));
+    map.insert(QStringLiteral("scorers"), formatScorerSummary(report, homeTeam, awayTeam));
+    map.insert(QStringLiteral("assists"), formatAssistSummary(report, homeTeam, awayTeam));
+    map.insert(QStringLiteral("cards"), formatCardSummary(report, homeTeam, awayTeam));
 
     QVariantList eventList;
     eventList.reserve(static_cast<qsizetype>(report.events.size()));
@@ -1624,18 +1687,20 @@ QVariantMap GameFacade::toMatchReportDetailsMap(const MatchReport& report, const
         const QString teamName = league ? fromStd(league->getTeamName(event.teamId)) : QString();
         eventMap.insert(QStringLiteral("teamName"), teamName);
 
-        QString primaryName;
-        QString secondaryName;
-        if (league && event.primaryPlayerId != 0) {
-            if (const Footballer* player = league->findPlayerById(event.primaryPlayerId)) {
-                primaryName = fromStd(player->getName());
-            }
-        }
-        if (league && event.secondaryPlayerId != 0) {
-            if (const Footballer* player = league->findPlayerById(event.secondaryPlayerId)) {
-                secondaryName = fromStd(player->getName());
-            }
-        }
+        const QString primaryName = resolveMatchPlayerName(
+            homeTeam,
+            awayTeam,
+            report.homeId,
+            report.awayId,
+            event.teamId,
+            event.primaryPlayerId);
+        const QString secondaryName = resolveMatchPlayerName(
+            homeTeam,
+            awayTeam,
+            report.homeId,
+            report.awayId,
+            event.teamId,
+            event.secondaryPlayerId);
         eventMap.insert(QStringLiteral("primaryPlayerName"), primaryName);
         eventMap.insert(QStringLiteral("secondaryPlayerName"), secondaryName);
 
@@ -1689,9 +1754,11 @@ QVariantMap GameFacade::toPostMatchInteractionMap(const PostMatchInteraction& in
     map.insert(QStringLiteral("awayTeamName"), league ? fromStd(league->getTeamName(interaction.getAwayId())) : QString());
     if (league) {
         if (const MatchReport* report = league->findCurrentSeasonMatchReportById(interaction.getMatchId())) {
-            map.insert(QStringLiteral("scorerSummary"), formatScorerSummary(*report, league));
-            map.insert(QStringLiteral("assistSummary"), formatAssistSummary(*report, league));
-            map.insert(QStringLiteral("cardSummary"), formatCardSummary(*report, league));
+            const Team* homeTeam = league->findTeamById(report->homeId);
+            const Team* awayTeam = league->findTeamById(report->awayId);
+            map.insert(QStringLiteral("scorerSummary"), formatScorerSummary(*report, homeTeam, awayTeam));
+            map.insert(QStringLiteral("assistSummary"), formatAssistSummary(*report, homeTeam, awayTeam));
+            map.insert(QStringLiteral("cardSummary"), formatCardSummary(*report, homeTeam, awayTeam));
         }
     }
     return map;

@@ -10,7 +10,13 @@ InteractionModalShell {
     visible: false
     maxCardWidth: 780
 
+    function clearDetails() {
+        details = ({})
+    }
+
     function openForMatch(matchId) {
+        root.visible = false
+        clearDetails()
         if (!matchId || matchId <= 0) {
             return
         }
@@ -126,6 +132,7 @@ InteractionModalShell {
         text: "Close"
         onClicked: {
             root.visible = false
+            root.clearDetails()
             root.closeRequested()
         }
     }
