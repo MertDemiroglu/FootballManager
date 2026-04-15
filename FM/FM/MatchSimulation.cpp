@@ -1,6 +1,7 @@
 #include"MatchSimulation.h"
 
 #include"Team.h"
+#include"Formation.h"
 
 #include<algorithm>
 #include<cstdint>
@@ -26,6 +27,44 @@ namespace {
         mix(static_cast<std::uint32_t>(date.getDayOfWeek()));
 
         return seed;
+    }
+
+
+    MatchLineupSnapshot buildSnapshotFromTeamSheet(const TeamSheet& teamSheet) {
+        MatchLineupSnapshot snapshot;
+        snapshot.teamId = teamSheet.teamId;
+        snapshot.coachId = teamSheet.coachId;
+        snapshot.formation = teamSheet.formation;
+        snapshot.startingPlayerIds = teamSheet.startingPlayerIds;
+        return snapshot;
+    }
+
+    void validateMatchLineupSnapshot(const MatchLineupSnapshot& snapshot) {
+        if (snapshot.teamId == 0) {
+            throw std::invalid_argument("lineup snapshot team id cannot be zero");
+        }
+        if (snapshot.coachId == 0) {
+            throw std::invalid_argument("lineup snapshot coach id cannot be zero");
+        }
+        if (!isFormationSupported(snapshot.formation)) {
+            throw std::invalid_argument("lineup snapshot formation is not supported");
+        }
+        if (snapshot.startingPlayerIds.size() > 11) {
+            throw std::invalid_argument("lineup snapshot starter count cannot exceed 11");
+        }
+
+        std::unordered_set<PlayerId> seenStarterIds;
+        seenStarterIds.reserve(snapshot.startingPlayerIds.size());
+        for (PlayerId starterId : snapshot.startingPlayerIds) {
+            if (starterId == 0) {
+                throw std::invalid_argument("lineup snapshot starter id cannot be zero");
+            }
+            const auto [it, inserted] = seenStarterIds.emplace(starterId);
+            (void)it;
+            if (!inserted) {
+                throw std::invalid_argument("lineup snapshot contains duplicate starter id");
+            }
+        }
     }
 
     std::vector<const Footballer*> resolveStartersFromTeamSheet(const Team& team, const TeamSheet& teamSheet) {
@@ -150,6 +189,11 @@ MatchReport MatchSimulation::buildStrengthBasedReport(
     report.matchweek = matchweek;
     report.homeGoals = std::clamp(homeDist(rng), 0, 6);
     report.awayGoals = std::clamp(awayDist(rng), 0, 6);
+
+    report.homeLineup = buildSnapshotFromTeamSheet(homeSheet);
+    report.awayLineup = buildSnapshotFromTeamSheet(awaySheet);
+    validateMatchLineupSnapshot(report.homeLineup);
+    validateMatchLineupSnapshot(report.awayLineup);
 
     for (const Footballer* p : homeStarters) {
         ensurePlayerReport(report, homeTeam.getId(), *p, true, 90);
