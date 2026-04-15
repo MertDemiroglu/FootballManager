@@ -67,6 +67,22 @@ namespace {
         }
     }
 
+    int calculateStarterLineupStrength(const std::vector<const Footballer*>& starters) {
+        if (starters.empty()) {
+            throw std::logic_error("cannot calculate lineup strength from empty starter pool");
+        }
+
+        int totalPower = 0;
+        for (const Footballer* starter : starters) {
+            if (!starter) {
+                throw std::logic_error("starter lineup contains null player pointer");
+            }
+            totalPower += starter->totalPower();
+        }
+
+        return totalPower / static_cast<int>(starters.size());
+    }
+
     std::vector<const Footballer*> resolveStartersFromTeamSheet(const Team& team, const TeamSheet& teamSheet) {
         validateTeamSheetForTeam(teamSheet, team);
 
@@ -162,8 +178,8 @@ MatchReport MatchSimulation::buildStrengthBasedReport(
     const std::vector<const Footballer*> homeStarters = resolveStartersFromTeamSheet(homeTeam, homeSheet);
     const std::vector<const Footballer*> awayStarters = resolveStartersFromTeamSheet(awayTeam, awaySheet);
 
-    const int homeRating = homeTeam.calculateTeamRating();
-    const int awayRating = awayTeam.calculateTeamRating();
+    const int homeRating = calculateStarterLineupStrength(homeStarters);
+    const int awayRating = calculateStarterLineupStrength(awayStarters);
     const int ratingDiff = homeRating - awayRating;
 
     const double homeAdvantage = 0.25;
