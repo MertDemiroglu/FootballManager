@@ -3,6 +3,8 @@
 #include<stdexcept>
 
 #include"MatchSimulation.h"
+#include "TeamSelectionService.h"
+#include "TeamSheet.h"
 #include"Team.h"
 
 PlayMatchCommandHandler::PlayMatchCommandHandler(DomainEventPublisher& publisher)   : publisher(publisher) {}
@@ -44,6 +46,13 @@ void PlayMatchCommandHandler::handle(League& league, const PlayMatchCommand& com
         throw std::out_of_range("play command contains unknown team id");
     }
 
+    TeamSelectionService selectionService;
+    const TeamSheet homeSheet = selectionService.buildTeamSheet(*homeTeam);
+    const TeamSheet awaySheet = selectionService.buildTeamSheet(*awayTeam);
+
+    validateTeamSheetForTeam(homeSheet, *homeTeam);
+    validateTeamSheetForTeam(awaySheet, *awayTeam);
+
     const MatchReport report = MatchSimulation::buildStrengthBasedReport(
         command.matchId,
         command.leagueId,
@@ -51,6 +60,8 @@ void PlayMatchCommandHandler::handle(League& league, const PlayMatchCommand& com
         command.matchweek,
         *homeTeam,
         *awayTeam,
+        homeSheet,
+        awaySheet,
         command.date);
 
     league.applyMatchReport(report);
