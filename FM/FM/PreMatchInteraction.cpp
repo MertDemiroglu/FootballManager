@@ -1,18 +1,24 @@
 #include "PreMatchInteraction.h"
 
+#include <utility>
+
 PreMatchInteraction::PreMatchInteraction(MatchId matchId,
     LeagueId leagueId,
     const Date& date,
     TeamId homeId,
     TeamId awayId,
-    int matchweek)
+    int matchweek,
+    TeamSheet homeSheet,
+    TeamSheet awaySheet)
     : GameInteraction(Kind::PreMatch, true),
     matchId(matchId),
     leagueId(leagueId),
     date(date),
     homeId(homeId),
     awayId(awayId),
-    matchweek(matchweek) {
+    matchweek(matchweek),
+    homeSheet(std::move(homeSheet)),
+    awaySheet(std::move(awaySheet)) {
 }
 
 MatchId PreMatchInteraction::getMatchId() const {
@@ -37,4 +43,12 @@ TeamId PreMatchInteraction::getAwayId() const {
 
 int PreMatchInteraction::getMatchweek() const {
     return matchweek;
+}
+
+const TeamSheet& PreMatchInteraction::getHomeSheet() const {
+    return homeSheet;
+}
+
+const TeamSheet& PreMatchInteraction::getAwaySheet() const {
+    return awaySheet;
 }

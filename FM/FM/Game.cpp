@@ -6,6 +6,8 @@
 #include"TransferOfferDecisionInteraction.h"
 #include"PreMatchInteraction.h"
 #include"TransferOffer.h"
+#include "TeamSelectionService.h"
+#include "TeamSheet.h"
 
 #include<stdexcept>
 #include<utility>
@@ -24,7 +26,9 @@ Game::Game()
     timePaused(false),
     userPaused(false),
     dateWasReset(false),
-    pendingPreMatchCommand(std::nullopt) {
+    pendingPreMatchCommand(std::nullopt),
+    pendingPreMatchHomeSheet(std::nullopt),
+    pendingPreMatchAwaySheet(std::nullopt) {
     League league("Super Lig");
     LeagueRules rules = LeagueRules::makeSuperLig();
     SeasonPlan seasonPlan = SeasonPlan::build(2025, rules);
@@ -158,9 +162,37 @@ void Game::updateDaily() {
         const bool isManagedTeamMatch = hasManagedTeam && command.leagueId == managedLeagueId && (command.homeId == managedTeamId || command.awayId == managedTeamId);
 
         if (isManagedTeamMatch) {
-            pendingPreMatchCommand = command;
+            LeagueContext* context = world.findLeagueContext(command.leagueId);
+            if (!context) {
+                throw std::logic_error("managed pre-match command references unknown league context");
+            }
 
-            interactionManager.enqueue(std::make_unique<PreMatchInteraction>(command.matchId, command.leagueId, command.date, command.homeId, command.awayId, command.matchweek));
+            League& league = context->getLeague();
+            const Team* homeTeam = league.findTeamById(command.homeId);
+            const Team* awayTeam = league.findTeamById(command.awayId);
+            if (!homeTeam || !awayTeam) {
+                throw std::logic_error("managed pre-match command references unknown teams");
+            }
+
+            TeamSelectionService selectionService;
+            TeamSheet homeSheet = selectionService.buildTeamSheet(*homeTeam);
+            TeamSheet awaySheet = selectionService.buildTeamSheet(*awayTeam);
+            validateTeamSheetForTeam(homeSheet, *homeTeam);
+            validateTeamSheetForTeam(awaySheet, *awayTeam);
+
+            pendingPreMatchCommand = command;
+            pendingPreMatchHomeSheet = homeSheet;
+            pendingPreMatchAwaySheet = awaySheet;
+
+            interactionManager.enqueue(std::make_unique<PreMatchInteraction>(
+                command.matchId,
+                command.leagueId,
+                command.date,
+                command.homeId,
+                command.awayId,
+                command.matchweek,
+                std::move(homeSheet),
+                std::move(awaySheet)));
             refreshTimePauseState();
             return;
         }
@@ -477,7 +509,7 @@ const PreMatchInteraction* Game::getActivePreMatchInteraction() const {
 
 bool Game::playPendingPreMatch() {
     const PreMatchInteraction* interaction = getActivePreMatchInteraction();
-    if (!interaction || !pendingPreMatchCommand.has_value()) {
+    if (!interaction || !pendingPreMatchCommand.has_value() || !pendingPreMatchHomeSheet.has_value() || !pendingPreMatchAwaySheet.has_value()) {
         return false;
     }
 
@@ -487,8 +519,14 @@ bool Game::playPendingPreMatch() {
         throw std::logic_error("pending pre-match command references unknown league context");
     }
 
-    context->getPlayMatchCommandHandler().handle(context->getLeague(), command);
+    context->getPlayMatchCommandHandler().handle(
+        context->getLeague(),
+        command,
+        *pendingPreMatchHomeSheet,
+        *pendingPreMatchAwaySheet);
     pendingPreMatchCommand.reset();
+    pendingPreMatchHomeSheet.reset();
+    pendingPreMatchAwaySheet.reset();
     interactionManager.resolveActiveInteraction();
     refreshTimePauseState();
     return true;

@@ -12,7 +12,6 @@
 #include"MatchReport.h"
 #include "FormationSlotRole.h"
 #include"TeamSheet.h"
-#include"TeamSelectionService.h"
 #include"StandingsTableModel.h"
 #include"TeamPlayersModel.h"
 #include "TeamRecentMatchesModel.h"
@@ -777,7 +776,24 @@ bool GameFacade::playActiveMatch() {
         return false;
     }
 
-    const bool played = currentGame->playPendingPreMatch();
+    bool played = false;
+    try {
+        played = currentGame->playPendingPreMatch();
+        if (!played) {
+            setLastError(QStringLiteral("No playable pre-match interaction is active."));
+        } else {
+            setLastError(QString());
+        }
+    } catch (const std::exception& ex) {
+        const QString errorMessage = QStringLiteral("Failed to play active match: %1").arg(QString::fromUtf8(ex.what()));
+        qWarning() << "[GameFacade::playActiveMatch] Exception:" << errorMessage;
+        setLastError(errorMessage);
+        played = false;
+    } catch (...) {
+        qWarning() << "[GameFacade::playActiveMatch] Unknown exception";
+        setLastError(QStringLiteral("Failed to play active match: unknown error."));
+        played = false;
+    }
     publishGameStateChanged();
     return played;
 }
@@ -1398,6 +1414,8 @@ void GameFacade::refreshInteractionStateObject() {
         }
 
         const League* league = resolveLeague(preMatch->getLeagueId());
+        const Team* homeTeam = league ? league->findTeamById(preMatch->getHomeId()) : nullptr;
+        const Team* awayTeam = league ? league->findTeamById(preMatch->getAwayId()) : nullptr;
         interactionStateObject.preMatch()->setFromValues(
             static_cast<qulonglong>(preMatch->getMatchId()),
             formatDate(preMatch->getDate()),
@@ -1405,7 +1423,15 @@ void GameFacade::refreshInteractionStateObject() {
             static_cast<int>(preMatch->getHomeId()),
             static_cast<int>(preMatch->getAwayId()),
             league ? fromStd(league->getTeamName(preMatch->getHomeId())) : QString(),
-            league ? fromStd(league->getTeamName(preMatch->getAwayId())) : QString()
+            league ? fromStd(league->getTeamName(preMatch->getAwayId())) : QString(),
+            homeTeam ? fromStd(homeTeam->getHeadCoach().getName()) : QStringLiteral("-"),
+            awayTeam ? fromStd(awayTeam->getHeadCoach().getName()) : QStringLiteral("-"),
+            formatFormation(preMatch->getHomeSheet().formation),
+            formatFormation(preMatch->getAwaySheet().formation),
+            preMatch->getHomeId() == selectedTeamId ? formatFormation(preMatch->getHomeSheet().formation)
+                : (preMatch->getAwayId() == selectedTeamId ? formatFormation(preMatch->getAwaySheet().formation) : QString()),
+            buildLineupViewRows(preMatch->getHomeSheet(), league),
+            buildLineupViewRows(preMatch->getAwaySheet(), league)
         );
         interactionStateObject.postMatch()->clear();
         interactionStateObject.transferOffer()->clear();
@@ -1423,6 +1449,12 @@ void GameFacade::refreshInteractionStateObject() {
         QString scorerSummary = QStringLiteral("No goals recorded.");
         QString assistSummary = QStringLiteral("No assists recorded.");
         QString cardSummary = QStringLiteral("No cards recorded.");
+        QString homeCoachName = QStringLiteral("-");
+        QString awayCoachName = QStringLiteral("-");
+        QString homeFormationText = QStringLiteral("-");
+        QString awayFormationText = QStringLiteral("-");
+        QVariantList homeLineup;
+        QVariantList awayLineup;
         if (league) {
             if (const MatchReport* report = league->findCurrentSeasonMatchReportById(postMatch->getMatchId())) {
                 const Team* homeTeam = league->findTeamById(report->homeId);
@@ -1430,6 +1462,12 @@ void GameFacade::refreshInteractionStateObject() {
                 scorerSummary = formatScorerSummary(*report, homeTeam, awayTeam);
                 assistSummary = formatAssistSummary(*report, homeTeam, awayTeam);
                 cardSummary = formatCardSummary(*report, homeTeam, awayTeam);
+                homeCoachName = homeTeam ? fromStd(homeTeam->getHeadCoach().getName()) : QStringLiteral("-");
+                awayCoachName = awayTeam ? fromStd(awayTeam->getHeadCoach().getName()) : QStringLiteral("-");
+                homeFormationText = formatFormation(report->homeLineup.formation);
+                awayFormationText = formatFormation(report->awayLineup.formation);
+                homeLineup = buildLineupViewRows(report->homeLineup, league);
+                awayLineup = buildLineupViewRows(report->awayLineup, league);
             }
         }
         interactionStateObject.postMatch()->setFromValues(
@@ -1444,7 +1482,13 @@ void GameFacade::refreshInteractionStateObject() {
             postMatch->getAwayGoals(),
             scorerSummary,
             assistSummary,
-            cardSummary
+            cardSummary,
+            homeCoachName,
+            awayCoachName,
+            homeFormationText,
+            awayFormationText,
+            homeLineup,
+            awayLineup
         );
         interactionStateObject.preMatch()->clear();
         interactionStateObject.transferOffer()->clear();
@@ -1867,26 +1911,16 @@ QVariantMap GameFacade::toPreMatchInteractionMap(const PreMatchInteraction& inte
     if (league) {
         const Team* homeTeam = league->findTeamById(interaction.getHomeId());
         const Team* awayTeam = league->findTeamById(interaction.getAwayId());
-        TeamSelectionService selectionService;
-
-        if (homeTeam) {
-            const TeamSheet homeSheet = selectionService.buildTeamSheet(*homeTeam);
-            map.insert(QStringLiteral("homeCoachName"), fromStd(homeTeam->getHeadCoach().getName()));
-            map.insert(QStringLiteral("homeFormationText"), formatFormation(homeSheet.formation));
-            map.insert(QStringLiteral("homeLineup"), buildLineupViewRows(homeSheet, league));
-            if (homeTeam->getId() == selectedTeamId) {
-                map.insert(QStringLiteral("formationText"), formatFormation(homeSheet.formation));
-            }
-        }
-
-        if (awayTeam) {
-            const TeamSheet awaySheet = selectionService.buildTeamSheet(*awayTeam);
-            map.insert(QStringLiteral("awayCoachName"), fromStd(awayTeam->getHeadCoach().getName()));
-            map.insert(QStringLiteral("awayFormationText"), formatFormation(awaySheet.formation));
-            map.insert(QStringLiteral("awayLineup"), buildLineupViewRows(awaySheet, league));
-            if (awayTeam->getId() == selectedTeamId) {
-                map.insert(QStringLiteral("formationText"), formatFormation(awaySheet.formation));
-            }
+        map.insert(QStringLiteral("homeCoachName"), homeTeam ? fromStd(homeTeam->getHeadCoach().getName()) : QStringLiteral("-"));
+        map.insert(QStringLiteral("awayCoachName"), awayTeam ? fromStd(awayTeam->getHeadCoach().getName()) : QStringLiteral("-"));
+        map.insert(QStringLiteral("homeFormationText"), formatFormation(interaction.getHomeSheet().formation));
+        map.insert(QStringLiteral("awayFormationText"), formatFormation(interaction.getAwaySheet().formation));
+        map.insert(QStringLiteral("homeLineup"), buildLineupViewRows(interaction.getHomeSheet(), league));
+        map.insert(QStringLiteral("awayLineup"), buildLineupViewRows(interaction.getAwaySheet(), league));
+        if (interaction.getHomeId() == selectedTeamId) {
+            map.insert(QStringLiteral("formationText"), formatFormation(interaction.getHomeSheet().formation));
+        } else if (interaction.getAwayId() == selectedTeamId) {
+            map.insert(QStringLiteral("formationText"), formatFormation(interaction.getAwaySheet().formation));
         }
     }
 

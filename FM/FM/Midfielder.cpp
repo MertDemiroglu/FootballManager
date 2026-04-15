@@ -7,7 +7,7 @@ Midfielder::Midfielder(const std::string& name, const std::string& team, int age
     : Midfielder(name, PlayerPosition::CentralMidfielder, team, age, c, v, p, d, t) {}
 
 int Midfielder::totalPower() const {
-    return (crossing * 3 + vision * 2 + passing * 2 + decision + technique * 2) / 9;
+    return (crossing * 3 + vision * 2 + passing * 2 + decision + technique * 2) / 10;
 }
 double Midfielder::calculateMarketValue() const {
     return totalPower() * 1.8 + (30 - age) * 2;
