@@ -14,6 +14,52 @@ namespace {
         FormationId::FourThreeThree,
         FormationId::ThreeFiveTwo
     } };
+
+    const std::vector<FormationSlotRole> kFourFourTwoTemplate {
+        FormationSlotRole::Goalkeeper,
+        FormationSlotRole::LeftBack,
+        FormationSlotRole::CenterBack,
+        FormationSlotRole::CenterBack,
+        FormationSlotRole::RightBack,
+        FormationSlotRole::LeftWinger,
+        FormationSlotRole::CentralMidfielder,
+        FormationSlotRole::CentralMidfielder,
+        FormationSlotRole::RightWinger,
+        FormationSlotRole::Striker,
+        FormationSlotRole::Striker
+    };
+
+    const std::vector<FormationSlotRole> kFourThreeThreeTemplate {
+        FormationSlotRole::Goalkeeper,
+        FormationSlotRole::LeftBack,
+        FormationSlotRole::CenterBack,
+        FormationSlotRole::CenterBack,
+        FormationSlotRole::RightBack,
+        FormationSlotRole::DefensiveMidfielder,
+        FormationSlotRole::CentralMidfielder,
+        FormationSlotRole::AttackingMidfielder,
+        FormationSlotRole::LeftWinger,
+        FormationSlotRole::Striker,
+        FormationSlotRole::RightWinger
+    };
+
+    const std::vector<FormationSlotRole> kThreeFiveTwoTemplate {
+        FormationSlotRole::Goalkeeper,
+        FormationSlotRole::CenterBack,
+        FormationSlotRole::CenterBack,
+        FormationSlotRole::CenterBack,
+        FormationSlotRole::LeftWingBack,
+        FormationSlotRole::DefensiveMidfielder,
+        FormationSlotRole::CentralMidfielder,
+        FormationSlotRole::AttackingMidfielder,
+        FormationSlotRole::RightWingBack,
+        FormationSlotRole::Striker,
+        FormationSlotRole::Striker
+    };
+}
+
+bool isSlotRoleSupported(FormationSlotRole role) {
+    return role != FormationSlotRole::Unknown;
 }
 
 const FormationDefinition& getFormationDefinition(FormationId formationId) {
@@ -38,4 +84,17 @@ bool isFormationSupported(FormationId formationId) {
     }
 
     return false;
+}
+
+const std::vector<FormationSlotRole>& getFormationSlotTemplate(FormationId formationId) {
+    switch (formationId) {
+    case FormationId::FourFourTwo:
+        return kFourFourTwoTemplate;
+    case FormationId::FourThreeThree:
+        return kFourThreeThreeTemplate;
+    case FormationId::ThreeFiveTwo:
+        return kThreeFiveTwoTemplate;
+    }
+
+    throw std::invalid_argument("unsupported formation");
 }

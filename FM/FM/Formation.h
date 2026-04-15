@@ -1,6 +1,9 @@
 #pragma once
 
+#include "FormationSlotRole.h"
+
 #include <array>
+#include <vector>
 
 
 enum class FormationId {
@@ -20,3 +23,5 @@ struct FormationDefinition {
 const FormationDefinition& getFormationDefinition(FormationId formationId);
 const std::array<FormationId, 3>& getSupportedFormationIds();
 bool isFormationSupported(FormationId formationId);
+
+const std::vector<FormationSlotRole>& getFormationSlotTemplate(FormationId formationId);
