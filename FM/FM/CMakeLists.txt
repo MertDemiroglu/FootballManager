@@ -28,6 +28,7 @@ add_library(fm_core STATIC
     PreMatchInteraction.cpp
     PostMatchInteraction.cpp
     PlayMatchCommandHandler.cpp
+    PlayerPosition.cpp
     PlayerPositionBucket.cpp
     Midfielder.cpp
     RosterLoader.cpp

@@ -4,6 +4,7 @@
 #include<unordered_map>
 #include<memory>
 #include"Contract.h"
+#include "PlayerPosition.h"
 
 struct PlayerSeasonStats {
 	PlayerId playerId = 0;
@@ -31,13 +32,15 @@ protected:
 	PlayerId playerId;
 	TeamId teamId;
 	std::unique_ptr<Contract> contract;
-	std::string name, position;
+	std::string name;
+	PlayerPosition position;
 	int age;
 	PlayerSeasonStats currentSeasonStats;
 	std::unordered_map<int, PlayerSeasonStats> archivedSeasonStatsByYear;
 
 public:
 	//Footballer constructor
+	Footballer(const std::string& name, PlayerPosition position, const std::string& team, int age);
 	Footballer(const std::string& name, const std::string& position, const std::string& team, int age);
 
 	//Virtual destructor alt siniflarin silinmesi icin
@@ -54,7 +57,8 @@ public:
 	//Oyuncunun ismi verir
 	const std::string& getName() const;
 	//Oyuncunun pozisyonu verir
-	const std::string& getPosition() const;
+	std::string getPosition() const;
+	PlayerPosition getPlayerPosition() const;
 	//Oyuncunun yasini verir
 	int getAge() const;
 

@@ -1,41 +1,32 @@
 #include "PlayerPositionBucket.h"
 
-#include <algorithm>
-#include <cctype>
+FormationSlotGroup mapPlayerPositionToFormationSlotGroup(PlayerPosition position) {
+    switch (position) {
+    case PlayerPosition::Goalkeeper:
+        return FormationSlotGroup::Goalkeeper;
 
-namespace {
-    std::string normalizePosition(const std::string& value) {
-        std::string normalized;
-        normalized.reserve(value.size());
+    case PlayerPosition::CenterBack:
+    case PlayerPosition::LeftBack:
+    case PlayerPosition::RightBack:
+        return FormationSlotGroup::Defender;
 
-        for (unsigned char c : value) {
-            if (!std::isspace(c)) {
-                normalized.push_back(static_cast<char>(std::toupper(c)));
-            }
-        }
+    case PlayerPosition::DefensiveMidfielder:
+    case PlayerPosition::CentralMidfielder:
+    case PlayerPosition::AttackingMidfielder:
+    case PlayerPosition::LeftWinger:
+    case PlayerPosition::RightWinger:
+        return FormationSlotGroup::Midfielder;
 
-        return normalized;
+    case PlayerPosition::Striker:
+        return FormationSlotGroup::Forward;
+
+    case PlayerPosition::Unknown:
+        break;
     }
+
+    return FormationSlotGroup::Unknown;
 }
 
-PlayerPositionBucket mapPlayerPositionToBucket(const std::string& position) {
-    const std::string normalized = normalizePosition(position);
-
-    if (normalized == "GK" || normalized == "GOALKEEPER") {
-        return PlayerPositionBucket::Goalkeeper;
-    }
-
-    if (normalized == "DEF" || normalized == "DF" || normalized == "DEFENDER") {
-        return PlayerPositionBucket::Defender;
-    }
-
-    if (normalized == "MID" || normalized == "MF" || normalized == "MIDFIELDER") {
-        return PlayerPositionBucket::Midfielder;
-    }
-
-    if (normalized == "FWD" || normalized == "FW" || normalized == "FORWARD") {
-        return PlayerPositionBucket::Forward;
-    }
-
-    return PlayerPositionBucket::Unknown;
+FormationSlotGroup mapPlayerPositionToBucket(PlayerPosition position) {
+    return mapPlayerPositionToFormationSlotGroup(position);
 }

@@ -1,9 +1,8 @@
 #pragma once
 
-#include <string>
+#include "PlayerPosition.h"
 
-
-enum class PlayerPositionBucket {
+enum class FormationSlotGroup {
     Goalkeeper,
     Defender,
     Midfielder,
@@ -11,4 +10,7 @@ enum class PlayerPositionBucket {
     Unknown
 };
 
-PlayerPositionBucket mapPlayerPositionToBucket(const std::string& position);
+using PlayerPositionBucket = FormationSlotGroup;
+
+FormationSlotGroup mapPlayerPositionToFormationSlotGroup(PlayerPosition position);
+FormationSlotGroup mapPlayerPositionToBucket(PlayerPosition position);
