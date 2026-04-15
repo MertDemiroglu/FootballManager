@@ -11,6 +11,8 @@ enum class PlayerPosition {
     DefensiveMidfielder,
     CentralMidfielder,
     AttackingMidfielder,
+    LeftMidfielder,
+    RightMidfielder,
     LeftWinger,
     RightWinger,
     Striker

@@ -10,6 +10,7 @@ enum class RoleFitTier {
     Close,
     Adapted,
     Emergency,
+    SevereMismatch,
     Invalid
 };
 
@@ -18,3 +19,4 @@ double getRoleFitMultiplier(RoleFitTier tier);
 double getRoleFitMultiplier(PlayerPosition playerPosition, FormationSlotRole slotRole);
 bool isRoleFitUsable(PlayerPosition playerPosition, FormationSlotRole slotRole);
 double calculateEffectivePowerForSlot(const Footballer& player, FormationSlotRole slotRole);
+int getRoleFitTierScore(RoleFitTier tier);

@@ -11,6 +11,8 @@ enum class FormationSlotRole {
     DefensiveMidfielder,
     CentralMidfielder,
     AttackingMidfielder,
+    LeftMidfielder,
+    RightMidfielder,
     LeftWinger,
     RightWinger,
     Striker

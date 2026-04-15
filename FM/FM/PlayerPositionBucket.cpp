@@ -13,6 +13,8 @@ FormationSlotGroup mapPlayerPositionToFormationSlotGroup(PlayerPosition position
     case PlayerPosition::DefensiveMidfielder:
     case PlayerPosition::CentralMidfielder:
     case PlayerPosition::AttackingMidfielder:
+    case PlayerPosition::LeftMidfielder:
+    case PlayerPosition::RightMidfielder:
     case PlayerPosition::LeftWinger:
     case PlayerPosition::RightWinger:
         return FormationSlotGroup::Midfielder;

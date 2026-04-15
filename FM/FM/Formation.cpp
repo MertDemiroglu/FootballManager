@@ -21,10 +21,10 @@ namespace {
         FormationSlotRole::CenterBack,
         FormationSlotRole::CenterBack,
         FormationSlotRole::RightBack,
-        FormationSlotRole::LeftWinger,
+        FormationSlotRole::LeftMidfielder,
         FormationSlotRole::CentralMidfielder,
         FormationSlotRole::CentralMidfielder,
-        FormationSlotRole::RightWinger,
+        FormationSlotRole::RightMidfielder,
         FormationSlotRole::Striker,
         FormationSlotRole::Striker
     };

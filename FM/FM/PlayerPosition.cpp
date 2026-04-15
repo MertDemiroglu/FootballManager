@@ -50,6 +50,14 @@ PlayerPosition parsePlayerPosition(const std::string& position) {
         return PlayerPosition::AttackingMidfielder;
     }
 
+    if (normalized == "LM" || normalized == "LEFTMIDFIELDER") {
+        return PlayerPosition::LeftMidfielder;
+    }
+
+    if (normalized == "RM" || normalized == "RIGHTMIDFIELDER") {
+        return PlayerPosition::RightMidfielder;
+    }
+
     if (normalized == "LW" || normalized == "LEFTWINGER") {
         return PlayerPosition::LeftWinger;
     }
@@ -90,6 +98,10 @@ std::string toDisplayString(PlayerPosition position) {
         return "CentralMidfielder";
     case PlayerPosition::AttackingMidfielder:
         return "AttackingMidfielder";
+    case PlayerPosition::LeftMidfielder:
+        return "LeftMidfielder";
+    case PlayerPosition::RightMidfielder:
+        return "RightMidfielder";
     case PlayerPosition::LeftWinger:
         return "LeftWinger";
     case PlayerPosition::RightWinger:
