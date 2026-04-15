@@ -8,7 +8,7 @@ InteractionModalShell {
     signal closeRequested()
 
     visible: false
-    maxCardWidth: 780
+    maxCardWidth: 1020
 
     function clearDetails() {
         details = ({})
@@ -28,100 +28,120 @@ InteractionModalShell {
         root.visible = true
     }
 
-    Label {
+    Rectangle {
         width: parent.width
-        text: "Match Report"
-        font.pixelSize: 24
-        font.bold: true
-        color: "#101828"
-    }
+        radius: 12
+        color: "white"
+        border.color: "#e4e7ec"
+        implicitHeight: headerColumn.implicitHeight + 20
 
-    Label {
-        width: parent.width
-        text: (details.homeTeamName || "Home") + " " + (details.score || "-") + " " + (details.awayTeamName || "Away")
-        font.pixelSize: 18
-        font.bold: true
-        color: "#344054"
-        wrapMode: Text.WordWrap
-    }
+        ColumnLayout {
+            id: headerColumn
+            anchors.fill: parent
+            anchors.margins: 10
+            spacing: 6
 
-    Label {
-        width: parent.width
-        text: "Date: " + (details.dateText || "-") + "   Matchweek: " + (details.matchweek !== undefined ? details.matchweek : "-")
-        font.pixelSize: 14
-        color: "#475467"
-        wrapMode: Text.WordWrap
-    }
-
-    Label {
-        width: parent.width
-        text: "Scorers: " + (details.scorers || "No goals recorded.")
-        font.pixelSize: 14
-        color: "#475467"
-        wrapMode: Text.WordWrap
-    }
-
-    Label {
-        width: parent.width
-        text: "Assists: " + (details.assists || "No assists recorded.")
-        font.pixelSize: 14
-        color: "#475467"
-        wrapMode: Text.WordWrap
-    }
-
-    Label {
-        width: parent.width
-        text: "Cards: " + (details.cards || "No cards recorded.")
-        font.pixelSize: 14
-        color: "#475467"
-        wrapMode: Text.WordWrap
-    }
-
-    Label {
-        width: parent.width
-        text: "Events"
-        font.pixelSize: 16
-        font.bold: true
-        color: "#101828"
-    }
-
-    ScrollView {
-        width: parent.width
-        implicitHeight: 220
-        clip: true
-
-        Column {
-            width: parent.width
-            spacing: 8
-
-            Repeater {
-                model: details.events || []
-                delegate: Rectangle {
-                    required property var modelData
-                    width: parent ? parent.width : 0
-                    radius: 8
-                    color: "#f8fafc"
-                    border.color: "#e4e7ec"
-                    implicitHeight: eventLabel.implicitHeight + 18
-
-                    Label {
-                        id: eventLabel
-                        anchors.fill: parent
-                        anchors.margins: 9
-                        text: modelData.detailText || "Event"
-                        color: "#344054"
-                        font.pixelSize: 13
-                        wrapMode: Text.WordWrap
-                    }
-                }
+            Label {
+                text: "Match Report"
+                font.pixelSize: 24
+                font.bold: true
+                color: "#101828"
             }
 
             Label {
-                visible: (details.events || []).length === 0
-                width: parent.width
-                text: "No event records available."
+                text: (details.homeTeamName || "Home") + " " + (details.score || "-") + " " + (details.awayTeamName || "Away")
+                font.pixelSize: 20
+                font.bold: true
+                color: "#344054"
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+
+            Label {
+                text: "Date: " + (details.dateText || "-") + "   Matchweek: " + (details.matchweek !== undefined ? details.matchweek : "-")
                 color: "#667085"
                 font.pixelSize: 13
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+
+            Label { text: "Scorers: " + (details.scorers || "No goals recorded."); color: "#475467"; font.pixelSize: 13; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+            Label { text: "Assists: " + (details.assists || "No assists recorded."); color: "#475467"; font.pixelSize: 13; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+            Label { text: "Cards: " + (details.cards || "No cards recorded."); color: "#475467"; font.pixelSize: 13; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+        }
+    }
+
+    MatchLineupSection {
+        width: parent.width
+        homeTeamName: details.homeTeamName || "Home"
+        awayTeamName: details.awayTeamName || "Away"
+        homeCoachName: details.homeCoachName || "-"
+        awayCoachName: details.awayCoachName || "-"
+        homeFormationText: details.homeFormationText || "-"
+        awayFormationText: details.awayFormationText || "-"
+        homeLineupRows: details.homeLineup || []
+        awayLineupRows: details.awayLineup || []
+        compactMode: false
+    }
+
+    Rectangle {
+        width: parent.width
+        radius: 12
+        color: "white"
+        border.color: "#e4e7ec"
+        implicitHeight: 280
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 10
+            spacing: 8
+
+            Label {
+                text: "Event Timeline"
+                font.pixelSize: 16
+                font.bold: true
+                color: "#101828"
+            }
+
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+
+                Column {
+                    width: parent.width
+                    spacing: 8
+
+                    Repeater {
+                        model: details.events || []
+                        delegate: Rectangle {
+                            required property var modelData
+                            width: parent ? parent.width : 0
+                            radius: 8
+                            color: "#f8fafc"
+                            border.color: "#e4e7ec"
+                            implicitHeight: eventLabel.implicitHeight + 18
+
+                            Label {
+                                id: eventLabel
+                                anchors.fill: parent
+                                anchors.margins: 9
+                                text: modelData.detailText || "Event"
+                                color: "#344054"
+                                font.pixelSize: 13
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+                    }
+
+                    Label {
+                        visible: (details.events || []).length === 0
+                        width: parent.width
+                        text: "No event records available."
+                        color: "#667085"
+                        font.pixelSize: 13
+                    }
+                }
             }
         }
     }

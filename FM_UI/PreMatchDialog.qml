@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 
 InteractionModalShell {
     id: root
@@ -7,43 +8,69 @@ InteractionModalShell {
     signal playMatchRequested()
 
     visible: false
+    maxCardWidth: 980
 
     Label {
         width: parent.width
-        text: "Your match is ready"
+        text: "Pre-Match Lineup Preview"
         font.pixelSize: 24
         font.bold: true
         color: "#101828"
     }
 
-    Label {
+    Rectangle {
         width: parent.width
-        text: interactionData.fixtureLabel
-              || ((interactionData.homeTeamName || "Home") + " vs " + (interactionData.awayTeamName || "Away"))
-        wrapMode: Text.WordWrap
-        font.pixelSize: 18
-        color: "#344054"
+        radius: 12
+        color: "white"
+        border.color: "#e4e7ec"
+        implicitHeight: metaColumn.implicitHeight + 20
+
+        ColumnLayout {
+            id: metaColumn
+            anchors.fill: parent
+            anchors.margins: 10
+            spacing: 6
+
+            Label {
+                Layout.fillWidth: true
+                text: interactionData.fixtureLabel
+                      || ((interactionData.homeTeamName || "Home") + " vs " + (interactionData.awayTeamName || "Away"))
+                font.pixelSize: 18
+                font.bold: true
+                color: "#344054"
+                wrapMode: Text.WordWrap
+            }
+
+            Label {
+                text: "Date: " + (interactionData.dateText || "-")
+                font.pixelSize: 13
+                color: "#667085"
+            }
+
+            Label {
+                text: "Matchweek: " + (interactionData.matchweek !== undefined ? interactionData.matchweek : "-")
+                font.pixelSize: 13
+                color: "#667085"
+            }
+        }
     }
 
-    Label {
+    MatchLineupSection {
         width: parent.width
-        text: "Date: " + (interactionData.dateText || "-")
-        font.pixelSize: 15
-        color: "#475467"
-        wrapMode: Text.WordWrap
-    }
-
-    Label {
-        width: parent.width
-        text: "Matchweek: " + (interactionData.matchweek !== undefined ? interactionData.matchweek : "-")
-        font.pixelSize: 15
-        color: "#475467"
-        wrapMode: Text.WordWrap
+        homeTeamName: interactionData.homeTeamName || "Home"
+        awayTeamName: interactionData.awayTeamName || "Away"
+        homeCoachName: interactionData.homeCoachName || "-"
+        awayCoachName: interactionData.awayCoachName || "-"
+        homeFormationText: interactionData.homeFormationText || "-"
+        awayFormationText: interactionData.awayFormationText || "-"
+        homeLineupRows: interactionData.homeLineup || []
+        awayLineupRows: interactionData.awayLineup || []
+        compactMode: true
     }
 
     Button {
         width: parent.width
-        height: 42
+        height: 44
         text: "Play Match"
         onClicked: root.playMatchRequested()
     }
