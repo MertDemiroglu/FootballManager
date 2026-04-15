@@ -10,11 +10,13 @@ add_library(fm_core STATIC
     Defender.cpp
     DomainEventPublisher.cpp
     EventQueue.cpp
+    Formation.cpp
     FixtureGenerator.cpp
     Footballer.cpp
     FootballerFactory.cpp
     Forward.cpp
     GameInteraction.cpp
+    HeadCoach.cpp
     Goalkeeper.cpp
     InteractionManager.cpp
     League.cpp
@@ -26,6 +28,7 @@ add_library(fm_core STATIC
     PreMatchInteraction.cpp
     PostMatchInteraction.cpp
     PlayMatchCommandHandler.cpp
+    PlayerPositionBucket.cpp
     Midfielder.cpp
     RosterLoader.cpp
     SeasonPlan.cpp
