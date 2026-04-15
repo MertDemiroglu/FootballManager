@@ -34,6 +34,8 @@ add_library(fm_core STATIC
     RosterLoader.cpp
     SeasonPlan.cpp
     Team.cpp    
+    TeamSelectionService.cpp
+    TeamSheet.cpp
     TransferOfferDecisionInteraction.cpp
     TransferOfferService.cpp
     TransferRoom.cpp
