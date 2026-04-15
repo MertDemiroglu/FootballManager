@@ -4,9 +4,22 @@
 #include <stdexcept>
 
 namespace {
-    CoachId generateCoachId() {
+    std::atomic<CoachId>& getNextCoachIdCounter() {
         static std::atomic<CoachId> nextId{ 1 };
-        return nextId++;
+        return nextId;
+    }
+
+    CoachId generateCoachId() {
+        return getNextCoachIdCounter().fetch_add(1);
+    }
+
+    void reserveCoachId(CoachId id) {
+        auto& nextId = getNextCoachIdCounter();
+        CoachId desiredNextId = id + 1;
+        CoachId currentNextId = nextId.load();
+
+        while (currentNextId < desiredNextId && !nextId.compare_exchange_weak(currentNextId, desiredNextId)) {
+        }
     }
 }
 
@@ -27,6 +40,8 @@ HeadCoach::HeadCoach(CoachId id, const std::string& name, FormationId preferredF
     if (!isFormationSupported(preferredFormation)) {
         throw std::invalid_argument("preferred formation is not supported");
     }
+
+    reserveCoachId(id);
 }
 
 CoachId HeadCoach::getId() const {

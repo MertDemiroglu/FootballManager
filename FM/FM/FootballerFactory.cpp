@@ -21,17 +21,17 @@ std::unique_ptr<Footballer> FootballerFactory::create(const std::string& name, i
     case PlayerPosition::CenterBack:
     case PlayerPosition::LeftBack:
     case PlayerPosition::RightBack:
-        return std::make_unique<Defender>(name, team, age, s1, s2, s3, s4, s5);
+        return std::make_unique<Defender>(name, parsedPosition, team, age, s1, s2, s3, s4, s5);
 
     case PlayerPosition::DefensiveMidfielder:
     case PlayerPosition::CentralMidfielder:
     case PlayerPosition::AttackingMidfielder:
     case PlayerPosition::LeftWinger:
     case PlayerPosition::RightWinger:
-        return std::make_unique<Midfielder>(name, team, age, s1, s2, s3, s4, s5);
+        return std::make_unique<Midfielder>(name, parsedPosition, team, age, s1, s2, s3, s4, s5);
 
     case PlayerPosition::Striker:
-        return std::make_unique<Forward>(name, team, age, s1, s2, s3, s4, s5);
+        return std::make_unique<Forward>(name, parsedPosition, team, age, s1, s2, s3, s4, s5);
 
     case PlayerPosition::Unknown:
         break;
