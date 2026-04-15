@@ -12,6 +12,7 @@
 #include"FixtureGenerator.h"
 #include"World.h"
 #include"InteractionManager.h"
+#include "TeamSheet.h"
 
 enum class GameState {
 	PreSeason, InSeason, PostSeason
@@ -39,6 +40,8 @@ private:
 	bool userPaused;
 	bool dateWasReset;
 	std::optional<PlayMatchCommand> pendingPreMatchCommand;
+    std::optional<TeamSheet> pendingPreMatchHomeSheet;
+    std::optional<TeamSheet> pendingPreMatchAwaySheet;
 
 	//debug icin---------------------------------------------------------
 	int lastDebugOfferYear = -1;

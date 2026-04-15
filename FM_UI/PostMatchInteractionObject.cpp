@@ -64,6 +64,30 @@ QString PostMatchInteractionObject::cardSummary() const {
     return cardSummaryValue;
 }
 
+QString PostMatchInteractionObject::homeCoachName() const {
+    return homeCoachNameValue;
+}
+
+QString PostMatchInteractionObject::awayCoachName() const {
+    return awayCoachNameValue;
+}
+
+QString PostMatchInteractionObject::homeFormationText() const {
+    return homeFormationTextValue;
+}
+
+QString PostMatchInteractionObject::awayFormationText() const {
+    return awayFormationTextValue;
+}
+
+QVariantList PostMatchInteractionObject::homeLineup() const {
+    return homeLineupValue;
+}
+
+QVariantList PostMatchInteractionObject::awayLineup() const {
+    return awayLineupValue;
+}
+
 void PostMatchInteractionObject::setFromValues(qulonglong newMatchId,
     const QString& newDateText,
     int newMatchweek,
@@ -75,7 +99,13 @@ void PostMatchInteractionObject::setFromValues(qulonglong newMatchId,
     int newAwayGoals,
     const QString& newScorerSummary,
     const QString& newAssistSummary,
-    const QString& newCardSummary) {
+    const QString& newCardSummary,
+    const QString& newHomeCoachName,
+    const QString& newAwayCoachName,
+    const QString& newHomeFormationText,
+    const QString& newAwayFormationText,
+    const QVariantList& newHomeLineup,
+    const QVariantList& newAwayLineup) {
     if (hasDataValue
         && matchIdValue == newMatchId
         && dateTextValue == newDateText
@@ -88,7 +118,13 @@ void PostMatchInteractionObject::setFromValues(qulonglong newMatchId,
         && awayGoalsValue == newAwayGoals
         && scorerSummaryValue == newScorerSummary
         && assistSummaryValue == newAssistSummary
-        && cardSummaryValue == newCardSummary) {
+        && cardSummaryValue == newCardSummary
+        && homeCoachNameValue == newHomeCoachName
+        && awayCoachNameValue == newAwayCoachName
+        && homeFormationTextValue == newHomeFormationText
+        && awayFormationTextValue == newAwayFormationText
+        && homeLineupValue == newHomeLineup
+        && awayLineupValue == newAwayLineup) {
         return;
     }
 
@@ -105,6 +141,12 @@ void PostMatchInteractionObject::setFromValues(qulonglong newMatchId,
     scorerSummaryValue = newScorerSummary;
     assistSummaryValue = newAssistSummary;
     cardSummaryValue = newCardSummary;
+    homeCoachNameValue = newHomeCoachName;
+    awayCoachNameValue = newAwayCoachName;
+    homeFormationTextValue = newHomeFormationText;
+    awayFormationTextValue = newAwayFormationText;
+    homeLineupValue = newHomeLineup;
+    awayLineupValue = newAwayLineup;
     emit changed();
 }
 
@@ -121,7 +163,13 @@ void PostMatchInteractionObject::clear() {
         && awayGoalsValue == 0
         && scorerSummaryValue.isEmpty()
         && assistSummaryValue.isEmpty()
-        && cardSummaryValue.isEmpty()) {
+        && cardSummaryValue.isEmpty()
+        && homeCoachNameValue.isEmpty()
+        && awayCoachNameValue.isEmpty()
+        && homeFormationTextValue.isEmpty()
+        && awayFormationTextValue.isEmpty()
+        && homeLineupValue.isEmpty()
+        && awayLineupValue.isEmpty()) {
         return;
     }
 
@@ -138,5 +186,11 @@ void PostMatchInteractionObject::clear() {
     scorerSummaryValue.clear();
     assistSummaryValue.clear();
     cardSummaryValue.clear();
+    homeCoachNameValue.clear();
+    awayCoachNameValue.clear();
+    homeFormationTextValue.clear();
+    awayFormationTextValue.clear();
+    homeLineupValue.clear();
+    awayLineupValue.clear();
     emit changed();
 }

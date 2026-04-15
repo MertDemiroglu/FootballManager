@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QVariantList>
 
 class PreMatchInteractionObject : public QObject {
     Q_OBJECT
@@ -16,6 +17,13 @@ class PreMatchInteractionObject : public QObject {
     Q_PROPERTY(QString homeTeamName READ homeTeamName NOTIFY changed)
     Q_PROPERTY(QString awayTeamName READ awayTeamName NOTIFY changed)
     Q_PROPERTY(QString fixtureLabel READ fixtureLabel NOTIFY changed)
+    Q_PROPERTY(QString homeCoachName READ homeCoachName NOTIFY changed)
+    Q_PROPERTY(QString awayCoachName READ awayCoachName NOTIFY changed)
+    Q_PROPERTY(QString homeFormationText READ homeFormationText NOTIFY changed)
+    Q_PROPERTY(QString awayFormationText READ awayFormationText NOTIFY changed)
+    Q_PROPERTY(QString formationText READ formationText NOTIFY changed)
+    Q_PROPERTY(QVariantList homeLineup READ homeLineup NOTIFY changed)
+    Q_PROPERTY(QVariantList awayLineup READ awayLineup NOTIFY changed)
 
 public:
     explicit PreMatchInteractionObject(QObject* parent = nullptr);
@@ -29,6 +37,13 @@ public:
     QString homeTeamName() const;
     QString awayTeamName() const;
     QString fixtureLabel() const;
+    QString homeCoachName() const;
+    QString awayCoachName() const;
+    QString homeFormationText() const;
+    QString awayFormationText() const;
+    QString formationText() const;
+    QVariantList homeLineup() const;
+    QVariantList awayLineup() const;
 
     void setFromValues(qulonglong matchId,
         const QString& dateText,
@@ -36,7 +51,14 @@ public:
         int homeTeamId,
         int awayTeamId,
         const QString& homeTeamName,
-        const QString& awayTeamName);
+        const QString& awayTeamName,
+        const QString& homeCoachName,
+        const QString& awayCoachName,
+        const QString& homeFormationText,
+        const QString& awayFormationText,
+        const QString& formationText,
+        const QVariantList& homeLineup,
+        const QVariantList& awayLineup);
     void clear();
 
 signals:
@@ -51,4 +73,11 @@ private:
     int awayTeamIdValue = 0;
     QString homeTeamNameValue;
     QString awayTeamNameValue;
+    QString homeCoachNameValue;
+    QString awayCoachNameValue;
+    QString homeFormationTextValue;
+    QString awayFormationTextValue;
+    QString formationTextValue;
+    QVariantList homeLineupValue;
+    QVariantList awayLineupValue;
 };
