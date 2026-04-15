@@ -3,6 +3,8 @@
 #include"TransferRoom.h"
 #include"Types.h"
 #include"Contract.h"
+#include"Formation.h"
+#include"HeadCoach.h"
 
 #include<vector>
 #include<string>
@@ -21,10 +23,19 @@ namespace {
         return nextId++;
     }
 
+    std::string buildDefaultHeadCoachName(const std::string& teamName) {
+        return teamName + " Head Coach";
+    }
 }
 Team::Team(const std::string& name) : Team(generateTeamId(), name) {}
 
-Team::Team(TeamId id, const std::string& name) : id(id), name(name), wageBudget(0), transferBudget(0), totalBudget(0) {}
+Team::Team(TeamId id, const std::string& name)
+    : id(id),
+      wageBudget(0),
+      transferBudget(0),
+      totalBudget(0),
+      name(name),
+      headCoach(buildDefaultHeadCoachName(name), FormationId::FourFourTwo) {}
 
 TeamId Team::getId() const {
     return id;
@@ -33,6 +44,14 @@ TeamId Team::getId() const {
 const std::string& Team::getName() const {
     return name;
 }
+const HeadCoach& Team::getHeadCoach() const {
+    return headCoach;
+}
+
+HeadCoach& Team::getHeadCoach() {
+    return headCoach;
+}
+
 size_t Team::playerCount() const {
     return players.size();
 }

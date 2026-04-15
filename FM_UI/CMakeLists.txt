@@ -64,6 +64,9 @@ qt_add_qml_module(FM_UI
         PreMatchDialog.qml
         PostMatchDialog.qml
         MatchDetailDialog.qml
+        LineupSlotRow.qml
+        TeamLineupCard.qml
+        MatchLineupSection.qml
         TransferOfferDialog.qml
 )
 

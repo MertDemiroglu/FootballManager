@@ -1,11 +1,13 @@
 #include"MatchSimulation.h"
 
 #include"Team.h"
+#include"Formation.h"
 
 #include<algorithm>
 #include<cstdint>
 #include<random>
 #include<stdexcept>
+#include<unordered_set>
 #include<vector>
 
 namespace {
@@ -26,27 +28,87 @@ namespace {
 
         return seed;
     }
-}
 
-const Footballer* pickRandomPlayer(const Team& team, std::mt19937& rng) {
-    const auto& players = team.getPlayers();
-    if (players.empty()) {
-        return nullptr;
+
+    MatchLineupSnapshot buildSnapshotFromTeamSheet(const TeamSheet& teamSheet) {
+        MatchLineupSnapshot snapshot;
+        snapshot.teamId = teamSheet.teamId;
+        snapshot.coachId = teamSheet.coachId;
+        snapshot.formation = teamSheet.formation;
+        snapshot.startingPlayerIds = teamSheet.startingPlayerIds;
+        return snapshot;
     }
 
-    std::uniform_int_distribution<std::size_t> playerDist(0, players.size() - 1);
-    return players[playerDist(rng)].get();
-}
+    void validateMatchLineupSnapshot(const MatchLineupSnapshot& snapshot) {
+        if (snapshot.teamId == 0) {
+            throw std::invalid_argument("lineup snapshot team id cannot be zero");
+        }
+        if (snapshot.coachId == 0) {
+            throw std::invalid_argument("lineup snapshot coach id cannot be zero");
+        }
+        if (!isFormationSupported(snapshot.formation)) {
+            throw std::invalid_argument("lineup snapshot formation is not supported");
+        }
+        if (snapshot.startingPlayerIds.size() > 11) {
+            throw std::invalid_argument("lineup snapshot starter count cannot exceed 11");
+        }
 
-std::vector<const Footballer*> buildStarters(const Team& team, std::mt19937& rng) {
-    std::vector<const Footballer*> pool;
-    for (const auto& player : team.getPlayers()) {
-        pool.push_back(player.get());
+        std::unordered_set<PlayerId> seenStarterIds;
+        seenStarterIds.reserve(snapshot.startingPlayerIds.size());
+        for (PlayerId starterId : snapshot.startingPlayerIds) {
+            if (starterId == 0) {
+                throw std::invalid_argument("lineup snapshot starter id cannot be zero");
+            }
+            const auto [it, inserted] = seenStarterIds.emplace(starterId);
+            (void)it;
+            if (!inserted) {
+                throw std::invalid_argument("lineup snapshot contains duplicate starter id");
+            }
+        }
     }
-    std::shuffle(pool.begin(), pool.end(), rng);
-    const std::size_t starterCount = std::min<std::size_t>(11, pool.size());
-    pool.resize(starterCount);
-    return pool;
+
+    int calculateStarterLineupStrength(const std::vector<const Footballer*>& starters) {
+        if (starters.empty()) {
+            throw std::logic_error("cannot calculate lineup strength from empty starter pool");
+        }
+
+        int totalPower = 0;
+        for (const Footballer* starter : starters) {
+            if (!starter) {
+                throw std::logic_error("starter lineup contains null player pointer");
+            }
+            totalPower += starter->totalPower();
+        }
+
+        return totalPower / static_cast<int>(starters.size());
+    }
+
+    std::vector<const Footballer*> resolveStartersFromTeamSheet(const Team& team, const TeamSheet& teamSheet) {
+        validateTeamSheetForTeam(teamSheet, team);
+
+        std::vector<const Footballer*> starters;
+        starters.reserve(teamSheet.startingPlayerIds.size());
+
+        std::unordered_set<PlayerId> seenStarterIds;
+        seenStarterIds.reserve(teamSheet.startingPlayerIds.size());
+
+        for (PlayerId starterId : teamSheet.startingPlayerIds) {
+            const auto [it, inserted] = seenStarterIds.emplace(starterId);
+            (void)it;
+            if (!inserted) {
+                throw std::logic_error("teamsheet contains duplicate starter id");
+            }
+
+            const Footballer* player = team.findPlayerById(starterId);
+            if (!player) {
+                throw std::logic_error("teamsheet starter id could not be resolved in team");
+            }
+
+            starters.push_back(player);
+        }
+
+        return starters;
+    }
 }
 
 const Footballer* pickFrom(const std::vector<const Footballer*>& players, std::mt19937& rng) {
@@ -99,6 +161,8 @@ MatchReport MatchSimulation::buildStrengthBasedReport(
     int matchweek,
     const Team& homeTeam,
     const Team& awayTeam,
+    const TeamSheet& homeSheet,
+    const TeamSheet& awaySheet,
     const Date& date) {
 
     if (matchId == 0) {
@@ -111,8 +175,11 @@ MatchReport MatchSimulation::buildStrengthBasedReport(
         throw std::invalid_argument("seasonYear cannot be negative");
     }
 
-    const int homeRating = homeTeam.calculateTeamRating();
-    const int awayRating = awayTeam.calculateTeamRating();
+    const std::vector<const Footballer*> homeStarters = resolveStartersFromTeamSheet(homeTeam, homeSheet);
+    const std::vector<const Footballer*> awayStarters = resolveStartersFromTeamSheet(awayTeam, awaySheet);
+
+    const int homeRating = calculateStarterLineupStrength(homeStarters);
+    const int awayRating = calculateStarterLineupStrength(awayStarters);
     const int ratingDiff = homeRating - awayRating;
 
     const double homeAdvantage = 0.25;
@@ -139,8 +206,10 @@ MatchReport MatchSimulation::buildStrengthBasedReport(
     report.homeGoals = std::clamp(homeDist(rng), 0, 6);
     report.awayGoals = std::clamp(awayDist(rng), 0, 6);
 
-    const std::vector<const Footballer*> homeStarters = buildStarters(homeTeam, rng);
-    const std::vector<const Footballer*> awayStarters = buildStarters(awayTeam, rng);
+    report.homeLineup = buildSnapshotFromTeamSheet(homeSheet);
+    report.awayLineup = buildSnapshotFromTeamSheet(awaySheet);
+    validateMatchLineupSnapshot(report.homeLineup);
+    validateMatchLineupSnapshot(report.awayLineup);
 
     for (const Footballer* p : homeStarters) {
         ensurePlayerReport(report, homeTeam.getId(), *p, true, 90);
@@ -149,12 +218,9 @@ MatchReport MatchSimulation::buildStrengthBasedReport(
         ensurePlayerReport(report, awayTeam.getId(), *p, true, 90);
     }
 
-    auto assignGoals = [&](int goals, TeamId teamId, const Team& team, const std::vector<const Footballer*>& starters) {
+    auto assignGoals = [&](int goals, TeamId teamId, const std::vector<const Footballer*>& starters) {
         for (int i = 0; i < goals; ++i) {
             const Footballer* scorer = pickFrom(starters, rng);
-            if (!scorer) {
-                scorer = pickRandomPlayer(team, rng);
-            }
             if (!scorer) {
                 continue;
             }
@@ -199,20 +265,17 @@ MatchReport MatchSimulation::buildStrengthBasedReport(
         }
         };
 
-    assignGoals(report.homeGoals, homeTeam.getId(), homeTeam, homeStarters);
-    assignGoals(report.awayGoals, awayTeam.getId(), awayTeam, awayStarters);
+    assignGoals(report.homeGoals, homeTeam.getId(), homeStarters);
+    assignGoals(report.awayGoals, awayTeam.getId(), awayStarters);
 
     std::poisson_distribution<int> homeYellowDist(1.4);
     std::poisson_distribution<int> awayYellowDist(1.3);
     const int homeYellows = std::clamp(homeYellowDist(rng), 0, 4);
     const int awayYellows = std::clamp(awayYellowDist(rng), 0, 4);
 
-    auto assignCards = [&](int cardCount, TeamId teamId, const Team& team, const std::vector<const Footballer*>& starters, MatchEventKind kind) {
+    auto assignCards = [&](int cardCount, TeamId teamId, const std::vector<const Footballer*>& starters, MatchEventKind kind) {
         for (int i = 0; i < cardCount; ++i) {
             const Footballer* player = pickFrom(starters, rng);
-            if (!player) {
-                player = pickRandomPlayer(team, rng);
-            }
             if (!player) {
                 continue;
             }
@@ -237,15 +300,15 @@ MatchReport MatchSimulation::buildStrengthBasedReport(
         }
         };
 
-    assignCards(homeYellows, homeTeam.getId(), homeTeam, homeStarters, MatchEventKind::YellowCard);
-    assignCards(awayYellows, awayTeam.getId(), awayTeam, awayStarters, MatchEventKind::YellowCard);
+    assignCards(homeYellows, homeTeam.getId(), homeStarters, MatchEventKind::YellowCard);
+    assignCards(awayYellows, awayTeam.getId(), awayStarters, MatchEventKind::YellowCard);
 
     std::bernoulli_distribution redChance(0.06);
     if (redChance(rng)) {
-        assignCards(1, homeTeam.getId(), homeTeam, homeStarters, MatchEventKind::RedCard);
+        assignCards(1, homeTeam.getId(), homeStarters, MatchEventKind::RedCard);
     }
     if (redChance(rng)) {
-        assignCards(1, awayTeam.getId(), awayTeam, awayStarters, MatchEventKind::RedCard);
+        assignCards(1, awayTeam.getId(), awayStarters, MatchEventKind::RedCard);
     }
 
     return report;

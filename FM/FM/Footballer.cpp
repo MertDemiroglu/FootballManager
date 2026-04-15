@@ -1,6 +1,7 @@
 #include"Footballer.h"
 
-#include<atomic>
+#include <atomic>
+#include <stdexcept>
 
 namespace {
     PlayerId generatePlayerId() {
@@ -9,9 +10,19 @@ namespace {
     }
 
 }
-Footballer::Footballer(const std::string& name, const std::string& position, const std::string& team, int age) : playerId(generatePlayerId()), name(name), position(position), teamId(0), age(age) {
+Footballer::Footballer(const std::string& name, PlayerPosition position, const std::string& team, int age)
+    : playerId(generatePlayerId()), name(name), position(position), teamId(0), age(age) {
     (void)team;
+
+    if (!isKnownPlayerPosition(position)) {
+        throw std::invalid_argument("footballer position cannot be unknown");
+    }
+
     currentSeasonStats.playerId = playerId;
+}
+
+Footballer::Footballer(const std::string& name, const std::string& position, const std::string& team, int age)
+    : Footballer(name, parsePlayerPosition(position), team, age) {
 }
 
 //get fonksiyonlari
@@ -27,7 +38,11 @@ const std::string& Footballer::getName() const {
     return name;
 }
 
-const std::string& Footballer::getPosition() const {
+std::string Footballer::getPosition() const {
+    return toDisplayString(position);
+}
+
+PlayerPosition Footballer::getPlayerPosition() const {
     return position;
 }
 
@@ -143,11 +158,10 @@ void Footballer::addRedCard() {
 
 //print
 void Footballer::print(std::ostream& os) const {
-    os << "Name: " << name << ", Id: " << playerId << ", Age: " << age << ", Position: " << position << ", TeamId: " << teamId;
+    os << "Name: " << name << ", Id: " << playerId << ", Age: " << age << ", Position: " << getPosition() << ", TeamId: " << teamId;
 }
 
 std::ostream& operator<<(std::ostream& os, const Footballer& f) {
     f.print(os);
     return os;
 }
-

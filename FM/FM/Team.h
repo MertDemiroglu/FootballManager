@@ -4,6 +4,7 @@
 #include"TransferRoom.h"
 #include"Types.h"
 #include"Contract.h"
+#include"HeadCoach.h"
 
 #include<vector>
 #include<string>
@@ -22,6 +23,7 @@ private:
 	std::string name;
 	std::vector<std::unique_ptr<Footballer>> players;
 	std::unordered_map<PlayerId, Footballer*> playerIndexById;
+	HeadCoach headCoach;
 
 	void rebuildPlayerIndexById();
 
@@ -68,6 +70,9 @@ public:
 
 	//takimin ortalama gucunu hesaplar
 	int calculateTeamRating() const;
+
+	const HeadCoach& getHeadCoach() const;
+	HeadCoach& getHeadCoach();
 
 	//Kontrati biten oyunculari bir vektore koyup verir
 	std::vector<std::unique_ptr<Footballer>>collectExpiredContracts();

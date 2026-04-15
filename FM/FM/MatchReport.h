@@ -3,6 +3,7 @@
 #include<vector>
 
 #include"Date.h"
+#include "Formation.h"
 #include"Types.h"
 
 enum class MatchEventKind {
@@ -30,6 +31,13 @@ struct MatchEventRecord {
     PlayerId secondaryPlayerId = 0;
 };
 
+struct MatchLineupSnapshot {
+    TeamId teamId = 0;
+    CoachId coachId = 0;
+    FormationId formation = FormationId::FourFourTwo;
+    std::vector<PlayerId> startingPlayerIds;
+};
+
 struct MatchReport {
     MatchId matchId = 0;
     LeagueId leagueId = 0;
@@ -40,6 +48,8 @@ struct MatchReport {
     int matchweek = 0;
     int homeGoals = 0;
     int awayGoals = 0;
+    MatchLineupSnapshot homeLineup;
+    MatchLineupSnapshot awayLineup;
     std::vector<MatchPlayerReport> playerReports;
     std::vector<MatchEventRecord> events;
 };

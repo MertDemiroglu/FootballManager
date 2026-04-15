@@ -10,6 +10,9 @@
 #include"TransferOfferDecisionInteraction.h"
 #include"TransferOffer.h"
 #include"MatchReport.h"
+#include "FormationSlotRole.h"
+#include"TeamSheet.h"
+#include"TeamSelectionService.h"
 #include"StandingsTableModel.h"
 #include"TeamPlayersModel.h"
 #include "TeamRecentMatchesModel.h"
@@ -1526,6 +1529,116 @@ QString GameFacade::formatTransferOfferExpiryPolicy(TransferOfferExpiryPolicy po
     return QStringLiteral("Unknown");
 }
 
+
+QString GameFacade::formatFormation(FormationId formation) const {
+    switch (formation) {
+    case FormationId::FourFourTwo:
+        return QStringLiteral("4-4-2");
+    case FormationId::FourThreeThree:
+        return QStringLiteral("4-3-3");
+    case FormationId::ThreeFiveTwo:
+        return QStringLiteral("3-5-2");
+    }
+
+    return QStringLiteral("Unknown");
+}
+
+QString GameFacade::formatSlotRole(FormationSlotRole role) const {
+    switch (role) {
+    case FormationSlotRole::Goalkeeper:
+        return QStringLiteral("GK");
+    case FormationSlotRole::LeftBack:
+        return QStringLiteral("LB");
+    case FormationSlotRole::CenterBack:
+        return QStringLiteral("CB");
+    case FormationSlotRole::RightBack:
+        return QStringLiteral("RB");
+    case FormationSlotRole::LeftWingBack:
+        return QStringLiteral("LWB");
+    case FormationSlotRole::RightWingBack:
+        return QStringLiteral("RWB");
+    case FormationSlotRole::DefensiveMidfielder:
+        return QStringLiteral("DM");
+    case FormationSlotRole::CentralMidfielder:
+        return QStringLiteral("CM");
+    case FormationSlotRole::AttackingMidfielder:
+        return QStringLiteral("AM");
+    case FormationSlotRole::LeftMidfielder:
+        return QStringLiteral("LM");
+    case FormationSlotRole::RightMidfielder:
+        return QStringLiteral("RM");
+    case FormationSlotRole::LeftWinger:
+        return QStringLiteral("LW");
+    case FormationSlotRole::RightWinger:
+        return QStringLiteral("RW");
+    case FormationSlotRole::Striker:
+        return QStringLiteral("ST");
+    case FormationSlotRole::Unknown:
+        break;
+    }
+
+    return QStringLiteral("?");
+}
+
+QVariantList GameFacade::buildLineupViewRows(const TeamSheet& teamSheet, const League* league) const {
+    QVariantList rows;
+    if (!league) {
+        return rows;
+    }
+
+    const Team* team = league->findTeamById(teamSheet.teamId);
+    if (!team) {
+        return rows;
+    }
+
+    rows.reserve(static_cast<qsizetype>(teamSheet.startingAssignments.size()));
+    for (const TeamSheetSlotAssignment& assignment : teamSheet.startingAssignments) {
+        QVariantMap row;
+        row.insert(QStringLiteral("slotRoleKey"), static_cast<int>(assignment.slotRole));
+        row.insert(QStringLiteral("slotRoleText"), formatSlotRole(assignment.slotRole));
+        row.insert(QStringLiteral("playerId"), static_cast<int>(assignment.playerId));
+        row.insert(QStringLiteral("isManagedTeam"), teamSheet.teamId == selectedTeamId);
+
+        const Footballer* player = team->findPlayerById(assignment.playerId);
+        row.insert(QStringLiteral("playerName"), player ? fromStd(player->getName()) : QStringLiteral("Unknown"));
+        row.insert(QStringLiteral("positionText"), player ? fromStd(player->getPosition()) : QStringLiteral("-"));
+        row.insert(QStringLiteral("overall"), player ? player->totalPower() : 0);
+        rows.push_back(row);
+    }
+
+    return rows;
+}
+
+QVariantList GameFacade::buildLineupViewRows(const MatchLineupSnapshot& snapshot, const League* league) const {
+    QVariantList rows;
+    if (!league) {
+        return rows;
+    }
+
+    const Team* team = league->findTeamById(snapshot.teamId);
+    const std::vector<FormationSlotRole>& slotTemplate = getFormationSlotTemplate(snapshot.formation);
+
+    rows.reserve(static_cast<qsizetype>(snapshot.startingPlayerIds.size()));
+    for (std::size_t i = 0; i < snapshot.startingPlayerIds.size(); ++i) {
+        const PlayerId playerId = snapshot.startingPlayerIds[i];
+        const FormationSlotRole slotRole = i < slotTemplate.size() ? slotTemplate[i] : FormationSlotRole::Unknown;
+
+        QVariantMap row;
+        row.insert(QStringLiteral("slotRoleKey"), static_cast<int>(slotRole));
+        row.insert(QStringLiteral("slotRoleText"), formatSlotRole(slotRole));
+        row.insert(QStringLiteral("playerId"), static_cast<int>(playerId));
+        row.insert(QStringLiteral("isManagedTeam"), snapshot.teamId == selectedTeamId);
+
+        const Footballer* player = team ? team->findPlayerById(playerId) : nullptr;
+        row.insert(QStringLiteral("playerName"), player ? fromStd(player->getName()) : QStringLiteral("Unknown"));
+        row.insert(QStringLiteral("positionText"), player ? fromStd(player->getPosition()) : QStringLiteral("-"));
+        row.insert(QStringLiteral("overall"), player ? player->totalPower() : 0);
+        rows.push_back(row);
+    }
+
+    return rows;
+}
+
 QVariantMap GameFacade::toNextMatchMap(const FixtureMatchPreview& preview) const {
     QVariantMap map;
     const League* league = resolveLeague(selectedLeagueId); 
@@ -1676,6 +1789,13 @@ QVariantMap GameFacade::toMatchReportDetailsMap(const MatchReport& report, const
     map.insert(QStringLiteral("assists"), formatAssistSummary(report, homeTeam, awayTeam));
     map.insert(QStringLiteral("cards"), formatCardSummary(report, homeTeam, awayTeam));
 
+    map.insert(QStringLiteral("homeFormationText"), formatFormation(report.homeLineup.formation));
+    map.insert(QStringLiteral("awayFormationText"), formatFormation(report.awayLineup.formation));
+    map.insert(QStringLiteral("homeCoachName"), homeTeam ? fromStd(homeTeam->getHeadCoach().getName()) : QStringLiteral("-"));
+    map.insert(QStringLiteral("awayCoachName"), awayTeam ? fromStd(awayTeam->getHeadCoach().getName()) : QStringLiteral("-"));
+    map.insert(QStringLiteral("homeLineup"), buildLineupViewRows(report.homeLineup, league));
+    map.insert(QStringLiteral("awayLineup"), buildLineupViewRows(report.awayLineup, league));
+
     std::vector<MatchEventRecord> orderedEvents = report.events;
     std::stable_sort(
         orderedEvents.begin(),
@@ -1743,6 +1863,33 @@ QVariantMap GameFacade::toPreMatchInteractionMap(const PreMatchInteraction& inte
     const League* league = resolveLeague(interaction.getLeagueId());
     map.insert(QStringLiteral("homeTeamName"), league ? fromStd(league->getTeamName(interaction.getHomeId())) : QString());
     map.insert(QStringLiteral("awayTeamName"), league ? fromStd(league->getTeamName(interaction.getAwayId())) : QString());
+
+    if (league) {
+        const Team* homeTeam = league->findTeamById(interaction.getHomeId());
+        const Team* awayTeam = league->findTeamById(interaction.getAwayId());
+        TeamSelectionService selectionService;
+
+        if (homeTeam) {
+            const TeamSheet homeSheet = selectionService.buildTeamSheet(*homeTeam);
+            map.insert(QStringLiteral("homeCoachName"), fromStd(homeTeam->getHeadCoach().getName()));
+            map.insert(QStringLiteral("homeFormationText"), formatFormation(homeSheet.formation));
+            map.insert(QStringLiteral("homeLineup"), buildLineupViewRows(homeSheet, league));
+            if (homeTeam->getId() == selectedTeamId) {
+                map.insert(QStringLiteral("formationText"), formatFormation(homeSheet.formation));
+            }
+        }
+
+        if (awayTeam) {
+            const TeamSheet awaySheet = selectionService.buildTeamSheet(*awayTeam);
+            map.insert(QStringLiteral("awayCoachName"), fromStd(awayTeam->getHeadCoach().getName()));
+            map.insert(QStringLiteral("awayFormationText"), formatFormation(awaySheet.formation));
+            map.insert(QStringLiteral("awayLineup"), buildLineupViewRows(awaySheet, league));
+            if (awayTeam->getId() == selectedTeamId) {
+                map.insert(QStringLiteral("formationText"), formatFormation(awaySheet.formation));
+            }
+        }
+    }
+
     return map;
 }
 
@@ -1767,6 +1914,12 @@ QVariantMap GameFacade::toPostMatchInteractionMap(const PostMatchInteraction& in
             map.insert(QStringLiteral("scorerSummary"), formatScorerSummary(*report, homeTeam, awayTeam));
             map.insert(QStringLiteral("assistSummary"), formatAssistSummary(*report, homeTeam, awayTeam));
             map.insert(QStringLiteral("cardSummary"), formatCardSummary(*report, homeTeam, awayTeam));
+            map.insert(QStringLiteral("homeFormationText"), formatFormation(report->homeLineup.formation));
+            map.insert(QStringLiteral("awayFormationText"), formatFormation(report->awayLineup.formation));
+            map.insert(QStringLiteral("homeCoachName"), homeTeam ? fromStd(homeTeam->getHeadCoach().getName()) : QStringLiteral("-"));
+            map.insert(QStringLiteral("awayCoachName"), awayTeam ? fromStd(awayTeam->getHeadCoach().getName()) : QStringLiteral("-"));
+            map.insert(QStringLiteral("homeLineup"), buildLineupViewRows(report->homeLineup, league));
+            map.insert(QStringLiteral("awayLineup"), buildLineupViewRows(report->awayLineup, league));
         }
     }
     return map;
