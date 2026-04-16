@@ -10,7 +10,6 @@
 #include <cmath>
 #include <limits>
 #include <numeric>
-#include <unordered_set>
 #include <vector>
 
 namespace {
@@ -53,14 +52,22 @@ struct RoleTierBuckets {
     std::vector<RankedRoleCandidate> emergency;
 };
 
-struct TeamSelectionIndex {
-    std::array<RoleTierBuckets, static_cast<std::size_t>(FormationSlotRole::Striker) + 1> byRole{};
+struct FormationRoleEntry {
+    FormationSlotRole role = FormationSlotRole::Unknown;
+    std::size_t demand = 0;
+    RoleTierBuckets tierBuckets;
+    std::vector<SlotOption> expandedOptions;
 };
 
-constexpr std::size_t kNaturalCapPerSlot = 3;
-constexpr std::size_t kCloseCapPerSlot = 2;
-constexpr std::size_t kAdaptedCapPerSlot = 1;
-constexpr std::size_t kEmergencyCapPerSlot = 1;
+struct FormationRolePlan {
+    std::vector<FormationSlotRole> activeSlots;
+    std::vector<FormationRoleEntry> roleEntries;
+    std::array<int, static_cast<std::size_t>(FormationSlotRole::Striker) + 1> roleToEntryIndex{};
+
+    FormationRolePlan() {
+        roleToEntryIndex.fill(-1);
+    }
+};
 
 bool isNearlyEqual(double lhs, double rhs) {
     return std::fabs(lhs - rhs) < 1e-9;
@@ -145,22 +152,6 @@ std::vector<PlayerCandidate> collectCandidates(const Team& team) {
     return candidates;
 }
 
-std::vector<FormationSlotRole> getSupportedSlotRoles() {
-    std::vector<FormationSlotRole> roles;
-    roles.reserve(static_cast<std::size_t>(FormationSlotRole::Striker));
-
-    for (int rawRole = static_cast<int>(FormationSlotRole::Goalkeeper);
-         rawRole <= static_cast<int>(FormationSlotRole::Striker);
-         ++rawRole) {
-        const auto role = static_cast<FormationSlotRole>(rawRole);
-        if (isSlotRoleSupported(role)) {
-            roles.push_back(role);
-        }
-    }
-
-    return roles;
-}
-
 void sortRankedCandidates(std::vector<RankedRoleCandidate>& candidates) {
     std::sort(candidates.begin(), candidates.end(), [](const RankedRoleCandidate& lhs, const RankedRoleCandidate& rhs) {
         if (!isNearlyEqual(lhs.baseSlotScore, rhs.baseSlotScore)) {
@@ -170,51 +161,129 @@ void sortRankedCandidates(std::vector<RankedRoleCandidate>& candidates) {
     });
 }
 
-TeamSelectionIndex buildTeamSelectionIndex(const std::vector<PlayerCandidate>& players) {
-    TeamSelectionIndex index;
-    const std::vector<FormationSlotRole> supportedRoles = getSupportedSlotRoles();
+void appendUniqueCandidates(std::vector<SlotOption>& options,
+                            const std::vector<RankedRoleCandidate>& tierCandidates,
+                            RoleFitTier tier,
+                            std::size_t cap) {
+    std::size_t added = 0;
+    for (const RankedRoleCandidate& candidate : tierCandidates) {
+        if (added >= cap) {
+            break;
+        }
 
-    // Build role/tier buckets once per team-sheet build so formation evaluation can reuse
-    // a narrow precomputed eligibility view instead of rescanning the squad per slot.
-    for (const PlayerCandidate& candidate : players) {
-        for (FormationSlotRole role : supportedRoles) {
-            const RoleFitTier fitTier = getRoleFitTier(candidate.player->getPlayerPosition(), role);
+        const bool alreadyPresent = std::any_of(options.begin(), options.end(), [&](const SlotOption& existing) {
+            return existing.playerId == candidate.playerId;
+        });
+        if (alreadyPresent) {
+            continue;
+        }
+
+        options.push_back(SlotOption{ candidate.playerId, candidate.baseSlotScore, tier });
+        ++added;
+    }
+}
+
+void buildDemandAwareExpandedOptions(FormationRoleEntry& entry) {
+    entry.expandedOptions.clear();
+    entry.expandedOptions.reserve(entry.demand + 2);
+
+    // Demand-aware gated expansion per role:
+    // - Natural gets demand + small cushion.
+    // - Close/Adapted only open if previous tiers are insufficient.
+    // - Emergency is at most one final fallback.
+    const std::size_t naturalCap = std::min(entry.tierBuckets.natural.size(), entry.demand + 1);
+    appendUniqueCandidates(entry.expandedOptions, entry.tierBuckets.natural, RoleFitTier::Natural, naturalCap);
+
+    std::size_t covered = entry.expandedOptions.size();
+    if (covered < entry.demand) {
+        const std::size_t deficit = entry.demand - covered;
+        const std::size_t closeCap = std::min(entry.tierBuckets.close.size(), deficit + 1);
+        appendUniqueCandidates(entry.expandedOptions, entry.tierBuckets.close, RoleFitTier::Close, closeCap);
+        covered = entry.expandedOptions.size();
+    }
+
+    if (covered < entry.demand) {
+        const std::size_t deficit = entry.demand - covered;
+        const std::size_t adaptedCap = std::min(entry.tierBuckets.adapted.size(), deficit);
+        appendUniqueCandidates(entry.expandedOptions, entry.tierBuckets.adapted, RoleFitTier::Adapted, adaptedCap);
+        covered = entry.expandedOptions.size();
+    }
+
+    if (covered < entry.demand) {
+        const std::size_t emergencyCap = std::min<std::size_t>(entry.tierBuckets.emergency.size(), 1);
+        appendUniqueCandidates(entry.expandedOptions, entry.tierBuckets.emergency, RoleFitTier::Emergency, emergencyCap);
+    }
+
+    std::sort(entry.expandedOptions.begin(), entry.expandedOptions.end(), [](const SlotOption& lhs, const SlotOption& rhs) {
+        if (!isNearlyEqual(lhs.effectivePower, rhs.effectivePower)) {
+            return lhs.effectivePower > rhs.effectivePower;
+        }
+
+        const int lhsTierScore = getRoleFitTierScore(lhs.fitTier);
+        const int rhsTierScore = getRoleFitTierScore(rhs.fitTier);
+        if (lhsTierScore != rhsTierScore) {
+            return lhsTierScore > rhsTierScore;
+        }
+
+        return lhs.playerId < rhs.playerId;
+    });
+}
+
+FormationRolePlan buildFormationRolePlan(const std::vector<FormationSlotRole>& templateSlots,
+                                         std::size_t slotLimit,
+                                         const std::vector<PlayerCandidate>& players) {
+    FormationRolePlan rolePlan;
+    const std::size_t slotCount = std::min<std::size_t>(slotLimit, templateSlots.size());
+    rolePlan.activeSlots.assign(templateSlots.begin(), templateSlots.begin() + slotCount);
+
+    for (FormationSlotRole slotRole : rolePlan.activeSlots) {
+        const std::size_t roleIndex = static_cast<std::size_t>(slotRole);
+        int& roleEntryIndex = rolePlan.roleToEntryIndex[roleIndex];
+        if (roleEntryIndex == -1) {
+            roleEntryIndex = static_cast<int>(rolePlan.roleEntries.size());
+            rolePlan.roleEntries.push_back(FormationRoleEntry{ slotRole, 1, {}, {} });
+        } else {
+            ++rolePlan.roleEntries[static_cast<std::size_t>(roleEntryIndex)].demand;
+        }
+    }
+
+    // Build and sort buckets only for roles that are actually present in this formation.
+    for (FormationRoleEntry& entry : rolePlan.roleEntries) {
+        for (const PlayerCandidate& player : players) {
+            const RoleFitTier fitTier = getRoleFitTier(player.player->getPlayerPosition(), entry.role);
             if (fitTier == RoleFitTier::Invalid || fitTier == RoleFitTier::SevereMismatch) {
                 continue;
             }
 
-            RankedRoleCandidate rankedCandidate{ candidate.id, calculateEffectivePowerForSlot(*candidate.player, role) };
-            RoleTierBuckets& buckets = index.byRole[static_cast<std::size_t>(role)];
-
+            RankedRoleCandidate rankedCandidate{ player.id, calculateEffectivePowerForSlot(*player.player, entry.role) };
             switch (fitTier) {
             case RoleFitTier::Natural:
-                buckets.natural.push_back(rankedCandidate);
+                entry.tierBuckets.natural.push_back(rankedCandidate);
                 break;
             case RoleFitTier::Close:
-                buckets.close.push_back(rankedCandidate);
+                entry.tierBuckets.close.push_back(rankedCandidate);
                 break;
             case RoleFitTier::Adapted:
-                buckets.adapted.push_back(rankedCandidate);
+                entry.tierBuckets.adapted.push_back(rankedCandidate);
                 break;
             case RoleFitTier::Emergency:
-                buckets.emergency.push_back(rankedCandidate);
+                entry.tierBuckets.emergency.push_back(rankedCandidate);
                 break;
             case RoleFitTier::SevereMismatch:
             case RoleFitTier::Invalid:
                 break;
             }
         }
+
+        sortRankedCandidates(entry.tierBuckets.natural);
+        sortRankedCandidates(entry.tierBuckets.close);
+        sortRankedCandidates(entry.tierBuckets.adapted);
+        sortRankedCandidates(entry.tierBuckets.emergency);
+
+        buildDemandAwareExpandedOptions(entry);
     }
 
-    for (FormationSlotRole role : supportedRoles) {
-        RoleTierBuckets& buckets = index.byRole[static_cast<std::size_t>(role)];
-        sortRankedCandidates(buckets.natural);
-        sortRankedCandidates(buckets.close);
-        sortRankedCandidates(buckets.adapted);
-        sortRankedCandidates(buckets.emergency);
-    }
-
-    return index;
+    return rolePlan;
 }
 
 std::vector<FormationId> buildDeterministicFormationOrder(FormationId preferredFormation) {
@@ -236,84 +305,21 @@ std::vector<FormationId> buildDeterministicFormationOrder(FormationId preferredF
     return orderedFormations;
 }
 
-void appendCandidatesFromTier(std::vector<SlotOption>& slotOptions,
-                              std::unordered_set<PlayerId>& seenPlayerIds,
-                              const std::vector<RankedRoleCandidate>& tierCandidates,
-                              RoleFitTier tier,
-                              std::size_t cap) {
-    std::size_t added = 0;
-    for (const RankedRoleCandidate& candidate : tierCandidates) {
-        if (added >= cap) {
-            break;
-        }
+AssignmentResult buildBestAssignmentForRolePlan(const FormationRolePlan& rolePlan,
+                                                std::size_t squadSize) {
+    const std::size_t slotCount = rolePlan.activeSlots.size();
+    std::vector<std::vector<SlotOption>> slotOptions(slotCount);
 
-        if (!seenPlayerIds.emplace(candidate.playerId).second) {
+    // Reuse per-role expanded pools for duplicate slots (e.g. 2x CB) instead of
+    // rebuilding identical candidate work for each slot.
+    for (std::size_t slotIdx = 0; slotIdx < slotCount; ++slotIdx) {
+        const FormationSlotRole slotRole = rolePlan.activeSlots[slotIdx];
+        const int roleEntryIndex = rolePlan.roleToEntryIndex[static_cast<std::size_t>(slotRole)];
+        if (roleEntryIndex < 0) {
             continue;
         }
 
-        slotOptions.push_back(SlotOption{ candidate.playerId, candidate.baseSlotScore, tier });
-        ++added;
-    }
-}
-
-AssignmentResult buildBestAssignmentForTemplate(const std::vector<FormationSlotRole>& templateSlots,
-                                                 const TeamSelectionIndex& selectionIndex,
-                                                 std::size_t slotLimit,
-                                                 std::size_t squadSize) {
-    const std::size_t slotCount = std::min<std::size_t>(slotLimit, templateSlots.size());
-    const std::vector<FormationSlotRole> activeSlots(templateSlots.begin(), templateSlots.begin() + slotCount);
-
-    std::array<std::size_t, static_cast<std::size_t>(FormationSlotRole::Striker) + 1> roleDemand{};
-    for (FormationSlotRole role : activeSlots) {
-        ++roleDemand[static_cast<std::size_t>(role)];
-    }
-
-    std::vector<std::vector<SlotOption>> slotOptions(slotCount);
-
-    for (std::size_t slotIdx = 0; slotIdx < slotCount; ++slotIdx) {
-        const FormationSlotRole slotRole = activeSlots[slotIdx];
-        const RoleTierBuckets& buckets = selectionIndex.byRole[static_cast<std::size_t>(slotRole)];
-
-        std::vector<SlotOption>& options = slotOptions[slotIdx];
-        options.reserve(kNaturalCapPerSlot + kCloseCapPerSlot + kAdaptedCapPerSlot + kEmergencyCapPerSlot);
-
-        std::unordered_set<PlayerId> seenPlayerIds;
-        seenPlayerIds.reserve(kNaturalCapPerSlot + kCloseCapPerSlot + kAdaptedCapPerSlot + kEmergencyCapPerSlot);
-
-        const std::size_t demand = roleDemand[static_cast<std::size_t>(slotRole)];
-        std::size_t coverage = buckets.natural.size();
-
-        // Tier-gated expansion: only open fallback tiers when the stronger tiers do not
-        // provide enough coverage for this role demand in the current formation.
-        appendCandidatesFromTier(options, seenPlayerIds, buckets.natural, RoleFitTier::Natural, kNaturalCapPerSlot);
-
-        if (coverage < demand) {
-            appendCandidatesFromTier(options, seenPlayerIds, buckets.close, RoleFitTier::Close, kCloseCapPerSlot);
-            coverage += buckets.close.size();
-        }
-
-        if (coverage < demand) {
-            appendCandidatesFromTier(options, seenPlayerIds, buckets.adapted, RoleFitTier::Adapted, kAdaptedCapPerSlot);
-            coverage += buckets.adapted.size();
-        }
-
-        if (coverage < demand) {
-            appendCandidatesFromTier(options, seenPlayerIds, buckets.emergency, RoleFitTier::Emergency, kEmergencyCapPerSlot);
-        }
-
-        std::sort(options.begin(), options.end(), [](const SlotOption& lhs, const SlotOption& rhs) {
-            if (!isNearlyEqual(lhs.effectivePower, rhs.effectivePower)) {
-                return lhs.effectivePower > rhs.effectivePower;
-            }
-
-            const int lhsTierScore = getRoleFitTierScore(lhs.fitTier);
-            const int rhsTierScore = getRoleFitTierScore(rhs.fitTier);
-            if (lhsTierScore != rhsTierScore) {
-                return lhsTierScore > rhsTierScore;
-            }
-
-            return lhs.playerId < rhs.playerId;
-        });
+        slotOptions[slotIdx] = rolePlan.roleEntries[static_cast<std::size_t>(roleEntryIndex)].expandedOptions;
     }
 
     std::vector<std::size_t> orderedSlotIndices(slotCount);
@@ -345,8 +351,8 @@ AssignmentResult buildBestAssignmentForTemplate(const std::vector<FormationSlotR
     best.orderedPlayerIdsByTemplate.assign(slotCount, 0);
 
     std::vector<PlayerId> currentAssigned(slotCount, 0);
-    std::unordered_set<PlayerId> usedPlayerIds;
-    usedPlayerIds.reserve(squadSize);
+    std::vector<PlayerId> usedPlayerIds;
+    usedPlayerIds.reserve(slotCount);
 
     const auto backtrack = [&](auto&& self, std::size_t depth, int assignedCount, double totalPower, int fitScore) -> void {
         if (depth == orderedSlotIndices.size()) {
@@ -376,11 +382,12 @@ AssignmentResult buildBestAssignmentForTemplate(const std::vector<FormationSlotR
 
         const std::size_t slotIdx = orderedSlotIndices[depth];
         for (const SlotOption& option : slotOptions[slotIdx]) {
-            if (usedPlayerIds.find(option.playerId) != usedPlayerIds.end()) {
+            const bool alreadyUsed = std::find(usedPlayerIds.begin(), usedPlayerIds.end(), option.playerId) != usedPlayerIds.end();
+            if (alreadyUsed) {
                 continue;
             }
 
-            usedPlayerIds.emplace(option.playerId);
+            usedPlayerIds.push_back(option.playerId);
             currentAssigned[slotIdx] = option.playerId;
             self(self,
                  depth + 1,
@@ -388,7 +395,7 @@ AssignmentResult buildBestAssignmentForTemplate(const std::vector<FormationSlotR
                  totalPower + option.effectivePower,
                  fitScore + getRoleFitTierScore(option.fitTier));
             currentAssigned[slotIdx] = 0;
-            usedPlayerIds.erase(option.playerId);
+            usedPlayerIds.pop_back();
         }
 
         self(self, depth + 1, assignedCount, totalPower, fitScore);
@@ -399,11 +406,11 @@ AssignmentResult buildBestAssignmentForTemplate(const std::vector<FormationSlotR
 }
 
 FormationSelectionCandidate evaluateFormationCandidate(FormationId formation,
-                                                        const TeamSelectionIndex& selectionIndex,
-                                                        std::size_t starterTargetCount,
-                                                        std::size_t squadSize) {
+                                                        const std::vector<PlayerCandidate>& players,
+                                                        std::size_t starterTargetCount) {
     const std::vector<FormationSlotRole>& slotTemplate = getFormationSlotTemplate(formation);
-    AssignmentResult assignment = buildBestAssignmentForTemplate(slotTemplate, selectionIndex, starterTargetCount, squadSize);
+    const FormationRolePlan rolePlan = buildFormationRolePlan(slotTemplate, starterTargetCount, players);
+    AssignmentResult assignment = buildBestAssignmentForRolePlan(rolePlan, players.size());
 
     FormationSelectionCandidate candidate;
     candidate.formation = formation;
@@ -431,10 +438,8 @@ TeamSheet TeamSelectionService::buildTeamSheet(const Team& team) const {
     const std::vector<PlayerCandidate> players = collectCandidates(team);
     const std::size_t starterTargetCount = std::min<std::size_t>(11, players.size());
 
-    // Phase 1 intentionally uses only static/semi-static role-adjusted power. Dynamic
+    // Phase 1/Hardening intentionally uses only static role-adjusted power. Dynamic
     // matchday factors (form/morale/fitness/fatigue) are deferred to Phase 2.
-    const TeamSelectionIndex selectionIndex = buildTeamSelectionIndex(players);
-
     const FormationId preferredFormation = team.getHeadCoach().getPreferredFormation();
     const std::vector<FormationId> formationOrder = buildDeterministicFormationOrder(preferredFormation);
 
@@ -442,7 +447,7 @@ TeamSheet TeamSelectionService::buildTeamSheet(const Team& team) const {
     bool hasBestCandidate = false;
 
     for (FormationId formationId : formationOrder) {
-        FormationSelectionCandidate candidate = evaluateFormationCandidate(formationId, selectionIndex, starterTargetCount, players.size());
+        FormationSelectionCandidate candidate = evaluateFormationCandidate(formationId, players, starterTargetCount);
 
         if (candidate.fullySatisfied) {
             std::vector<PlayerId> starterIds;
