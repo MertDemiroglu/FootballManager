@@ -38,6 +38,7 @@ struct AssignmentResult {
 
 struct FormationSelectionCandidate {
     FormationId formation = FormationId::FourFourTwo;
+    std::vector<PlayerId> orderedPlayerIdsByTemplate;
     std::vector<TeamSheetSlotAssignment> orderedAssignments;
     int assignedSlotCount = 0;
     double totalEffectivePower = 0.0;
@@ -124,19 +125,194 @@ bool isBetterFormationCandidate(const FormationSelectionCandidate& lhs, const Fo
         return lhs.totalFitScore > rhs.totalFitScore;
     }
 
-    std::vector<PlayerId> lhsIds;
-    lhsIds.reserve(lhs.orderedAssignments.size());
-    for (const TeamSheetSlotAssignment& assignment : lhs.orderedAssignments) {
-        lhsIds.push_back(assignment.playerId);
+    return lexicographicallyBetterIds(lhs.orderedPlayerIdsByTemplate, rhs.orderedPlayerIdsByTemplate);
+}
+
+bool isGoalkeeperRole(FormationSlotRole slotRole) {
+    return slotRole == FormationSlotRole::Goalkeeper;
+}
+
+std::vector<TeamSheetSlotAssignment> buildOrderedAssignmentsFromTemplate(FormationId formation,
+                                                                         const std::vector<PlayerId>& orderedPlayerIdsByTemplate) {
+    const std::vector<FormationSlotRole>& slotTemplate = getFormationSlotTemplate(formation);
+    const std::size_t slotCount = std::min(slotTemplate.size(), orderedPlayerIdsByTemplate.size());
+
+    std::vector<TeamSheetSlotAssignment> orderedAssignments;
+    orderedAssignments.reserve(slotCount);
+    for (std::size_t i = 0; i < slotCount; ++i) {
+        const PlayerId playerId = orderedPlayerIdsByTemplate[i];
+        if (playerId == 0) {
+            continue;
+        }
+
+        orderedAssignments.push_back(TeamSheetSlotAssignment{ slotTemplate[i], playerId });
     }
 
-    std::vector<PlayerId> rhsIds;
-    rhsIds.reserve(rhs.orderedAssignments.size());
-    for (const TeamSheetSlotAssignment& assignment : rhs.orderedAssignments) {
-        rhsIds.push_back(assignment.playerId);
+    return orderedAssignments;
+}
+
+void completeUnderfilledCandidate(FormationSelectionCandidate& candidate,
+                                  const Team& team,
+                                  std::size_t starterTargetCount) {
+    const std::vector<FormationSlotRole>& slotTemplate = getFormationSlotTemplate(candidate.formation);
+    const std::size_t slotCount = std::min(starterTargetCount, slotTemplate.size());
+    if (slotCount == 0) {
+        return;
     }
 
-    return lexicographicallyBetterIds(lhsIds, rhsIds);
+    if (candidate.orderedPlayerIdsByTemplate.size() < slotCount) {
+        candidate.orderedPlayerIdsByTemplate.resize(slotCount, 0);
+    }
+
+    std::vector<const Footballer*> squadPlayers;
+    squadPlayers.reserve(team.getPlayers().size());
+    for (const auto& player : team.getPlayers()) {
+        if (!player) {
+            continue;
+        }
+
+        squadPlayers.push_back(player.get());
+    }
+
+    if (squadPlayers.empty()) {
+        return;
+    }
+
+    int assignedCount = 0;
+    std::vector<PlayerId> usedPlayerIds;
+    usedPlayerIds.reserve(slotCount);
+    for (std::size_t i = 0; i < slotCount; ++i) {
+        const PlayerId playerId = candidate.orderedPlayerIdsByTemplate[i];
+        if (playerId == 0) {
+            continue;
+        }
+
+        ++assignedCount;
+        usedPlayerIds.push_back(playerId);
+    }
+
+    if (assignedCount >= static_cast<int>(slotCount) || usedPlayerIds.size() >= squadPlayers.size()) {
+        candidate.assignedSlotCount = assignedCount;
+        candidate.fullySatisfied = candidate.assignedSlotCount == static_cast<int>(slotCount);
+        candidate.orderedAssignments = buildOrderedAssignmentsFromTemplate(candidate.formation, candidate.orderedPlayerIdsByTemplate);
+        return;
+    }
+
+    const auto isPlayerUnused = [&usedPlayerIds](PlayerId playerId) {
+        return std::find(usedPlayerIds.begin(), usedPlayerIds.end(), playerId) == usedPlayerIds.end();
+    };
+
+    for (std::size_t slotIdx = 0; slotIdx < slotCount; ++slotIdx) {
+        if (candidate.orderedPlayerIdsByTemplate[slotIdx] != 0) {
+            continue;
+        }
+        if (usedPlayerIds.size() >= squadPlayers.size()) {
+            break;
+        }
+
+        const FormationSlotRole slotRole = slotTemplate[slotIdx];
+        const bool slotIsGoalkeeper = isGoalkeeperRole(slotRole);
+        const Footballer* selectedPlayer = nullptr;
+
+        if (slotIsGoalkeeper) {
+            std::vector<const Footballer*> gkCandidates;
+            for (const Footballer* player : squadPlayers) {
+                if (!isPlayerUnused(player->getId())) {
+                    continue;
+                }
+                if (player->getPlayerPosition() != PlayerPosition::Goalkeeper) {
+                    continue;
+                }
+
+                gkCandidates.push_back(player);
+            }
+
+            std::sort(gkCandidates.begin(), gkCandidates.end(), [slotRole](const Footballer* lhs, const Footballer* rhs) {
+                const double lhsScore = calculateEffectivePowerForSlot(*lhs, slotRole);
+                const double rhsScore = calculateEffectivePowerForSlot(*rhs, slotRole);
+                if (!isNearlyEqual(lhsScore, rhsScore)) {
+                    return lhsScore > rhsScore;
+                }
+
+                return lhs->getId() < rhs->getId();
+            });
+
+            if (!gkCandidates.empty()) {
+                selectedPlayer = gkCandidates.front();
+            }
+        } else {
+            std::vector<const Footballer*> usableOutfieldCandidates;
+            for (const Footballer* player : squadPlayers) {
+                if (!isPlayerUnused(player->getId())) {
+                    continue;
+                }
+                if (player->getPlayerPosition() == PlayerPosition::Goalkeeper) {
+                    continue;
+                }
+
+                const RoleFitTier fitTier = getRoleFitTier(player->getPlayerPosition(), slotRole);
+                if (fitTier == RoleFitTier::Invalid) {
+                    continue;
+                }
+
+                usableOutfieldCandidates.push_back(player);
+            }
+
+            std::sort(usableOutfieldCandidates.begin(), usableOutfieldCandidates.end(), [slotRole](const Footballer* lhs, const Footballer* rhs) {
+                const double lhsScore = calculateEffectivePowerForSlot(*lhs, slotRole);
+                const double rhsScore = calculateEffectivePowerForSlot(*rhs, slotRole);
+                if (!isNearlyEqual(lhsScore, rhsScore)) {
+                    return lhsScore > rhsScore;
+                }
+
+                const int lhsTierScore = getRoleFitTierScore(getRoleFitTier(lhs->getPlayerPosition(), slotRole));
+                const int rhsTierScore = getRoleFitTierScore(getRoleFitTier(rhs->getPlayerPosition(), slotRole));
+                if (lhsTierScore != rhsTierScore) {
+                    return lhsTierScore > rhsTierScore;
+                }
+
+                return lhs->getId() < rhs->getId();
+            });
+
+            if (!usableOutfieldCandidates.empty()) {
+                selectedPlayer = usableOutfieldCandidates.front();
+            } else {
+                std::vector<const Footballer*> forcedOutfieldCandidates;
+                for (const Footballer* player : squadPlayers) {
+                    if (!isPlayerUnused(player->getId())) {
+                        continue;
+                    }
+                    if (player->getPlayerPosition() == PlayerPosition::Goalkeeper) {
+                        continue;
+                    }
+
+                    forcedOutfieldCandidates.push_back(player);
+                }
+
+                std::sort(forcedOutfieldCandidates.begin(), forcedOutfieldCandidates.end(), [](const Footballer* lhs, const Footballer* rhs) {
+                    if (!isNearlyEqual(lhs->totalPower(), rhs->totalPower())) {
+                        return lhs->totalPower() > rhs->totalPower();
+                    }
+
+                    return lhs->getId() < rhs->getId();
+                });
+
+                if (!forcedOutfieldCandidates.empty()) {
+                    selectedPlayer = forcedOutfieldCandidates.front();
+                }
+            }
+        }
+
+        if (selectedPlayer) {
+            candidate.orderedPlayerIdsByTemplate[slotIdx] = selectedPlayer->getId();
+            usedPlayerIds.push_back(selectedPlayer->getId());
+            ++assignedCount;
+        }
+    }
+
+    candidate.assignedSlotCount = assignedCount;
+    candidate.fullySatisfied = candidate.assignedSlotCount == static_cast<int>(slotCount);
+    candidate.orderedAssignments = buildOrderedAssignmentsFromTemplate(candidate.formation, candidate.orderedPlayerIdsByTemplate);
 }
 
 NaturalPositionIndex buildNaturalPositionIndex(const Team& team) {
@@ -637,16 +813,9 @@ FormationSelectionCandidate evaluateFormationCandidate(FormationId formation,
     candidate.totalEffectivePower = assignment.totalEffectivePower;
     candidate.totalFitScore = assignment.totalFitScore;
 
-    const std::size_t slotCount = assignment.orderedPlayerIdsByTemplate.size();
-    candidate.orderedAssignments.reserve(slotCount);
-    for (std::size_t i = 0; i < slotCount; ++i) {
-        const PlayerId playerId = assignment.orderedPlayerIdsByTemplate[i];
-        if (playerId == 0) {
-            continue;
-        }
-
-        candidate.orderedAssignments.push_back(TeamSheetSlotAssignment{ slotTemplate[i], playerId });
-    }
+    candidate.orderedPlayerIdsByTemplate = assignment.orderedPlayerIdsByTemplate;
+    const std::size_t slotCount = candidate.orderedPlayerIdsByTemplate.size();
+    candidate.orderedAssignments = buildOrderedAssignmentsFromTemplate(formation, candidate.orderedPlayerIdsByTemplate);
 
     candidate.fullySatisfied = candidate.assignedSlotCount == static_cast<int>(slotCount);
     return candidate;
@@ -693,6 +862,13 @@ TeamSheet TeamSelectionService::buildTeamSheet(const Team& team) const {
         bestCandidate.formation = isFormationSupported(preferredFormation)
             ? preferredFormation
             : getSupportedFormationIds().front();
+        bestCandidate.orderedPlayerIdsByTemplate.assign(std::min(starterTargetCount, getFormationSlotTemplate(bestCandidate.formation).size()), 0);
+    }
+
+    const bool hasUnusedPlayers = bestCandidate.assignedSlotCount < static_cast<int>(starterTargetCount)
+        && bestCandidate.assignedSlotCount < static_cast<int>(naturalPositionIndex.squadSize);
+    if (hasUnusedPlayers) {
+        completeUnderfilledCandidate(bestCandidate, team, starterTargetCount);
     }
 
     std::vector<PlayerId> starterIds;
