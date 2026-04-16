@@ -13,11 +13,6 @@
 #include <vector>
 
 namespace {
-struct SquadPlayerRef {
-    const Footballer* player = nullptr;
-    PlayerId id = 0;
-};
-
 struct PositionBucketEntry {
     const Footballer* player = nullptr;
     PlayerId id = 0;
@@ -25,6 +20,7 @@ struct PositionBucketEntry {
 
 struct NaturalPositionIndex {
     std::array<std::vector<PositionBucketEntry>, static_cast<std::size_t>(PlayerPosition::Striker) + 1> byPosition{};
+    std::size_t squadSize = 0;
 };
 
 struct SlotOption {
@@ -143,37 +139,24 @@ bool isBetterFormationCandidate(const FormationSelectionCandidate& lhs, const Fo
     return lexicographicallyBetterIds(lhsIds, rhsIds);
 }
 
-std::vector<SquadPlayerRef> collectSquadPlayers(const Team& team) {
-    std::vector<SquadPlayerRef> players;
-    players.reserve(team.getPlayers().size());
+NaturalPositionIndex buildNaturalPositionIndex(const Team& team) {
+    NaturalPositionIndex index;
 
+    // Single squad pass per buildTeamSheet: place every player directly into their
+    // natural-position bucket as a pointer (no player-object copies).
     for (const auto& player : team.getPlayers()) {
         if (!player) {
             continue;
         }
 
-        players.push_back(SquadPlayerRef{ player.get(), player->getId() });
-    }
-
-    std::sort(players.begin(), players.end(), [](const SquadPlayerRef& lhs, const SquadPlayerRef& rhs) {
-        return lhs.id < rhs.id;
-    });
-
-    return players;
-}
-
-NaturalPositionIndex buildNaturalPositionIndex(const std::vector<SquadPlayerRef>& squadPlayers) {
-    NaturalPositionIndex index;
-
-    // Build direct natural-position buckets once per team-sheet build; buckets store
-    // pointers to existing squad players (no player-object copies).
-    for (const SquadPlayerRef& playerRef : squadPlayers) {
-        const PlayerPosition naturalPosition = playerRef.player->getPlayerPosition();
+        const Footballer* playerPtr = player.get();
+        const PlayerPosition naturalPosition = playerPtr->getPlayerPosition();
         if (!isKnownPlayerPosition(naturalPosition)) {
             continue;
         }
 
-        index.byPosition[static_cast<std::size_t>(naturalPosition)].push_back(PositionBucketEntry{ playerRef.player, playerRef.id });
+        index.byPosition[static_cast<std::size_t>(naturalPosition)].push_back(PositionBucketEntry{ playerPtr, playerPtr->getId() });
+        ++index.squadSize;
     }
 
     for (std::size_t posIndex = static_cast<std::size_t>(PlayerPosition::Goalkeeper);
@@ -671,12 +654,10 @@ FormationSelectionCandidate evaluateFormationCandidate(FormationId formation,
 } // namespace
 
 TeamSheet TeamSelectionService::buildTeamSheet(const Team& team) const {
-    const std::vector<SquadPlayerRef> squadPlayers = collectSquadPlayers(team);
-    const std::size_t starterTargetCount = std::min<std::size_t>(11, squadPlayers.size());
-
     // Phase 1/final hardening intentionally uses only static role-adjusted power.
     // Dynamic matchday factors (form/morale/fitness/fatigue) are deferred to Phase 2.
-    const NaturalPositionIndex naturalPositionIndex = buildNaturalPositionIndex(squadPlayers);
+    const NaturalPositionIndex naturalPositionIndex = buildNaturalPositionIndex(team);
+    const std::size_t starterTargetCount = std::min<std::size_t>(11, naturalPositionIndex.squadSize);
 
     const FormationId preferredFormation = team.getHeadCoach().getPreferredFormation();
     const std::vector<FormationId> formationOrder = buildDeterministicFormationOrder(preferredFormation);
@@ -688,7 +669,7 @@ TeamSheet TeamSelectionService::buildTeamSheet(const Team& team) const {
         FormationSelectionCandidate candidate = evaluateFormationCandidate(formationId,
                                                                            naturalPositionIndex,
                                                                            starterTargetCount,
-                                                                           squadPlayers.size());
+                                                                           naturalPositionIndex.squadSize);
 
         if (candidate.fullySatisfied) {
             std::vector<PlayerId> starterIds;
