@@ -13,9 +13,18 @@
 #include <vector>
 
 namespace {
-struct PlayerCandidate {
+struct SquadPlayerRef {
     const Footballer* player = nullptr;
     PlayerId id = 0;
+};
+
+struct PositionBucketEntry {
+    const Footballer* player = nullptr;
+    PlayerId id = 0;
+};
+
+struct NaturalPositionIndex {
+    std::array<std::vector<PositionBucketEntry>, static_cast<std::size_t>(PlayerPosition::Striker) + 1> byPosition{};
 };
 
 struct SlotOption {
@@ -41,6 +50,7 @@ struct FormationSelectionCandidate {
 };
 
 struct RankedRoleCandidate {
+    const Footballer* player = nullptr;
     PlayerId playerId = 0;
     double baseSlotScore = 0.0;
 };
@@ -133,27 +143,281 @@ bool isBetterFormationCandidate(const FormationSelectionCandidate& lhs, const Fo
     return lexicographicallyBetterIds(lhsIds, rhsIds);
 }
 
-std::vector<PlayerCandidate> collectCandidates(const Team& team) {
-    std::vector<PlayerCandidate> candidates;
-    candidates.reserve(team.getPlayers().size());
+std::vector<SquadPlayerRef> collectSquadPlayers(const Team& team) {
+    std::vector<SquadPlayerRef> players;
+    players.reserve(team.getPlayers().size());
 
     for (const auto& player : team.getPlayers()) {
         if (!player) {
             continue;
         }
 
-        candidates.push_back(PlayerCandidate{ player.get(), player->getId() });
+        players.push_back(SquadPlayerRef{ player.get(), player->getId() });
     }
 
-    std::sort(candidates.begin(), candidates.end(), [](const PlayerCandidate& lhs, const PlayerCandidate& rhs) {
+    std::sort(players.begin(), players.end(), [](const SquadPlayerRef& lhs, const SquadPlayerRef& rhs) {
         return lhs.id < rhs.id;
     });
 
-    return candidates;
+    return players;
 }
 
-void sortRankedCandidates(std::vector<RankedRoleCandidate>& candidates) {
-    std::sort(candidates.begin(), candidates.end(), [](const RankedRoleCandidate& lhs, const RankedRoleCandidate& rhs) {
+NaturalPositionIndex buildNaturalPositionIndex(const std::vector<SquadPlayerRef>& squadPlayers) {
+    NaturalPositionIndex index;
+
+    // Build direct natural-position buckets once per team-sheet build; buckets store
+    // pointers to existing squad players (no player-object copies).
+    for (const SquadPlayerRef& playerRef : squadPlayers) {
+        const PlayerPosition naturalPosition = playerRef.player->getPlayerPosition();
+        if (!isKnownPlayerPosition(naturalPosition)) {
+            continue;
+        }
+
+        index.byPosition[static_cast<std::size_t>(naturalPosition)].push_back(PositionBucketEntry{ playerRef.player, playerRef.id });
+    }
+
+    for (std::size_t posIndex = static_cast<std::size_t>(PlayerPosition::Goalkeeper);
+         posIndex <= static_cast<std::size_t>(PlayerPosition::Striker);
+         ++posIndex) {
+        std::vector<PositionBucketEntry>& bucket = index.byPosition[posIndex];
+        std::sort(bucket.begin(), bucket.end(), [](const PositionBucketEntry& lhs, const PositionBucketEntry& rhs) {
+            return lhs.id < rhs.id;
+        });
+    }
+
+    return index;
+}
+
+void appendBucketSources(FormationSlotRole slotRole, RoleFitTier tier, std::vector<PlayerPosition>& outSources) {
+    outSources.clear();
+
+    switch (slotRole) {
+    case FormationSlotRole::Goalkeeper:
+        if (tier == RoleFitTier::Natural) outSources.push_back(PlayerPosition::Goalkeeper);
+        break;
+
+    case FormationSlotRole::CenterBack:
+        if (tier == RoleFitTier::Natural) outSources.push_back(PlayerPosition::CenterBack);
+        if (tier == RoleFitTier::Close) outSources.push_back(PlayerPosition::DefensiveMidfielder);
+        if (tier == RoleFitTier::Adapted) {
+            outSources.push_back(PlayerPosition::LeftBack);
+            outSources.push_back(PlayerPosition::RightBack);
+        }
+        if (tier == RoleFitTier::Emergency) outSources.push_back(PlayerPosition::CentralMidfielder);
+        break;
+
+    case FormationSlotRole::LeftBack:
+        if (tier == RoleFitTier::Natural) outSources.push_back(PlayerPosition::LeftBack);
+        if (tier == RoleFitTier::Close) outSources.push_back(PlayerPosition::CenterBack);
+        if (tier == RoleFitTier::Adapted) {
+            outSources.push_back(PlayerPosition::LeftWinger);
+            outSources.push_back(PlayerPosition::LeftMidfielder);
+            outSources.push_back(PlayerPosition::DefensiveMidfielder);
+        }
+        if (tier == RoleFitTier::Emergency) {
+            outSources.push_back(PlayerPosition::RightBack);
+            outSources.push_back(PlayerPosition::CentralMidfielder);
+        }
+        break;
+
+    case FormationSlotRole::RightBack:
+        if (tier == RoleFitTier::Natural) outSources.push_back(PlayerPosition::RightBack);
+        if (tier == RoleFitTier::Close) outSources.push_back(PlayerPosition::CenterBack);
+        if (tier == RoleFitTier::Adapted) {
+            outSources.push_back(PlayerPosition::RightWinger);
+            outSources.push_back(PlayerPosition::RightMidfielder);
+            outSources.push_back(PlayerPosition::DefensiveMidfielder);
+        }
+        if (tier == RoleFitTier::Emergency) {
+            outSources.push_back(PlayerPosition::LeftBack);
+            outSources.push_back(PlayerPosition::CentralMidfielder);
+        }
+        break;
+
+    case FormationSlotRole::LeftWingBack:
+        if (tier == RoleFitTier::Close) {
+            outSources.push_back(PlayerPosition::LeftBack);
+            outSources.push_back(PlayerPosition::LeftWinger);
+        }
+        if (tier == RoleFitTier::Adapted) {
+            outSources.push_back(PlayerPosition::LeftMidfielder);
+            outSources.push_back(PlayerPosition::CenterBack);
+            outSources.push_back(PlayerPosition::CentralMidfielder);
+        }
+        if (tier == RoleFitTier::Emergency) {
+            outSources.push_back(PlayerPosition::DefensiveMidfielder);
+            outSources.push_back(PlayerPosition::AttackingMidfielder);
+        }
+        break;
+
+    case FormationSlotRole::RightWingBack:
+        if (tier == RoleFitTier::Close) {
+            outSources.push_back(PlayerPosition::RightBack);
+            outSources.push_back(PlayerPosition::RightWinger);
+        }
+        if (tier == RoleFitTier::Adapted) {
+            outSources.push_back(PlayerPosition::RightMidfielder);
+            outSources.push_back(PlayerPosition::CenterBack);
+            outSources.push_back(PlayerPosition::CentralMidfielder);
+        }
+        if (tier == RoleFitTier::Emergency) {
+            outSources.push_back(PlayerPosition::DefensiveMidfielder);
+            outSources.push_back(PlayerPosition::AttackingMidfielder);
+        }
+        break;
+
+    case FormationSlotRole::DefensiveMidfielder:
+        if (tier == RoleFitTier::Natural) outSources.push_back(PlayerPosition::DefensiveMidfielder);
+        if (tier == RoleFitTier::Close) outSources.push_back(PlayerPosition::CentralMidfielder);
+        if (tier == RoleFitTier::Adapted) {
+            outSources.push_back(PlayerPosition::CenterBack);
+            outSources.push_back(PlayerPosition::LeftMidfielder);
+            outSources.push_back(PlayerPosition::RightMidfielder);
+        }
+        if (tier == RoleFitTier::Emergency) outSources.push_back(PlayerPosition::AttackingMidfielder);
+        break;
+
+    case FormationSlotRole::CentralMidfielder:
+        if (tier == RoleFitTier::Natural) outSources.push_back(PlayerPosition::CentralMidfielder);
+        if (tier == RoleFitTier::Close) {
+            outSources.push_back(PlayerPosition::DefensiveMidfielder);
+            outSources.push_back(PlayerPosition::AttackingMidfielder);
+            outSources.push_back(PlayerPosition::LeftMidfielder);
+            outSources.push_back(PlayerPosition::RightMidfielder);
+        }
+        if (tier == RoleFitTier::Adapted) {
+            outSources.push_back(PlayerPosition::LeftWinger);
+            outSources.push_back(PlayerPosition::RightWinger);
+        }
+        if (tier == RoleFitTier::Emergency) {
+            outSources.push_back(PlayerPosition::CenterBack);
+            outSources.push_back(PlayerPosition::Striker);
+        }
+        break;
+
+    case FormationSlotRole::AttackingMidfielder:
+        if (tier == RoleFitTier::Natural) outSources.push_back(PlayerPosition::AttackingMidfielder);
+        if (tier == RoleFitTier::Close) {
+            outSources.push_back(PlayerPosition::CentralMidfielder);
+            outSources.push_back(PlayerPosition::LeftWinger);
+            outSources.push_back(PlayerPosition::RightWinger);
+            outSources.push_back(PlayerPosition::LeftMidfielder);
+            outSources.push_back(PlayerPosition::RightMidfielder);
+        }
+        if (tier == RoleFitTier::Adapted) outSources.push_back(PlayerPosition::Striker);
+        if (tier == RoleFitTier::Emergency) outSources.push_back(PlayerPosition::DefensiveMidfielder);
+        break;
+
+    case FormationSlotRole::LeftMidfielder:
+        if (tier == RoleFitTier::Natural) outSources.push_back(PlayerPosition::LeftMidfielder);
+        if (tier == RoleFitTier::Close) {
+            outSources.push_back(PlayerPosition::CentralMidfielder);
+            outSources.push_back(PlayerPosition::LeftWinger);
+        }
+        if (tier == RoleFitTier::Adapted) {
+            outSources.push_back(PlayerPosition::LeftBack);
+            outSources.push_back(PlayerPosition::AttackingMidfielder);
+            outSources.push_back(PlayerPosition::DefensiveMidfielder);
+        }
+        if (tier == RoleFitTier::Emergency) {
+            outSources.push_back(PlayerPosition::RightMidfielder);
+            outSources.push_back(PlayerPosition::RightWinger);
+        }
+        break;
+
+    case FormationSlotRole::RightMidfielder:
+        if (tier == RoleFitTier::Natural) outSources.push_back(PlayerPosition::RightMidfielder);
+        if (tier == RoleFitTier::Close) {
+            outSources.push_back(PlayerPosition::CentralMidfielder);
+            outSources.push_back(PlayerPosition::RightWinger);
+        }
+        if (tier == RoleFitTier::Adapted) {
+            outSources.push_back(PlayerPosition::RightBack);
+            outSources.push_back(PlayerPosition::AttackingMidfielder);
+            outSources.push_back(PlayerPosition::DefensiveMidfielder);
+        }
+        if (tier == RoleFitTier::Emergency) {
+            outSources.push_back(PlayerPosition::LeftMidfielder);
+            outSources.push_back(PlayerPosition::LeftWinger);
+        }
+        break;
+
+    case FormationSlotRole::LeftWinger:
+        if (tier == RoleFitTier::Natural) outSources.push_back(PlayerPosition::LeftWinger);
+        if (tier == RoleFitTier::Close) {
+            outSources.push_back(PlayerPosition::AttackingMidfielder);
+            outSources.push_back(PlayerPosition::LeftMidfielder);
+        }
+        if (tier == RoleFitTier::Adapted) {
+            outSources.push_back(PlayerPosition::RightWinger);
+            outSources.push_back(PlayerPosition::Striker);
+            outSources.push_back(PlayerPosition::LeftBack);
+        }
+        if (tier == RoleFitTier::Emergency) {
+            outSources.push_back(PlayerPosition::RightMidfielder);
+            outSources.push_back(PlayerPosition::CentralMidfielder);
+        }
+        break;
+
+    case FormationSlotRole::RightWinger:
+        if (tier == RoleFitTier::Natural) outSources.push_back(PlayerPosition::RightWinger);
+        if (tier == RoleFitTier::Close) {
+            outSources.push_back(PlayerPosition::AttackingMidfielder);
+            outSources.push_back(PlayerPosition::RightMidfielder);
+        }
+        if (tier == RoleFitTier::Adapted) {
+            outSources.push_back(PlayerPosition::LeftWinger);
+            outSources.push_back(PlayerPosition::Striker);
+            outSources.push_back(PlayerPosition::RightBack);
+        }
+        if (tier == RoleFitTier::Emergency) {
+            outSources.push_back(PlayerPosition::LeftMidfielder);
+            outSources.push_back(PlayerPosition::CentralMidfielder);
+        }
+        break;
+
+    case FormationSlotRole::Striker:
+        if (tier == RoleFitTier::Natural) outSources.push_back(PlayerPosition::Striker);
+        if (tier == RoleFitTier::Close) outSources.push_back(PlayerPosition::AttackingMidfielder);
+        if (tier == RoleFitTier::Adapted) {
+            outSources.push_back(PlayerPosition::LeftWinger);
+            outSources.push_back(PlayerPosition::RightWinger);
+            outSources.push_back(PlayerPosition::LeftMidfielder);
+            outSources.push_back(PlayerPosition::RightMidfielder);
+        }
+        break;
+
+    case FormationSlotRole::Unknown:
+        break;
+    }
+}
+
+void collectTierCandidatesForRole(const NaturalPositionIndex& positionIndex,
+                                  FormationSlotRole slotRole,
+                                  RoleFitTier targetTier,
+                                  std::vector<RankedRoleCandidate>& outCandidates) {
+    outCandidates.clear();
+
+    std::vector<PlayerPosition> sourcePositions;
+    appendBucketSources(slotRole, targetTier, sourcePositions);
+
+    for (PlayerPosition sourcePosition : sourcePositions) {
+        const std::vector<PositionBucketEntry>& sourceBucket = positionIndex.byPosition[static_cast<std::size_t>(sourcePosition)];
+        for (const PositionBucketEntry& candidateRef : sourceBucket) {
+            const RoleFitTier actualTier = getRoleFitTier(candidateRef.player->getPlayerPosition(), slotRole);
+            if (actualTier != targetTier) {
+                continue;
+            }
+
+            outCandidates.push_back(RankedRoleCandidate{
+                candidateRef.player,
+                candidateRef.id,
+                calculateEffectivePowerForSlot(*candidateRef.player, slotRole)
+            });
+        }
+    }
+
+    std::sort(outCandidates.begin(), outCandidates.end(), [](const RankedRoleCandidate& lhs, const RankedRoleCandidate& rhs) {
         if (!isNearlyEqual(lhs.baseSlotScore, rhs.baseSlotScore)) {
             return lhs.baseSlotScore > rhs.baseSlotScore;
         }
@@ -187,10 +451,8 @@ void buildDemandAwareExpandedOptions(FormationRoleEntry& entry) {
     entry.expandedOptions.clear();
     entry.expandedOptions.reserve(entry.demand + 2);
 
-    // Demand-aware gated expansion per role:
-    // - Natural gets demand + small cushion.
-    // - Close/Adapted only open if previous tiers are insufficient.
-    // - Emergency is at most one final fallback.
+    // Demand-aware tier gating: only open lower tiers when higher tiers cannot
+    // cover this role demand for the current formation.
     const std::size_t naturalCap = std::min(entry.tierBuckets.natural.size(), entry.demand + 1);
     appendUniqueCandidates(entry.expandedOptions, entry.tierBuckets.natural, RoleFitTier::Natural, naturalCap);
 
@@ -231,7 +493,7 @@ void buildDemandAwareExpandedOptions(FormationRoleEntry& entry) {
 
 FormationRolePlan buildFormationRolePlan(const std::vector<FormationSlotRole>& templateSlots,
                                          std::size_t slotLimit,
-                                         const std::vector<PlayerCandidate>& players) {
+                                         const NaturalPositionIndex& positionIndex) {
     FormationRolePlan rolePlan;
     const std::size_t slotCount = std::min<std::size_t>(slotLimit, templateSlots.size());
     rolePlan.activeSlots.assign(templateSlots.begin(), templateSlots.begin() + slotCount);
@@ -247,38 +509,13 @@ FormationRolePlan buildFormationRolePlan(const std::vector<FormationSlotRole>& t
         }
     }
 
-    // Build and sort buckets only for roles that are actually present in this formation.
+    // Prepare only active roles for this formation; roles not used by this formation
+    // are not touched.
     for (FormationRoleEntry& entry : rolePlan.roleEntries) {
-        for (const PlayerCandidate& player : players) {
-            const RoleFitTier fitTier = getRoleFitTier(player.player->getPlayerPosition(), entry.role);
-            if (fitTier == RoleFitTier::Invalid || fitTier == RoleFitTier::SevereMismatch) {
-                continue;
-            }
-
-            RankedRoleCandidate rankedCandidate{ player.id, calculateEffectivePowerForSlot(*player.player, entry.role) };
-            switch (fitTier) {
-            case RoleFitTier::Natural:
-                entry.tierBuckets.natural.push_back(rankedCandidate);
-                break;
-            case RoleFitTier::Close:
-                entry.tierBuckets.close.push_back(rankedCandidate);
-                break;
-            case RoleFitTier::Adapted:
-                entry.tierBuckets.adapted.push_back(rankedCandidate);
-                break;
-            case RoleFitTier::Emergency:
-                entry.tierBuckets.emergency.push_back(rankedCandidate);
-                break;
-            case RoleFitTier::SevereMismatch:
-            case RoleFitTier::Invalid:
-                break;
-            }
-        }
-
-        sortRankedCandidates(entry.tierBuckets.natural);
-        sortRankedCandidates(entry.tierBuckets.close);
-        sortRankedCandidates(entry.tierBuckets.adapted);
-        sortRankedCandidates(entry.tierBuckets.emergency);
+        collectTierCandidatesForRole(positionIndex, entry.role, RoleFitTier::Natural, entry.tierBuckets.natural);
+        collectTierCandidatesForRole(positionIndex, entry.role, RoleFitTier::Close, entry.tierBuckets.close);
+        collectTierCandidatesForRole(positionIndex, entry.role, RoleFitTier::Adapted, entry.tierBuckets.adapted);
+        collectTierCandidatesForRole(positionIndex, entry.role, RoleFitTier::Emergency, entry.tierBuckets.emergency);
 
         buildDemandAwareExpandedOptions(entry);
     }
@@ -310,8 +547,7 @@ AssignmentResult buildBestAssignmentForRolePlan(const FormationRolePlan& rolePla
     const std::size_t slotCount = rolePlan.activeSlots.size();
     std::vector<std::vector<SlotOption>> slotOptions(slotCount);
 
-    // Reuse per-role expanded pools for duplicate slots (e.g. 2x CB) instead of
-    // rebuilding identical candidate work for each slot.
+    // Reuse shared role-level candidate pools for duplicate slots of the same role.
     for (std::size_t slotIdx = 0; slotIdx < slotCount; ++slotIdx) {
         const FormationSlotRole slotRole = rolePlan.activeSlots[slotIdx];
         const int roleEntryIndex = rolePlan.roleToEntryIndex[static_cast<std::size_t>(slotRole)];
@@ -325,8 +561,7 @@ AssignmentResult buildBestAssignmentForRolePlan(const FormationRolePlan& rolePla
     std::vector<std::size_t> orderedSlotIndices(slotCount);
     std::iota(orderedSlotIndices.begin(), orderedSlotIndices.end(), 0);
 
-    // Scarcity-first order dramatically reduces backtracking branching while keeping
-    // final output in original template order.
+    // Scarcity-first internal solving order.
     std::sort(orderedSlotIndices.begin(), orderedSlotIndices.end(), [&slotOptions](std::size_t lhs, std::size_t rhs) {
         if (slotOptions[lhs].size() != slotOptions[rhs].size()) {
             return slotOptions[lhs].size() < slotOptions[rhs].size();
@@ -406,11 +641,12 @@ AssignmentResult buildBestAssignmentForRolePlan(const FormationRolePlan& rolePla
 }
 
 FormationSelectionCandidate evaluateFormationCandidate(FormationId formation,
-                                                        const std::vector<PlayerCandidate>& players,
-                                                        std::size_t starterTargetCount) {
+                                                        const NaturalPositionIndex& positionIndex,
+                                                        std::size_t starterTargetCount,
+                                                        std::size_t squadSize) {
     const std::vector<FormationSlotRole>& slotTemplate = getFormationSlotTemplate(formation);
-    const FormationRolePlan rolePlan = buildFormationRolePlan(slotTemplate, starterTargetCount, players);
-    AssignmentResult assignment = buildBestAssignmentForRolePlan(rolePlan, players.size());
+    const FormationRolePlan rolePlan = buildFormationRolePlan(slotTemplate, starterTargetCount, positionIndex);
+    AssignmentResult assignment = buildBestAssignmentForRolePlan(rolePlan, squadSize);
 
     FormationSelectionCandidate candidate;
     candidate.formation = formation;
@@ -435,11 +671,13 @@ FormationSelectionCandidate evaluateFormationCandidate(FormationId formation,
 } // namespace
 
 TeamSheet TeamSelectionService::buildTeamSheet(const Team& team) const {
-    const std::vector<PlayerCandidate> players = collectCandidates(team);
-    const std::size_t starterTargetCount = std::min<std::size_t>(11, players.size());
+    const std::vector<SquadPlayerRef> squadPlayers = collectSquadPlayers(team);
+    const std::size_t starterTargetCount = std::min<std::size_t>(11, squadPlayers.size());
 
-    // Phase 1/Hardening intentionally uses only static role-adjusted power. Dynamic
-    // matchday factors (form/morale/fitness/fatigue) are deferred to Phase 2.
+    // Phase 1/final hardening intentionally uses only static role-adjusted power.
+    // Dynamic matchday factors (form/morale/fitness/fatigue) are deferred to Phase 2.
+    const NaturalPositionIndex naturalPositionIndex = buildNaturalPositionIndex(squadPlayers);
+
     const FormationId preferredFormation = team.getHeadCoach().getPreferredFormation();
     const std::vector<FormationId> formationOrder = buildDeterministicFormationOrder(preferredFormation);
 
@@ -447,7 +685,10 @@ TeamSheet TeamSelectionService::buildTeamSheet(const Team& team) const {
     bool hasBestCandidate = false;
 
     for (FormationId formationId : formationOrder) {
-        FormationSelectionCandidate candidate = evaluateFormationCandidate(formationId, players, starterTargetCount);
+        FormationSelectionCandidate candidate = evaluateFormationCandidate(formationId,
+                                                                           naturalPositionIndex,
+                                                                           starterTargetCount,
+                                                                           squadPlayers.size());
 
         if (candidate.fullySatisfied) {
             std::vector<PlayerId> starterIds;
