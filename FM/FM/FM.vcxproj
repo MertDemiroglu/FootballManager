@@ -137,6 +137,8 @@
     <ClCompile Include="League.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Midfielder.cpp" />
+    <ClCompile Include="PlayerConditionService.cpp" />
+    <ClCompile Include="PlayerConditionState.cpp" />
     <ClCompile Include="User.cpp" />
     <ClCompile Include="Team.cpp" />
     <ClCompile Include="TransferRoom.cpp" />
@@ -153,6 +155,8 @@
     <ClInclude Include="Goalkeeper.h" />
     <ClInclude Include="League.h" />
     <ClInclude Include="Midfielder.h" />
+    <ClInclude Include="PlayerConditionService.h" />
+    <ClInclude Include="PlayerConditionState.h" />
     <ClInclude Include="User.h" />
     <ClInclude Include="Team.h" />
     <ClInclude Include="TransferRoom.h" />

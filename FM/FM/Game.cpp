@@ -6,8 +6,9 @@
 #include"TransferOfferDecisionInteraction.h"
 #include"PreMatchInteraction.h"
 #include"TransferOffer.h"
-#include "TeamSelectionService.h"
-#include "TeamSheet.h"
+#include"TeamSelectionService.h"
+#include"TeamSheet.h"
+#include"PlayerConditionService.h"
 
 #include<stdexcept>
 #include<utility>
@@ -242,11 +243,20 @@ void Game::updateDaily() {
     if (timePaused) {
         return;
     }
+    bool didAdvanceDay = false;
     if (!dateWasReset) {
         date.advanceDay();
+        didAdvanceDay = true;
     }
     else {
         dateWasReset = false;
+    }
+
+    if (didAdvanceDay) {
+        PlayerConditionService conditionService;
+        world.forEachLeagueContext([&conditionService](LeagueContext& context) {
+            conditionService.applyDailyRecovery(context.getLeague());
+            });
     }
     world.getTransferOfferService().expirePendingOffers(date);//gecici cozum 2. kere expire kontrolu
 }

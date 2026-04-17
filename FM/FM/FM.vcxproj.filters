@@ -27,6 +27,12 @@
     <ClCompile Include="Midfielder.cpp">
       <Filter>Kaynak Dosyalar</Filter>
     </ClCompile>
+	<ClCompile Include="PlayerConditionService.cpp">
+		  <Filter>Kaynak Dosyalar</Filter>
+	  </ClCompile>
+	<ClCompile Include="PlayerConditionState.cpp">
+		  <Filter>Kaynak Dosyalar</Filter>
+	  </ClCompile>
     <ClCompile Include="Forward.cpp">
       <Filter>Kaynak Dosyalar</Filter>
     </ClCompile>
@@ -74,6 +80,12 @@
     <ClInclude Include="Midfielder.h">
       <Filter>Kaynak Dosyaları</Filter>
     </ClInclude>
+    <ClInclude Include="PlayerConditionService.h">
+		  <Filter>Kaynak Dosyaları</Filter>
+	  </ClInclude>
+    <ClInclude Include="PlayerConditionState.h">
+		  <Filter>Kaynak Dosyaları</Filter>
+	  </ClInclude>
     <ClInclude Include="Forward.h">
       <Filter>Kaynak Dosyaları</Filter>
     </ClInclude>

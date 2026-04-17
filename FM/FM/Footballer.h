@@ -3,8 +3,10 @@
 #include<string>
 #include<unordered_map>
 #include<memory>
+
 #include"Contract.h"
-#include "PlayerPosition.h"
+#include"PlayerPosition.h"
+#include"PlayerConditionState.h"
 
 struct PlayerSeasonStats {
 	PlayerId playerId = 0;
@@ -37,6 +39,7 @@ protected:
 	int age;
 	PlayerSeasonStats currentSeasonStats;
 	std::unordered_map<int, PlayerSeasonStats> archivedSeasonStatsByYear;
+	PlayerConditionState conditionState;
 
 public:
 	//Footballer constructor
@@ -62,6 +65,10 @@ public:
 	//Oyuncunun yasini verir
 	int getAge() const;
 
+	//Oyuncunun form-fitness-moral degerlerini verir
+	const PlayerConditionState& getConditionState() const;
+	PlayerConditionState& getConditionState();
+
 	
 	//Takim bilgisini set eder
 	void setTeam(TeamId newTeamId);
@@ -85,7 +92,7 @@ public:
 	void addMinutes(int additionalMinutes);
 	void addYellowCard();
 	void addRedCard();
-	//------------------------------------------------------------------------------------
+	//-------------------------------------------------------------------------------------
 
 	virtual void print(std::ostream& os) const;
 };

@@ -91,6 +91,10 @@ const Footballer* League::findPlayerById(PlayerId id) const {
 	return nullptr;
 }
 
+std::unordered_map<TeamId, std::unique_ptr<Team>>& League::getTeams() {
+	return teams;
+}
+
 const std::unordered_map<TeamId, std::unique_ptr<Team>>& League::getTeams() const {
 	return teams;
 }

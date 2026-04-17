@@ -3,9 +3,10 @@
 #include<stdexcept>
 
 #include"MatchSimulation.h"
-#include "TeamSelectionService.h"
-#include "TeamSheet.h"
+#include"TeamSelectionService.h"
+#include"TeamSheet.h"
 #include"Team.h"
+#include"PlayerConditionService.h"
 
 PlayMatchCommandHandler::PlayMatchCommandHandler(DomainEventPublisher& publisher)   : publisher(publisher) {}
 
@@ -99,6 +100,9 @@ void PlayMatchCommandHandler::handle(League& league,
         command.date);
 
     league.applyMatchReport(report);
+
+    PlayerConditionService conditionService;
+    conditionService.applyMatchEffects(report, league);
 
     publisher.publish(MatchPlayedEvent{
         report.matchId,

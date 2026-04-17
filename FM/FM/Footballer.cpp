@@ -11,7 +11,7 @@ namespace {
 
 }
 Footballer::Footballer(const std::string& name, PlayerPosition position, const std::string& team, int age)
-    : playerId(generatePlayerId()), name(name), position(position), teamId(0), age(age) {
+    : playerId(generatePlayerId()), name(name), position(position), teamId(0), age(age), conditionState() {
     (void)team;
 
     if (!isKnownPlayerPosition(position)) {
@@ -154,6 +154,14 @@ void Footballer::addYellowCard() {
 
 void Footballer::addRedCard() {
     ++currentSeasonStats.redCards;
+}
+
+const PlayerConditionState& Footballer::getConditionState() const {
+    return conditionState;
+}
+
+PlayerConditionState& Footballer::getConditionState() {
+    return conditionState;
 }
 
 //print

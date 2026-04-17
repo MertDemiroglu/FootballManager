@@ -189,6 +189,7 @@ public:
 	
 
 	//Butun takimlari unordered map olarak verir
+	std::unordered_map<TeamId, std::unique_ptr<Team>>& getTeams();
 	const std::unordered_map<TeamId, std::unique_ptr<Team>>& getTeams() const;
 
 
