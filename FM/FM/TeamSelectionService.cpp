@@ -1,4 +1,4 @@
-#include "TeamSelectionService.h"
+    #include "TeamSelectionService.h"
 
 #include "Footballer.h"
 #include "Formation.h"
@@ -132,6 +132,87 @@ bool isGoalkeeperRole(FormationSlotRole slotRole) {
     return slotRole == FormationSlotRole::Goalkeeper;
 }
 
+enum class FitnessAvailabilityBand {
+    FullAvailable,
+    NormalAvailable,
+    RiskyAvailable,
+    EmergencyOnly,
+    Unavailable
+};
+
+FitnessAvailabilityBand classifyFitnessAvailability(int fitness) {
+    if (fitness >= 85) {
+        return FitnessAvailabilityBand::FullAvailable;
+    }
+    if (fitness >= 70) {
+        return FitnessAvailabilityBand::NormalAvailable;
+    }
+    if (fitness >= 55) {
+        return FitnessAvailabilityBand::RiskyAvailable;
+    }
+    if (fitness >= 40) {
+        return FitnessAvailabilityBand::EmergencyOnly;
+    }
+
+    return FitnessAvailabilityBand::Unavailable;
+}
+
+bool isAvailableForNormalTier(FitnessAvailabilityBand availability, RoleFitTier tier) {
+    if (availability == FitnessAvailabilityBand::Unavailable) {
+        return false;
+    }
+
+    // Emergency-only players are intentionally hidden from normal tiers and only
+    // considered when the role expansion reaches emergency depth.
+    if (availability == FitnessAvailabilityBand::EmergencyOnly) {
+        return tier == RoleFitTier::Emergency;
+    }
+
+    return true;
+}
+
+double fitnessSelectionMultiplier(int fitness) {
+    if (fitness >= 95) return 1.03;
+    if (fitness >= 85) return 1.00;
+    if (fitness >= 75) return 0.97;
+    if (fitness >= 65) return 0.88;
+    if (fitness >= 55) return 0.76;
+    if (fitness >= 40) return 0.60;
+    return 0.45;
+}
+
+double formSelectionMultiplier(int form) {
+    if (form >= 85) return 1.07;
+    if (form >= 70) return 1.03;
+    if (form >= 55) return 1.00;
+    if (form >= 40) return 0.96;
+    return 0.92;
+}
+
+double moraleSelectionMultiplier(int morale) {
+    if (morale >= 85) return 1.04;
+    if (morale >= 70) return 1.02;
+    if (morale >= 55) return 1.00;
+    if (morale >= 40) return 0.98;
+    return 0.95;
+}
+
+double calculateConditionMultiplier(const Footballer& player) {
+    const PlayerConditionState& condition = player.getConditionState();
+    return fitnessSelectionMultiplier(condition.getFitness())
+        * formSelectionMultiplier(condition.getForm())
+        * moraleSelectionMultiplier(condition.getMorale());
+}
+
+double calculateConditionAwarePowerForSlot(const Footballer& player, FormationSlotRole slotRole) {
+    // role-adjusted base power * fitness * form * morale.
+    return calculateEffectivePowerForSlot(player, slotRole) * calculateConditionMultiplier(player);
+}
+
+double calculateConditionAwarePowerWithoutRoleFit(const Footballer& player) {
+    return static_cast<double>(player.totalPower()) * calculateConditionMultiplier(player);
+}
+
 std::vector<TeamSheetSlotAssignment> buildOrderedAssignmentsFromTemplate(FormationId formation,
                                                                          const std::vector<PlayerId>& orderedPlayerIdsByTemplate) {
     const std::vector<FormationSlotRole>& slotTemplate = getFormationSlotTemplate(formation);
@@ -228,8 +309,8 @@ void completeUnderfilledCandidate(FormationSelectionCandidate& candidate,
             }
 
             std::sort(gkCandidates.begin(), gkCandidates.end(), [slotRole](const Footballer* lhs, const Footballer* rhs) {
-                const double lhsScore = calculateEffectivePowerForSlot(*lhs, slotRole);
-                const double rhsScore = calculateEffectivePowerForSlot(*rhs, slotRole);
+                const double lhsScore = calculateConditionAwarePowerForSlot(*lhs, slotRole);
+                const double rhsScore = calculateConditionAwarePowerForSlot(*rhs, slotRole);
                 if (!isNearlyEqual(lhsScore, rhsScore)) {
                     return lhsScore > rhsScore;
                 }
@@ -259,8 +340,8 @@ void completeUnderfilledCandidate(FormationSelectionCandidate& candidate,
             }
 
             std::sort(usableOutfieldCandidates.begin(), usableOutfieldCandidates.end(), [slotRole](const Footballer* lhs, const Footballer* rhs) {
-                const double lhsScore = calculateEffectivePowerForSlot(*lhs, slotRole);
-                const double rhsScore = calculateEffectivePowerForSlot(*rhs, slotRole);
+                const double lhsScore = calculateConditionAwarePowerForSlot(*lhs, slotRole);
+                const double rhsScore = calculateConditionAwarePowerForSlot(*rhs, slotRole);
                 if (!isNearlyEqual(lhsScore, rhsScore)) {
                     return lhsScore > rhsScore;
                 }
@@ -290,8 +371,10 @@ void completeUnderfilledCandidate(FormationSelectionCandidate& candidate,
                 }
 
                 std::sort(forcedOutfieldCandidates.begin(), forcedOutfieldCandidates.end(), [](const Footballer* lhs, const Footballer* rhs) {
-                    if (!isNearlyEqual(lhs->totalPower(), rhs->totalPower())) {
-                        return lhs->totalPower() > rhs->totalPower();
+                    const double lhsScore = calculateConditionAwarePowerWithoutRoleFit(*lhs);
+                    const double rhsScore = calculateConditionAwarePowerWithoutRoleFit(*rhs);
+                    if (!isNearlyEqual(lhsScore, rhsScore)) {
+                        return lhsScore > rhsScore;
                     }
 
                     return lhs->getId() < rhs->getId();
@@ -567,11 +650,15 @@ void collectTierCandidatesForRole(const NaturalPositionIndex& positionIndex,
             if (actualTier != targetTier) {
                 continue;
             }
+            const FitnessAvailabilityBand fitnessAvailability = classifyFitnessAvailability(candidateRef.player->getConditionState().getFitness());
+            if (!isAvailableForNormalTier(fitnessAvailability, targetTier)) {
+                continue;
+            }
 
             outCandidates.push_back(RankedRoleCandidate{
                 candidateRef.player,
                 candidateRef.id,
-                calculateEffectivePowerForSlot(*candidateRef.player, slotRole)
+                calculateConditionAwarePowerForSlot(*candidateRef.player, slotRole)
             });
         }
     }
@@ -823,8 +910,6 @@ FormationSelectionCandidate evaluateFormationCandidate(FormationId formation,
 } // namespace
 
 TeamSheet TeamSelectionService::buildTeamSheet(const Team& team) const {
-    // Phase 1/final hardening intentionally uses only static role-adjusted power.
-    // Dynamic matchday factors (form/morale/fitness/fatigue) are deferred to Phase 2.
     const NaturalPositionIndex naturalPositionIndex = buildNaturalPositionIndex(team);
     const std::size_t starterTargetCount = std::min<std::size_t>(11, naturalPositionIndex.squadSize);
 
