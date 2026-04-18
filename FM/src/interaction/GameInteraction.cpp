@@ -1,4 +1,4 @@
-#include"GameInteraction.h"
+#include"fm/interaction/GameInteraction.h"
 
 GameInteraction::GameInteraction(Kind interactionKind, bool isBlockingInteraction) : kind(interactionKind), blocking(isBlockingInteraction), resolved(false) {}
 

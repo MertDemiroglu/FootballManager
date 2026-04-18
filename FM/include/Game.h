@@ -5,13 +5,14 @@
 #include<optional>
 #include<vector>
 
-#include"fm/common/Date.h"
-#include"EventQueue.h"
-#include"User.h"
 #include"fm/competition/MatchScheduler.h"
 #include"fm/competition/FixtureGenerator.h"
+
+#include"fm/common/Date.h"
+#include"fm/interaction/InteractionManager.h"
+#include"EventQueue.h"
+#include"User.h"
 #include"World.h"
-#include"InteractionManager.h"
 #include"TeamSheet.h"
 
 enum class GameState {

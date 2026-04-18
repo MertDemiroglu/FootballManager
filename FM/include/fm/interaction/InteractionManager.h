@@ -1,10 +1,10 @@
 #pragma once
 
-#include <cstddef>
-#include <deque>
-#include <memory>
+#include<cstddef>
+#include<deque>
+#include<memory>
 
-#include "GameInteraction.h"
+#include"fm/interaction/GameInteraction.h"
 
 class InteractionManager {
 private:

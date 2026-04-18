@@ -5,9 +5,10 @@
 #include"fm/competition/League.h"
 
 #include"RosterLoader.h"
-#include"PostMatchInteraction.h"
-#include"TransferOfferDecisionInteraction.h"
-#include"PreMatchInteraction.h"
+#include"fm/interaction/PostMatchInteraction.h"
+
+#include"fm/interaction/TransferOfferDecisionInteraction.h"
+#include"fm/interaction/PreMatchInteraction.h"
 #include"fm/transfer/TransferOffer.h"
 #include"TeamSelectionService.h"
 #include"TeamSheet.h"

@@ -1,7 +1,7 @@
 #pragma once
 
 #include"fm/common/Date.h"
-#include"GameInteraction.h"
+#include"fm/interaction/GameInteraction.h"
 #include"TeamSheet.h"
 #include"fm/common/Types.h"
 
