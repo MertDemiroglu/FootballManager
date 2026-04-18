@@ -1,10 +1,10 @@
-#include"Game.h"
+#include"fm/core/Game.h"
 
 #include"fm/roster/Team.h"
 
 #include"fm/competition/League.h"
 
-#include"RosterLoader.h"
+#include"fm/data/RosterLoader.h"
 #include"fm/interaction/PostMatchInteraction.h"
 
 #include"fm/interaction/TransferOfferDecisionInteraction.h"

@@ -4,14 +4,14 @@
 #include"fm/common/DateUtils.h"
 #include"fm/events/DomainEventPublisher.h"
 #include"fm/competition/League.h"
-#include"LeagueContext.h"
+#include"fm/core/LeagueContext.h"
 #include"fm/competition/LeagueRules.h"
 #include"fm/events/PlayerTransferredEvent.h"
 #include"fm/roster/Team.h"
 #include"fm/events/TransferOfferCreatedEvent.h"
 #include"fm/events/TransferOfferResolvedEvent.h"
 #include"fm/transfer/TransferRoom.h"
-#include"World.h"
+#include"fm/core/World.h"
 
 TransferOfferService::TransferOfferService() = default;
 

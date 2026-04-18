@@ -10,10 +10,10 @@
 #include<unordered_map>
 
 #include"fm/common/Date.h"
-#include"Game.h"
+#include"fm/core/Game.h"
 #include"fm/competition/League.h"
 #include"fm/competition/LeagueRules.h"
-#include"LeagueContext.h"
+#include"fm/core/LeagueContext.h"
 #include"fm/competition/MatchScheduler.h"
 #include"fm/competition/SeasonPlan.h"
 #include"fm/events/MatchPlayedEvent.h"

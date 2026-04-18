@@ -11,8 +11,8 @@
 #include"fm/common/Date.h"
 #include"fm/interaction/InteractionManager.h"
 #include"fm/match/EventQueue.h"
-#include"User.h"
-#include"World.h"
+#include"fm/core/User.h"
+#include"fm/core/World.h"
 #include"fm/match/TeamSheet.h"
 
 enum class GameState {

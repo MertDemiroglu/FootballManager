@@ -3,10 +3,10 @@ cmake_minimum_required(VERSION 3.16)
 project(fm_core LANGUAGES CXX)
 
 add_library(fm_core STATIC
-    src/Game.cpp
+    src/core/Game.cpp
     src/roster/Contract.cpp
-    src/Date.cpp
-    src/DateUtils.cpp
+    src/common/Date.cpp
+    src/common/DateUtils.cpp
     src/roster/Defender.cpp
     src/events/DomainEventPublisher.cpp
     src/match/EventQueue.cpp
@@ -20,8 +20,8 @@ add_library(fm_core STATIC
     src/roster/Goalkeeper.cpp
     src/interaction/InteractionManager.cpp
     src/competition/League.cpp
-    src/World.cpp
-    src/LeagueContext.cpp
+    src/core/World.cpp
+    src/core/LeagueContext.cpp
     src/competition/LeagueRules.cpp
     src/competition/MatchScheduler.cpp
     src/match/MatchSimulation.cpp
@@ -34,7 +34,7 @@ add_library(fm_core STATIC
     src/roster/PlayerPosition.cpp
     src/roster/PlayerPositionBucket.cpp
     src/roster/Midfielder.cpp
-    src/RosterLoader.cpp
+    src/data/RosterLoader.cpp
     src/competition/SeasonPlan.cpp
     src/roster/Team.cpp
     src/match/TeamSelectionService.cpp
@@ -42,11 +42,11 @@ add_library(fm_core STATIC
     src/interaction/TransferOfferDecisionInteraction.cpp
     src/transfer/TransferOfferService.cpp
     src/transfer/TransferRoom.cpp
-    src/User.cpp
+    src/core/User.cpp
 )
 
 add_executable(fm_runner
-    src/main.cpp
+    apps/fm_runner/main.cpp
 )
 
 target_link_libraries(fm_runner PRIVATE fm_core)
