@@ -8,7 +8,7 @@
 #include"PostMatchInteraction.h"
 #include"TransferOfferDecisionInteraction.h"
 #include"PreMatchInteraction.h"
-#include"TransferOffer.h"
+#include"fm/transfer/TransferOffer.h"
 #include"TeamSelectionService.h"
 #include"TeamSheet.h"
 #include"PlayerConditionService.h"

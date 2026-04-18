@@ -9,8 +9,8 @@
 #include"LeagueContext.h"
 #include"fm/competition/LeagueRules.h"
 #include"fm/competition/SeasonPlan.h"
-#include"TransferOfferService.h"
-#include"TransferRoom.h"
+#include"fm/transfer/TransferOfferService.h"
+#include"fm/transfer/TransferRoom.h"
 #include"fm/common/Types.h"
 
 class Team;

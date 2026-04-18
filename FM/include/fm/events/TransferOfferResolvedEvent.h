@@ -1,6 +1,6 @@
 #pragma once
 
-#include"TransferOffer.h"
+#include"fm/transfer/TransferOffer.h"
 #include"fm/common/Types.h"
 
 struct TransferOfferResolvedEvent {

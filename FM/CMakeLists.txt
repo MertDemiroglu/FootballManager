@@ -40,8 +40,8 @@ add_library(fm_core STATIC
     src/TeamSelectionService.cpp
     src/TeamSheet.cpp
     src/TransferOfferDecisionInteraction.cpp
-    src/TransferOfferService.cpp
-    src/TransferRoom.cpp
+    src/transfer/TransferOfferService.cpp
+    src/transfer/TransferRoom.cpp
     src/User.cpp
 )
 

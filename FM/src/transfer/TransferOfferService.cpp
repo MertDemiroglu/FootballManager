@@ -1,4 +1,4 @@
-#include"TransferOfferService.h"
+#include"fm/transfer/TransferOfferService.h"
 #include<algorithm>
 
 #include"fm/common/DateUtils.h"
@@ -10,7 +10,7 @@
 #include"fm/roster/Team.h"
 #include"fm/events/TransferOfferCreatedEvent.h"
 #include"fm/events/TransferOfferResolvedEvent.h"
-#include"TransferRoom.h"
+#include"fm/transfer/TransferRoom.h"
 #include"World.h"
 
 TransferOfferService::TransferOfferService() = default;
