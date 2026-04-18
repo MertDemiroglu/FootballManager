@@ -2,7 +2,7 @@
 #include"fm/match/EventQueue.h"
 #include"fm/core/World.h"
 #include"fm/competition/League.h"
-#include"PlayMatchCommand.h"
+#include"fm/match/PlayMatchCommand.h"
 
 #include <stdexcept>
 

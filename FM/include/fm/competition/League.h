@@ -9,7 +9,7 @@
 #include"fm/common/Types.h"
 #include"fm/roster/Team.h"
 #include"fm/common/Date.h"
-#include"MatchReport.h"
+#include"fm/match/MatchReport.h"
 
 struct FixtureMatch {
 	MatchId matchId;

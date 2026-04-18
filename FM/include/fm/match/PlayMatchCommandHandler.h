@@ -2,7 +2,7 @@
 
 #include"fm/events/DomainEventPublisher.h"
 #include"fm/competition/League.h"
-#include"PlayMatchCommand.h"
+#include"fm/match/PlayMatchCommand.h"
 #include"fm/match/TeamSheet.h"
 
 class PlayMatchCommandHandler {

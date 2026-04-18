@@ -10,10 +10,10 @@
 #include"fm/interaction/PreMatchInteraction.h"
 #include"fm/interaction/TransferOfferDecisionInteraction.h"
 #include"fm/match/TeamSheet.h"
+#include"fm/match/MatchReport.h"
 #include"fm/competition/League.h"
 #include"fm/transfer/TransferOffer.h"
 
-#include"MatchReport.h"
 #include"StandingsTableModel.h"
 #include"TeamPlayersModel.h"
 #include"TeamRecentMatchesModel.h"

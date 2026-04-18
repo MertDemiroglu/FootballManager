@@ -1,7 +1,7 @@
 #pragma once
 
 #include"fm/common/Date.h"
-#include"MatchReport.h"
+#include"fm/match/MatchReport.h"
 #include"fm/match/TeamSheet.h"
 
 class Team;

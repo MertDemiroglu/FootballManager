@@ -1,7 +1,7 @@
 #pragma once
 
 #include"fm/competition/League.h"
-#include"MatchReport.h"
+#include"fm/match/MatchReport.h"
 
 class PlayerConditionService {
 private:
