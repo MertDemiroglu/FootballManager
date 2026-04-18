@@ -11,7 +11,7 @@ add_library(fm_core STATIC
     src/DomainEventPublisher.cpp
     src/EventQueue.cpp
     src/roster/Formation.cpp
-    src/FixtureGenerator.cpp
+    src/competition/FixtureGenerator.cpp
     src/roster/Footballer.cpp
     src/roster/FootballerFactory.cpp
     src/roster/Forward.cpp
@@ -19,11 +19,11 @@ add_library(fm_core STATIC
     src/roster/HeadCoach.cpp
     src/roster/Goalkeeper.cpp
     src/InteractionManager.cpp
-    src/League.cpp
+    src/competition/League.cpp
     src/World.cpp
     src/LeagueContext.cpp
-    src/LeagueRules.cpp
-    src/MatchScheduler.cpp
+    src/competition/LeagueRules.cpp
+    src/competition/MatchScheduler.cpp
     src/MatchSimulation.cpp
     src/PlayerConditionState.cpp
     src/PlayerConditionService.cpp
@@ -35,7 +35,7 @@ add_library(fm_core STATIC
     src/roster/PlayerPositionBucket.cpp
     src/roster/Midfielder.cpp
     src/RosterLoader.cpp
-    src/SeasonPlan.cpp
+    src/competition/SeasonPlan.cpp
     src/roster/Team.cpp
     src/TeamSelectionService.cpp
     src/TeamSheet.cpp
