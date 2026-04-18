@@ -4,8 +4,8 @@
 #include<unordered_map>
 #include<memory>
 
-#include"Contract.h"
-#include"PlayerPosition.h"
+#include"fm/roster/Contract.h"
+#include"fm/roster/PlayerPosition.h"
 #include"PlayerConditionState.h"
 
 struct PlayerSeasonStats {

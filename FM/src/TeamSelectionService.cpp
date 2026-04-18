@@ -1,16 +1,16 @@
-    #include "TeamSelectionService.h"
+#include "TeamSelectionService.h"
 
-#include "Footballer.h"
-#include "Formation.h"
-#include "PlayerRoleFit.h"
-#include "Team.h"
+#include"fm/roster/Footballer.h"
+#include"fm/roster/Formation.h"
+#include"fm/roster/PlayerRoleFit.h"
+#include"fm/roster/Team.h"
 
-#include <algorithm>
-#include <array>
-#include <cmath>
-#include <limits>
-#include <numeric>
-#include <vector>
+#include<algorithm>
+#include<array>
+#include<cmath>
+#include<limits>
+#include<numeric>
+#include<vector>
 
 namespace {
 struct PositionBucketEntry {

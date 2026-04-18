@@ -1,9 +1,9 @@
 #pragma once
 
-#include "FormationSlotRole.h"
+#include"FormationSlotRole.h"
 
-#include <array>
-#include <vector>
+#include<array>
+#include<vector>
 
 
 enum class FormationId {

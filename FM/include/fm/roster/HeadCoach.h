@@ -1,6 +1,6 @@
 #pragma once
 
-#include"Formation.h"
+#include"fm/roster/Formation.h"
 #include"fm/common/Types.h"
 
 #include <string>

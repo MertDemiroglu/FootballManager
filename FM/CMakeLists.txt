@@ -4,20 +4,20 @@ project(fm_core LANGUAGES CXX)
 
 add_library(fm_core STATIC
     src/Game.cpp
-    src/Contract.cpp
+    src/roster/Contract.cpp
     src/Date.cpp
     src/DateUtils.cpp
-    src/Defender.cpp
+    src/roster/Defender.cpp
     src/DomainEventPublisher.cpp
     src/EventQueue.cpp
-    src/Formation.cpp
+    src/roster/Formation.cpp
     src/FixtureGenerator.cpp
-    src/Footballer.cpp
-    src/FootballerFactory.cpp
-    src/Forward.cpp
+    src/roster/Footballer.cpp
+    src/roster/FootballerFactory.cpp
+    src/roster/Forward.cpp
     src/GameInteraction.cpp
-    src/HeadCoach.cpp
-    src/Goalkeeper.cpp
+    src/roster/HeadCoach.cpp
+    src/roster/Goalkeeper.cpp
     src/InteractionManager.cpp
     src/League.cpp
     src/World.cpp
@@ -30,13 +30,13 @@ add_library(fm_core STATIC
     src/PreMatchInteraction.cpp
     src/PostMatchInteraction.cpp
     src/PlayMatchCommandHandler.cpp
-    src/PlayerRoleFit.cpp
-    src/PlayerPosition.cpp
-    src/PlayerPositionBucket.cpp
-    src/Midfielder.cpp
+    src/roster/PlayerRoleFit.cpp
+    src/roster/PlayerPosition.cpp
+    src/roster/PlayerPositionBucket.cpp
+    src/roster/Midfielder.cpp
     src/RosterLoader.cpp
     src/SeasonPlan.cpp
-    src/Team.cpp
+    src/roster/Team.cpp
     src/TeamSelectionService.cpp
     src/TeamSheet.cpp
     src/TransferOfferDecisionInteraction.cpp

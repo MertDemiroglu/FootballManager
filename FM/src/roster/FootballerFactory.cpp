@@ -1,9 +1,9 @@
-#include"FootballerFactory.h"
-#include"Midfielder.h"
-#include"Goalkeeper.h"
-#include"Defender.h"
-#include"Forward.h"
-#include "PlayerPosition.h"
+#include"fm/roster/FootballerFactory.h"
+#include"fm/roster/Midfielder.h"
+#include"fm/roster/Goalkeeper.h"
+#include"fm/roster/Defender.h"
+#include"fm/roster/Forward.h"
+#include"fm/roster/PlayerPosition.h"
 
 std::unique_ptr<Footballer> FootballerFactory::create(const std::string& name, int age, const std::string& position, const std::string& team, int s1, int s2, int s3, int s4, int s5) {
     PlayerPosition parsedPosition;

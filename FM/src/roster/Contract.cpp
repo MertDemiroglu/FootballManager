@@ -1,4 +1,4 @@
-#include"Contract.h"
+#include"fm/roster/Contract.h"
 
 Contract::Contract(PlayerId playerId, TeamId teamId, Money wage, int years) : playerId(playerId), teamId(teamId), wage(wage), yearsRemaining(years){}
 

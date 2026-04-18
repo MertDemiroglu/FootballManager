@@ -8,8 +8,8 @@
 #include<memory>
 
 #include"League.h"
-#include"Team.h"
-#include"FootballerFactory.h"
+#include"fm/roster/Team.h"
+#include"fm/roster/FootballerFactory.h"
 #include"fm/common/Types.h"
 
 static std::string trim(const std::string& s) {

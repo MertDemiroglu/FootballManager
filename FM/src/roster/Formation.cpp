@@ -1,6 +1,6 @@
-#include "Formation.h"
+#include"fm/roster/Formation.h"
 
-#include <stdexcept>
+#include<stdexcept>
 
 namespace {
     constexpr std::array<FormationDefinition, 3> kFormationDefinitions{ {

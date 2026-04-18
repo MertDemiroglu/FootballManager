@@ -1,8 +1,8 @@
-#include "PlayerPosition.h"
+#include"fm/roster/PlayerPosition.h"
 
-#include <algorithm>
-#include <cctype>
-#include <stdexcept>
+#include<algorithm>
+#include<cctype>
+#include<stdexcept>
 
 namespace {
 std::string normalizePosition(const std::string& value) {
