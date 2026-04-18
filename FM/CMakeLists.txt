@@ -39,7 +39,9 @@ add_library(fm_core STATIC
     src/data/RosterLoader.cpp
     src/data/SqliteDatabase.cpp
     src/data/SqliteBootstrapRepository.cpp
+    src/data/SqliteBootstrapDatabaseInitializer.cpp
     src/data/WorldBootstrapLoader.cpp
+    src/data/WorldBootstrapService.cpp
     src/competition/SeasonPlan.cpp
     src/roster/Team.cpp
     src/match/TeamSelectionService.cpp

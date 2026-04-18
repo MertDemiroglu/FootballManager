@@ -1,6 +1,7 @@
 #include "fm/data/SqliteBootstrapRepository.h"
 
 #include <stdexcept>
+#include <unordered_set>
 #include <unordered_map>
 #include <utility>
 
@@ -26,6 +27,7 @@ SqliteBootstrapRepository::SqliteBootstrapRepository(const std::string& database
 std::vector<LeagueSeedData> SqliteBootstrapRepository::loadLeagues() const {
     std::vector<LeagueSeedData> leagues;
     std::unordered_map<LeagueId, std::size_t> leagueIndexById;
+    std::unordered_set<LeagueId> leagueIds;
 
     {
         SqliteStatement leagueStmt = database.prepare("SELECT id, name FROM leagues ORDER BY id");
@@ -41,12 +43,17 @@ std::vector<LeagueSeedData> SqliteBootstrapRepository::loadLeagues() const {
                 throw std::runtime_error("league name cannot be empty in seed data");
             }
 
+            if (!leagueIds.emplace(league.id).second) {
+                throw std::logic_error("duplicate league id in seed data: " + std::to_string(league.id));
+            }
+
             leagueIndexById.emplace(league.id, leagues.size());
             leagues.push_back(std::move(league));
         }
     }
 
     std::unordered_map<TeamId, std::pair<std::size_t, std::size_t>> teamIndexById;
+    std::unordered_set<TeamId> teamIds;
 
     {
         const char* teamSql =
@@ -83,12 +90,26 @@ std::vector<LeagueSeedData> SqliteBootstrapRepository::loadLeagues() const {
             if (team.name.empty()) {
                 throw std::runtime_error("team name cannot be empty in seed data");
             }
+            if (team.coach.id == 0) {
+                throw std::runtime_error("coach id cannot be zero in seed data");
+            }
+            if (team.coach.name.empty()) {
+                throw std::runtime_error("coach name cannot be empty in seed data");
+            }
+            if (team.transferBudget < 0 || team.wageBudget < 0 || team.totalBudget < 0) {
+                throw std::runtime_error("team budgets cannot be negative in seed data");
+            }
+            if (!teamIds.emplace(team.id).second) {
+                throw std::logic_error("duplicate team id in seed data: " + std::to_string(team.id));
+            }
 
             LeagueSeedData& league = leagues.at(leagueIt->second);
             teamIndexById.emplace(team.id, std::make_pair(leagueIt->second, league.teams.size()));
             league.teams.push_back(std::move(team));
         }
     }
+
+    std::unordered_set<PlayerId> playerIds;
 
     {
         const char* playerSql =
@@ -123,6 +144,18 @@ std::vector<LeagueSeedData> SqliteBootstrapRepository::loadLeagues() const {
             }
             if (player.position.empty()) {
                 throw std::runtime_error("player position cannot be empty in seed data");
+            }
+            if (player.age <= 0) {
+                throw std::runtime_error("player age must be positive in seed data for player id: " + std::to_string(player.id));
+            }
+            if (player.wage < 0) {
+                throw std::runtime_error("player wage cannot be negative in seed data for player id: " + std::to_string(player.id));
+            }
+            if (player.contractYears <= 0) {
+                throw std::runtime_error("player contract years must be positive in seed data for player id: " + std::to_string(player.id));
+            }
+            if (!playerIds.emplace(player.id).second) {
+                throw std::logic_error("duplicate player id in seed data: " + std::to_string(player.id));
             }
 
             auto teamIt = teamIndexById.find(player.teamId);

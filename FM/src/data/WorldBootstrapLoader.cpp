@@ -9,6 +9,7 @@
 
 #include <memory>
 #include <stdexcept>
+#include <string>
 
 WorldBootstrapLoader::WorldBootstrapLoader(SqliteBootstrapRepository& repository)
     : repository(repository) {
@@ -23,14 +24,18 @@ void WorldBootstrapLoader::load(World& world, const LeagueRules& rules, const Se
         for (const TeamSeedData& teamSeed : leagueSeed.teams) {
             auto team = std::make_unique<Team>(teamSeed.id, teamSeed.name);
 
-            team->setHeadCoach(HeadCoach(teamSeed.coach.id, teamSeed.coach.name, teamSeed.coach.preferredFormation));
-
-            if (teamSeed.totalBudget != 0) {
-                team->earn(teamSeed.totalBudget);
-                team->setBudgets();
+            if (teamSeed.leagueId != leagueSeed.id) {
+                throw std::logic_error("team seed league id mismatch for team id: " + std::to_string(teamSeed.id));
             }
 
+            team->setHeadCoach(HeadCoach(teamSeed.coach.id, teamSeed.coach.name, teamSeed.coach.preferredFormation));
+            team->setBudgetSnapshot(teamSeed.totalBudget, teamSeed.transferBudget, teamSeed.wageBudget);
+
             for (const PlayerSeedData& playerSeed : teamSeed.players) {
+                if (playerSeed.teamId != teamSeed.id) {
+                    throw std::logic_error("player team id mismatch for player id: " + std::to_string(playerSeed.id));
+                }
+
                 auto player = FootballerFactory::create(
                     playerSeed.name,
                     playerSeed.age,

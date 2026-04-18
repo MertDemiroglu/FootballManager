@@ -70,6 +70,18 @@ sqlite3* SqliteDatabase::handle() const {
     return db;
 }
 
+void SqliteDatabase::execute(const std::string& sql) const {
+    char* errorMessage = nullptr;
+    const int rc = sqlite3_exec(handle(), sql.c_str(), nullptr, nullptr, &errorMessage);
+    if (rc != SQLITE_OK) {
+        const std::string sqliteMessage = errorMessage ? errorMessage : "unknown sqlite error";
+        if (errorMessage != nullptr) {
+            sqlite3_free(errorMessage);
+        }
+        throw std::runtime_error("failed to execute SQL script: " + sqliteMessage);
+    }
+}
+
 SqliteStatement SqliteDatabase::prepare(const std::string& sql) const {
     sqlite3_stmt* stmt = nullptr;
     const int rc = sqlite3_prepare_v2(handle(), sql.c_str(), -1, &stmt, nullptr);

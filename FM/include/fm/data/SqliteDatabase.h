@@ -26,6 +26,7 @@ public:
     void open(const std::string& dbPath);
     bool isOpen() const;
     sqlite3* handle() const;
+    void execute(const std::string& sql) const;
 
     SqliteStatement prepare(const std::string& sql) const;
 };

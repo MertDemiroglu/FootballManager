@@ -62,6 +62,10 @@ public:
 	void earn(Money amount);
 	//Takimdan para azaltir
 	void spend(Money amount);
+	void setBudgetSnapshot(Money totalBudget, Money transferBudget, Money wageBudget);
+	Money getTotalBudget() const;
+	Money getTransferBudget() const;
+	Money getWageBudget() const;
 
 	//Butceyi belirler
 	void setBudgets();

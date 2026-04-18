@@ -1,8 +1,8 @@
 #include "fm/competition/LeagueRules.h"
 #include "fm/competition/SeasonPlan.h"
 #include "fm/core/World.h"
-#include "fm/data/SqliteBootstrapRepository.h"
-#include "fm/data/WorldBootstrapLoader.h"
+#include "fm/data/SqliteBootstrapDatabaseInitializer.h"
+#include "fm/data/WorldBootstrapService.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -10,20 +10,28 @@
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cerr << "usage: fm_sqlite_bootstrap_smoke <sqlite_db_path>\n";
+        std::cerr << "usage: fm_sqlite_bootstrap_smoke <sqlite_db_path> [--init <schema.sql> [seed.sql]]\n";
         return EXIT_FAILURE;
     }
 
     try {
         const std::string dbPath = argv[1];
-        SqliteBootstrapRepository repository(dbPath);
-        WorldBootstrapLoader loader(repository);
-
-        World world;
         const LeagueRules rules = LeagueRules::makeSuperLig();
         const SeasonPlan seasonPlan = SeasonPlan::build(2025, rules);
+        World world = [&]() {
+            if (argc >= 4 && std::string(argv[2]) == "--init") {
+                const std::string schemaPath = argv[3];
+                if (argc >= 5) {
+                    const std::string seedPath = argv[4];
+                    return WorldBootstrapService::createWorldFromSqliteWithInitialization(dbPath, schemaPath, seedPath, rules, seasonPlan);
+                }
 
-        loader.load(world, rules, seasonPlan);
+                SqliteBootstrapDatabaseInitializer::initialize(dbPath, schemaPath);
+                return WorldBootstrapService::createWorldFromSqlite(dbPath, rules, seasonPlan);
+            }
+
+            return WorldBootstrapService::createWorldFromSqlite(dbPath, rules, seasonPlan);
+        }();
 
         std::size_t leagueCount = 0;
         std::size_t teamCount = 0;
