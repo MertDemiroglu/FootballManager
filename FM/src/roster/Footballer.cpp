@@ -4,11 +4,23 @@
 #include <stdexcept>
 
 namespace {
-    PlayerId generatePlayerId() {
+    std::atomic<PlayerId>& getNextPlayerIdCounter() {
         static std::atomic<PlayerId> nextId{ 1 };
-        return nextId++;
+        return nextId;
     }
 
+    PlayerId generatePlayerId() {
+        return getNextPlayerIdCounter().fetch_add(1);
+    }
+
+    void reservePlayerId(PlayerId id) {
+        auto& nextId = getNextPlayerIdCounter();
+        PlayerId desiredNextId = id + 1;
+        PlayerId currentNextId = nextId.load();
+
+        while (currentNextId < desiredNextId && !nextId.compare_exchange_weak(currentNextId, desiredNextId)) {
+        }
+    }
 }
 Footballer::Footballer(const std::string& name, PlayerPosition position, const std::string& team, int age)
     : playerId(generatePlayerId()), name(name), position(position), teamId(0), age(age), conditionState() {
@@ -57,6 +69,20 @@ void Footballer::setTeam(TeamId newTeamId) {
     if (contract) {
         contract->setTeamId(newTeamId);
     }
+}
+
+void Footballer::setIdForBootstrap(PlayerId newPlayerId) {
+    if (newPlayerId == 0) {
+        throw std::invalid_argument("player id cannot be zero");
+    }
+
+    if (contract) {
+        throw std::logic_error("cannot change player id after contract is signed");
+    }
+
+    playerId = newPlayerId;
+    currentSeasonStats.playerId = newPlayerId;
+    reservePlayerId(newPlayerId);
 }
 
 //contract fonksiyonlari

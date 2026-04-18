@@ -16,6 +16,7 @@
 #include<unordered_map>
 #include<cassert>
 #include<stdexcept>
+#include<utility>
 
 namespace {
     TeamId generateTeamId() {
@@ -50,6 +51,10 @@ const HeadCoach& Team::getHeadCoach() const {
 
 HeadCoach& Team::getHeadCoach() {
     return headCoach;
+}
+
+void Team::setHeadCoach(HeadCoach newHeadCoach) {
+    headCoach = std::move(newHeadCoach);
 }
 
 size_t Team::playerCount() const {

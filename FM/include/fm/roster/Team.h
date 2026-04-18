@@ -73,6 +73,7 @@ public:
 
 	const HeadCoach& getHeadCoach() const;
 	HeadCoach& getHeadCoach();
+	void setHeadCoach(HeadCoach newHeadCoach);
 
 	//Kontrati biten oyunculari bir vektore koyup verir
 	std::vector<std::unique_ptr<Footballer>>collectExpiredContracts();
