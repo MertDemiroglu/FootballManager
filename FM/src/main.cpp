@@ -16,7 +16,7 @@
 #include"LeagueContext.h"
 #include"fm/competition/MatchScheduler.h"
 #include"fm/competition/SeasonPlan.h"
-#include"MatchPlayedEvent.h"
+#include"fm/events/MatchPlayedEvent.h"
 
 namespace {
 

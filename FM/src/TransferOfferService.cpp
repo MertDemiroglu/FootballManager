@@ -2,14 +2,14 @@
 #include<algorithm>
 
 #include"fm/common/DateUtils.h"
-#include"DomainEventPublisher.h"
+#include"fm/events/DomainEventPublisher.h"
 #include"fm/competition/League.h"
 #include"LeagueContext.h"
 #include"fm/competition/LeagueRules.h"
-#include"PlayerTransferredEvent.h"
+#include"fm/events/PlayerTransferredEvent.h"
 #include"fm/roster/Team.h"
-#include"TransferOfferCreatedEvent.h"
-#include"TransferOfferResolvedEvent.h"
+#include"fm/events/TransferOfferCreatedEvent.h"
+#include"fm/events/TransferOfferResolvedEvent.h"
 #include"TransferRoom.h"
 #include"World.h"
 

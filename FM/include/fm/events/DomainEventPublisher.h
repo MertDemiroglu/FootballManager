@@ -3,10 +3,10 @@
 #include<functional>
 #include<vector>
 
-#include"MatchPlayedEvent.h"
-#include"PlayerTransferredEvent.h"
-#include"TransferOfferCreatedEvent.h"
-#include"TransferOfferResolvedEvent.h"
+#include"fm/events/MatchPlayedEvent.h"
+#include"fm/events/PlayerTransferredEvent.h"
+#include"fm/events/TransferOfferCreatedEvent.h"
+#include"fm/events/TransferOfferResolvedEvent.h"
 
 class DomainEventPublisher {
 public:

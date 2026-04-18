@@ -2,7 +2,7 @@
 
 #include<stdexcept>
 
-#include"DomainEventPublisher.h"
+#include"fm/events/DomainEventPublisher.h"
 #include"fm/roster/Team.h"
 
 World::World() : leagueContexts(), primaryLeagueId(std::nullopt), domainEventPublisher(), transferRoom(*this), transferOfferService(*this) {

@@ -8,7 +8,7 @@ add_library(fm_core STATIC
     src/Date.cpp
     src/DateUtils.cpp
     src/roster/Defender.cpp
-    src/DomainEventPublisher.cpp
+    src/events/DomainEventPublisher.cpp
     src/EventQueue.cpp
     src/roster/Formation.cpp
     src/competition/FixtureGenerator.cpp
