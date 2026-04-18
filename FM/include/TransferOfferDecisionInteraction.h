@@ -1,7 +1,7 @@
 #pragma once
 
-#include "GameInteraction.h"
-#include "Types.h"
+#include"GameInteraction.h"
+#include"fm/common/Types.h"
 
 class TransferOfferDecisionInteraction : public GameInteraction {
 private:

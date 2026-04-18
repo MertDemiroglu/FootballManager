@@ -6,9 +6,9 @@
 #include<vector>
 #include<string>
 
-#include"Types.h"
+#include"fm/common/Types.h"
 #include"Team.h"
-#include"Date.h"
+#include"fm/common/Date.h"
 #include"MatchReport.h"
 
 struct FixtureMatch {

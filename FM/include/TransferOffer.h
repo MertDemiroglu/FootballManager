@@ -1,7 +1,7 @@
 #pragma once
 
-#include"Types.h"
-#include"Date.h"
+#include"fm/common/Types.h"
+#include"fm/common/Date.h"
 
 enum class TransferOfferStatus {
 	Pending,

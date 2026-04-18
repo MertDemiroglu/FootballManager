@@ -3,8 +3,7 @@
 
 #include"LeagueRules.h"
 #include"SeasonPlan.h"
-#include"Types.h"
-
+#include"fm/common/Types.h"
 class League;
 
 class FixtureGenerator {

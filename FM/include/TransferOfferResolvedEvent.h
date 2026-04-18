@@ -1,7 +1,7 @@
 #pragma once
 
 #include"TransferOffer.h"
-#include"Types.h"
+#include"fm/common/Types.h"
 
 struct TransferOfferResolvedEvent {
     OfferId offerId = 0;
