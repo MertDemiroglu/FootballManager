@@ -3,9 +3,9 @@
 
 #include"fm/common/DateUtils.h"
 #include"DomainEventPublisher.h"
-#include"League.h"
+#include"fm/competition/League.h"
 #include"LeagueContext.h"
-#include"LeagueRules.h"
+#include"fm/competition/LeagueRules.h"
 #include"PlayerTransferredEvent.h"
 #include"fm/roster/Team.h"
 #include"TransferOfferCreatedEvent.h"

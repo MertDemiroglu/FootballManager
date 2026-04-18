@@ -1,4 +1,4 @@
-    #include"FixtureGenerator.h"
+#include"fm/competition/FixtureGenerator.h"
 
 #include<algorithm>
 #include<stdexcept>
@@ -7,7 +7,8 @@
 #include<vector>
 
 #include"fm/common/DateUtils.h"
-#include"League.h"
+
+#include"fm/competition/League.h"
 
 void FixtureGenerator::generateSeasonFixture(League& league, const SeasonPlan& plan, const LeagueRules& rules, const std::function<MatchId()>& matchIdAllocator) const {
     if (!matchIdAllocator) {

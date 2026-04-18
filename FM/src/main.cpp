@@ -1,22 +1,22 @@
-﻿#include <cstdlib>
-#include <iomanip>
-#include <iostream>
-#include <optional>
-#include <sstream>
-#include <stdexcept>
-#include <string>
-#include <vector>
-#include <unordered_set>
-#include <unordered_map>
+﻿#include<cstdlib>
+#include<iomanip>
+#include<iostream>
+#include<optional>
+#include<sstream>
+#include<stdexcept>
+#include<string>
+#include<vector>
+#include<unordered_set>
+#include<unordered_map>
 
-#include "fm/common/Date.h"
-#include "Game.h"
-#include "League.h"
-#include "LeagueRules.h"
-#include "LeagueContext.h"
-#include "MatchScheduler.h"
-#include "SeasonPlan.h"
-#include "MatchPlayedEvent.h"
+#include"fm/common/Date.h"
+#include"Game.h"
+#include"fm/competition/League.h"
+#include"fm/competition/LeagueRules.h"
+#include"LeagueContext.h"
+#include"fm/competition/MatchScheduler.h"
+#include"fm/competition/SeasonPlan.h"
+#include"MatchPlayedEvent.h"
 
 namespace {
 

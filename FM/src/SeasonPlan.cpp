@@ -1,6 +1,9 @@
-#include"SeasonPlan.h"
+#include"fm/competition/SeasonPlan.h"
+#include"fm/competition/League.h"
+
 #include"fm/common/DateUtils.h"
-#include"League.h"
+
+
 
 SeasonPlan SeasonPlan::build(int targetSeasonYear, const LeagueRules& rules) {
     SeasonPlan plan;

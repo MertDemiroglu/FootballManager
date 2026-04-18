@@ -1,5 +1,4 @@
-#include "LeagueRules.h"
-
+#include"fm/competition/LeagueRules.h"
 namespace {
     bool dateLess(const Date& lhs, const Date& rhs) {
         return lhs < rhs;

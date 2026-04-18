@@ -1,6 +1,6 @@
-#include "DashboardTeamStatsObject.h"
+#include"DashboardTeamStatsObject.h"
 
-#include "League.h"
+#include"fm/competition/League.h"
 
 DashboardTeamStatsObject::DashboardTeamStatsObject(QObject* parent)
     : QObject(parent) {

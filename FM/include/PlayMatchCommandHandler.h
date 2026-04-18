@@ -1,7 +1,7 @@
 #pragma once
 
 #include"DomainEventPublisher.h"
-#include"League.h"
+#include"fm/competition/League.h"
 #include"PlayMatchCommand.h"
 #include "TeamSheet.h"
 

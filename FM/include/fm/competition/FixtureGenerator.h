@@ -1,8 +1,8 @@
 #pragma once
 #include<functional>
 
-#include"LeagueRules.h"
-#include"SeasonPlan.h"
+#include"fm/competition/LeagueRules.h"
+#include"fm/competition/SeasonPlan.h"
 #include"fm/common/Types.h"
 class League;
 

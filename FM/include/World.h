@@ -5,10 +5,10 @@
 #include<unordered_map>
 
 #include"DomainEventPublisher.h"
-#include"League.h"
+#include"fm/competition/League.h"
 #include"LeagueContext.h"
-#include"LeagueRules.h"
-#include"SeasonPlan.h"
+#include"fm/competition/LeagueRules.h"
+#include"fm/competition/SeasonPlan.h"
 #include"TransferOfferService.h"
 #include"TransferRoom.h"
 #include"fm/common/Types.h"

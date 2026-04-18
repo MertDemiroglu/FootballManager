@@ -1,7 +1,7 @@
-#include"MatchScheduler.h"
+#include"fm/competition/MatchScheduler.h"
 #include"EventQueue.h"
 #include"World.h"
-#include"League.h"
+#include"fm/competition/League.h"
 #include"PlayMatchCommand.h"
 
 #include <stdexcept>

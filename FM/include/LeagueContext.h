@@ -1,10 +1,10 @@
 #pragma once
 
-#include "DomainEventPublisher.h"
-#include "League.h"
-#include "LeagueRules.h"
-#include "PlayMatchCommandHandler.h"
-#include "SeasonPlan.h"
+#include"DomainEventPublisher.h"
+#include"fm/competition/League.h"
+#include"fm/competition/LeagueRules.h"
+#include"PlayMatchCommandHandler.h"
+#include"fm/competition/SeasonPlan.h"
 
 class LeagueContext {
 private:
