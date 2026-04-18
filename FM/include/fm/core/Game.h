@@ -27,6 +27,19 @@ class Team;
 
 struct TransferOffer;
 
+enum class GameBootstrapMode {
+	LegacyTxt,
+	Sqlite
+};
+
+struct GameBootstrapOptions {
+	GameBootstrapMode mode = GameBootstrapMode::LegacyTxt;
+	std::string legacyRosterPath = "database.txt";
+	std::string sqliteDbPath;
+	std::optional<std::string> sqliteSchemaPath;
+	std::optional<std::string> sqliteSeedPath;
+};
+
 class Game {
 private:
 	Date date;
@@ -59,6 +72,7 @@ private:
 public:
 	//Game constructor
 	Game();
+	explicit Game(const GameBootstrapOptions& bootstrapOptions);
 	~Game();
 
 	//Gun ilerletir ve event kontrol eder

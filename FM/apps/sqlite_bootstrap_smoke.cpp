@@ -18,20 +18,22 @@ int main(int argc, char** argv) {
         const std::string dbPath = argv[1];
         const LeagueRules rules = LeagueRules::makeSuperLig();
         const SeasonPlan seasonPlan = SeasonPlan::build(2025, rules);
-        World world = [&]() {
-            if (argc >= 4 && std::string(argv[2]) == "--init") {
-                const std::string schemaPath = argv[3];
-                if (argc >= 5) {
-                    const std::string seedPath = argv[4];
-                    return WorldBootstrapService::createWorldFromSqliteWithInitialization(dbPath, schemaPath, seedPath, rules, seasonPlan);
-                }
+        World world;
 
-                SqliteBootstrapDatabaseInitializer::initialize(dbPath, schemaPath);
-                return WorldBootstrapService::createWorldFromSqlite(dbPath, rules, seasonPlan);
+        if (argc >= 4 && std::string(argv[2]) == "--init") {
+            const std::string schemaPath = argv[3];
+            if (argc >= 5) {
+                const std::string seedPath = argv[4];
+                WorldBootstrapService::initializeAndLoadIntoWorldFromSqlite(world, dbPath, schemaPath, seedPath, rules, seasonPlan);
             }
-
-            return WorldBootstrapService::createWorldFromSqlite(dbPath, rules, seasonPlan);
-        }();
+            else {
+                SqliteBootstrapDatabaseInitializer::initialize(dbPath, schemaPath);
+                WorldBootstrapService::loadIntoWorldFromSqlite(world, dbPath, rules, seasonPlan);
+            }
+        }
+        else {
+            WorldBootstrapService::loadIntoWorldFromSqlite(world, dbPath, rules, seasonPlan);
+        }
 
         std::size_t leagueCount = 0;
         std::size_t teamCount = 0;

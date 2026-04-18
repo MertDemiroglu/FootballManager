@@ -9,9 +9,10 @@ class World;
 
 class WorldBootstrapService {
 public:
-    static World createWorldFromSqlite(const std::string& dbPath, const LeagueRules& rules, const SeasonPlan& seasonPlan);
+    static void loadIntoWorldFromSqlite(World& world, const std::string& dbPath, const LeagueRules& rules, const SeasonPlan& seasonPlan);
 
-    static World createWorldFromSqliteWithInitialization(
+    static void initializeAndLoadIntoWorldFromSqlite(
+        World& world,
         const std::string& dbPath,
         const std::string& schemaSqlPath,
         const std::string& seedSqlPath,
