@@ -10,9 +10,9 @@
 #include"fm/interaction/TransferOfferDecisionInteraction.h"
 #include"fm/interaction/PreMatchInteraction.h"
 #include"fm/transfer/TransferOffer.h"
-#include"TeamSelectionService.h"
-#include"TeamSheet.h"
-#include"PlayerConditionService.h"
+#include"fm/match/TeamSelectionService.h"
+#include"fm/match/TeamSheet.h"
+#include"fm/match/PlayerConditionService.h"
 
 #include<stdexcept>
 #include<utility>

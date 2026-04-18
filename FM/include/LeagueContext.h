@@ -3,7 +3,7 @@
 #include"fm/events/DomainEventPublisher.h"
 #include"fm/competition/League.h"
 #include"fm/competition/LeagueRules.h"
-#include"PlayMatchCommandHandler.h"
+#include"fm/match/PlayMatchCommandHandler.h"
 #include"fm/competition/SeasonPlan.h"
 
 class LeagueContext {

@@ -9,7 +9,7 @@ add_library(fm_core STATIC
     src/DateUtils.cpp
     src/roster/Defender.cpp
     src/events/DomainEventPublisher.cpp
-    src/EventQueue.cpp
+    src/match/EventQueue.cpp
     src/roster/Formation.cpp
     src/competition/FixtureGenerator.cpp
     src/roster/Footballer.cpp
@@ -24,12 +24,12 @@ add_library(fm_core STATIC
     src/LeagueContext.cpp
     src/competition/LeagueRules.cpp
     src/competition/MatchScheduler.cpp
-    src/MatchSimulation.cpp
-    src/PlayerConditionState.cpp
-    src/PlayerConditionService.cpp
+    src/match/MatchSimulation.cpp
+    src/match/PlayerConditionState.cpp
+    src/match/PlayerConditionService.cpp
     src/interaction/PreMatchInteraction.cpp
     src/interaction/PostMatchInteraction.cpp
-    src/PlayMatchCommandHandler.cpp
+    src/match/PlayMatchCommandHandler.cpp
     src/roster/PlayerRoleFit.cpp
     src/roster/PlayerPosition.cpp
     src/roster/PlayerPositionBucket.cpp
@@ -37,8 +37,8 @@ add_library(fm_core STATIC
     src/RosterLoader.cpp
     src/competition/SeasonPlan.cpp
     src/roster/Team.cpp
-    src/TeamSelectionService.cpp
-    src/TeamSheet.cpp
+    src/match/TeamSelectionService.cpp
+    src/match/TeamSheet.cpp
     src/interaction/TransferOfferDecisionInteraction.cpp
     src/transfer/TransferOfferService.cpp
     src/transfer/TransferRoom.cpp

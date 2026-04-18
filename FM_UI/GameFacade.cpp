@@ -16,7 +16,7 @@
 
 #include"LeagueContext.h"
 #include"MatchReport.h"
-#include"TeamSheet.h"
+#include"fm/match/TeamSheet.h"
 #include"StandingsTableModel.h"
 #include"TeamPlayersModel.h"
 #include"TeamRecentMatchesModel.h"

@@ -6,7 +6,7 @@
 
 #include"fm/roster/Contract.h"
 #include"fm/roster/PlayerPosition.h"
-#include"PlayerConditionState.h"
+#include"fm/match/PlayerConditionState.h"
 
 struct PlayerSeasonStats {
 	PlayerId playerId = 0;

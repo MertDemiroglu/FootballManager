@@ -10,10 +10,10 @@
 
 #include"fm/common/Date.h"
 #include"fm/interaction/InteractionManager.h"
-#include"EventQueue.h"
+#include"fm/match/EventQueue.h"
 #include"User.h"
 #include"World.h"
-#include"TeamSheet.h"
+#include"fm/match/TeamSheet.h"
 
 enum class GameState {
 	PreSeason, InSeason, PostSeason
