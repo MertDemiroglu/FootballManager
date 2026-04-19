@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(fm_core LANGUAGES CXX)
-
-find_package(SQLite3 REQUIRED)
+project(fm_core LANGUAGES C CXX)
 
 add_library(fm_core STATIC
     src/core/Game.cpp
@@ -60,9 +58,27 @@ add_executable(fm_sqlite_bootstrap_smoke
     apps/sqlite_bootstrap_smoke.cpp
 )
 
+add_library(sqlite3 STATIC
+    third_party/sqlite/sqlite3.c
+)
+
+target_include_directories(sqlite3 PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sqlite
+)
+
+target_compile_definitions(sqlite3 PRIVATE
+    SQLITE_THREADSAFE=1
+    SQLITE_OMIT_LOAD_EXTENSION
+)
+
+if(MSVC)
+    target_compile_definitions(sqlite3 PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
+
+target_link_libraries(fm_core PUBLIC sqlite3)
+
 target_link_libraries(fm_runner PRIVATE fm_core)
 target_link_libraries(fm_sqlite_bootstrap_smoke PRIVATE fm_core)
-target_link_libraries(fm_core PUBLIC SQLite::SQLite3)
 
 target_compile_features(fm_core PUBLIC cxx_std_17)
 target_compile_features(fm_runner PRIVATE cxx_std_17)
