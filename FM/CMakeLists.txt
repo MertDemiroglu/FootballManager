@@ -67,6 +67,7 @@ target_link_libraries(fm_core PUBLIC SQLite::SQLite3)
 target_compile_features(fm_core PUBLIC cxx_std_17)
 target_compile_features(fm_runner PRIVATE cxx_std_17)
 target_compile_features(fm_sqlite_bootstrap_smoke PRIVATE cxx_std_17)
+target_compile_definitions(fm_core PRIVATE FM_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
 target_include_directories(fm_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include

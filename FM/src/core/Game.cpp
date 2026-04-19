@@ -4,7 +4,6 @@
 
 #include"fm/competition/League.h"
 
-#include"fm/data/RosterLoader.h"
 #include"fm/data/WorldBootstrapService.h"
 #include"fm/interaction/PostMatchInteraction.h"
 
@@ -19,6 +18,21 @@
 #include<utility>
 
 namespace {
+    GameBootstrapOptions buildDefaultGameBootstrapOptions() {
+        GameBootstrapOptions options;
+#ifdef FM_SOURCE_DIR
+        options.sqliteDbPath = std::string(FM_SOURCE_DIR) + "/database/superlig_dev.db";
+        options.sqliteSchemaPath = std::string(FM_SOURCE_DIR) + "/database/schema.sql";
+        options.sqliteSeedPath = std::string(FM_SOURCE_DIR) + "/database/seed.sql";
+#else
+        options.sqliteDbPath = "FM/database/superlig_dev.db";
+        options.sqliteSchemaPath = "FM/database/schema.sql";
+        options.sqliteSeedPath = "FM/database/seed.sql";
+#endif
+        options.initializeDatabaseWithSeed = true;
+        return options;
+    }
+
     LeagueRules buildDefaultBootstrapLeagueRules() {
         return LeagueRules::makeSuperLig();
     }
@@ -27,34 +41,20 @@ namespace {
         return SeasonPlan::build(2025, rules);
     }
 
-    void bootstrapWorldFromLegacyTxt(World& world, const std::string& rosterPath, const LeagueRules& rules, const SeasonPlan& seasonPlan) {
-        if (rosterPath.empty()) {
-            throw std::invalid_argument("legacy roster path cannot be empty");
-        }
-
-        League league("Super Lig");
-        RosterLoader::loadFromFile(league, rosterPath);
-        world.addLeagueContext(std::move(league), rules, seasonPlan);
-    }
-
     void bootstrapWorldFromSqlite(World& world, const GameBootstrapOptions& bootstrapOptions, const LeagueRules& rules, const SeasonPlan& seasonPlan) {
         if (bootstrapOptions.sqliteDbPath.empty()) {
-            throw std::invalid_argument("sqlite db path cannot be empty when sqlite bootstrap mode is selected");
+            throw std::invalid_argument("sqlite db path cannot be empty");
         }
 
-        if (bootstrapOptions.sqliteSchemaPath.has_value() && bootstrapOptions.sqliteSeedPath.has_value()) {
+        if (bootstrapOptions.initializeDatabaseWithSeed) {
             WorldBootstrapService::initializeAndLoadIntoWorldFromSqlite(
                 world,
                 bootstrapOptions.sqliteDbPath,
-                *bootstrapOptions.sqliteSchemaPath,
-                *bootstrapOptions.sqliteSeedPath,
+                bootstrapOptions.sqliteSchemaPath,
+                bootstrapOptions.sqliteSeedPath,
                 rules,
                 seasonPlan);
             return;
-        }
-
-        if (bootstrapOptions.sqliteSchemaPath.has_value() || bootstrapOptions.sqliteSeedPath.has_value()) {
-            throw std::invalid_argument("sqlite bootstrap initialization requires both schema and seed paths");
         }
 
         WorldBootstrapService::loadIntoWorldFromSqlite(world, bootstrapOptions.sqliteDbPath, rules, seasonPlan);
@@ -63,7 +63,7 @@ namespace {
 
 Game::~Game() = default;
 
-Game::Game() : Game(GameBootstrapOptions{}) {}
+Game::Game() : Game(buildDefaultGameBootstrapOptions()) {}
 
 Game::Game(const GameBootstrapOptions& bootstrapOptions)
     : date(2025, Month::July, 1),
@@ -84,9 +84,6 @@ Game::Game(const GameBootstrapOptions& bootstrapOptions)
     const SeasonPlan seasonPlan = buildDefaultBootstrapSeasonPlan(rules);
 
     switch (bootstrapOptions.mode) {
-    case GameBootstrapMode::LegacyTxt:
-        bootstrapWorldFromLegacyTxt(world, bootstrapOptions.legacyRosterPath, rules, seasonPlan);
-        break;
     case GameBootstrapMode::Sqlite:
         bootstrapWorldFromSqlite(world, bootstrapOptions, rules, seasonPlan);
         break;

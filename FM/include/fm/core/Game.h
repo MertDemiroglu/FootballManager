@@ -28,16 +28,15 @@ class Team;
 struct TransferOffer;
 
 enum class GameBootstrapMode {
-	LegacyTxt,
 	Sqlite
 };
 
 struct GameBootstrapOptions {
-	GameBootstrapMode mode = GameBootstrapMode::LegacyTxt;
-	std::string legacyRosterPath = "database.txt";
+	GameBootstrapMode mode = GameBootstrapMode::Sqlite;
 	std::string sqliteDbPath;
-	std::optional<std::string> sqliteSchemaPath;
-	std::optional<std::string> sqliteSeedPath;
+	std::string sqliteSchemaPath;
+	std::string sqliteSeedPath;
+	bool initializeDatabaseWithSeed = true;
 };
 
 class Game {
