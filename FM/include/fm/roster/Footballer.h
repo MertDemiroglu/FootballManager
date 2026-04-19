@@ -72,6 +72,7 @@ public:
 	
 	//Takim bilgisini set eder
 	void setTeam(TeamId newTeamId);
+	void setIdForBootstrap(PlayerId newPlayerId);
 	
 	//Kontrat imzalama
 	void signContract(Money wage, int years);

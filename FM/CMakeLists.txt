@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 
 project(fm_core LANGUAGES CXX)
 
+find_package(SQLite3 REQUIRED)
+
 add_library(fm_core STATIC
     src/core/Game.cpp
     src/roster/Contract.cpp
@@ -35,6 +37,11 @@ add_library(fm_core STATIC
     src/roster/PlayerPositionBucket.cpp
     src/roster/Midfielder.cpp
     src/data/RosterLoader.cpp
+    src/data/SqliteDatabase.cpp
+    src/data/SqliteBootstrapRepository.cpp
+    src/data/SqliteBootstrapDatabaseInitializer.cpp
+    src/data/WorldBootstrapLoader.cpp
+    src/data/WorldBootstrapService.cpp
     src/competition/SeasonPlan.cpp
     src/roster/Team.cpp
     src/match/TeamSelectionService.cpp
@@ -49,10 +56,18 @@ add_executable(fm_runner
     apps/fm_runner/main.cpp
 )
 
+add_executable(fm_sqlite_bootstrap_smoke
+    apps/sqlite_bootstrap_smoke.cpp
+)
+
 target_link_libraries(fm_runner PRIVATE fm_core)
+target_link_libraries(fm_sqlite_bootstrap_smoke PRIVATE fm_core)
+target_link_libraries(fm_core PUBLIC SQLite::SQLite3)
 
 target_compile_features(fm_core PUBLIC cxx_std_17)
 target_compile_features(fm_runner PRIVATE cxx_std_17)
+target_compile_features(fm_sqlite_bootstrap_smoke PRIVATE cxx_std_17)
+target_compile_definitions(fm_core PRIVATE FM_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
 target_include_directories(fm_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include

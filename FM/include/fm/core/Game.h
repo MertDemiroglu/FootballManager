@@ -27,6 +27,18 @@ class Team;
 
 struct TransferOffer;
 
+enum class GameBootstrapMode {
+	Sqlite
+};
+
+struct GameBootstrapOptions {
+	GameBootstrapMode mode = GameBootstrapMode::Sqlite;
+	std::string sqliteDbPath;
+	std::string sqliteSchemaPath;
+	std::string sqliteSeedPath;
+	bool initializeDatabaseWithSeed = true;
+};
+
 class Game {
 private:
 	Date date;
@@ -59,6 +71,7 @@ private:
 public:
 	//Game constructor
 	Game();
+	explicit Game(const GameBootstrapOptions& bootstrapOptions);
 	~Game();
 
 	//Gun ilerletir ve event kontrol eder

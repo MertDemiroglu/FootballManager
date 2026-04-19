@@ -16,11 +16,25 @@
 #include<unordered_map>
 #include<cassert>
 #include<stdexcept>
+#include<utility>
 
 namespace {
-    TeamId generateTeamId() {
+    std::atomic<TeamId>& getNextTeamIdCounter() {
         static std::atomic<TeamId> nextId{ 1 };
-        return nextId++;
+        return nextId;
+    }
+
+    TeamId generateTeamId() {
+        return getNextTeamIdCounter().fetch_add(1);
+    }
+
+    void reserveTeamId(TeamId id) {
+        auto& nextId = getNextTeamIdCounter();
+        TeamId desiredNextId = id + 1;
+        TeamId currentNextId = nextId.load();
+
+        while (currentNextId < desiredNextId && !nextId.compare_exchange_weak(currentNextId, desiredNextId)) {
+        }
     }
 
     std::string buildDefaultHeadCoachName(const std::string& teamName) {
@@ -35,7 +49,15 @@ Team::Team(TeamId id, const std::string& name)
       transferBudget(0),
       totalBudget(0),
       name(name),
-      headCoach(buildDefaultHeadCoachName(name), FormationId::FourFourTwo) {}
+      headCoach(buildDefaultHeadCoachName(name), FormationId::FourFourTwo) {
+    if (id == 0) {
+        throw std::invalid_argument("team id cannot be zero");
+    }
+    if (name.empty()) {
+        throw std::invalid_argument("team name cannot be empty");
+    }
+    reserveTeamId(id);
+}
 
 TeamId Team::getId() const {
     return id;
@@ -50,6 +72,10 @@ const HeadCoach& Team::getHeadCoach() const {
 
 HeadCoach& Team::getHeadCoach() {
     return headCoach;
+}
+
+void Team::setHeadCoach(HeadCoach newHeadCoach) {
+    headCoach = std::move(newHeadCoach);
 }
 
 size_t Team::playerCount() const {
@@ -162,6 +188,28 @@ void Team::earn(Money amount) {
 
 void Team::spend(Money amount) {
     totalBudget -= amount;
+}
+
+void Team::setBudgetSnapshot(Money totalBudgetValue, Money transferBudgetValue, Money wageBudgetValue) {
+    if (totalBudgetValue < 0 || transferBudgetValue < 0 || wageBudgetValue < 0) {
+        throw std::invalid_argument("team budgets cannot be negative");
+    }
+
+    totalBudget = totalBudgetValue;
+    transferBudget = transferBudgetValue;
+    wageBudget = wageBudgetValue;
+}
+
+Money Team::getTotalBudget() const {
+    return totalBudget;
+}
+
+Money Team::getTransferBudget() const {
+    return transferBudget;
+}
+
+Money Team::getWageBudget() const {
+    return wageBudget;
 }
 
 void Team::setBudgets() {

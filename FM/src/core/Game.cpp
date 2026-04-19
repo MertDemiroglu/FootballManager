@@ -4,7 +4,7 @@
 
 #include"fm/competition/League.h"
 
-#include"fm/data/RosterLoader.h"
+#include"fm/data/WorldBootstrapService.h"
 #include"fm/interaction/PostMatchInteraction.h"
 
 #include"fm/interaction/TransferOfferDecisionInteraction.h"
@@ -17,9 +17,55 @@
 #include<stdexcept>
 #include<utility>
 
+namespace {
+    GameBootstrapOptions buildDefaultGameBootstrapOptions() {
+        GameBootstrapOptions options;
+#ifdef FM_SOURCE_DIR
+        options.sqliteDbPath = std::string(FM_SOURCE_DIR) + "/database/superlig_dev.db";
+        options.sqliteSchemaPath = std::string(FM_SOURCE_DIR) + "/database/schema.sql";
+        options.sqliteSeedPath = std::string(FM_SOURCE_DIR) + "/database/seed.sql";
+#else
+        options.sqliteDbPath = "FM/database/superlig_dev.db";
+        options.sqliteSchemaPath = "FM/database/schema.sql";
+        options.sqliteSeedPath = "FM/database/seed.sql";
+#endif
+        options.initializeDatabaseWithSeed = true;
+        return options;
+    }
+
+    LeagueRules buildDefaultBootstrapLeagueRules() {
+        return LeagueRules::makeSuperLig();
+    }
+
+    SeasonPlan buildDefaultBootstrapSeasonPlan(const LeagueRules& rules) {
+        return SeasonPlan::build(2025, rules);
+    }
+
+    void bootstrapWorldFromSqlite(World& world, const GameBootstrapOptions& bootstrapOptions, const LeagueRules& rules, const SeasonPlan& seasonPlan) {
+        if (bootstrapOptions.sqliteDbPath.empty()) {
+            throw std::invalid_argument("sqlite db path cannot be empty");
+        }
+
+        if (bootstrapOptions.initializeDatabaseWithSeed) {
+            WorldBootstrapService::initializeAndLoadIntoWorldFromSqlite(
+                world,
+                bootstrapOptions.sqliteDbPath,
+                bootstrapOptions.sqliteSchemaPath,
+                bootstrapOptions.sqliteSeedPath,
+                rules,
+                seasonPlan);
+            return;
+        }
+
+        WorldBootstrapService::loadIntoWorldFromSqlite(world, bootstrapOptions.sqliteDbPath, rules, seasonPlan);
+    }
+}
+
 Game::~Game() = default;
 
-Game::Game()
+Game::Game() : Game(buildDefaultGameBootstrapOptions()) {}
+
+Game::Game(const GameBootstrapOptions& bootstrapOptions)
     : date(2025, Month::July, 1),
     world(),
     state(GameState::PreSeason),
@@ -34,16 +80,16 @@ Game::Game()
     pendingPreMatchCommand(std::nullopt),
     pendingPreMatchHomeSheet(std::nullopt),
     pendingPreMatchAwaySheet(std::nullopt) {
-    League league("Super Lig");
-    LeagueRules rules = LeagueRules::makeSuperLig();
-    SeasonPlan seasonPlan = SeasonPlan::build(2025, rules);
+    const LeagueRules rules = buildDefaultBootstrapLeagueRules();
+    const SeasonPlan seasonPlan = buildDefaultBootstrapSeasonPlan(rules);
 
-
-    //takimlari txt dosyasindan okudugumuz yer (gecici)
-    const std::string rosterPath = R"(C:\Users\user\Desktop\FootballManager\out\build\x64-Debug\FM_UI\FM\FM\database.txt)";
-    RosterLoader::loadFromFile(league, rosterPath);
-
-    world.addLeagueContext(std::move(league), std::move(rules), std::move(seasonPlan));
+    switch (bootstrapOptions.mode) {
+    case GameBootstrapMode::Sqlite:
+        bootstrapWorldFromSqlite(world, bootstrapOptions, rules, seasonPlan);
+        break;
+    default:
+        throw std::invalid_argument("unsupported game bootstrap mode");
+    }
 
     world.getDomainEventPublisher().subscribeMatchPlayed([this](const MatchPlayedEvent& event) {
         const LeagueId managedLeagueId = user.getManagedLeagueId();
