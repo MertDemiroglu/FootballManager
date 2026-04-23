@@ -112,22 +112,6 @@ bool isBetterAssignment(const AssignmentResult& lhs, const AssignmentResult& rhs
     return lexicographicallyBetterIds(lhs.orderedPlayerIdsByTemplate, rhs.orderedPlayerIdsByTemplate);
 }
 
-bool isBetterFormationCandidate(const FormationSelectionCandidate& lhs, const FormationSelectionCandidate& rhs) {
-    if (lhs.assignedSlotCount != rhs.assignedSlotCount) {
-        return lhs.assignedSlotCount > rhs.assignedSlotCount;
-    }
-
-    if (!isNearlyEqual(lhs.totalEffectivePower, rhs.totalEffectivePower)) {
-        return lhs.totalEffectivePower > rhs.totalEffectivePower;
-    }
-
-    if (lhs.totalFitScore != rhs.totalFitScore) {
-        return lhs.totalFitScore > rhs.totalFitScore;
-    }
-
-    return lexicographicallyBetterIds(lhs.orderedPlayerIdsByTemplate, rhs.orderedPlayerIdsByTemplate);
-}
-
 bool isGoalkeeperRole(FormationSlotRole slotRole) {
     return slotRole == FormationSlotRole::Goalkeeper;
 }
@@ -769,25 +753,6 @@ FormationRolePlan buildFormationRolePlan(const std::vector<FormationSlotRole>& t
     return rolePlan;
 }
 
-std::vector<FormationId> buildDeterministicFormationOrder(FormationId preferredFormation) {
-    std::vector<FormationId> orderedFormations;
-    orderedFormations.reserve(getSupportedFormationIds().size());
-
-    if (isFormationSupported(preferredFormation)) {
-        orderedFormations.push_back(preferredFormation);
-    }
-
-    for (FormationId formationId : getSupportedFormationIds()) {
-        if (formationId == preferredFormation) {
-            continue;
-        }
-
-        orderedFormations.push_back(formationId);
-    }
-
-    return orderedFormations;
-}
-
 AssignmentResult buildBestAssignmentForRolePlan(const FormationRolePlan& rolePlan,
                                                 std::size_t squadSize) {
     const std::size_t slotCount = rolePlan.activeSlots.size();
@@ -914,55 +879,32 @@ TeamSheet TeamSelectionService::buildTeamSheet(const Team& team) const {
     const std::size_t starterTargetCount = std::min<std::size_t>(11, naturalPositionIndex.squadSize);
 
     const FormationId preferredFormation = team.getHeadCoach().getPreferredFormation();
-    const std::vector<FormationId> formationOrder = buildDeterministicFormationOrder(preferredFormation);
+    // Team selection no longer switches formations based on score. We always
+    // build with the preferred formation unless it is unsupported.
+    const FormationId selectedFormation = isFormationSupported(preferredFormation)
+        ? preferredFormation
+        // Deterministic safety fallback for invalid/unsupported preferred
+        // formations: use the first supported formation.
+        : getSupportedFormationIds().front();
 
-    FormationSelectionCandidate bestCandidate{};
-    bool hasBestCandidate = false;
+    FormationSelectionCandidate candidate = evaluateFormationCandidate(selectedFormation,
+                                                                       naturalPositionIndex,
+                                                                       starterTargetCount,
+                                                                       naturalPositionIndex.squadSize);
 
-    for (FormationId formationId : formationOrder) {
-        FormationSelectionCandidate candidate = evaluateFormationCandidate(formationId,
-                                                                           naturalPositionIndex,
-                                                                           starterTargetCount,
-                                                                           naturalPositionIndex.squadSize);
-
-        if (candidate.fullySatisfied) {
-            std::vector<PlayerId> starterIds;
-            starterIds.reserve(candidate.orderedAssignments.size());
-            for (const TeamSheetSlotAssignment& assignment : candidate.orderedAssignments) {
-                starterIds.push_back(assignment.playerId);
-            }
-
-            TeamSheet teamSheet{ team.getId(), team.getHeadCoach().getId(), candidate.formation, candidate.orderedAssignments, starterIds };
-            validateTeamSheetForTeam(teamSheet, team);
-            return teamSheet;
-        }
-
-        if (!hasBestCandidate || isBetterFormationCandidate(candidate, bestCandidate)) {
-            bestCandidate = std::move(candidate);
-            hasBestCandidate = true;
-        }
-    }
-
-    if (!hasBestCandidate) {
-        bestCandidate.formation = isFormationSupported(preferredFormation)
-            ? preferredFormation
-            : getSupportedFormationIds().front();
-        bestCandidate.orderedPlayerIdsByTemplate.assign(std::min(starterTargetCount, getFormationSlotTemplate(bestCandidate.formation).size()), 0);
-    }
-
-    const bool hasUnusedPlayers = bestCandidate.assignedSlotCount < static_cast<int>(starterTargetCount)
-        && bestCandidate.assignedSlotCount < static_cast<int>(naturalPositionIndex.squadSize);
+    const bool hasUnusedPlayers = candidate.assignedSlotCount < static_cast<int>(starterTargetCount)
+        && candidate.assignedSlotCount < static_cast<int>(naturalPositionIndex.squadSize);
     if (hasUnusedPlayers) {
-        completeUnderfilledCandidate(bestCandidate, team, starterTargetCount);
+        completeUnderfilledCandidate(candidate, team, starterTargetCount);
     }
 
     std::vector<PlayerId> starterIds;
-    starterIds.reserve(bestCandidate.orderedAssignments.size());
-    for (const TeamSheetSlotAssignment& assignment : bestCandidate.orderedAssignments) {
+    starterIds.reserve(candidate.orderedAssignments.size());
+    for (const TeamSheetSlotAssignment& assignment : candidate.orderedAssignments) {
         starterIds.push_back(assignment.playerId);
     }
 
-    TeamSheet teamSheet{ team.getId(), team.getHeadCoach().getId(), bestCandidate.formation, bestCandidate.orderedAssignments, starterIds };
+    TeamSheet teamSheet{ team.getId(), team.getHeadCoach().getId(), candidate.formation, candidate.orderedAssignments, starterIds };
     validateTeamSheetForTeam(teamSheet, team);
     return teamSheet;
 }
