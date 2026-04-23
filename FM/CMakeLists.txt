@@ -42,6 +42,7 @@ add_library(fm_core STATIC
     src/data/WorldBootstrapService.cpp
     src/competition/SeasonPlan.cpp
     src/roster/Team.cpp
+    src/match/EditableLineup.cpp
     src/match/TeamSelectionService.cpp
     src/match/TeamSheet.cpp
     src/interaction/TransferOfferDecisionInteraction.cpp
