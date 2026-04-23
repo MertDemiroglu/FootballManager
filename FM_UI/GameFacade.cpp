@@ -1067,7 +1067,8 @@ QVariantList GameFacade::getEditableLineupSlots() const {
     for (const EditableLineupSlot& slot : lineup->getSlots()) {
         QVariantMap row;
         row.insert(QStringLiteral("slotIndex"), static_cast<int>(slot.slotIndex));
-        row.insert(QStringLiteral("slotRole"), static_cast<int>(slot.slotRole));
+        row.insert(QStringLiteral("slotRole"), formatSlotRole(slot.slotRole));
+        row.insert(QStringLiteral("slotRoleKey"), static_cast<int>(slot.slotRole));
         row.insert(QStringLiteral("slotRoleText"), formatSlotRole(slot.slotRole));
         row.insert(QStringLiteral("slotLabel"), formatSlotRole(slot.slotRole));
 
@@ -1075,6 +1076,7 @@ QVariantList GameFacade::getEditableLineupSlots() const {
             ? team->findPlayerById(slot.assignedPlayerId)
             : nullptr;
 
+        row.insert(QStringLiteral("isEmpty"), assignedPlayer == nullptr);
         row.insert(QStringLiteral("hasAssignedPlayer"), assignedPlayer != nullptr);
         row.insert(QStringLiteral("assignedPlayerId"), assignedPlayer ? static_cast<int>(assignedPlayer->getId()) : 0);
         row.insert(QStringLiteral("assignedPlayerName"), assignedPlayer ? fromStd(assignedPlayer->getName()) : QString());
@@ -1102,8 +1104,21 @@ QVariantList GameFacade::getEditableLineupRoster() const {
         return rows;
     }
 
-    rows.reserve(static_cast<qsizetype>(team->getPlayers().size()));
-    for (const auto& playerPtr : team->getPlayers()) {
+    std::vector<const Footballer*> rosterPlayers;
+    rosterPlayers.reserve(team->getPlayers().size());
+    for (const auto& player : team->getPlayers()) {
+        if (!player) {
+            continue;
+        }
+        rosterPlayers.push_back(player.get());
+    }
+
+    std::sort(rosterPlayers.begin(), rosterPlayers.end(), [](const Footballer* lhs, const Footballer* rhs) {
+        return lhs->getId() < rhs->getId();
+    });
+
+    rows.reserve(static_cast<qsizetype>(rosterPlayers.size()));
+    for (const Footballer* playerPtr : rosterPlayers) {
         if (!playerPtr) {
             continue;
         }
