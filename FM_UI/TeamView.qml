@@ -421,6 +421,26 @@ Item {
                             radius: 18
                             color: "#ffffff"
                             border.color: "#d8dee8"
+                            implicitHeight: lineupEditorContent.implicitHeight + 40
+
+                            ColumnLayout {
+                                id: lineupEditorContent
+                                anchors.fill: parent
+                                anchors.margins: 20
+                                spacing: 12
+
+                                ReadOnlyLineupEditorView {
+                                    Layout.fillWidth: true
+                                    gameFacade: gameFacade
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            width: parent.width
+                            radius: 18
+                            color: "#ffffff"
+                            border.color: "#d8dee8"
                             implicitHeight: playersContent.implicitHeight + 40
 
                             ColumnLayout {

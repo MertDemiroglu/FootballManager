@@ -67,6 +67,7 @@ qt_add_qml_module(FM_UI
         LineupSlotRow.qml
         TeamLineupCard.qml
         MatchLineupSection.qml
+        ReadOnlyLineupEditorView.qml
         TransferOfferDialog.qml
 )
 
