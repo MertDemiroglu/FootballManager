@@ -10,9 +10,12 @@
 #include"fm/interaction/PreMatchInteraction.h"
 #include"fm/interaction/TransferOfferDecisionInteraction.h"
 #include"fm/match/TeamSheet.h"
+#include"fm/match/EditableLineup.h"
+#include"fm/match/TeamSelectionService.h"
 #include"fm/match/MatchReport.h"
 #include"fm/competition/League.h"
 #include"fm/transfer/TransferOffer.h"
+#include"fm/roster/PlayerPosition.h"
 
 #include"StandingsTableModel.h"
 #include"TeamPlayersModel.h"
@@ -1024,6 +1027,108 @@ QVariantList GameFacade::getCurrentTeamPlayers() const {
     return players;
 }
 
+QVariantMap GameFacade::getEditableLineupSummary() const {
+    QVariantMap summary;
+    summary.insert(QStringLiteral("hasLineup"), false);
+
+    const EditableLineup* lineup = resolveEditableLineup();
+    if (!lineup) {
+        return summary;
+    }
+
+    int assignedCount = 0;
+    for (const EditableLineupSlot& slot : lineup->getSlots()) {
+        if (slot.assignedPlayerId != 0) {
+            ++assignedCount;
+        }
+    }
+
+    summary.insert(QStringLiteral("hasLineup"), true);
+    summary.insert(QStringLiteral("teamId"), static_cast<int>(lineup->getTeamId()));
+    summary.insert(QStringLiteral("formation"), static_cast<int>(lineup->getFormationId()));
+    summary.insert(QStringLiteral("formationText"), formatFormation(lineup->getFormationId()));
+    summary.insert(QStringLiteral("slotCount"), static_cast<int>(lineup->getSlots().size()));
+    summary.insert(QStringLiteral("assignedCount"), assignedCount);
+    summary.insert(QStringLiteral("isFull"), lineup->isFullLineup());
+    return summary;
+}
+
+QVariantList GameFacade::getEditableLineupSlots() const {
+    QVariantList rows;
+
+    const League* league = resolveLeague(selectedLeagueId);
+    const EditableLineup* lineup = resolveEditableLineup();
+    const Team* team = (league && lineup) ? league->findTeamById(lineup->getTeamId()) : nullptr;
+    if (!lineup || !team) {
+        return rows;
+    }
+
+    rows.reserve(static_cast<qsizetype>(lineup->getSlots().size()));
+    for (const EditableLineupSlot& slot : lineup->getSlots()) {
+        QVariantMap row;
+        row.insert(QStringLiteral("slotIndex"), static_cast<int>(slot.slotIndex));
+        row.insert(QStringLiteral("slotRole"), static_cast<int>(slot.slotRole));
+        row.insert(QStringLiteral("slotRoleText"), formatSlotRole(slot.slotRole));
+        row.insert(QStringLiteral("slotLabel"), formatSlotRole(slot.slotRole));
+
+        const Footballer* assignedPlayer = slot.assignedPlayerId != 0
+            ? team->findPlayerById(slot.assignedPlayerId)
+            : nullptr;
+
+        row.insert(QStringLiteral("hasAssignedPlayer"), assignedPlayer != nullptr);
+        row.insert(QStringLiteral("assignedPlayerId"), assignedPlayer ? static_cast<int>(assignedPlayer->getId()) : 0);
+        row.insert(QStringLiteral("assignedPlayerName"), assignedPlayer ? fromStd(assignedPlayer->getName()) : QString());
+        row.insert(QStringLiteral("assignedPlayerOverall"), assignedPlayer ? assignedPlayer->totalPower() : 0);
+        row.insert(QStringLiteral("assignedPlayerOverallSummary"),
+            assignedPlayer ? QStringLiteral("OVR %1").arg(assignedPlayer->totalPower()) : QString());
+
+        const PlayerConditionState* condition = assignedPlayer ? &assignedPlayer->getConditionState() : nullptr;
+        row.insert(QStringLiteral("assignedPlayerForm"), condition ? condition->getForm() : 0);
+        row.insert(QStringLiteral("assignedPlayerFitness"), condition ? condition->getFitness() : 0);
+        row.insert(QStringLiteral("assignedPlayerMorale"), condition ? condition->getMorale() : 0);
+        rows.push_back(row);
+    }
+
+    return rows;
+}
+
+QVariantList GameFacade::getEditableLineupRoster() const {
+    QVariantList rows;
+
+    const League* league = resolveLeague(selectedLeagueId);
+    const EditableLineup* lineup = resolveEditableLineup();
+    const Team* team = (league && lineup) ? league->findTeamById(lineup->getTeamId()) : nullptr;
+    if (!lineup || !team) {
+        return rows;
+    }
+
+    rows.reserve(static_cast<qsizetype>(team->getPlayers().size()));
+    for (const auto& playerPtr : team->getPlayers()) {
+        if (!playerPtr) {
+            continue;
+        }
+
+        const Footballer& player = *playerPtr;
+        const std::optional<std::size_t> assignedSlot = lineup->findAssignedSlotIndex(player.getId());
+        const PlayerConditionState& condition = player.getConditionState();
+
+        QVariantMap row;
+        row.insert(QStringLiteral("playerId"), static_cast<int>(player.getId()));
+        row.insert(QStringLiteral("name"), fromStd(player.getName()));
+        row.insert(QStringLiteral("positionShort"), formatPositionShortCode(player));
+        row.insert(QStringLiteral("overall"), player.totalPower());
+        row.insert(QStringLiteral("overallSummary"), QStringLiteral("OVR %1").arg(player.totalPower()));
+        row.insert(QStringLiteral("form"), condition.getForm());
+        row.insert(QStringLiteral("fitness"), condition.getFitness());
+        row.insert(QStringLiteral("morale"), condition.getMorale());
+        row.insert(QStringLiteral("isAssigned"), assignedSlot.has_value());
+        row.insert(QStringLiteral("assignedSlotIndex"), assignedSlot.has_value() ? static_cast<int>(*assignedSlot) : -1);
+        rows.push_back(row);
+    }
+
+    return rows;
+}
+
 QVariantMap GameFacade::getPlayerDetails(int playerId) const {
     if (!gameStarted || playerId <= 0) {
         return missingPlayerMap();
@@ -1529,6 +1634,36 @@ void GameFacade::refreshInteractionStateObject() {
     }
 }
 
+void GameFacade::refreshEditableLineup() {
+    editableLineup.reset();
+    if (!hasValidSelectedTeam()) {
+        return;
+    }
+
+    const League* league = resolveLeague(selectedLeagueId);
+    if (!league) {
+        return;
+    }
+
+    const Team* team = league->findTeamById(selectedTeamId);
+    if (!team) {
+        return;
+    }
+
+    const FormationId preferredFormation = team->getHeadCoach().getPreferredFormation();
+    const TeamSelectionService teamSelectionService;
+    editableLineup = EditableLineup::createSeededFromAutoSelection(*team, preferredFormation, teamSelectionService);
+}
+
+const EditableLineup* GameFacade::resolveEditableLineup() const {
+    GameFacade* self = const_cast<GameFacade*>(this);
+    if (!self->editableLineup.has_value()) {
+        self->refreshEditableLineup();
+    }
+
+    return self->editableLineup.has_value() ? &self->editableLineup.value() : nullptr;
+}
+
 void GameFacade::publishGameStateChanged() {
     refreshStandingsModel();
     refreshCurrentTeamPlayersModel();
@@ -1540,6 +1675,7 @@ void GameFacade::publishGameStateChanged() {
     refreshDashboardUpcomingMatchesModel();
     refreshShellStateObject();
     refreshInteractionStateObject();
+    refreshEditableLineup();
     emit gameStateChanged();
 }
 
@@ -1620,6 +1756,39 @@ QString GameFacade::formatSlotRole(FormationSlotRole role) const {
     case FormationSlotRole::Striker:
         return QStringLiteral("ST");
     case FormationSlotRole::Unknown:
+        break;
+    }
+
+    return QStringLiteral("?");
+}
+
+QString GameFacade::formatPositionShortCode(const Footballer& player) const {
+    switch (player.getPlayerPosition()) {
+    case PlayerPosition::Goalkeeper:
+        return QStringLiteral("GK");
+    case PlayerPosition::CenterBack:
+        return QStringLiteral("CB");
+    case PlayerPosition::LeftBack:
+        return QStringLiteral("LB");
+    case PlayerPosition::RightBack:
+        return QStringLiteral("RB");
+    case PlayerPosition::DefensiveMidfielder:
+        return QStringLiteral("DM");
+    case PlayerPosition::CentralMidfielder:
+        return QStringLiteral("CM");
+    case PlayerPosition::AttackingMidfielder:
+        return QStringLiteral("AM");
+    case PlayerPosition::LeftMidfielder:
+        return QStringLiteral("LM");
+    case PlayerPosition::RightMidfielder:
+        return QStringLiteral("RM");
+    case PlayerPosition::LeftWinger:
+        return QStringLiteral("LW");
+    case PlayerPosition::RightWinger:
+        return QStringLiteral("RW");
+    case PlayerPosition::Striker:
+        return QStringLiteral("ST");
+    case PlayerPosition::Unknown:
         break;
     }
 

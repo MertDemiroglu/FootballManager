@@ -17,8 +17,10 @@
 #include"ShellStateObject.h"
 
 #include<memory>
+#include<optional>
 
 #include"fm/common/Types.h"
+#include"fm/match/EditableLineup.h"
 
 class Game;
 class Footballer;
@@ -119,6 +121,9 @@ public:
     Q_INVOKABLE QVariantList getCurrentTeamMatches() const;
     Q_INVOKABLE QVariantList getCurrentTeamUpcomingMatches(int count = 5) const;
     Q_INVOKABLE QVariantList getCurrentTeamPlayers() const;
+    Q_INVOKABLE QVariantMap getEditableLineupSummary() const;
+    Q_INVOKABLE QVariantList getEditableLineupSlots() const;
+    Q_INVOKABLE QVariantList getEditableLineupRoster() const;
 
     Q_INVOKABLE QVariantMap getPlayerDetails(int playerId) const;
     Q_INVOKABLE QVariantMap getMatchReportDetails(qulonglong matchId) const;
@@ -144,6 +149,7 @@ private:
     bool gameStarted = false;
     QString managerName;
     QString lastError;
+    std::optional<EditableLineup> editableLineup;
 
     Game* ensureGame();
     const Game* ensureGame() const;
@@ -164,6 +170,8 @@ private:
     void refreshDashboardUpcomingMatchesModel();
     void refreshShellStateObject();
     void refreshInteractionStateObject();
+    void refreshEditableLineup();
+    const EditableLineup* resolveEditableLineup() const;
     void publishGameStateChanged();
 
     QString formatDate(const Date& date) const;
@@ -172,6 +180,7 @@ private:
 
     QString formatFormation(FormationId formation) const;
     QString formatSlotRole(FormationSlotRole role) const;
+    QString formatPositionShortCode(const Footballer& player) const;
     QVariantList buildLineupViewRows(const TeamSheet& teamSheet, const League* league) const;
     QVariantList buildLineupViewRows(const MatchLineupSnapshot& snapshot, const League* league) const;
 
