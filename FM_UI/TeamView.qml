@@ -429,9 +429,10 @@ Item {
                                 anchors.margins: 20
                                 spacing: 12
 
-                                ReadOnlyLineupEditorView {
+                                LineupEditorView {
                                     Layout.fillWidth: true
                                     gameFacade: gameFacade
+                                    readOnly: true
                                 }
                             }
                         }
