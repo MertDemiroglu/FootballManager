@@ -124,6 +124,12 @@ int main(int argc, char* argv[]) {
             "empty occupied swap should leave slot 1 empty");
         expect(!facade.swapEditableLineupSlots(1, 1),
             "same-slot swap should be a deterministic no-op failure");
+        expect(facade.unassignEditableLineupPlayer(secondPlayerId),
+            "unassigning selected second player should succeed");
+        expect(facade.getEditableLineupSlotsModel()->data(
+            facade.getEditableLineupSlotsModel()->index(0, 0),
+            EditableLineupSlotsModel::AssignedPlayerIdRole).toInt() == 0,
+            "unassigning second player should clear their current slot");
 
         const int playerId = players.first().toMap().value(QStringLiteral("playerId")).toInt();
         qDebug() << "[Smoke] Reading player details for playerId =" << playerId;
