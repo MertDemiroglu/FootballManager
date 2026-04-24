@@ -187,6 +187,7 @@ private:
     void refreshShellStateObject();
     void refreshInteractionStateObject();
     void refreshEditableLineup();
+    void clearEditableLineupData();
     void refreshEditableLineupViews();
     void refreshEditableLineupStateObject();
     void refreshEditableLineupSlotsModel();

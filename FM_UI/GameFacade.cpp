@@ -1079,7 +1079,40 @@ QVariantList GameFacade::getEditableLineupRoster() const {
 
 bool GameFacade::ensureEditableLineupReady() {
     refreshEditableLineup();
-    return editableLineup.has_value();
+    if (!editableLineup.has_value()) {
+        qWarning() << "[GameFacade::ensureEditableLineupReady] Editable lineup unavailable after refresh.";
+        return false;
+    }
+
+    if (!editableLineupStateObject.hasLineup()) {
+        qWarning() << "[GameFacade::ensureEditableLineupReady] Editable lineup state not published.";
+        refreshEditableLineup();
+    }
+
+    const int slotCount = editableLineupSlotsModel.rowCount();
+    if (slotCount <= 0) {
+        qWarning() << "[GameFacade::ensureEditableLineupReady] Editable lineup slots model is empty after refresh.";
+        refreshEditableLineup();
+    }
+
+    const int rosterCount = editableLineupRosterModel.rowCount();
+    if (rosterCount <= 0) {
+        qWarning() << "[GameFacade::ensureEditableLineupReady] Editable lineup roster model is empty after refresh.";
+        refreshEditableLineup();
+    }
+
+    const bool ready = editableLineup.has_value()
+        && editableLineupStateObject.hasLineup()
+        && editableLineupSlotsModel.rowCount() > 0
+        && editableLineupRosterModel.rowCount() > 0;
+    if (!ready) {
+        qWarning() << "[GameFacade::ensureEditableLineupReady] Lineup readiness failed."
+                   << "hasLineup=" << editableLineup.has_value()
+                   << "state.hasLineup=" << editableLineupStateObject.hasLineup()
+                   << "slots=" << editableLineupSlotsModel.rowCount()
+                   << "roster=" << editableLineupRosterModel.rowCount();
+    }
+    return ready;
 }
 
 bool GameFacade::assignEditableLineupPlayerToSlot(int playerId, int slotIndex) {
@@ -1657,41 +1690,66 @@ void GameFacade::refreshInteractionStateObject() {
 }
 
 void GameFacade::refreshEditableLineup() {
-    if (!hasValidSelectedTeam()) {
-        editableLineup.reset();
-        editableLineupStateObject.clear();
-        editableLineupSlotsModel.clear();
-        editableLineupRosterModel.clear();
+    if (!gameStarted || selectedLeagueId == 0 || selectedTeamId == 0) {
+        qWarning() << "[GameFacade::refreshEditableLineup] Invalid selected team context."
+                   << "gameStarted=" << gameStarted
+                   << "selectedLeagueId=" << selectedLeagueId
+                   << "selectedTeamId=" << selectedTeamId;
+        clearEditableLineupData();
         return;
     }
 
     const League* league = resolveLeague(selectedLeagueId);
     if (!league) {
-        editableLineup.reset();
-        editableLineupStateObject.clear();
-        editableLineupSlotsModel.clear();
-        editableLineupRosterModel.clear();
+        qWarning() << "[GameFacade::refreshEditableLineup] League not found for id:" << selectedLeagueId;
+        clearEditableLineupData();
         return;
     }
 
     const Team* team = league->findTeamById(selectedTeamId);
     if (!team) {
-        editableLineup.reset();
-        editableLineupStateObject.clear();
-        editableLineupSlotsModel.clear();
-        editableLineupRosterModel.clear();
+        qWarning() << "[GameFacade::refreshEditableLineup] Team not found in league."
+                   << "teamId=" << selectedTeamId
+                   << "leagueId=" << selectedLeagueId;
+        clearEditableLineupData();
         return;
     }
 
-    if (editableLineup.has_value() && editableLineup->getTeamId() == selectedTeamId) {
-        refreshEditableLineupViews();
-        return;
+    const bool needsBuild = !editableLineup.has_value()
+        || editableLineup->getTeamId() != selectedTeamId;
+    if (needsBuild) {
+        const FormationId preferredFormation = team->getHeadCoach().getPreferredFormation();
+        const TeamSelectionService teamSelectionService;
+        std::optional<EditableLineup> rebuiltLineup =
+            EditableLineup::createSeededFromAutoSelection(*team, preferredFormation, teamSelectionService);
+        if (!rebuiltLineup.has_value()) {
+            qWarning() << "[GameFacade::refreshEditableLineup] Editable lineup creation failed."
+                       << "teamId=" << selectedTeamId
+                       << "formation=" << static_cast<int>(preferredFormation);
+            clearEditableLineupData();
+            return;
+        }
+        editableLineup = std::move(rebuiltLineup);
+        qDebug() << "[GameFacade::refreshEditableLineup] Editable lineup rebuilt for team:" << selectedTeamId;
     }
 
-    const FormationId preferredFormation = team->getHeadCoach().getPreferredFormation();
-    const TeamSelectionService teamSelectionService;
-    editableLineup = EditableLineup::createSeededFromAutoSelection(*team, preferredFormation, teamSelectionService);
     refreshEditableLineupViews();
+
+    if (editableLineupSlotsModel.rowCount() <= 0) {
+        qWarning() << "[GameFacade::refreshEditableLineup] Slots model is empty after refresh."
+                   << "teamId=" << selectedTeamId;
+    }
+    if (editableLineupRosterModel.rowCount() <= 0) {
+        qWarning() << "[GameFacade::refreshEditableLineup] Roster model is empty after refresh."
+                   << "teamId=" << selectedTeamId;
+    }
+}
+
+void GameFacade::clearEditableLineupData() {
+    editableLineup.reset();
+    editableLineupStateObject.clear();
+    editableLineupSlotsModel.clear();
+    editableLineupRosterModel.clear();
 }
 
 void GameFacade::refreshEditableLineupViews() {

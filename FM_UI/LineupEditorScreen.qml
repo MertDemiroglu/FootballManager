@@ -10,11 +10,19 @@ Item {
 
     signal backRequested()
 
-    Component.onCompleted: {
+    function prepareLineup() {
         if (gameFacade) {
             gameFacade.ensureEditableLineupReady()
         }
     }
+
+    Component.onCompleted: prepareLineup()
+    onVisibleChanged: {
+        if (visible) {
+            prepareLineup()
+        }
+    }
+    onGameFacadeChanged: prepareLineup()
 
     Rectangle {
         anchors.fill: parent
