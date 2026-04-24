@@ -13,6 +13,10 @@ int EditableLineupSlotsModel::rowCount(const QModelIndex& parent) const {
     return rowsValue.size();
 }
 
+int EditableLineupSlotsModel::count() const {
+    return rowsValue.size();
+}
+
 QVariant EditableLineupSlotsModel::data(const QModelIndex& index, int role) const {
     if (!index.isValid() || index.row() < 0 || index.row() >= rowsValue.size()) {
         return {};
