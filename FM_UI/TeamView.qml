@@ -9,6 +9,7 @@ Item {
 
     signal backRequested()
     signal openMatchDetailRequested(var matchId)
+    signal openLineupEditorRequested()
 
     readonly property int pagePadding: 24
     readonly property int sectionSpacing: 20
@@ -82,6 +83,15 @@ Item {
                             wrapMode: Text.WordWrap
                             Layout.fillWidth: true
                         }
+                    }
+
+                    Button {
+                        text: "Open Lineup Editor"
+                        Layout.preferredHeight: 46
+                        Layout.preferredWidth: 180
+                        font.pixelSize: 15
+                        enabled: root.hasActiveGame
+                        onClicked: root.openLineupEditorRequested()
                     }
 
                     Button {
@@ -412,27 +422,6 @@ Item {
                                     text: "No upcoming match scheduled."
                                     font.pixelSize: 15
                                     color: "#667085"
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            width: parent.width
-                            radius: 18
-                            color: "#ffffff"
-                            border.color: "#d8dee8"
-                            implicitHeight: lineupEditorContent.implicitHeight + 40
-
-                            ColumnLayout {
-                                id: lineupEditorContent
-                                anchors.fill: parent
-                                anchors.margins: 20
-                                spacing: 12
-
-                                LineupEditorView {
-                                    Layout.fillWidth: true
-                                    gameFacade: gameFacade
-                                    readOnly: true
                                 }
                             }
                         }

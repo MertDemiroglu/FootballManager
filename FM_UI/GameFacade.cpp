@@ -1077,16 +1077,21 @@ QVariantList GameFacade::getEditableLineupRoster() const {
     return rows;
 }
 
+bool GameFacade::ensureEditableLineupReady() {
+    refreshEditableLineup();
+    return editableLineup.has_value();
+}
+
 bool GameFacade::assignEditableLineupPlayerToSlot(int playerId, int slotIndex) {
     if (!gameStarted || playerId <= 0 || slotIndex < 0) {
         return false;
     }
 
     EditableLineup* lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
-    if (!lineup) {
-        refreshEditableLineup();
-        lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup && !ensureEditableLineupReady()) {
+        return false;
     }
+    lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
     if (!lineup) {
         return false;
     }
@@ -1106,10 +1111,10 @@ bool GameFacade::clearEditableLineupSlot(int slotIndex) {
     }
 
     EditableLineup* lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
-    if (!lineup) {
-        refreshEditableLineup();
-        lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup && !ensureEditableLineupReady()) {
+        return false;
     }
+    lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
     if (!lineup) {
         return false;
     }
@@ -1129,10 +1134,10 @@ bool GameFacade::unassignEditableLineupPlayer(int playerId) {
     }
 
     EditableLineup* lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
-    if (!lineup) {
-        refreshEditableLineup();
-        lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup && !ensureEditableLineupReady()) {
+        return false;
     }
+    lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
     if (!lineup) {
         return false;
     }
@@ -1652,22 +1657,34 @@ void GameFacade::refreshInteractionStateObject() {
 }
 
 void GameFacade::refreshEditableLineup() {
-    editableLineup.reset();
-    editableLineupStateObject.clear();
-    editableLineupSlotsModel.clear();
-    editableLineupRosterModel.clear();
-
     if (!hasValidSelectedTeam()) {
+        editableLineup.reset();
+        editableLineupStateObject.clear();
+        editableLineupSlotsModel.clear();
+        editableLineupRosterModel.clear();
         return;
     }
 
     const League* league = resolveLeague(selectedLeagueId);
     if (!league) {
+        editableLineup.reset();
+        editableLineupStateObject.clear();
+        editableLineupSlotsModel.clear();
+        editableLineupRosterModel.clear();
         return;
     }
 
     const Team* team = league->findTeamById(selectedTeamId);
     if (!team) {
+        editableLineup.reset();
+        editableLineupStateObject.clear();
+        editableLineupSlotsModel.clear();
+        editableLineupRosterModel.clear();
+        return;
+    }
+
+    if (editableLineup.has_value() && editableLineup->getTeamId() == selectedTeamId) {
+        refreshEditableLineupViews();
         return;
     }
 
@@ -1818,7 +1835,7 @@ void GameFacade::publishGameStateChanged() {
     refreshDashboardUpcomingMatchesModel();
     refreshShellStateObject();
     refreshInteractionStateObject();
-    refreshEditableLineup();
+    ensureEditableLineupReady();
     emit gameStateChanged();
 }
 

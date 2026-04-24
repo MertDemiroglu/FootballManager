@@ -64,6 +64,7 @@ qt_add_qml_module(FM_UI
         TransferOffersView.qml
         StandingsView.qml
         TeamView.qml
+        LineupEditorScreen.qml
         PlayerDetailsDialog.qml
         UiHelpers.js
         InteractionModalShell.qml
