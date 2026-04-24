@@ -5,7 +5,10 @@ import QtQuick.Layouts
 Rectangle {
     id: root
 
-    property var rosterRows: []
+    property var rosterModel: null
+    property int selectedPlayerId: 0
+
+    signal playerClicked(int playerId)
 
     radius: 14
     border.color: "#d8dee8"
@@ -31,12 +34,27 @@ Rectangle {
 
             ListView {
                 width: parent.width
-                model: root.rosterRows
+                model: root.rosterModel
                 spacing: 8
 
                 delegate: LineupRosterRow {
                     width: ListView.view ? ListView.view.width : 0
-                    rowData: modelData
+                    selectedPlayerId: root.selectedPlayerId
+                    rowData: ({
+                        playerId: playerId,
+                        name: name,
+                        positionShort: positionShort,
+                        overall: overall,
+                        overallSummary: overallSummary,
+                        form: form,
+                        fitness: fitness,
+                        morale: morale,
+                        isAssigned: isAssigned,
+                        assignedSlotIndex: assignedSlotIndex
+                    })
+                    onClicked: function(playerId) {
+                        root.playerClicked(playerId)
+                    }
                 }
             }
         }

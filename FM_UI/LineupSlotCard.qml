@@ -6,10 +6,16 @@ Rectangle {
     id: root
 
     property var slotData: ({})
+    property int selectedSlotIndex: -1
+    readonly property int slotIndex: typeof slotData.slotIndex === "number" ? slotData.slotIndex : -1
+    readonly property bool isSelected: selectedSlotIndex >= 0 && slotIndex === selectedSlotIndex
+
+    signal clicked(int slotIndex)
 
     radius: 8
-    color: slotData.isEmpty ? "#fef3c7" : "#f8fafc"
-    border.color: slotData.isEmpty ? "#f59e0b" : "#d0d5dd"
+    color: isSelected ? "#dbeafe" : (slotData.isEmpty ? "#fef3c7" : "#f8fafc")
+    border.color: isSelected ? "#2563eb" : (slotData.isEmpty ? "#f59e0b" : "#d0d5dd")
+    border.width: isSelected ? 2 : 1
     implicitWidth: 96
     implicitHeight: 76
 
@@ -45,6 +51,16 @@ Rectangle {
             color: "#475467"
             horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight
+        }
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        cursorShape: Qt.PointingHandCursor
+        onClicked: {
+            if (root.slotIndex >= 0) {
+                root.clicked(root.slotIndex)
+            }
         }
     }
 }

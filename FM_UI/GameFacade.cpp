@@ -26,6 +26,9 @@
 #include"DashboardUpcomingMatchesModel.h"
 #include"InteractionStateObject.h"
 #include"ShellStateObject.h"
+#include"EditableLineupStateObject.h"
+#include"EditableLineupSlotsModel.h"
+#include"EditableLineupRosterModel.h"
 
 #include<QDebug>
 
@@ -247,7 +250,10 @@ GameFacade::GameFacade(QObject* parent)
       dashboardStateObject(this),
       dashboardUpcomingMatchesModel(this),
       shellStateObject(this),
-      interactionStateObject(this) {
+      interactionStateObject(this),
+      editableLineupStateObject(this),
+      editableLineupSlotsModel(this),
+      editableLineupRosterModel(this) {
 }
 
 GameFacade::~GameFacade() {}
@@ -535,6 +541,18 @@ ShellStateObject* GameFacade::getShellState() const {
 
 InteractionStateObject* GameFacade::getInteractionState() const {
     return const_cast<InteractionStateObject*>(&interactionStateObject);
+}
+
+EditableLineupStateObject* GameFacade::getEditableLineupState() const {
+    return const_cast<EditableLineupStateObject*>(&editableLineupStateObject);
+}
+
+QAbstractListModel* GameFacade::getEditableLineupSlotsModel() const {
+    return const_cast<EditableLineupSlotsModel*>(&editableLineupSlotsModel);
+}
+
+QAbstractListModel* GameFacade::getEditableLineupRosterModel() const {
+    return const_cast<EditableLineupRosterModel*>(&editableLineupRosterModel);
 }
 
 QVariantMap GameFacade::getDashboard() const {
@@ -1029,119 +1047,103 @@ QVariantList GameFacade::getCurrentTeamPlayers() const {
 
 QVariantMap GameFacade::getEditableLineupSummary() const {
     QVariantMap summary;
-    summary.insert(QStringLiteral("hasLineup"), false);
-
-    const EditableLineup* lineup = resolveEditableLineup();
-    if (!lineup) {
-        return summary;
-    }
-
-    int assignedCount = 0;
-    for (const EditableLineupSlot& slot : lineup->getSlots()) {
-        if (slot.assignedPlayerId != 0) {
-            ++assignedCount;
-        }
-    }
-
-    summary.insert(QStringLiteral("hasLineup"), true);
-    summary.insert(QStringLiteral("teamId"), static_cast<int>(lineup->getTeamId()));
-    summary.insert(QStringLiteral("formation"), static_cast<int>(lineup->getFormationId()));
-    summary.insert(QStringLiteral("formationText"), formatFormation(lineup->getFormationId()));
-    summary.insert(QStringLiteral("slotCount"), static_cast<int>(lineup->getSlots().size()));
-    summary.insert(QStringLiteral("assignedCount"), assignedCount);
-    summary.insert(QStringLiteral("isFull"), lineup->isFullLineup());
+    summary.insert(QStringLiteral("hasLineup"), editableLineupStateObject.hasLineup());
+    summary.insert(QStringLiteral("teamId"), editableLineupStateObject.teamId());
+    summary.insert(QStringLiteral("formation"), editableLineupStateObject.formation());
+    summary.insert(QStringLiteral("formationText"), editableLineupStateObject.formationText());
+    summary.insert(QStringLiteral("slotCount"), editableLineupStateObject.slotCount());
+    summary.insert(QStringLiteral("assignedCount"), editableLineupStateObject.assignedCount());
+    summary.insert(QStringLiteral("isFull"), editableLineupStateObject.isFull());
     return summary;
 }
 
 QVariantList GameFacade::getEditableLineupSlots() const {
-    QVariantList rows;
-
-    const League* league = resolveLeague(selectedLeagueId);
-    const EditableLineup* lineup = resolveEditableLineup();
-    const Team* team = (league && lineup) ? league->findTeamById(lineup->getTeamId()) : nullptr;
-    if (!lineup || !team) {
-        return rows;
-    }
-
-    rows.reserve(static_cast<qsizetype>(lineup->getSlots().size()));
-    for (const EditableLineupSlot& slot : lineup->getSlots()) {
-        QVariantMap row;
-        row.insert(QStringLiteral("slotIndex"), static_cast<int>(slot.slotIndex));
-        row.insert(QStringLiteral("slotRole"), formatSlotRole(slot.slotRole));
-        row.insert(QStringLiteral("slotRoleKey"), static_cast<int>(slot.slotRole));
-        row.insert(QStringLiteral("slotRoleText"), formatSlotRole(slot.slotRole));
-        row.insert(QStringLiteral("slotLabel"), formatSlotRole(slot.slotRole));
-
-        const Footballer* assignedPlayer = slot.assignedPlayerId != 0
-            ? team->findPlayerById(slot.assignedPlayerId)
-            : nullptr;
-
-        row.insert(QStringLiteral("isEmpty"), assignedPlayer == nullptr);
-        row.insert(QStringLiteral("hasAssignedPlayer"), assignedPlayer != nullptr);
-        row.insert(QStringLiteral("assignedPlayerId"), assignedPlayer ? static_cast<int>(assignedPlayer->getId()) : 0);
-        row.insert(QStringLiteral("assignedPlayerName"), assignedPlayer ? fromStd(assignedPlayer->getName()) : QString());
-        row.insert(QStringLiteral("assignedPlayerOverall"), assignedPlayer ? assignedPlayer->totalPower() : 0);
-        row.insert(QStringLiteral("assignedPlayerOverallSummary"),
-            assignedPlayer ? QStringLiteral("OVR %1").arg(assignedPlayer->totalPower()) : QString());
-
-        const PlayerConditionState* condition = assignedPlayer ? &assignedPlayer->getConditionState() : nullptr;
-        row.insert(QStringLiteral("assignedPlayerForm"), condition ? condition->getForm() : 0);
-        row.insert(QStringLiteral("assignedPlayerFitness"), condition ? condition->getFitness() : 0);
-        row.insert(QStringLiteral("assignedPlayerMorale"), condition ? condition->getMorale() : 0);
-        rows.push_back(row);
-    }
-
-    return rows;
+    return editableLineupSlotsModel.rows();
 }
 
 QVariantList GameFacade::getEditableLineupRoster() const {
     QVariantList rows;
-
-    const League* league = resolveLeague(selectedLeagueId);
-    const EditableLineup* lineup = resolveEditableLineup();
-    const Team* team = (league && lineup) ? league->findTeamById(lineup->getTeamId()) : nullptr;
-    if (!lineup || !team) {
-        return rows;
-    }
-
-    std::vector<const Footballer*> rosterPlayers;
-    rosterPlayers.reserve(team->getPlayers().size());
-    for (const auto& player : team->getPlayers()) {
-        if (!player) {
-            continue;
-        }
-        rosterPlayers.push_back(player.get());
-    }
-
-    std::sort(rosterPlayers.begin(), rosterPlayers.end(), [](const Footballer* lhs, const Footballer* rhs) {
-        return lhs->getId() < rhs->getId();
-    });
-
-    rows.reserve(static_cast<qsizetype>(rosterPlayers.size()));
-    for (const Footballer* playerPtr : rosterPlayers) {
-        if (!playerPtr) {
-            continue;
-        }
-
-        const Footballer& player = *playerPtr;
-        const std::optional<std::size_t> assignedSlot = lineup->findAssignedSlotIndex(player.getId());
-        const PlayerConditionState& condition = player.getConditionState();
-
+    const int count = editableLineupRosterModel.rowCount();
+    rows.reserve(count);
+    const QHash<int, QByteArray> roleNames = editableLineupRosterModel.roleNames();
+    for (int rowIndex = 0; rowIndex < count; ++rowIndex) {
+        const QModelIndex index = editableLineupRosterModel.index(rowIndex, 0);
         QVariantMap row;
-        row.insert(QStringLiteral("playerId"), static_cast<int>(player.getId()));
-        row.insert(QStringLiteral("name"), fromStd(player.getName()));
-        row.insert(QStringLiteral("positionShort"), formatPositionShortCode(player));
-        row.insert(QStringLiteral("overall"), player.totalPower());
-        row.insert(QStringLiteral("overallSummary"), QStringLiteral("OVR %1").arg(player.totalPower()));
-        row.insert(QStringLiteral("form"), condition.getForm());
-        row.insert(QStringLiteral("fitness"), condition.getFitness());
-        row.insert(QStringLiteral("morale"), condition.getMorale());
-        row.insert(QStringLiteral("isAssigned"), assignedSlot.has_value());
-        row.insert(QStringLiteral("assignedSlotIndex"), assignedSlot.has_value() ? static_cast<int>(*assignedSlot) : -1);
+        for (auto it = roleNames.cbegin(); it != roleNames.cend(); ++it) {
+            row.insert(QString::fromLatin1(it.value()), editableLineupRosterModel.data(index, it.key()));
+        }
         rows.push_back(row);
     }
-
     return rows;
+}
+
+bool GameFacade::assignEditableLineupPlayerToSlot(int playerId, int slotIndex) {
+    if (!gameStarted || playerId <= 0 || slotIndex < 0) {
+        return false;
+    }
+
+    EditableLineup* lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup) {
+        refreshEditableLineup();
+        lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    }
+    if (!lineup) {
+        return false;
+    }
+
+    if (!lineup->assignPlayerToSlot(static_cast<PlayerId>(playerId), static_cast<std::size_t>(slotIndex))) {
+        return false;
+    }
+
+    refreshEditableLineupViews();
+    emit gameStateChanged();
+    return true;
+}
+
+bool GameFacade::clearEditableLineupSlot(int slotIndex) {
+    if (!gameStarted || slotIndex < 0) {
+        return false;
+    }
+
+    EditableLineup* lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup) {
+        refreshEditableLineup();
+        lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    }
+    if (!lineup) {
+        return false;
+    }
+
+    if (!lineup->clearSlot(static_cast<std::size_t>(slotIndex))) {
+        return false;
+    }
+
+    refreshEditableLineupViews();
+    emit gameStateChanged();
+    return true;
+}
+
+bool GameFacade::unassignEditableLineupPlayer(int playerId) {
+    if (!gameStarted || playerId <= 0) {
+        return false;
+    }
+
+    EditableLineup* lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup) {
+        refreshEditableLineup();
+        lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    }
+    if (!lineup) {
+        return false;
+    }
+
+    if (!lineup->unassignPlayer(static_cast<PlayerId>(playerId))) {
+        return false;
+    }
+
+    refreshEditableLineupViews();
+    emit gameStateChanged();
+    return true;
 }
 
 QVariantMap GameFacade::getPlayerDetails(int playerId) const {
@@ -1651,6 +1653,10 @@ void GameFacade::refreshInteractionStateObject() {
 
 void GameFacade::refreshEditableLineup() {
     editableLineup.reset();
+    editableLineupStateObject.clear();
+    editableLineupSlotsModel.clear();
+    editableLineupRosterModel.clear();
+
     if (!hasValidSelectedTeam()) {
         return;
     }
@@ -1668,6 +1674,128 @@ void GameFacade::refreshEditableLineup() {
     const FormationId preferredFormation = team->getHeadCoach().getPreferredFormation();
     const TeamSelectionService teamSelectionService;
     editableLineup = EditableLineup::createSeededFromAutoSelection(*team, preferredFormation, teamSelectionService);
+    refreshEditableLineupViews();
+}
+
+void GameFacade::refreshEditableLineupViews() {
+    refreshEditableLineupStateObject();
+    refreshEditableLineupSlotsModel();
+    refreshEditableLineupRosterModel();
+}
+
+void GameFacade::refreshEditableLineupStateObject() {
+    const EditableLineup* lineup = resolveEditableLineup();
+    if (!lineup) {
+        editableLineupStateObject.clear();
+        return;
+    }
+
+    int assignedCount = 0;
+    for (const EditableLineupSlot& slot : lineup->getSlots()) {
+        if (slot.assignedPlayerId != 0) {
+            ++assignedCount;
+        }
+    }
+
+    editableLineupStateObject.setFromValues(
+        true,
+        static_cast<int>(lineup->getTeamId()),
+        static_cast<int>(lineup->getFormationId()),
+        formatFormation(lineup->getFormationId()),
+        static_cast<int>(lineup->getSlots().size()),
+        assignedCount,
+        lineup->isFullLineup());
+}
+
+void GameFacade::refreshEditableLineupSlotsModel() {
+    const League* league = resolveLeague(selectedLeagueId);
+    const EditableLineup* lineup = resolveEditableLineup();
+    const Team* team = (league && lineup) ? league->findTeamById(lineup->getTeamId()) : nullptr;
+    if (!lineup || !team) {
+        editableLineupSlotsModel.clear();
+        return;
+    }
+
+    QVector<EditableLineupSlotsModel::Row> rows;
+    rows.reserve(static_cast<qsizetype>(lineup->getSlots().size()));
+    for (const EditableLineupSlot& slot : lineup->getSlots()) {
+        EditableLineupSlotsModel::Row row;
+        row.slotIndex = static_cast<int>(slot.slotIndex);
+        row.slotRole = formatSlotRole(slot.slotRole);
+        row.slotRoleKey = static_cast<int>(slot.slotRole);
+        row.slotRoleText = formatSlotRole(slot.slotRole);
+        row.slotLabel = formatSlotRole(slot.slotRole);
+
+        const Footballer* assignedPlayer = slot.assignedPlayerId != 0
+            ? team->findPlayerById(slot.assignedPlayerId)
+            : nullptr;
+
+        row.isEmpty = assignedPlayer == nullptr;
+        row.hasAssignedPlayer = assignedPlayer != nullptr;
+        row.assignedPlayerId = assignedPlayer ? static_cast<int>(assignedPlayer->getId()) : 0;
+        row.assignedPlayerName = assignedPlayer ? fromStd(assignedPlayer->getName()) : QString();
+        row.assignedPlayerOverall = assignedPlayer ? assignedPlayer->totalPower() : 0;
+        row.assignedPlayerOverallSummary =
+            assignedPlayer ? QStringLiteral("OVR %1").arg(assignedPlayer->totalPower()) : QString();
+
+        const PlayerConditionState* condition = assignedPlayer ? &assignedPlayer->getConditionState() : nullptr;
+        row.assignedPlayerForm = condition ? condition->getForm() : 0;
+        row.assignedPlayerFitness = condition ? condition->getFitness() : 0;
+        row.assignedPlayerMorale = condition ? condition->getMorale() : 0;
+        rows.push_back(row);
+    }
+
+    editableLineupSlotsModel.setRows(std::move(rows));
+}
+
+void GameFacade::refreshEditableLineupRosterModel() {
+    const League* league = resolveLeague(selectedLeagueId);
+    const EditableLineup* lineup = resolveEditableLineup();
+    const Team* team = (league && lineup) ? league->findTeamById(lineup->getTeamId()) : nullptr;
+    if (!lineup || !team) {
+        editableLineupRosterModel.clear();
+        return;
+    }
+
+    std::vector<const Footballer*> rosterPlayers;
+    rosterPlayers.reserve(team->getPlayers().size());
+    for (const auto& player : team->getPlayers()) {
+        if (!player) {
+            continue;
+        }
+        rosterPlayers.push_back(player.get());
+    }
+
+    std::sort(rosterPlayers.begin(), rosterPlayers.end(), [](const Footballer* lhs, const Footballer* rhs) {
+        return lhs->getId() < rhs->getId();
+    });
+
+    QVector<EditableLineupRosterModel::Row> rows;
+    rows.reserve(static_cast<qsizetype>(rosterPlayers.size()));
+    for (const Footballer* playerPtr : rosterPlayers) {
+        if (!playerPtr) {
+            continue;
+        }
+
+        const Footballer& player = *playerPtr;
+        const std::optional<std::size_t> assignedSlot = lineup->findAssignedSlotIndex(player.getId());
+        const PlayerConditionState& condition = player.getConditionState();
+
+        EditableLineupRosterModel::Row row;
+        row.playerId = static_cast<int>(player.getId());
+        row.name = fromStd(player.getName());
+        row.positionShort = formatPositionShortCode(player);
+        row.overall = player.totalPower();
+        row.overallSummary = QStringLiteral("OVR %1").arg(player.totalPower());
+        row.form = condition.getForm();
+        row.fitness = condition.getFitness();
+        row.morale = condition.getMorale();
+        row.isAssigned = assignedSlot.has_value();
+        row.assignedSlotIndex = assignedSlot.has_value() ? static_cast<int>(*assignedSlot) : -1;
+        rows.push_back(row);
+    }
+
+    editableLineupRosterModel.setRows(std::move(rows));
 }
 
 const EditableLineup* GameFacade::resolveEditableLineup() const {
