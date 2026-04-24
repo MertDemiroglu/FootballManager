@@ -1046,39 +1046,6 @@ QVariantList GameFacade::getCurrentTeamPlayers() const {
     return players;
 }
 
-QVariantMap GameFacade::getEditableLineupSummary() const {
-    QVariantMap summary;
-    summary.insert(QStringLiteral("hasLineup"), editableLineupStateObject.hasLineup());
-    summary.insert(QStringLiteral("teamId"), editableLineupStateObject.teamId());
-    summary.insert(QStringLiteral("formation"), editableLineupStateObject.formation());
-    summary.insert(QStringLiteral("formationText"), editableLineupStateObject.formationText());
-    summary.insert(QStringLiteral("slotCount"), editableLineupStateObject.slotCount());
-    summary.insert(QStringLiteral("rosterCount"), editableLineupStateObject.rosterCount());
-    summary.insert(QStringLiteral("assignedCount"), editableLineupStateObject.assignedCount());
-    summary.insert(QStringLiteral("isFull"), editableLineupStateObject.isFull());
-    return summary;
-}
-
-QVariantList GameFacade::getEditableLineupSlots() const {
-    return editableLineupSlotsModel.rows();
-}
-
-QVariantList GameFacade::getEditableLineupRoster() const {
-    QVariantList rows;
-    const int count = editableLineupRosterModel.rowCount();
-    rows.reserve(count);
-    const QHash<int, QByteArray> roleNames = editableLineupRosterModel.roleNames();
-    for (int rowIndex = 0; rowIndex < count; ++rowIndex) {
-        const QModelIndex index = editableLineupRosterModel.index(rowIndex, 0);
-        QVariantMap row;
-        for (auto it = roleNames.cbegin(); it != roleNames.cend(); ++it) {
-            row.insert(QString::fromLatin1(it.value()), editableLineupRosterModel.data(index, it.key()));
-        }
-        rows.push_back(row);
-    }
-    return rows;
-}
-
 bool GameFacade::ensureEditableLineupReady() {
     refreshEditableLineup();
 
@@ -1744,11 +1711,10 @@ void GameFacade::refreshEditableLineup() {
                 ++seededAssignments;
             }
         }
-        qDebug() << "[GameFacade::refreshEditableLineup] Editable lineup rebuilt for team:" << selectedTeamId
-                 << "formation=" << static_cast<int>(preferredFormation)
-                 << "slotCount=" << expectedSlotCount
-                 << "rosterCount=" << getSelectedTeamPlayerCount()
-                 << "seededAssignments=" << seededAssignments;
+        if (seededAssignments > 0) {
+            qDebug() << "[GameFacade::refreshEditableLineup] Seeded assignments for team" << selectedTeamId
+                     << "count=" << seededAssignments;
+        }
     }
 
     refreshEditableLineupViews();

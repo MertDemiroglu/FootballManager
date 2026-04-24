@@ -130,9 +130,6 @@ public:
     Q_INVOKABLE QVariantList getCurrentTeamMatches() const;
     Q_INVOKABLE QVariantList getCurrentTeamUpcomingMatches(int count = 5) const;
     Q_INVOKABLE QVariantList getCurrentTeamPlayers() const;
-    Q_INVOKABLE QVariantMap getEditableLineupSummary() const;
-    Q_INVOKABLE QVariantList getEditableLineupSlots() const;
-    Q_INVOKABLE QVariantList getEditableLineupRoster() const;
     Q_INVOKABLE bool ensureEditableLineupReady();
     Q_INVOKABLE bool assignEditableLineupPlayerToSlot(int playerId, int slotIndex);
     Q_INVOKABLE bool clearEditableLineupSlot(int slotIndex);
