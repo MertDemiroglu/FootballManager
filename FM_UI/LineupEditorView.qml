@@ -235,7 +235,8 @@ Item {
                 GridLayout {
                     Layout.fillWidth: true
                     columns: width < 760 ? 2 : 5
-                    spacing: 8
+                    rowSpacing: 8
+                    columnSpacing: 8
 
                     Button {
                         Layout.fillWidth: true
