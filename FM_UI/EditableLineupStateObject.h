@@ -12,6 +12,7 @@ class EditableLineupStateObject : public QObject {
     Q_PROPERTY(int formation READ formation NOTIFY changed)
     Q_PROPERTY(QString formationText READ formationText NOTIFY changed)
     Q_PROPERTY(int slotCount READ slotCount NOTIFY changed)
+    Q_PROPERTY(int rosterCount READ rosterCount NOTIFY changed)
     Q_PROPERTY(int assignedCount READ assignedCount NOTIFY changed)
     Q_PROPERTY(bool isFull READ isFull NOTIFY changed)
 
@@ -23,6 +24,7 @@ public:
     int formation() const;
     QString formationText() const;
     int slotCount() const;
+    int rosterCount() const;
     int assignedCount() const;
     bool isFull() const;
 
@@ -31,6 +33,7 @@ public:
         int formation,
         const QString& formationText,
         int slotCount,
+        int rosterCount,
         int assignedCount,
         bool isFull);
     void clear();
@@ -44,6 +47,7 @@ private:
     int formationValue = 0;
     QString formationTextValue;
     int slotCountValue = 0;
+    int rosterCountValue = 0;
     int assignedCountValue = 0;
     bool isFullValue = false;
 };

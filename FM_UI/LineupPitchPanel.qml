@@ -14,7 +14,7 @@ Rectangle {
     radius: 14
     border.color: "#d8dee8"
     color: "#ffffff"
-    implicitHeight: 520
+    Layout.minimumHeight: 420
 
     function roleGroup(slotRow) {
         const role = slotRow.slotRole || ""
@@ -78,6 +78,7 @@ Rectangle {
                 anchors.fill: parent
                 anchors.margins: 22
                 spacing: 10
+                visible: root.slotRows.length > 0
 
                 Repeater {
                     model: 4
@@ -102,6 +103,14 @@ Rectangle {
                         }
                     }
                 }
+            }
+
+            Label {
+                anchors.centerIn: parent
+                visible: root.slotRows.length === 0
+                text: "No formation slots loaded"
+                color: "#ffffff"
+                font.pixelSize: 14
             }
         }
     }

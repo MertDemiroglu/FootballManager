@@ -6,6 +6,8 @@
 class EditableLineupRosterModel : public QAbstractListModel {
     Q_OBJECT
 
+    Q_PROPERTY(int count READ rowCount NOTIFY rowsChanged)
+
 public:
     struct Row {
         int playerId = 0;
@@ -41,6 +43,9 @@ public:
 
     void setRows(QVector<Row> rows);
     void clear();
+
+signals:
+    void rowsChanged();
 
 private:
     QVector<Row> rowsValue;

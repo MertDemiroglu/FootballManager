@@ -8,6 +8,7 @@ class EditableLineupSlotsModel : public QAbstractListModel {
     Q_OBJECT
 
     Q_PROPERTY(QVariantList rows READ rows NOTIFY rowsChanged)
+    Q_PROPERTY(int count READ rowCount NOTIFY rowsChanged)
 
 public:
     struct Row {

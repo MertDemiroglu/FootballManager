@@ -38,12 +38,12 @@ Item {
                 radius: 18
                 color: "#ffffff"
                 border.color: "#d8dee8"
-                implicitHeight: headerContent.implicitHeight + 32
+                implicitHeight: headerContent.implicitHeight + 24
 
                 RowLayout {
                     id: headerContent
                     anchors.fill: parent
-                    anchors.margins: 16
+                    anchors.margins: 12
                     spacing: 12
 
                     Label {
@@ -57,22 +57,17 @@ Item {
                     Button {
                         text: "Back"
                         Layout.preferredWidth: 108
-                        Layout.preferredHeight: 44
+                        Layout.preferredHeight: 40
                         onClicked: root.backRequested()
                     }
                 }
             }
 
-            ScrollView {
+            LineupEditorView {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                clip: true
-
-                LineupEditorView {
-                    width: parent.width
-                    gameFacade: root.gameFacade
-                    readOnly: false
-                }
+                gameFacade: root.gameFacade
+                readOnly: false
             }
         }
     }

@@ -64,6 +64,7 @@ void EditableLineupRosterModel::setRows(QVector<Row> newRows) {
     beginResetModel();
     rowsValue = std::move(newRows);
     endResetModel();
+    emit rowsChanged();
 }
 
 void EditableLineupRosterModel::clear() {
