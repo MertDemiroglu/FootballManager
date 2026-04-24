@@ -24,6 +24,10 @@ int EditableLineupStateObject::slotCount() const {
     return slotCountValue;
 }
 
+int EditableLineupStateObject::rosterCount() const {
+    return rosterCountValue;
+}
+
 int EditableLineupStateObject::assignedCount() const {
     return assignedCountValue;
 }
@@ -37,6 +41,7 @@ void EditableLineupStateObject::setFromValues(bool newHasLineup,
     int newFormation,
     const QString& newFormationText,
     int newSlotCount,
+    int newRosterCount,
     int newAssignedCount,
     bool newIsFull) {
     hasLineupValue = newHasLineup;
@@ -44,11 +49,12 @@ void EditableLineupStateObject::setFromValues(bool newHasLineup,
     formationValue = newFormation;
     formationTextValue = newFormationText;
     slotCountValue = newSlotCount;
+    rosterCountValue = newRosterCount;
     assignedCountValue = newAssignedCount;
     isFullValue = newIsFull;
     emit changed();
 }
 
 void EditableLineupStateObject::clear() {
-    setFromValues(false, 0, 0, QString(), 0, 0, false);
+    setFromValues(false, 0, 0, QString(), 0, 0, 0, false);
 }

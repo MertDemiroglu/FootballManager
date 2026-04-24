@@ -34,11 +34,6 @@ Item {
         playerDialog.open()
     }
 
-
-
-
-
-
     Rectangle {
         anchors.fill: parent
         color: "#f4f6fb"

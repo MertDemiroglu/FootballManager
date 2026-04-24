@@ -8,6 +8,7 @@ class EditableLineupSlotsModel : public QAbstractListModel {
     Q_OBJECT
 
     Q_PROPERTY(QVariantList rows READ rows NOTIFY rowsChanged)
+    Q_PROPERTY(int count READ count NOTIFY rowsChanged)
 
 public:
     struct Row {
@@ -47,6 +48,7 @@ public:
     explicit EditableLineupSlotsModel(QObject* parent = nullptr);
 
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
+    int count() const;
     QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 

@@ -66,8 +66,8 @@ class GameFacade : public QObject {
     Q_PROPERTY(ShellStateObject* shellState READ getShellState CONSTANT)
     Q_PROPERTY(InteractionStateObject* interactionState READ getInteractionState CONSTANT)
     Q_PROPERTY(EditableLineupStateObject* editableLineupState READ getEditableLineupState CONSTANT)
-    Q_PROPERTY(QAbstractListModel* editableLineupSlotsModel READ getEditableLineupSlotsModel CONSTANT)
-    Q_PROPERTY(QAbstractListModel* editableLineupRosterModel READ getEditableLineupRosterModel CONSTANT)
+    Q_PROPERTY(EditableLineupSlotsModel* editableLineupSlotsModel READ getEditableLineupSlotsModel CONSTANT)
+    Q_PROPERTY(EditableLineupRosterModel* editableLineupRosterModel READ getEditableLineupRosterModel CONSTANT)
 
 public:
     explicit GameFacade(QObject* parent = nullptr);
@@ -122,17 +122,14 @@ public:
     ShellStateObject* getShellState() const;
     InteractionStateObject* getInteractionState() const;
     EditableLineupStateObject* getEditableLineupState() const;
-    QAbstractListModel* getEditableLineupSlotsModel() const;
-    QAbstractListModel* getEditableLineupRosterModel() const;
+    EditableLineupSlotsModel* getEditableLineupSlotsModel() const;
+    EditableLineupRosterModel* getEditableLineupRosterModel() const;
 
     Q_INVOKABLE QVariantList getStandingsTable() const;
     Q_INVOKABLE QVariantMap getCurrentTeamSeasonStats() const;
     Q_INVOKABLE QVariantList getCurrentTeamMatches() const;
     Q_INVOKABLE QVariantList getCurrentTeamUpcomingMatches(int count = 5) const;
     Q_INVOKABLE QVariantList getCurrentTeamPlayers() const;
-    Q_INVOKABLE QVariantMap getEditableLineupSummary() const;
-    Q_INVOKABLE QVariantList getEditableLineupSlots() const;
-    Q_INVOKABLE QVariantList getEditableLineupRoster() const;
     Q_INVOKABLE bool ensureEditableLineupReady();
     Q_INVOKABLE bool assignEditableLineupPlayerToSlot(int playerId, int slotIndex);
     Q_INVOKABLE bool clearEditableLineupSlot(int slotIndex);
@@ -192,6 +189,8 @@ private:
     void refreshEditableLineupStateObject();
     void refreshEditableLineupSlotsModel();
     void refreshEditableLineupRosterModel();
+    int getSelectedTeamPlayerCount() const;
+    int getExpectedEditableLineupSlotCount() const;
     const EditableLineup* resolveEditableLineup() const;
     void publishGameStateChanged();
 

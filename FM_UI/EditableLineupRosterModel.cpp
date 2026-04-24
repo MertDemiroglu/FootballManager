@@ -13,6 +13,10 @@ int EditableLineupRosterModel::rowCount(const QModelIndex& parent) const {
     return rowsValue.size();
 }
 
+int EditableLineupRosterModel::count() const {
+    return rowsValue.size();
+}
+
 QVariant EditableLineupRosterModel::data(const QModelIndex& index, int role) const {
     if (!index.isValid() || index.row() < 0 || index.row() >= rowsValue.size()) {
         return {};
@@ -64,6 +68,7 @@ void EditableLineupRosterModel::setRows(QVector<Row> newRows) {
     beginResetModel();
     rowsValue = std::move(newRows);
     endResetModel();
+    emit rowsChanged();
 }
 
 void EditableLineupRosterModel::clear() {

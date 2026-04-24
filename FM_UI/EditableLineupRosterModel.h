@@ -6,6 +6,8 @@
 class EditableLineupRosterModel : public QAbstractListModel {
     Q_OBJECT
 
+    Q_PROPERTY(int count READ count NOTIFY rowsChanged)
+
 public:
     struct Row {
         int playerId = 0;
@@ -36,11 +38,15 @@ public:
     explicit EditableLineupRosterModel(QObject* parent = nullptr);
 
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
+    int count() const;
     QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
     void setRows(QVector<Row> rows);
     void clear();
+
+signals:
+    void rowsChanged();
 
 private:
     QVector<Row> rowsValue;

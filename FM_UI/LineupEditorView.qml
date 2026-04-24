@@ -4,10 +4,12 @@ import QtQuick.Layouts
 
 Item {
     id: root
+    Layout.fillWidth: true
+    Layout.fillHeight: true
+    implicitHeight: Math.max(620, layoutRoot.implicitHeight)
 
     // GameFacade/backend remains the single source of truth for lineup editor data.
     property var gameFacade
-    property bool readOnly: false
     property var lineupState: gameFacade ? gameFacade.editableLineupState : null
     property var slotsModel: gameFacade ? gameFacade.editableLineupSlotsModel : null
     property var rosterModel: gameFacade ? gameFacade.editableLineupRosterModel : null
@@ -64,12 +66,10 @@ Item {
         }
     }
 
-    implicitHeight: layoutRoot.implicitHeight
-
     ColumnLayout {
         id: layoutRoot
-        width: parent ? parent.width : 0
-        spacing: 12
+        anchors.fill: parent
+        spacing: 10
 
         Label {
             Layout.fillWidth: true
@@ -86,13 +86,13 @@ Item {
             radius: 10
             color: "#f8fafc"
             border.color: "#d0d5dd"
-            implicitHeight: actionBarContent.implicitHeight + 16
+            implicitHeight: actionBarContent.implicitHeight + 12
 
             ColumnLayout {
                 id: actionBarContent
                 anchors.fill: parent
-                anchors.margins: 8
-                spacing: 8
+                anchors.margins: 6
+                spacing: 6
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -149,13 +149,28 @@ Item {
             }
         }
 
+        Label {
+            Layout.fillWidth: true
+            visible: !(lineupState && lineupState.hasLineup) || (slotsModel && slotsModel.count === 0) || (rosterModel && rosterModel.count === 0)
+            color: "#b42318"
+            font.pixelSize: 12
+            wrapMode: Text.WordWrap
+            text: "Lineup debug: hasLineup=" + (lineupState ? lineupState.hasLineup : false)
+                + ", slots=" + (slotsModel ? slotsModel.count : 0)
+                + ", roster=" + (rosterModel ? rosterModel.count : 0)
+                + ", selectedTeamId=" + (gameFacade ? gameFacade.getSelectedTeamId() : 0)
+                + ", selectedLeagueId=" + (gameFacade ? gameFacade.getSelectedLeagueId() : 0)
+        }
+
         RowLayout {
             Layout.fillWidth: true
+            Layout.fillHeight: true
             spacing: 12
 
             LineupPitchPanel {
                 Layout.fillWidth: true
-                Layout.preferredWidth: 2
+                Layout.fillHeight: true
+                Layout.preferredWidth: 3
                 slotsModel: root.slotsModel
                 selectedSlotIndex: root.selectedSlotIndex
                 onSlotClicked: function(slotIndex) {
@@ -165,6 +180,7 @@ Item {
 
             LineupRosterPanel {
                 Layout.fillWidth: true
+                Layout.fillHeight: true
                 Layout.preferredWidth: 2
                 rosterModel: root.rosterModel
                 selectedPlayerId: root.selectedPlayerId

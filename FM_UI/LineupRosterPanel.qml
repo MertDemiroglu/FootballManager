@@ -13,7 +13,7 @@ Rectangle {
     radius: 14
     border.color: "#d8dee8"
     color: "#ffffff"
-    implicitHeight: 520
+    Layout.minimumHeight: 420
 
     ColumnLayout {
         anchors.fill: parent
@@ -36,6 +36,7 @@ Rectangle {
                 width: parent.width
                 model: root.rosterModel
                 spacing: 8
+                boundsBehavior: Flickable.StopAtBounds
 
                 delegate: LineupRosterRow {
                     width: ListView.view ? ListView.view.width : 0
