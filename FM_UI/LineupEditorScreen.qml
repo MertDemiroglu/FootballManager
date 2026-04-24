@@ -63,11 +63,17 @@ Item {
                 }
             }
 
-            LineupEditorView {
+            ScrollView {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                gameFacade: root.gameFacade
-                readOnly: false
+                clip: true
+
+                LineupEditorView {
+                    width: parent.width
+                    height: Math.max(parent.height, implicitHeight)
+                    gameFacade: root.gameFacade
+                    readOnly: false
+                }
             }
         }
     }

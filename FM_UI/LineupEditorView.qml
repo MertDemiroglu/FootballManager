@@ -6,6 +6,7 @@ Item {
     id: root
     Layout.fillWidth: true
     Layout.fillHeight: true
+    implicitHeight: Math.max(620, layoutRoot.implicitHeight)
 
     // GameFacade/backend remains the single source of truth for lineup editor data.
     property var gameFacade
