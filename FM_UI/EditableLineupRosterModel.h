@@ -1,12 +1,15 @@
 #pragma once
 
 #include <QAbstractListModel>
+#include <QVariantList>
+#include <QVariantMap>
 #include <QVector>
 
 class EditableLineupRosterModel : public QAbstractListModel {
     Q_OBJECT
 
     Q_PROPERTY(int count READ count NOTIFY rowsChanged)
+    Q_PROPERTY(QVariantList rows READ rows NOTIFY rowsChanged)
 
 public:
     struct Row {
@@ -42,6 +45,8 @@ public:
     QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
+    QVariantList rows() const;
+
     void setRows(QVector<Row> rows);
     void clear();
 
@@ -50,4 +55,5 @@ signals:
 
 private:
     QVector<Row> rowsValue;
+    QVariantMap toVariantMap(const Row& row) const;
 };

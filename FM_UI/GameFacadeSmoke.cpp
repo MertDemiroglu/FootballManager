@@ -70,6 +70,67 @@ int main(int argc, char* argv[]) {
         expect(facade.getEditableLineupRosterModel()->rowCount() == players.size(),
             "editable lineup roster should match current team players");
 
+        expect(players.size() >= 2, "lineup edit smoke needs at least two players");
+        expect(facade.getEditableLineupSlotsModel()->rowCount() >= 2,
+            "lineup edit smoke needs at least two slots");
+
+        const int firstPlayerId = players.at(0).toMap().value(QStringLiteral("playerId")).toInt();
+        const int secondPlayerId = players.at(1).toMap().value(QStringLiteral("playerId")).toInt();
+
+        qDebug() << "[Smoke] Checking editable lineup assign/move/replace semantics...";
+        expect(facade.assignEditableLineupPlayerToSlot(firstPlayerId, 0),
+            "assigning first player to slot 0 should succeed");
+        expect(facade.assignEditableLineupPlayerToSlot(secondPlayerId, 1),
+            "assigning second player to slot 1 should succeed");
+        expect(facade.assignEditableLineupPlayerToSlot(firstPlayerId, 1),
+            "assigning already-assigned first player to slot 1 should move and replace");
+        expect(facade.getEditableLineupSlotsModel()->data(
+            facade.getEditableLineupSlotsModel()->index(0, 0),
+            EditableLineupSlotsModel::AssignedPlayerIdRole).toInt() == 0,
+            "moving first player away from slot 0 should clear the old slot");
+        expect(facade.getEditableLineupSlotsModel()->data(
+            facade.getEditableLineupSlotsModel()->index(1, 0),
+            EditableLineupSlotsModel::AssignedPlayerIdRole).toInt() == firstPlayerId,
+            "target slot should contain moved first player");
+        expect(facade.getEditableLineupRosterModel()->data(
+            facade.getEditableLineupRosterModel()->index(1, 0),
+            EditableLineupRosterModel::IsAssignedRole).toBool() == false,
+            "replaced second player should become unassigned");
+
+        expect(facade.assignEditableLineupPlayerToSlot(secondPlayerId, 0),
+            "reassigning second player to slot 0 should succeed");
+        expect(facade.swapEditableLineupSlots(0, 1),
+            "swapping two occupied slots should succeed");
+        expect(facade.getEditableLineupSlotsModel()->data(
+            facade.getEditableLineupSlotsModel()->index(0, 0),
+            EditableLineupSlotsModel::AssignedPlayerIdRole).toInt() == firstPlayerId,
+            "occupied slot swap should put first player in slot 0");
+        expect(facade.getEditableLineupSlotsModel()->data(
+            facade.getEditableLineupSlotsModel()->index(1, 0),
+            EditableLineupSlotsModel::AssignedPlayerIdRole).toInt() == secondPlayerId,
+            "occupied slot swap should put second player in slot 1");
+
+        expect(facade.clearEditableLineupSlot(0),
+            "clearing slot 0 before empty-slot move should succeed");
+        expect(facade.swapEditableLineupSlots(0, 1),
+            "swapping an empty slot with an occupied slot should move the occupant");
+        expect(facade.getEditableLineupSlotsModel()->data(
+            facade.getEditableLineupSlotsModel()->index(0, 0),
+            EditableLineupSlotsModel::AssignedPlayerIdRole).toInt() == secondPlayerId,
+            "empty occupied swap should move second player into slot 0");
+        expect(facade.getEditableLineupSlotsModel()->data(
+            facade.getEditableLineupSlotsModel()->index(1, 0),
+            EditableLineupSlotsModel::AssignedPlayerIdRole).toInt() == 0,
+            "empty occupied swap should leave slot 1 empty");
+        expect(!facade.swapEditableLineupSlots(1, 1),
+            "same-slot swap should be a deterministic no-op failure");
+        expect(facade.unassignEditableLineupPlayer(secondPlayerId),
+            "unassigning selected second player should succeed");
+        expect(facade.getEditableLineupSlotsModel()->data(
+            facade.getEditableLineupSlotsModel()->index(0, 0),
+            EditableLineupSlotsModel::AssignedPlayerIdRole).toInt() == 0,
+            "unassigning second player should clear their current slot");
+
         const int playerId = players.first().toMap().value(QStringLiteral("playerId")).toInt();
         qDebug() << "[Smoke] Reading player details for playerId =" << playerId;
         const QVariantMap playerDetails = facade.getPlayerDetails(playerId);

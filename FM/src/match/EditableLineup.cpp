@@ -95,11 +95,31 @@ bool EditableLineup::assignPlayerToSlot(PlayerId playerId, std::size_t slotIndex
         return false;
     }
 
+    // Assignment is also the explicit move path: remove the player from any
+    // old slot before writing the target slot. If occupied, the target's
+    // previous player is replaced and becomes unassigned.
     unassignPlayer(playerId);
-
-    // Deterministic Phase 1 policy: assigning to an occupied slot replaces the
-    // current occupant. The previous occupant becomes unassigned.
     lineupSlots[slotIndex].assignedPlayerId = playerId;
+    return true;
+}
+
+bool EditableLineup::swapSlots(std::size_t firstSlotIndex, std::size_t secondSlotIndex) {
+    if (firstSlotIndex >= lineupSlots.size() || secondSlotIndex >= lineupSlots.size()) {
+        return false;
+    }
+
+    if (firstSlotIndex == secondSlotIndex) {
+        return false;
+    }
+
+    const PlayerId firstPlayerId = lineupSlots[firstSlotIndex].assignedPlayerId;
+    const PlayerId secondPlayerId = lineupSlots[secondSlotIndex].assignedPlayerId;
+    if (firstPlayerId == 0 && secondPlayerId == 0) {
+        return false;
+    }
+
+    lineupSlots[firstSlotIndex].assignedPlayerId = secondPlayerId;
+    lineupSlots[secondSlotIndex].assignedPlayerId = firstPlayerId;
     return true;
 }
 

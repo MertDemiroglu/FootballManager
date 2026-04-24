@@ -64,6 +64,15 @@ QHash<int, QByteArray> EditableLineupRosterModel::roleNames() const {
     };
 }
 
+QVariantList EditableLineupRosterModel::rows() const {
+    QVariantList list;
+    list.reserve(rowsValue.size());
+    for (const Row& row : rowsValue) {
+        list.push_back(toVariantMap(row));
+    }
+    return list;
+}
+
 void EditableLineupRosterModel::setRows(QVector<Row> newRows) {
     beginResetModel();
     rowsValue = std::move(newRows);
@@ -73,4 +82,19 @@ void EditableLineupRosterModel::setRows(QVector<Row> newRows) {
 
 void EditableLineupRosterModel::clear() {
     setRows({});
+}
+
+QVariantMap EditableLineupRosterModel::toVariantMap(const Row& row) const {
+    QVariantMap map;
+    map.insert(QStringLiteral("playerId"), row.playerId);
+    map.insert(QStringLiteral("name"), row.name);
+    map.insert(QStringLiteral("positionShort"), row.positionShort);
+    map.insert(QStringLiteral("overall"), row.overall);
+    map.insert(QStringLiteral("overallSummary"), row.overallSummary);
+    map.insert(QStringLiteral("form"), row.form);
+    map.insert(QStringLiteral("fitness"), row.fitness);
+    map.insert(QStringLiteral("morale"), row.morale);
+    map.insert(QStringLiteral("isAssigned"), row.isAssigned);
+    map.insert(QStringLiteral("assignedSlotIndex"), row.assignedSlotIndex);
+    return map;
 }

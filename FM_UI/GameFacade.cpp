@@ -1202,6 +1202,30 @@ bool GameFacade::assignEditableLineupPlayerToSlot(int playerId, int slotIndex) {
     return true;
 }
 
+bool GameFacade::swapEditableLineupSlots(int firstSlotIndex, int secondSlotIndex) {
+    if (!gameStarted || firstSlotIndex < 0 || secondSlotIndex < 0) {
+        return false;
+    }
+
+    EditableLineup* lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup && !ensureEditableLineupReady()) {
+        return false;
+    }
+    lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup) {
+        return false;
+    }
+
+    if (!lineup->swapSlots(static_cast<std::size_t>(firstSlotIndex),
+                           static_cast<std::size_t>(secondSlotIndex))) {
+        return false;
+    }
+
+    refreshEditableLineupViews();
+    emit gameStateChanged();
+    return true;
+}
+
 bool GameFacade::clearEditableLineupSlot(int slotIndex) {
     if (!gameStarted || slotIndex < 0) {
         return false;

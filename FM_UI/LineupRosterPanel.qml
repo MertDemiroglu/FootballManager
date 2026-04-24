@@ -37,6 +37,17 @@ Rectangle {
             ScrollBar.vertical: ScrollBar {}
 
             delegate: LineupRosterRow {
+                required property int playerId
+                required property string name
+                required property string positionShort
+                required property int overall
+                required property string overallSummary
+                required property int form
+                required property int fitness
+                required property int morale
+                required property bool isAssigned
+                required property int assignedSlotIndex
+
                 width: ListView.view ? ListView.view.width : 0
                 selectedPlayerId: root.selectedPlayerId
                 rowData: ({
@@ -51,8 +62,8 @@ Rectangle {
                     isAssigned: isAssigned,
                     assignedSlotIndex: assignedSlotIndex
                 })
-                onClicked: function(playerId) {
-                    root.playerClicked(playerId)
+                onClicked: function(clickedPlayerId) {
+                    root.playerClicked(clickedPlayerId)
                 }
             }
         }
