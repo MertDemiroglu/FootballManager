@@ -103,6 +103,57 @@ bool EditableLineup::assignPlayerToSlot(PlayerId playerId, std::size_t slotIndex
     return true;
 }
 
+bool EditableLineup::changeFormation(FormationId newFormationId) {
+    if (newFormationId == formationId || !isFormationSupported(newFormationId)) {
+        return false;
+    }
+
+    const std::vector<FormationSlotRole>* slotTemplate = nullptr;
+    try {
+        slotTemplate = &getFormationSlotTemplate(newFormationId);
+    }
+    catch (...) {
+        return false;
+    }
+
+    if (!slotTemplate || slotTemplate->empty()) {
+        return false;
+    }
+
+    const std::vector<EditableLineupSlot> oldSlots = lineupSlots;
+    std::vector<EditableLineupSlot> newSlots;
+    newSlots.reserve(slotTemplate->size());
+    for (std::size_t i = 0; i < slotTemplate->size(); ++i) {
+        newSlots.push_back(EditableLineupSlot{ i, (*slotTemplate)[i], 0 });
+    }
+
+    for (const EditableLineupSlot& oldSlot : oldSlots) {
+        const PlayerId playerId = oldSlot.assignedPlayerId;
+        if (playerId == 0 || !isPlayerInRoster(playerId)) {
+            continue;
+        }
+
+        const bool alreadyPreserved = std::any_of(newSlots.begin(), newSlots.end(), [playerId](const EditableLineupSlot& slot) {
+            return slot.assignedPlayerId == playerId;
+        });
+        if (alreadyPreserved) {
+            continue;
+        }
+
+        auto targetSlotIt = std::find_if(newSlots.begin(), newSlots.end(), [&](const EditableLineupSlot& slot) {
+            return slot.slotRole == oldSlot.slotRole && slot.assignedPlayerId == 0;
+        });
+
+        if (targetSlotIt != newSlots.end()) {
+            targetSlotIt->assignedPlayerId = playerId;
+        }
+    }
+
+    formationId = newFormationId;
+    lineupSlots = std::move(newSlots);
+    return true;
+}
+
 bool EditableLineup::swapSlots(std::size_t firstSlotIndex, std::size_t secondSlotIndex) {
     if (firstSlotIndex >= lineupSlots.size() || secondSlotIndex >= lineupSlots.size()) {
         return false;

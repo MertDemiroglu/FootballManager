@@ -37,6 +37,7 @@ public:
     bool isFullLineup() const;
 
     bool assignPlayerToSlot(PlayerId playerId, std::size_t slotIndex);
+    bool changeFormation(FormationId newFormationId);
     bool swapSlots(std::size_t firstSlotIndex, std::size_t secondSlotIndex);
     bool clearSlot(std::size_t slotIndex);
     bool unassignPlayer(PlayerId playerId);

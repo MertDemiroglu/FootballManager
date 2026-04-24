@@ -1179,6 +1179,47 @@ bool GameFacade::ensureEditableLineupReady() {
     return ready;
 }
 
+QVariantList GameFacade::getEditableLineupSupportedFormations() const {
+    QVariantList formations;
+
+    for (FormationId formationId : getSupportedFormationIds()) {
+        QVariantMap item;
+        item.insert(QStringLiteral("formationId"), static_cast<int>(formationId));
+        item.insert(QStringLiteral("formationText"), formatFormation(formationId));
+        formations.push_back(item);
+    }
+
+    return formations;
+}
+
+bool GameFacade::changeEditableLineupFormation(int formationId) {
+    if (!gameStarted || formationId < 0) {
+        return false;
+    }
+
+    const FormationId newFormationId = static_cast<FormationId>(formationId);
+    if (!isFormationSupported(newFormationId)) {
+        return false;
+    }
+
+    EditableLineup* lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup && !ensureEditableLineupReady()) {
+        return false;
+    }
+    lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup) {
+        return false;
+    }
+
+    if (!lineup->changeFormation(newFormationId)) {
+        return false;
+    }
+
+    refreshEditableLineupViews();
+    emit gameStateChanged();
+    return true;
+}
+
 bool GameFacade::assignEditableLineupPlayerToSlot(int playerId, int slotIndex) {
     if (!gameStarted || playerId <= 0 || slotIndex < 0) {
         return false;
@@ -1807,10 +1848,16 @@ void GameFacade::refreshEditableLineup() {
     }
 
     const FormationId preferredFormation = team->getHeadCoach().getPreferredFormation();
-    const int expectedSlotCount = static_cast<int>(getFormationSlotTemplate(preferredFormation).size());
-    const bool needsBuild = !editableLineup.has_value()
-        || editableLineup->getTeamId() != selectedTeamId
-        || editableLineup->getFormationId() != preferredFormation
+    const bool hasLineupForSelectedTeam = editableLineup.has_value()
+        && editableLineup->getTeamId() == selectedTeamId;
+    const FormationId activeFormation = hasLineupForSelectedTeam
+        ? editableLineup->getFormationId()
+        : preferredFormation;
+    const int expectedSlotCount = isFormationSupported(activeFormation)
+        ? static_cast<int>(getFormationSlotTemplate(activeFormation).size())
+        : 0;
+    const bool needsBuild = !hasLineupForSelectedTeam
+        || expectedSlotCount == 0
         || static_cast<int>(editableLineup->getSlots().size()) != expectedSlotCount;
     if (needsBuild) {
         editableLineup = EditableLineup(*team, preferredFormation);
