@@ -15,12 +15,6 @@ Item {
     property int selectedPlayerId: 0
     property string actionStatusText: ""
 
-    function ensureLineupReady() {
-        if (gameFacade) {
-            gameFacade.ensureEditableLineupReady()
-        }
-    }
-
     function selectSlot(slotIndex) {
         selectedSlotIndex = slotIndex
         actionStatusText = ""
@@ -72,21 +66,10 @@ Item {
 
     implicitHeight: layoutRoot.implicitHeight
 
-    Component.onCompleted: ensureLineupReady()
-    onGameFacadeChanged: ensureLineupReady()
-
     ColumnLayout {
         id: layoutRoot
         width: parent ? parent.width : 0
         spacing: 12
-
-        Label {
-            Layout.fillWidth: true
-            text: root.readOnly ? "Lineup Editor (Read-Only)" : "Lineup Editor"
-            font.pixelSize: 24
-            font.bold: true
-            color: "#17212f"
-        }
 
         Label {
             Layout.fillWidth: true

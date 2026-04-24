@@ -9,6 +9,7 @@ Item {
 
     signal openStandingsRequested()
     signal openTeamRequested()
+    signal openLineupEditorRequested()
     signal openTransfersRequested()
     signal pauseRequested()
     signal resumeRequested()
@@ -518,6 +519,14 @@ Item {
                                 Layout.preferredHeight: 46
                                 font.pixelSize: 15
                                 onClicked: root.openTeamRequested()
+                            }
+
+                            Button {
+                                text: "Lineup Editor"
+                                Layout.preferredHeight: 46
+                                font.pixelSize: 15
+                                enabled: root.hasActiveGame
+                                onClicked: root.openLineupEditorRequested()
                             }
 
                             Button{

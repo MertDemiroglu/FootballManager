@@ -60,7 +60,6 @@ ApplicationWindow {
         return viewName === routes.dashboard
                || viewName === routes.standings
                || viewName === routes.team
-               || viewName === routes.lineupEditor
                || viewName === routes.transfers
     }
 
@@ -192,6 +191,9 @@ ApplicationWindow {
             onOpenTransfersRequested: {
                 root.navigateTo(root.routes.transfers)
             }
+            onOpenLineupEditorRequested: {
+                root.navigateTo(root.routes.lineupEditor)
+            }
             onPauseRequested: {
                 root.pauseSimulation()
             }
@@ -231,7 +233,7 @@ ApplicationWindow {
         LineupEditorScreen {
             gameFacade: gameFacade
             onBackRequested: {
-                root.navigateTo(root.routes.team)
+                root.navigateTo(root.routes.dashboard)
             }
         }
     }
