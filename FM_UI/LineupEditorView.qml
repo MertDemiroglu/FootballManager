@@ -9,34 +9,11 @@ Item {
     property var gameFacade
     // Read-only is the current mode only; interactive phases will extend this view.
     property bool readOnly: true
-
-    property var lineupSummary: ({})
-    property var slotRows: []
-    property var rosterRows: []
+    property var lineupState: gameFacade ? gameFacade.editableLineupState : null
+    property var slotsModel: gameFacade ? gameFacade.editableLineupSlotsModel : null
+    property var rosterModel: gameFacade ? gameFacade.editableLineupRosterModel : null
 
     implicitHeight: layoutRoot.implicitHeight
-
-    function refreshData() {
-        if (!gameFacade) {
-            lineupSummary = ({})
-            slotRows = []
-            rosterRows = []
-            return
-        }
-
-        lineupSummary = gameFacade.getEditableLineupSummary()
-        slotRows = gameFacade.getEditableLineupSlots()
-        rosterRows = gameFacade.getEditableLineupRoster()
-    }
-
-    Component.onCompleted: refreshData()
-
-    Connections {
-        target: gameFacade
-        function onGameStateChanged() {
-            root.refreshData()
-        }
-    }
 
     ColumnLayout {
         id: layoutRoot
@@ -53,8 +30,8 @@ Item {
 
         Label {
             Layout.fillWidth: true
-            text: lineupSummary.hasLineup
-                  ? "Formation " + (lineupSummary.formationText || "-") + " • Assigned " + (lineupSummary.assignedCount || 0) + "/" + (lineupSummary.slotCount || 0)
+            text: lineupState && lineupState.hasLineup
+                  ? "Formation " + (lineupState.formationText || "-") + " • Assigned " + (lineupState.assignedCount || 0) + "/" + (lineupState.slotCount || 0)
                   : "Lineup data unavailable"
             font.pixelSize: 14
             color: "#526071"
@@ -68,13 +45,13 @@ Item {
             LineupPitchPanel {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 2
-                slotRows: root.slotRows
+                slotsModel: root.slotsModel
             }
 
             LineupRosterPanel {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 2
-                rosterRows: root.rosterRows
+                rosterModel: root.rosterModel
             }
         }
     }

@@ -5,7 +5,8 @@ import QtQuick.Layouts
 Rectangle {
     id: root
 
-    property var slotRows: []
+    property var slotsModel: null
+    property var slotRows: slotsModel ? slotsModel.rows : []
 
     radius: 14
     border.color: "#d8dee8"

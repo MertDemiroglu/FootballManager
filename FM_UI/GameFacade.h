@@ -15,6 +15,9 @@
 #include"DashboardUpcomingMatchesModel.h"
 #include"InteractionStateObject.h"
 #include"ShellStateObject.h"
+#include"EditableLineupStateObject.h"
+#include"EditableLineupSlotsModel.h"
+#include"EditableLineupRosterModel.h"
 
 #include<memory>
 #include<optional>
@@ -62,6 +65,9 @@ class GameFacade : public QObject {
     Q_PROPERTY(QAbstractListModel* dashboardUpcomingMatchesModel READ getDashboardUpcomingMatchesModel CONSTANT)
     Q_PROPERTY(ShellStateObject* shellState READ getShellState CONSTANT)
     Q_PROPERTY(InteractionStateObject* interactionState READ getInteractionState CONSTANT)
+    Q_PROPERTY(EditableLineupStateObject* editableLineupState READ getEditableLineupState CONSTANT)
+    Q_PROPERTY(QAbstractListModel* editableLineupSlotsModel READ getEditableLineupSlotsModel CONSTANT)
+    Q_PROPERTY(QAbstractListModel* editableLineupRosterModel READ getEditableLineupRosterModel CONSTANT)
 
 public:
     explicit GameFacade(QObject* parent = nullptr);
@@ -115,6 +121,9 @@ public:
     QAbstractListModel* getDashboardUpcomingMatchesModel() const;
     ShellStateObject* getShellState() const;
     InteractionStateObject* getInteractionState() const;
+    EditableLineupStateObject* getEditableLineupState() const;
+    QAbstractListModel* getEditableLineupSlotsModel() const;
+    QAbstractListModel* getEditableLineupRosterModel() const;
 
     Q_INVOKABLE QVariantList getStandingsTable() const;
     Q_INVOKABLE QVariantMap getCurrentTeamSeasonStats() const;
@@ -144,6 +153,9 @@ private:
     DashboardUpcomingMatchesModel dashboardUpcomingMatchesModel;
     ShellStateObject shellStateObject;
     InteractionStateObject interactionStateObject;
+    EditableLineupStateObject editableLineupStateObject;
+    EditableLineupSlotsModel editableLineupSlotsModel;
+    EditableLineupRosterModel editableLineupRosterModel;
     LeagueId selectedLeagueId = 0;
     TeamId selectedTeamId = 0;
     bool gameStarted = false;
@@ -171,6 +183,9 @@ private:
     void refreshShellStateObject();
     void refreshInteractionStateObject();
     void refreshEditableLineup();
+    void refreshEditableLineupStateObject();
+    void refreshEditableLineupSlotsModel();
+    void refreshEditableLineupRosterModel();
     const EditableLineup* resolveEditableLineup() const;
     void publishGameStateChanged();
 

@@ -46,7 +46,7 @@ private:
     TeamId teamId = 0;
     CoachId coachId = 0;
     FormationId formationId = FormationId::FourFourTwo;
-    std::vector<EditableLineupSlot> slots;
+    std::vector<EditableLineupSlot> lineupSlots;
     std::vector<PlayerId> rosterPlayerIds;
 
     void buildSlotsFromFormation(FormationId formationId);
