@@ -726,6 +726,14 @@ void Game::setUserTeam(LeagueId leagueId, TeamId teamId) {
     user.setTeam(leagueId, teamId);
 }
 
+LeagueId Game::getManagedLeagueId() const {
+    return user.getManagedLeagueId();
+}
+
+TeamId Game::getManagedTeamId() const {
+    return user.getManagedTeamId();
+}
+
 GameState Game::getState() const {
     return state;
 }

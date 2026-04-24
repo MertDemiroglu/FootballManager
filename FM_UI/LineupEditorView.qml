@@ -8,11 +8,18 @@ Item {
     Layout.fillHeight: true
     implicitHeight: Math.max(620, layoutRoot.implicitHeight)
 
-    // GameFacade/backend remains the single source of truth for lineup editor data.
-    property var gameFacade
-    property var lineupState: gameFacade ? gameFacade.editableLineupState : null
-    property var slotsModel: gameFacade ? gameFacade.editableLineupSlotsModel : null
-    property var rosterModel: gameFacade ? gameFacade.editableLineupRosterModel : null
+    // Uses the global GameFacade context property; backend models remain the source of truth.
+    readonly property var lineupState: gameFacade.editableLineupState
+    readonly property var slotsModel: gameFacade.editableLineupSlotsModel
+    readonly property var rosterModel: gameFacade.editableLineupRosterModel
+    readonly property bool hasValidLineupData: lineupState
+        && lineupState.hasLineup
+        && slotsModel
+        && slotsModel.count > 0
+        && rosterModel
+        && rosterModel.count > 0
+        && gameFacade.getSelectedTeamId() > 0
+        && gameFacade.getSelectedLeagueId() > 0
     property int selectedSlotIndex: -1
     property int selectedPlayerId: 0
     property string actionStatusText: ""
@@ -74,7 +81,7 @@ Item {
         Label {
             Layout.fillWidth: true
             text: lineupState && lineupState.hasLineup
-                  ? "Formation " + (lineupState.formationText || "-") + " • Assigned " + (lineupState.assignedCount || 0) + "/" + (lineupState.slotCount || 0)
+                  ? "Formation " + (lineupState.formationText || "-") + " - Assigned " + (lineupState.assignedCount || 0) + "/" + (lineupState.slotCount || 0)
                   : "Lineup data unavailable"
             font.pixelSize: 14
             color: "#526071"
@@ -151,7 +158,7 @@ Item {
 
         Label {
             Layout.fillWidth: true
-            visible: !(lineupState && lineupState.hasLineup) || (slotsModel && slotsModel.count === 0) || (rosterModel && rosterModel.count === 0)
+            visible: !root.hasValidLineupData
             color: "#b42318"
             font.pixelSize: 12
             wrapMode: Text.WordWrap
@@ -165,6 +172,7 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.minimumHeight: 420
             spacing: 12
 
             LineupPitchPanel {

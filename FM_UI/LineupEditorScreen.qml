@@ -2,11 +2,10 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-Item {
+Rectangle {
     id: root
     anchors.fill: parent
-
-    property var gameFacade
+    color: "#f4f6fb"
 
     signal backRequested()
 
@@ -22,57 +21,53 @@ Item {
             prepareLineup()
         }
     }
-    onGameFacadeChanged: prepareLineup()
-
-    Rectangle {
+    ColumnLayout {
         anchors.fill: parent
-        color: "#f4f6fb"
+        anchors.margins: 24
+        spacing: 20
 
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 24
-            spacing: 20
+        Rectangle {
+            Layout.fillWidth: true
+            radius: 18
+            color: "#ffffff"
+            border.color: "#d8dee8"
+            implicitHeight: headerContent.implicitHeight + 24
 
-            Rectangle {
-                Layout.fillWidth: true
-                radius: 18
-                color: "#ffffff"
-                border.color: "#d8dee8"
-                implicitHeight: headerContent.implicitHeight + 24
+            RowLayout {
+                id: headerContent
+                anchors.fill: parent
+                anchors.margins: 12
+                spacing: 12
 
-                RowLayout {
-                    id: headerContent
-                    anchors.fill: parent
-                    anchors.margins: 12
-                    spacing: 12
+                Label {
+                    Layout.fillWidth: true
+                    text: "Lineup Editor"
+                    font.pixelSize: 28
+                    font.bold: true
+                    color: "#17212f"
+                }
 
-                    Label {
-                        Layout.fillWidth: true
-                        text: "Lineup Editor"
-                        font.pixelSize: 28
-                        font.bold: true
-                        color: "#17212f"
-                    }
-
-                    Button {
-                        text: "Back"
-                        Layout.preferredWidth: 108
-                        Layout.preferredHeight: 40
-                        onClicked: root.backRequested()
-                    }
+                Button {
+                    text: "Back"
+                    Layout.preferredWidth: 108
+                    Layout.preferredHeight: 40
+                    onClicked: root.backRequested()
                 }
             }
+        }
 
-            ScrollView {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
+        ScrollView {
+            id: editorScroll
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            clip: true
+            contentWidth: availableWidth
+            contentHeight: editorContent.height
 
-                LineupEditorView {
-                    width: parent.width
-                    height: Math.max(parent.height, implicitHeight)
-                    gameFacade: root.gameFacade
-                }
+            LineupEditorView {
+                id: editorContent
+                width: editorScroll.availableWidth
+                height: Math.max(editorScroll.availableHeight, implicitHeight)
             }
         }
     }

@@ -121,6 +121,8 @@ public:
 
 	//Kullanici takimini disaridan set eder
 	void setUserTeam(LeagueId leagueId, TeamId teamId);
+	LeagueId getManagedLeagueId() const;
+	TeamId getManagedTeamId() const;
 
 	//tarih nesnesini verir non-const
 	Date& getDate();

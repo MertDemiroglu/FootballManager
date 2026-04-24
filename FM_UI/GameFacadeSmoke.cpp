@@ -60,6 +60,16 @@ int main(int argc, char* argv[]) {
         const QVariantList players = facade.getCurrentTeamPlayers();
         expect(!players.isEmpty(), "current team players should not be empty");
 
+        qDebug() << "[Smoke] Preparing editable lineup...";
+        expect(facade.ensureEditableLineupReady(),
+            "editable lineup should be ready for the managed team");
+        expect(facade.getEditableLineupState()->hasLineup(),
+            "editable lineup state should report a lineup");
+        expect(facade.getEditableLineupSlotsModel()->rowCount() > 0,
+            "editable lineup slots should be populated");
+        expect(facade.getEditableLineupRosterModel()->rowCount() == players.size(),
+            "editable lineup roster should match current team players");
+
         const int playerId = players.first().toMap().value(QStringLiteral("playerId")).toInt();
         qDebug() << "[Smoke] Reading player details for playerId =" << playerId;
         const QVariantMap playerDetails = facade.getPlayerDetails(playerId);

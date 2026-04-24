@@ -27,35 +27,32 @@ Rectangle {
             color: "#17212f"
         }
 
-        ScrollView {
+        ListView {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
+            model: root.rosterModel
+            spacing: 8
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar {}
 
-            ListView {
-                width: parent.width
-                model: root.rosterModel
-                spacing: 8
-                boundsBehavior: Flickable.StopAtBounds
-
-                delegate: LineupRosterRow {
-                    width: ListView.view ? ListView.view.width : 0
-                    selectedPlayerId: root.selectedPlayerId
-                    rowData: ({
-                        playerId: playerId,
-                        name: name,
-                        positionShort: positionShort,
-                        overall: overall,
-                        overallSummary: overallSummary,
-                        form: form,
-                        fitness: fitness,
-                        morale: morale,
-                        isAssigned: isAssigned,
-                        assignedSlotIndex: assignedSlotIndex
-                    })
-                    onClicked: function(playerId) {
-                        root.playerClicked(playerId)
-                    }
+            delegate: LineupRosterRow {
+                width: ListView.view ? ListView.view.width : 0
+                selectedPlayerId: root.selectedPlayerId
+                rowData: ({
+                    playerId: playerId,
+                    name: name,
+                    positionShort: positionShort,
+                    overall: overall,
+                    overallSummary: overallSummary,
+                    form: form,
+                    fitness: fitness,
+                    morale: morale,
+                    isAssigned: isAssigned,
+                    assignedSlotIndex: assignedSlotIndex
+                })
+                onClicked: function(playerId) {
+                    root.playerClicked(playerId)
                 }
             }
         }

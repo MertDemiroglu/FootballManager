@@ -231,7 +231,6 @@ ApplicationWindow {
     Component {
         id: lineupEditorComponent
         LineupEditorScreen {
-            gameFacade: gameFacade
             onBackRequested: {
                 root.navigateTo(root.routes.dashboard)
             }

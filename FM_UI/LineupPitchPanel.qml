@@ -14,6 +14,7 @@ Rectangle {
     radius: 14
     border.color: "#d8dee8"
     color: "#ffffff"
+    clip: true
     Layout.minimumHeight: 420
 
     function roleGroup(slotRow) {

@@ -169,6 +169,8 @@ private:
     LeagueContext* resolveLeagueContext(LeagueId leagueId);
     const LeagueContext* resolveLeagueContext(LeagueId leagueId) const;
     const League* resolveLeague(LeagueId leagueId) const;
+    bool ensureSelectedTeamContext();
+    bool hasValidSelectedTeam();
     bool hasValidSelectedTeam() const;
     bool hasValidLeagueSelection() const;
     bool startNewGameInternal(LeagueId leagueId, TeamId teamId, const QString& managerName);

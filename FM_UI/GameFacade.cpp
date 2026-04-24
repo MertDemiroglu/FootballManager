@@ -270,6 +270,83 @@ const Game* GameFacade::ensureGame() const {
     return const_cast<GameFacade*>(this)->ensureGame();
 }
 
+bool GameFacade::ensureSelectedTeamContext() {
+    if (!gameStarted) {
+        return false;
+    }
+
+    Game* currentGame = ensureGame();
+    if (!currentGame) {
+        qWarning() << "[GameFacade::ensureSelectedTeamContext] Active game flag is set but Game is unavailable."
+                   << "gameStarted=" << gameStarted
+                   << "selectedLeagueId=" << selectedLeagueId
+                   << "selectedTeamId=" << selectedTeamId
+                   << "managedLeagueId=" << 0
+                   << "managedTeamId=" << 0;
+        return false;
+    }
+
+    const LeagueId managedLeagueId = currentGame->getManagedLeagueId();
+    const TeamId managedTeamId = currentGame->getManagedTeamId();
+
+    const auto isValidTeamContext = [this](LeagueId leagueId, TeamId teamId) {
+        if (leagueId == 0 || teamId == 0) {
+            return false;
+        }
+        const League* league = resolveLeague(leagueId);
+        return league && league->hasTeam(teamId);
+    };
+
+    if (isValidTeamContext(selectedLeagueId, selectedTeamId)) {
+        if (managedLeagueId != 0
+            && managedTeamId != 0
+            && (managedLeagueId != selectedLeagueId || managedTeamId != selectedTeamId)) {
+            if (isValidTeamContext(managedLeagueId, managedTeamId)) {
+                qWarning() << "[GameFacade::ensureSelectedTeamContext] Selected team context differed from managed team; using managed team."
+                           << "gameStarted=" << gameStarted
+                           << "selectedLeagueId=" << selectedLeagueId
+                           << "selectedTeamId=" << selectedTeamId
+                           << "managedLeagueId=" << managedLeagueId
+                           << "managedTeamId=" << managedTeamId;
+                selectedLeagueId = managedLeagueId;
+                selectedTeamId = managedTeamId;
+            } else {
+                qWarning() << "[GameFacade::ensureSelectedTeamContext] Managed team context is invalid; keeping valid selected team context."
+                           << "gameStarted=" << gameStarted
+                           << "selectedLeagueId=" << selectedLeagueId
+                           << "selectedTeamId=" << selectedTeamId
+                           << "managedLeagueId=" << managedLeagueId
+                           << "managedTeamId=" << managedTeamId;
+            }
+        }
+        return true;
+    }
+
+    if (isValidTeamContext(managedLeagueId, managedTeamId)) {
+        qWarning() << "[GameFacade::ensureSelectedTeamContext] Recovered selected team context from managed team."
+                   << "gameStarted=" << gameStarted
+                   << "selectedLeagueId=" << selectedLeagueId
+                   << "selectedTeamId=" << selectedTeamId
+                   << "managedLeagueId=" << managedLeagueId
+                   << "managedTeamId=" << managedTeamId;
+        selectedLeagueId = managedLeagueId;
+        selectedTeamId = managedTeamId;
+        return true;
+    }
+
+    qWarning() << "[GameFacade::ensureSelectedTeamContext] Unable to recover selected team context."
+               << "gameStarted=" << gameStarted
+               << "selectedLeagueId=" << selectedLeagueId
+               << "selectedTeamId=" << selectedTeamId
+               << "managedLeagueId=" << managedLeagueId
+               << "managedTeamId=" << managedTeamId;
+    return false;
+}
+
+bool GameFacade::hasValidSelectedTeam() {
+    return ensureSelectedTeamContext();
+}
+
 bool GameFacade::hasValidSelectedTeam() const {
     if (!gameStarted || selectedTeamId == 0 || selectedLeagueId == 0) {
         return false;
@@ -477,6 +554,7 @@ QString GameFacade::getCurrentStateText() const {
 }
 
 QString GameFacade::getSelectedTeamName() const {
+    const_cast<GameFacade*>(this)->ensureSelectedTeamContext();
     if (!hasValidSelectedTeam()) {
         return QString();
     }
@@ -485,10 +563,12 @@ QString GameFacade::getSelectedTeamName() const {
 }
 
 int GameFacade::getSelectedLeagueId() const {
+    const_cast<GameFacade*>(this)->ensureSelectedTeamContext();
     return static_cast<int>(selectedLeagueId);
 }
 
 int GameFacade::getSelectedTeamId() const {
+    const_cast<GameFacade*>(this)->ensureSelectedTeamContext();
     return static_cast<int>(selectedTeamId);
 }
 
@@ -1047,6 +1127,15 @@ QVariantList GameFacade::getCurrentTeamPlayers() const {
 }
 
 bool GameFacade::ensureEditableLineupReady() {
+    if (!ensureSelectedTeamContext()) {
+        clearEditableLineupData();
+        qWarning() << "[GameFacade::ensureEditableLineupReady] No valid selected team context for lineup editor."
+                   << "gameStarted=" << gameStarted
+                   << "selectedLeagueId=" << selectedLeagueId
+                   << "selectedTeamId=" << selectedTeamId;
+        return false;
+    }
+
     refreshEditableLineup();
 
     const int expectedSlotCount = getExpectedEditableLineupSlotCount();
@@ -1665,11 +1754,14 @@ void GameFacade::refreshInteractionStateObject() {
 }
 
 void GameFacade::refreshEditableLineup() {
-    if (!gameStarted || selectedLeagueId == 0 || selectedTeamId == 0) {
+    if (!ensureSelectedTeamContext()) {
+        const Game* currentGame = game.get();
         qWarning() << "[GameFacade::refreshEditableLineup] Invalid selected team context."
                    << "gameStarted=" << gameStarted
                    << "selectedLeagueId=" << selectedLeagueId
-                   << "selectedTeamId=" << selectedTeamId;
+                   << "selectedTeamId=" << selectedTeamId
+                   << "managedLeagueId=" << (currentGame ? currentGame->getManagedLeagueId() : 0)
+                   << "managedTeamId=" << (currentGame ? currentGame->getManagedTeamId() : 0);
         clearEditableLineupData();
         return;
     }
@@ -1908,6 +2000,7 @@ int GameFacade::getExpectedEditableLineupSlotCount() const {
 }
 
 void GameFacade::publishGameStateChanged() {
+    ensureSelectedTeamContext();
     refreshStandingsModel();
     refreshCurrentTeamPlayersModel();
     refreshCurrentTeamRecentMatchesModel();
