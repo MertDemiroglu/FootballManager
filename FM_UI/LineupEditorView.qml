@@ -21,11 +21,14 @@ Item {
         && gameFacade.getSelectedTeamId() > 0
         && gameFacade.getSelectedLeagueId() > 0
     property int selectedSlotIndex: -1
+    property int selectedSourceSlotIndex: -1
     property int selectedPlayerId: 0
     property string actionStatusText: ""
 
     function selectSlot(slotIndex) {
         selectedSlotIndex = slotIndex
+        if (selectedSourceSlotIndex === slotIndex)
+            selectedSourceSlotIndex = -1
         actionStatusText = ""
     }
 
@@ -34,13 +37,78 @@ Item {
         actionStatusText = ""
     }
 
+    function setSelectedSlotAsSource() {
+        if (selectedSlotIndex < 0)
+            return
+
+        selectedSourceSlotIndex = selectedSlotIndex
+        actionStatusText = ""
+    }
+
+    function slotRowFor(slotIndex) {
+        const rows = slotsModel ? slotsModel.rows : []
+        for (let i = 0; i < rows.length; ++i) {
+            if (rows[i].slotIndex === slotIndex)
+                return rows[i]
+        }
+        return null
+    }
+
+    function rosterRowFor(playerId) {
+        const rows = rosterModel ? rosterModel.rows : []
+        for (let i = 0; i < rows.length; ++i) {
+            if (rows[i].playerId === playerId)
+                return rows[i]
+        }
+        return null
+    }
+
+    function slotLabelFor(slotIndex) {
+        const row = slotRowFor(slotIndex)
+        if (!row)
+            return slotIndex >= 0 ? ("#" + slotIndex) : "None"
+        return "#" + row.slotIndex + " " + (row.slotLabel || row.slotRole || "Slot")
+    }
+
+    function playerLabelFor(playerId) {
+        const row = rosterRowFor(playerId)
+        if (!row)
+            return playerId > 0 ? ("ID " + playerId) : "None"
+        return row.name + " (" + (row.positionShort || "?") + ")"
+    }
+
+    function selectedPlayerCurrentSlotText() {
+        const row = rosterRowFor(selectedPlayerId)
+        if (!row)
+            return "Selected Player Current Slot: None"
+        return row.isAssigned
+            ? ("Selected Player Current Slot: " + slotLabelFor(row.assignedSlotIndex) + " - assigning elsewhere will move them")
+            : "Selected Player Current Slot: Unassigned"
+    }
+
+    function targetSlotOccupantText() {
+        const row = slotRowFor(selectedSlotIndex)
+        if (!row)
+            return "Target Slot Occupant: None"
+        return row.hasAssignedPlayer
+            ? ("Target Slot Occupant: " + (row.assignedPlayerName || "Unknown") + " - assigning another player will replace them")
+            : "Target Slot Occupant: Empty"
+    }
+
     function assignSelectedPlayerToSelectedSlot() {
         if (!gameFacade || selectedSlotIndex < 0 || selectedPlayerId <= 0)
             return
 
+        const playerRow = rosterRowFor(selectedPlayerId)
+        const targetRow = slotRowFor(selectedSlotIndex)
         const ok = gameFacade.assignEditableLineupPlayerToSlot(selectedPlayerId, selectedSlotIndex)
         if (ok) {
-            actionStatusText = "Assigned player to slot."
+            if (playerRow && playerRow.isAssigned && playerRow.assignedSlotIndex !== selectedSlotIndex)
+                actionStatusText = "Moved player to selected slot."
+            else if (targetRow && targetRow.hasAssignedPlayer && targetRow.assignedPlayerId !== selectedPlayerId)
+                actionStatusText = "Replaced target slot occupant."
+            else
+                actionStatusText = "Assigned player to slot."
             selectedPlayerId = 0
         } else {
             actionStatusText = "Assign failed."
@@ -70,6 +138,23 @@ Item {
             selectedPlayerId = 0
         } else {
             actionStatusText = "Unassign failed."
+        }
+    }
+
+    function swapSelectedSlots() {
+        if (!gameFacade || selectedSourceSlotIndex < 0 || selectedSlotIndex < 0 || selectedSourceSlotIndex === selectedSlotIndex)
+            return
+
+        const sourceRow = slotRowFor(selectedSourceSlotIndex)
+        const targetRow = slotRowFor(selectedSlotIndex)
+        const ok = gameFacade.swapEditableLineupSlots(selectedSourceSlotIndex, selectedSlotIndex)
+        if (ok) {
+            actionStatusText = sourceRow && sourceRow.hasAssignedPlayer && targetRow && targetRow.hasAssignedPlayer
+                ? "Swapped selected slots."
+                : "Moved selected slot occupant."
+            selectedSourceSlotIndex = -1
+        } else {
+            actionStatusText = "Swap / move slots failed."
         }
     }
 
@@ -106,13 +191,19 @@ Item {
                     spacing: 8
 
                     Label {
-                        text: selectedSlotIndex >= 0 ? ("Selected Slot: #" + selectedSlotIndex) : "Selected Slot: None"
+                        text: "Selected Slot: " + slotLabelFor(selectedSlotIndex)
                         font.pixelSize: 12
                         color: "#344054"
                     }
 
                     Label {
-                        text: selectedPlayerId > 0 ? ("Selected Player ID: " + selectedPlayerId) : "Selected Player: None"
+                        text: "Source Slot: " + slotLabelFor(selectedSourceSlotIndex)
+                        font.pixelSize: 12
+                        color: "#344054"
+                    }
+
+                    Label {
+                        text: "Selected Player: " + playerLabelFor(selectedPlayerId)
                         font.pixelSize: 12
                         color: "#344054"
                     }
@@ -124,25 +215,64 @@ Item {
                     Layout.fillWidth: true
                     spacing: 8
 
+                    Label {
+                        Layout.fillWidth: true
+                        text: selectedPlayerCurrentSlotText()
+                        font.pixelSize: 12
+                        color: "#475467"
+                        wrapMode: Text.WordWrap
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: targetSlotOccupantText()
+                        font.pixelSize: 12
+                        color: "#475467"
+                        wrapMode: Text.WordWrap
+                    }
+                }
+
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: width < 760 ? 2 : 5
+                    spacing: 8
+
                     Button {
-                        text: "Assign"
+                        Layout.fillWidth: true
+                        text: "Assign / Move Player To Slot"
                         enabled: selectedSlotIndex >= 0 && selectedPlayerId > 0
                         onClicked: root.assignSelectedPlayerToSelectedSlot()
                     }
 
                     Button {
+                        Layout.fillWidth: true
+                        text: "Use Selected Slot As Source"
+                        enabled: selectedSlotIndex >= 0
+                        onClicked: root.setSelectedSlotAsSource()
+                    }
+
+                    Button {
+                        Layout.fillWidth: true
                         text: "Clear Slot"
                         enabled: selectedSlotIndex >= 0
                         onClicked: root.clearSelectedSlot()
                     }
 
                     Button {
+                        Layout.fillWidth: true
                         text: "Unassign Player"
                         enabled: selectedPlayerId > 0
                         onClicked: root.unassignSelectedPlayer()
                     }
 
-                    Item { Layout.fillWidth: true }
+                    Button {
+                        Layout.fillWidth: true
+                        text: "Swap / Move Slots"
+                        enabled: selectedSourceSlotIndex >= 0
+                            && selectedSlotIndex >= 0
+                            && selectedSourceSlotIndex !== selectedSlotIndex
+                        onClicked: root.swapSelectedSlots()
+                    }
                 }
 
                 Label {
@@ -181,6 +311,7 @@ Item {
                 Layout.preferredWidth: 3
                 slotsModel: root.slotsModel
                 selectedSlotIndex: root.selectedSlotIndex
+                selectedSourceSlotIndex: root.selectedSourceSlotIndex
                 onSlotClicked: function(slotIndex) {
                     root.selectSlot(slotIndex)
                 }

@@ -8,6 +8,7 @@ Rectangle {
     property var slotsModel: null
     property var slotRows: slotsModel ? slotsModel.rows : []
     property int selectedSlotIndex: -1
+    property int selectedSourceSlotIndex: -1
 
     signal slotClicked(int slotIndex)
 
@@ -97,6 +98,7 @@ Rectangle {
                                 Layout.fillHeight: true
                                 slotData: modelData
                                 selectedSlotIndex: root.selectedSlotIndex
+                                selectedSourceSlotIndex: root.selectedSourceSlotIndex
                                 onClicked: function(slotIndex) {
                                     root.slotClicked(slotIndex)
                                 }

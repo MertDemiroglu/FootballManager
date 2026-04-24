@@ -7,15 +7,17 @@ Rectangle {
 
     property var slotData: ({})
     property int selectedSlotIndex: -1
+    property int selectedSourceSlotIndex: -1
     readonly property int slotIndex: typeof slotData.slotIndex === "number" ? slotData.slotIndex : -1
     readonly property bool isSelected: selectedSlotIndex >= 0 && slotIndex === selectedSlotIndex
+    readonly property bool isSource: selectedSourceSlotIndex >= 0 && slotIndex === selectedSourceSlotIndex
 
     signal clicked(int slotIndex)
 
     radius: 8
-    color: isSelected ? "#dbeafe" : (slotData.isEmpty ? "#fef3c7" : "#f8fafc")
-    border.color: isSelected ? "#2563eb" : (slotData.isEmpty ? "#f59e0b" : "#d0d5dd")
-    border.width: isSelected ? 2 : 1
+    color: isSelected ? "#dbeafe" : (isSource ? "#dcfce7" : (slotData.isEmpty ? "#fef3c7" : "#f8fafc"))
+    border.color: isSelected ? "#2563eb" : (isSource ? "#16a34a" : (slotData.isEmpty ? "#f59e0b" : "#d0d5dd"))
+    border.width: (isSelected || isSource) ? 2 : 1
     implicitWidth: 96
     implicitHeight: 76
 
