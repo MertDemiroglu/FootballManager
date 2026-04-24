@@ -6,10 +6,16 @@ Rectangle {
     id: root
 
     property var rowData: ({})
+    property int selectedPlayerId: 0
+    readonly property int playerId: rowData.playerId || 0
+    readonly property bool isSelected: playerId > 0 && playerId === selectedPlayerId
+
+    signal clicked(int playerId)
 
     radius: 10
-    border.color: rowData.isAssigned ? "#93c5fd" : "#e4e7ec"
-    color: rowData.isAssigned ? "#eff6ff" : "#f8fafc"
+    border.color: isSelected ? "#2563eb" : (rowData.isAssigned ? "#93c5fd" : "#e4e7ec")
+    border.width: isSelected ? 2 : 1
+    color: isSelected ? "#dbeafe" : (rowData.isAssigned ? "#eff6ff" : "#f8fafc")
     opacity: rowData.isAssigned ? 0.8 : 1.0
     implicitHeight: rosterContent.implicitHeight + 18
 
@@ -97,6 +103,16 @@ Rectangle {
                 text: rowData.isAssigned ? ("Slot #" + rowData.assignedSlotIndex) : "Unassigned"
                 font.pixelSize: 11
                 color: rowData.isAssigned ? "#1d4ed8" : "#667085"
+            }
+        }
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        cursorShape: Qt.PointingHandCursor
+        onClicked: {
+            if (root.playerId > 0) {
+                root.clicked(root.playerId)
             }
         }
     }

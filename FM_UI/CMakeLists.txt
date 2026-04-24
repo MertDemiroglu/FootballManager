@@ -45,6 +45,12 @@ qt_add_executable(FM_UI
     PostMatchInteractionObject.h
     TransferOfferInteractionObject.cpp
     TransferOfferInteractionObject.h
+    EditableLineupStateObject.cpp
+    EditableLineupStateObject.h
+    EditableLineupSlotsModel.cpp
+    EditableLineupSlotsModel.h
+    EditableLineupRosterModel.cpp
+    EditableLineupRosterModel.h
 )
 
 qt_add_qml_module(FM_UI
@@ -112,6 +118,12 @@ qt_add_executable(game_facade_smoke
     PostMatchInteractionObject.h
     TransferOfferInteractionObject.cpp
     TransferOfferInteractionObject.h
+    EditableLineupStateObject.cpp
+    EditableLineupStateObject.h
+    EditableLineupSlotsModel.cpp
+    EditableLineupSlotsModel.h
+    EditableLineupRosterModel.cpp
+    EditableLineupRosterModel.h
 )
 
 set_target_properties(game_facade_smoke PROPERTIES
