@@ -7,6 +7,9 @@ Rectangle {
 
     property var slotsModel: null
     property var slotRows: slotsModel ? slotsModel.rows : []
+    property int selectedSlotIndex: -1
+
+    signal slotClicked(int slotIndex)
 
     radius: 14
     border.color: "#d8dee8"
@@ -91,6 +94,10 @@ Rectangle {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
                                 slotData: modelData
+                                selectedSlotIndex: root.selectedSlotIndex
+                                onClicked: function(slotIndex) {
+                                    root.slotClicked(slotIndex)
+                                }
                             }
                         }
                     }

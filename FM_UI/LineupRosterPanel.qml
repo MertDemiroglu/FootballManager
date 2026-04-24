@@ -6,6 +6,9 @@ Rectangle {
     id: root
 
     property var rosterModel: null
+    property int selectedPlayerId: 0
+
+    signal playerClicked(int playerId)
 
     radius: 14
     border.color: "#d8dee8"
@@ -36,6 +39,7 @@ Rectangle {
 
                 delegate: LineupRosterRow {
                     width: ListView.view ? ListView.view.width : 0
+                    selectedPlayerId: root.selectedPlayerId
                     rowData: ({
                         playerId: playerId,
                         name: name,
@@ -48,6 +52,9 @@ Rectangle {
                         isAssigned: isAssigned,
                         assignedSlotIndex: assignedSlotIndex
                     })
+                    onClicked: function(playerId) {
+                        root.playerClicked(playerId)
+                    }
                 }
             }
         }

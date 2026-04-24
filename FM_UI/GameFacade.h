@@ -133,6 +133,9 @@ public:
     Q_INVOKABLE QVariantMap getEditableLineupSummary() const;
     Q_INVOKABLE QVariantList getEditableLineupSlots() const;
     Q_INVOKABLE QVariantList getEditableLineupRoster() const;
+    Q_INVOKABLE bool assignEditableLineupPlayerToSlot(int playerId, int slotIndex);
+    Q_INVOKABLE bool clearEditableLineupSlot(int slotIndex);
+    Q_INVOKABLE bool unassignEditableLineupPlayer(int playerId);
 
     Q_INVOKABLE QVariantMap getPlayerDetails(int playerId) const;
     Q_INVOKABLE QVariantMap getMatchReportDetails(qulonglong matchId) const;
@@ -183,6 +186,7 @@ private:
     void refreshShellStateObject();
     void refreshInteractionStateObject();
     void refreshEditableLineup();
+    void refreshEditableLineupViews();
     void refreshEditableLineupStateObject();
     void refreshEditableLineupSlotsModel();
     void refreshEditableLineupRosterModel();

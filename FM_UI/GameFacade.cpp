@@ -1077,6 +1077,75 @@ QVariantList GameFacade::getEditableLineupRoster() const {
     return rows;
 }
 
+bool GameFacade::assignEditableLineupPlayerToSlot(int playerId, int slotIndex) {
+    if (!gameStarted || playerId <= 0 || slotIndex < 0) {
+        return false;
+    }
+
+    EditableLineup* lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup) {
+        refreshEditableLineup();
+        lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    }
+    if (!lineup) {
+        return false;
+    }
+
+    if (!lineup->assignPlayerToSlot(static_cast<PlayerId>(playerId), static_cast<std::size_t>(slotIndex))) {
+        return false;
+    }
+
+    refreshEditableLineupViews();
+    emit gameStateChanged();
+    return true;
+}
+
+bool GameFacade::clearEditableLineupSlot(int slotIndex) {
+    if (!gameStarted || slotIndex < 0) {
+        return false;
+    }
+
+    EditableLineup* lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup) {
+        refreshEditableLineup();
+        lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    }
+    if (!lineup) {
+        return false;
+    }
+
+    if (!lineup->clearSlot(static_cast<std::size_t>(slotIndex))) {
+        return false;
+    }
+
+    refreshEditableLineupViews();
+    emit gameStateChanged();
+    return true;
+}
+
+bool GameFacade::unassignEditableLineupPlayer(int playerId) {
+    if (!gameStarted || playerId <= 0) {
+        return false;
+    }
+
+    EditableLineup* lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup) {
+        refreshEditableLineup();
+        lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    }
+    if (!lineup) {
+        return false;
+    }
+
+    if (!lineup->unassignPlayer(static_cast<PlayerId>(playerId))) {
+        return false;
+    }
+
+    refreshEditableLineupViews();
+    emit gameStateChanged();
+    return true;
+}
+
 QVariantMap GameFacade::getPlayerDetails(int playerId) const {
     if (!gameStarted || playerId <= 0) {
         return missingPlayerMap();
@@ -1605,6 +1674,10 @@ void GameFacade::refreshEditableLineup() {
     const FormationId preferredFormation = team->getHeadCoach().getPreferredFormation();
     const TeamSelectionService teamSelectionService;
     editableLineup = EditableLineup::createSeededFromAutoSelection(*team, preferredFormation, teamSelectionService);
+    refreshEditableLineupViews();
+}
+
+void GameFacade::refreshEditableLineupViews() {
     refreshEditableLineupStateObject();
     refreshEditableLineupSlotsModel();
     refreshEditableLineupRosterModel();
