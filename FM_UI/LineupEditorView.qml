@@ -15,6 +15,12 @@ Item {
     property int selectedPlayerId: 0
     property string actionStatusText: ""
 
+    function ensureLineupReady() {
+        if (gameFacade) {
+            gameFacade.ensureEditableLineupReady()
+        }
+    }
+
     function selectSlot(slotIndex) {
         selectedSlotIndex = slotIndex
         actionStatusText = ""
@@ -65,6 +71,9 @@ Item {
     }
 
     implicitHeight: layoutRoot.implicitHeight
+
+    Component.onCompleted: ensureLineupReady()
+    onGameFacadeChanged: ensureLineupReady()
 
     ColumnLayout {
         id: layoutRoot

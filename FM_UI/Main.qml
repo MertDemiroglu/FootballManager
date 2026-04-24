@@ -19,6 +19,7 @@ ApplicationWindow {
         readonly property string dashboard: "dashboard"
         readonly property string standings: "standings"
         readonly property string team: "team"
+        readonly property string lineupEditor: "lineupEditor"
         readonly property string transfers: "transfers"
     }
 
@@ -49,6 +50,9 @@ ApplicationWindow {
         if (viewName === routes.transfers) {
             return transfersComponent
         }
+        if (viewName === routes.lineupEditor) {
+            return lineupEditorComponent
+        }
         return dashboardComponent
     }
 
@@ -56,6 +60,7 @@ ApplicationWindow {
         return viewName === routes.dashboard
                || viewName === routes.standings
                || viewName === routes.team
+               || viewName === routes.lineupEditor
                || viewName === routes.transfers
     }
 
@@ -212,8 +217,21 @@ ApplicationWindow {
             onBackRequested: {
                 root.navigateTo(root.routes.dashboard)
             }
+            onOpenLineupEditorRequested: {
+                root.navigateTo(root.routes.lineupEditor)
+            }
             onOpenMatchDetailRequested: function(matchId) {
                 root.openMatchDetails(matchId)
+            }
+        }
+    }
+
+    Component {
+        id: lineupEditorComponent
+        LineupEditorScreen {
+            gameFacade: gameFacade
+            onBackRequested: {
+                root.navigateTo(root.routes.team)
             }
         }
     }
