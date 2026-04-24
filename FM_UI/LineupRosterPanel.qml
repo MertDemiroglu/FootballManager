@@ -7,7 +7,6 @@ Rectangle {
 
     property var rosterModel: null
     property int selectedPlayerId: 0
-    property bool interactive: true
 
     signal playerClicked(int playerId)
 
@@ -42,7 +41,6 @@ Rectangle {
                 delegate: LineupRosterRow {
                     width: ListView.view ? ListView.view.width : 0
                     selectedPlayerId: root.selectedPlayerId
-                    interactive: root.interactive
                     rowData: ({
                         playerId: playerId,
                         name: name,

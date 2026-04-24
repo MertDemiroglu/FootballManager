@@ -7,7 +7,6 @@ Rectangle {
 
     property var slotData: ({})
     property int selectedSlotIndex: -1
-    property bool interactive: true
     readonly property int slotIndex: typeof slotData.slotIndex === "number" ? slotData.slotIndex : -1
     readonly property bool isSelected: selectedSlotIndex >= 0 && slotIndex === selectedSlotIndex
 
@@ -57,8 +56,7 @@ Rectangle {
 
     MouseArea {
         anchors.fill: parent
-        enabled: root.interactive
-        cursorShape: root.interactive ? Qt.PointingHandCursor : Qt.ArrowCursor
+        cursorShape: Qt.PointingHandCursor
         onClicked: {
             if (root.slotIndex >= 0) {
                 root.clicked(root.slotIndex)

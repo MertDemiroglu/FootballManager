@@ -72,7 +72,6 @@ Item {
                     width: parent.width
                     height: Math.max(parent.height, implicitHeight)
                     gameFacade: root.gameFacade
-                    readOnly: false
                 }
             }
         }

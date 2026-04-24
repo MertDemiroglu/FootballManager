@@ -7,7 +7,6 @@ Rectangle {
 
     property var rowData: ({})
     property int selectedPlayerId: 0
-    property bool interactive: true
     readonly property int playerId: rowData.playerId || 0
     readonly property bool isSelected: playerId > 0 && playerId === selectedPlayerId
 
@@ -110,8 +109,7 @@ Rectangle {
 
     MouseArea {
         anchors.fill: parent
-        enabled: root.interactive
-        cursorShape: root.interactive ? Qt.PointingHandCursor : Qt.ArrowCursor
+        cursorShape: Qt.PointingHandCursor
         onClicked: {
             if (root.playerId > 0) {
                 root.clicked(root.playerId)

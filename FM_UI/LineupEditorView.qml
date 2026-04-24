@@ -10,7 +10,6 @@ Item {
 
     // GameFacade/backend remains the single source of truth for lineup editor data.
     property var gameFacade
-    property bool readOnly: false
     property var lineupState: gameFacade ? gameFacade.editableLineupState : null
     property var slotsModel: gameFacade ? gameFacade.editableLineupSlotsModel : null
     property var rosterModel: gameFacade ? gameFacade.editableLineupRosterModel : null
@@ -19,21 +18,17 @@ Item {
     property string actionStatusText: ""
 
     function selectSlot(slotIndex) {
-        if (readOnly)
-            return
         selectedSlotIndex = slotIndex
         actionStatusText = ""
     }
 
     function selectPlayer(playerId) {
-        if (readOnly)
-            return
         selectedPlayerId = playerId
         actionStatusText = ""
     }
 
     function assignSelectedPlayerToSelectedSlot() {
-        if (readOnly || !gameFacade || selectedSlotIndex < 0 || selectedPlayerId <= 0)
+        if (!gameFacade || selectedSlotIndex < 0 || selectedPlayerId <= 0)
             return
 
         const ok = gameFacade.assignEditableLineupPlayerToSlot(selectedPlayerId, selectedSlotIndex)
@@ -46,7 +41,7 @@ Item {
     }
 
     function clearSelectedSlot() {
-        if (readOnly || !gameFacade || selectedSlotIndex < 0)
+        if (!gameFacade || selectedSlotIndex < 0)
             return
 
         const ok = gameFacade.clearEditableLineupSlot(selectedSlotIndex)
@@ -59,7 +54,7 @@ Item {
     }
 
     function unassignSelectedPlayer() {
-        if (readOnly || !gameFacade || selectedPlayerId <= 0)
+        if (!gameFacade || selectedPlayerId <= 0)
             return
 
         const ok = gameFacade.unassignEditableLineupPlayer(selectedPlayerId)
@@ -68,14 +63,6 @@ Item {
             selectedPlayerId = 0
         } else {
             actionStatusText = "Unassign failed."
-        }
-    }
-
-    onReadOnlyChanged: {
-        if (readOnly) {
-            selectedSlotIndex = -1
-            selectedPlayerId = 0
-            actionStatusText = ""
         }
     }
 
@@ -96,7 +83,6 @@ Item {
 
         Rectangle {
             Layout.fillWidth: true
-            visible: !root.readOnly
             radius: 10
             color: "#f8fafc"
             border.color: "#d0d5dd"
@@ -133,19 +119,19 @@ Item {
 
                     Button {
                         text: "Assign"
-                        enabled: !root.readOnly && selectedSlotIndex >= 0 && selectedPlayerId > 0
+                        enabled: selectedSlotIndex >= 0 && selectedPlayerId > 0
                         onClicked: root.assignSelectedPlayerToSelectedSlot()
                     }
 
                     Button {
                         text: "Clear Slot"
-                        enabled: !root.readOnly && selectedSlotIndex >= 0
+                        enabled: selectedSlotIndex >= 0
                         onClicked: root.clearSelectedSlot()
                     }
 
                     Button {
                         text: "Unassign Player"
-                        enabled: !root.readOnly && selectedPlayerId > 0
+                        enabled: selectedPlayerId > 0
                         onClicked: root.unassignSelectedPlayer()
                     }
 
@@ -187,7 +173,6 @@ Item {
                 Layout.preferredWidth: 3
                 slotsModel: root.slotsModel
                 selectedSlotIndex: root.selectedSlotIndex
-                interactive: !root.readOnly
                 onSlotClicked: function(slotIndex) {
                     root.selectSlot(slotIndex)
                 }
@@ -199,7 +184,6 @@ Item {
                 Layout.preferredWidth: 2
                 rosterModel: root.rosterModel
                 selectedPlayerId: root.selectedPlayerId
-                interactive: !root.readOnly
                 onPlayerClicked: function(playerId) {
                     root.selectPlayer(playerId)
                 }
