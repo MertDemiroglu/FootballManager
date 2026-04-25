@@ -460,9 +460,6 @@ Item {
                 onSlotDroppedOnSlot: function(sourceSlotIndex, targetSlotIndex) {
                     root.handleSlotDroppedOnSlot(sourceSlotIndex, targetSlotIndex)
                 }
-                onPlayerDroppedOnSquad: function(playerId, sourceSlotIndex) {
-                    root.handlePlayerDroppedOnSquad(playerId, sourceSlotIndex)
-                }
             }
 
             LineupRosterPanel {
@@ -485,6 +482,9 @@ Item {
                 }
                 onSlotDroppedOnSlot: function(sourceSlotIndex, targetSlotIndex) {
                     root.handleSlotDroppedOnSlot(sourceSlotIndex, targetSlotIndex)
+                }
+                onPlayerDroppedOnSquad: function(playerId, sourceSlotIndex) {
+                    root.handlePlayerDroppedOnSquad(playerId, sourceSlotIndex)
                 }
             }
         }
