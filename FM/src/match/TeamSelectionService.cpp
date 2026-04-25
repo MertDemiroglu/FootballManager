@@ -875,16 +875,20 @@ FormationSelectionCandidate evaluateFormationCandidate(FormationId formation,
 } // namespace
 
 TeamSheet TeamSelectionService::buildTeamSheet(const Team& team) const {
+    const FormationId preferredFormation = team.getHeadCoach().getPreferredFormation();
+    const FormationId selectedFormation = isFormationSupported(preferredFormation)
+        ? preferredFormation
+        : getSupportedFormationIds().front();
+
+    return buildTeamSheet(team, selectedFormation);
+}
+
+TeamSheet TeamSelectionService::buildTeamSheet(const Team& team, FormationId formationId) const {
     const NaturalPositionIndex naturalPositionIndex = buildNaturalPositionIndex(team);
     const std::size_t starterTargetCount = std::min<std::size_t>(11, naturalPositionIndex.squadSize);
 
-    const FormationId preferredFormation = team.getHeadCoach().getPreferredFormation();
-    // Team selection no longer switches formations based on score. We always
-    // build with the preferred formation unless it is unsupported.
-    const FormationId selectedFormation = isFormationSupported(preferredFormation)
-        ? preferredFormation
-        // Deterministic safety fallback for invalid/unsupported preferred
-        // formations: use the first supported formation.
+    const FormationId selectedFormation = isFormationSupported(formationId)
+        ? formationId
         : getSupportedFormationIds().front();
 
     FormationSelectionCandidate candidate = evaluateFormationCandidate(selectedFormation,

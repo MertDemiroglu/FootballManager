@@ -64,7 +64,7 @@ Item {
             selectedSlotIndex = -1
             selectedSourceSlotIndex = -1
             selectedPlayerId = 0
-            actionStatusText = "Formation changed."
+            actionStatusText = "Formation changed. Lineup cleared."
             syncFormationSelection()
         } else {
             actionStatusText = "Formation change failed."
@@ -205,6 +205,21 @@ Item {
         }
     }
 
+    function autoSelectLineup() {
+        if (!gameFacade)
+            return
+
+        const ok = gameFacade.autoSelectEditableLineup()
+        if (ok) {
+            selectedSlotIndex = -1
+            selectedSourceSlotIndex = -1
+            selectedPlayerId = 0
+            actionStatusText = "Auto selected lineup."
+        } else {
+            actionStatusText = "Auto select failed."
+        }
+    }
+
     Component.onCompleted: refreshSupportedFormations()
 
     Connections {
@@ -308,9 +323,16 @@ Item {
 
                 GridLayout {
                     Layout.fillWidth: true
-                    columns: width < 760 ? 2 : 5
+                    columns: width < 760 ? 2 : 6
                     rowSpacing: 8
                     columnSpacing: 8
+
+                    Button {
+                        Layout.fillWidth: true
+                        text: "Auto Select"
+                        enabled: root.hasValidLineupData
+                        onClicked: root.autoSelectLineup()
+                    }
 
                     Button {
                         Layout.fillWidth: true

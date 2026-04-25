@@ -41,6 +41,7 @@ public:
     bool swapSlots(std::size_t firstSlotIndex, std::size_t secondSlotIndex);
     bool clearSlot(std::size_t slotIndex);
     bool unassignPlayer(PlayerId playerId);
+    void applyTeamSheet(const TeamSheet& teamSheet);
 
     TeamSheet exportAsTeamSheet() const;
 
@@ -54,5 +55,4 @@ private:
     void buildSlotsFromFormation(FormationId formationId);
     void cacheRosterPlayerIds(const Team& team);
     bool isPlayerInRoster(PlayerId playerId) const;
-    void seedFromTeamSheet(const TeamSheet& teamSheet);
 };
