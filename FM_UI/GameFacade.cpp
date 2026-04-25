@@ -1223,6 +1223,45 @@ bool GameFacade::changeEditableLineupFormation(int formationId) {
     return true;
 }
 
+bool GameFacade::autoSelectEditableLineup() {
+    if (!gameStarted) {
+        return false;
+    }
+
+    if (!ensureEditableLineupReady()) {
+        return false;
+    }
+
+    EditableLineup* lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup) {
+        return false;
+    }
+
+    const League* league = resolveLeague(selectedLeagueId);
+    const Team* team = league ? league->findTeamById(selectedTeamId) : nullptr;
+    if (!team) {
+        return false;
+    }
+
+    try {
+        const TeamSelectionService teamSelectionService;
+        const TeamSheet teamSheet = teamSelectionService.buildTeamSheet(*team, lineup->getFormationId());
+        lineup->applyTeamSheet(teamSheet);
+    }
+    catch (const std::exception& ex) {
+        qWarning() << "[GameFacade::autoSelectEditableLineup] Auto select failed:" << ex.what();
+        return false;
+    }
+    catch (...) {
+        qWarning() << "[GameFacade::autoSelectEditableLineup] Auto select failed with unknown error.";
+        return false;
+    }
+
+    refreshEditableLineupViews();
+    emit gameStateChanged();
+    return true;
+}
+
 bool GameFacade::assignEditableLineupPlayerToSlot(int playerId, int slotIndex) {
     if (!gameStarted || playerId <= 0 || slotIndex < 0) {
         return false;
@@ -1864,23 +1903,6 @@ void GameFacade::refreshEditableLineup() {
         || static_cast<int>(editableLineup->getSlots().size()) != expectedSlotCount;
     if (needsBuild) {
         editableLineup = EditableLineup(*team, preferredFormation);
-        const TeamSelectionService teamSelectionService;
-        EditableLineup seededLineup =
-            EditableLineup::createSeededFromAutoSelection(*team, preferredFormation, teamSelectionService);
-
-        int seededAssignments = 0;
-        for (const EditableLineupSlot& slot : seededLineup.getSlots()) {
-            if (slot.assignedPlayerId == 0) {
-                continue;
-            }
-            if (editableLineup->assignPlayerToSlot(slot.assignedPlayerId, slot.slotIndex)) {
-                ++seededAssignments;
-            }
-        }
-        if (seededAssignments > 0) {
-            qDebug() << "[GameFacade::refreshEditableLineup] Seeded assignments for team" << selectedTeamId
-                     << "count=" << seededAssignments;
-        }
     }
 
     refreshEditableLineupViews();

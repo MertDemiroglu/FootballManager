@@ -18,9 +18,8 @@ EditableLineup EditableLineup::createSeededFromAutoSelection(const Team& team,
                                                              const TeamSelectionService& teamSelectionService) {
     EditableLineup editableLineup(team, formationId);
 
-    TeamSheet generatedTeamSheet = teamSelectionService.buildTeamSheet(team);
-    generatedTeamSheet.formation = formationId;
-    editableLineup.seedFromTeamSheet(generatedTeamSheet);
+    TeamSheet generatedTeamSheet = teamSelectionService.buildTeamSheet(team, formationId);
+    editableLineup.applyTeamSheet(generatedTeamSheet);
 
     return editableLineup;
 }
@@ -120,37 +119,8 @@ bool EditableLineup::changeFormation(FormationId newFormationId) {
         return false;
     }
 
-    const std::vector<EditableLineupSlot> oldSlots = lineupSlots;
-    std::vector<EditableLineupSlot> newSlots;
-    newSlots.reserve(slotTemplate->size());
-    for (std::size_t i = 0; i < slotTemplate->size(); ++i) {
-        newSlots.push_back(EditableLineupSlot{ i, (*slotTemplate)[i], 0 });
-    }
-
-    for (const EditableLineupSlot& oldSlot : oldSlots) {
-        const PlayerId playerId = oldSlot.assignedPlayerId;
-        if (playerId == 0 || !isPlayerInRoster(playerId)) {
-            continue;
-        }
-
-        const bool alreadyPreserved = std::any_of(newSlots.begin(), newSlots.end(), [playerId](const EditableLineupSlot& slot) {
-            return slot.assignedPlayerId == playerId;
-        });
-        if (alreadyPreserved) {
-            continue;
-        }
-
-        auto targetSlotIt = std::find_if(newSlots.begin(), newSlots.end(), [&](const EditableLineupSlot& slot) {
-            return slot.slotRole == oldSlot.slotRole && slot.assignedPlayerId == 0;
-        });
-
-        if (targetSlotIt != newSlots.end()) {
-            targetSlotIt->assignedPlayerId = playerId;
-        }
-    }
-
     formationId = newFormationId;
-    lineupSlots = std::move(newSlots);
+    buildSlotsFromFormation(newFormationId);
     return true;
 }
 
@@ -192,6 +162,42 @@ bool EditableLineup::unassignPlayer(PlayerId playerId) {
 
     lineupSlots[*slotIndex].assignedPlayerId = 0;
     return true;
+}
+
+void EditableLineup::applyTeamSheet(const TeamSheet& teamSheet) {
+    for (EditableLineupSlot& slot : lineupSlots) {
+        slot.assignedPlayerId = 0;
+    }
+
+    if (teamSheet.teamId != teamId || teamSheet.formation != formationId) {
+        return;
+    }
+
+    std::vector<PlayerId> appliedPlayerIds;
+    appliedPlayerIds.reserve(teamSheet.startingAssignments.size());
+
+    for (const TeamSheetSlotAssignment& assignment : teamSheet.startingAssignments) {
+        if (assignment.playerId == 0 || !isPlayerInRoster(assignment.playerId)) {
+            continue;
+        }
+
+        const bool alreadyApplied = std::find(appliedPlayerIds.begin(), appliedPlayerIds.end(), assignment.playerId)
+            != appliedPlayerIds.end();
+        if (alreadyApplied) {
+            continue;
+        }
+
+        auto targetSlotIt = std::find_if(lineupSlots.begin(), lineupSlots.end(), [&](const EditableLineupSlot& slot) {
+            return slot.slotRole == assignment.slotRole && slot.assignedPlayerId == 0;
+        });
+
+        if (targetSlotIt == lineupSlots.end()) {
+            continue;
+        }
+
+        targetSlotIt->assignedPlayerId = assignment.playerId;
+        appliedPlayerIds.push_back(assignment.playerId);
+    }
 }
 
 TeamSheet EditableLineup::exportAsTeamSheet() const {
@@ -239,26 +245,4 @@ void EditableLineup::cacheRosterPlayerIds(const Team& team) {
 
 bool EditableLineup::isPlayerInRoster(PlayerId playerId) const {
     return std::binary_search(rosterPlayerIds.begin(), rosterPlayerIds.end(), playerId);
-}
-
-void EditableLineup::seedFromTeamSheet(const TeamSheet& teamSheet) {
-    if (teamSheet.teamId != teamId) {
-        return;
-    }
-
-    for (const TeamSheetSlotAssignment& assignment : teamSheet.startingAssignments) {
-        if (assignment.playerId == 0 || !isPlayerInRoster(assignment.playerId)) {
-            continue;
-        }
-
-        auto targetSlotIt = std::find_if(lineupSlots.begin(), lineupSlots.end(), [&](const EditableLineupSlot& slot) {
-            return slot.slotRole == assignment.slotRole && slot.assignedPlayerId == 0;
-        });
-
-        if (targetSlotIt == lineupSlots.end()) {
-            continue;
-        }
-
-        assignPlayerToSlot(assignment.playerId, targetSlotIt->slotIndex);
-    }
 }

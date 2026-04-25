@@ -12,98 +12,74 @@ Rectangle {
 
     signal clicked(int playerId)
 
-    radius: 10
+    radius: 8
     border.color: isSelected ? "#2563eb" : (rowData.isAssigned ? "#93c5fd" : "#e4e7ec")
     border.width: isSelected ? 2 : 1
-    color: isSelected ? "#dbeafe" : (rowData.isAssigned ? "#eff6ff" : "#f8fafc")
-    opacity: rowData.isAssigned ? 0.8 : 1.0
-    implicitHeight: rosterContent.implicitHeight + 18
+    color: isSelected ? "#dbeafe" : (rowData.isAssigned ? "#eff6ff" : "#ffffff")
+    implicitHeight: 50
 
-    ColumnLayout {
+    RowLayout {
         id: rosterContent
         anchors.fill: parent
-        anchors.margins: 10
-        spacing: 6
+        anchors.leftMargin: 8
+        anchors.rightMargin: 8
+        spacing: 8
 
-        RowLayout {
+        PositionBadge {
+            text: rowData.positionShort || "?"
+            implicitHeight: 24
+        }
+
+        Label {
+            text: rowData.overallSummary || ("OVR " + (rowData.overall || "-"))
+            font.pixelSize: 11
+            font.bold: true
+            color: "#475467"
+        }
+
+        Label {
             Layout.fillWidth: true
-            spacing: 8
+            text: rowData.name || "Unknown"
+            font.pixelSize: 13
+            font.bold: true
+            color: "#101828"
+            elide: Text.ElideRight
+            verticalAlignment: Text.AlignVCenter
+        }
 
-            Rectangle {
-                radius: 6
-                color: "#eef2ff"
-                border.color: "#c7d2fe"
-                implicitWidth: 38
-                implicitHeight: 24
-
-                Label {
-                    anchors.centerIn: parent
-                    text: rowData.positionShort || "?"
-                    font.bold: true
-                    font.pixelSize: 11
-                    color: "#3730a3"
-                }
-            }
+        Rectangle {
+            visible: rowData.isAssigned
+            radius: 999
+            color: "#dbeafe"
+            border.color: "#60a5fa"
+            implicitWidth: 34
+            implicitHeight: 22
 
             Label {
-                text: rowData.overallSummary || ("OVR " + (rowData.overall || "-"))
-                font.pixelSize: 12
-                color: "#475467"
-            }
-
-            Label {
-                Layout.fillWidth: true
-                text: rowData.name || "Unknown"
-                font.pixelSize: 14
+                anchors.centerIn: parent
+                text: "S#" + rowData.assignedSlotIndex
+                font.pixelSize: 10
                 font.bold: true
-                color: "#101828"
-                elide: Text.ElideRight
-            }
-
-            Rectangle {
-                visible: rowData.isAssigned
-                radius: 999
-                color: "#dbeafe"
-                border.color: "#60a5fa"
-                implicitWidth: 78
-                implicitHeight: 24
-
-                Label {
-                    anchors.centerIn: parent
-                    text: rowData.isAssigned ? "Assigned" : ""
-                    font.pixelSize: 11
-                    font.bold: true
-                    color: "#1d4ed8"
-                }
+                color: "#1d4ed8"
             }
         }
 
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 8
+        ConditionBadge {
+            label: "F"
+            value: rowData.form
+            compact: true
+        }
 
-            ConditionBadge {
-                label: "Form"
-                value: rowData.form
-            }
+        ConditionBadge {
+            label: "Fit"
+            value: rowData.fitness
+            compact: true
+        }
 
-            ConditionBadge {
-                label: "Fit"
-                value: rowData.fitness
-            }
-
-            ConditionBadge {
-                label: "Mor"
-                value: rowData.morale
-            }
-
-            Item { Layout.fillWidth: true }
-
-            Label {
-                text: rowData.isAssigned ? ("Slot #" + rowData.assignedSlotIndex) : "Unassigned"
-                font.pixelSize: 11
-                color: rowData.isAssigned ? "#1d4ed8" : "#667085"
-            }
+        ConditionBadge {
+            label: "M"
+            value: rowData.morale
+            compact: true
         }
     }
 

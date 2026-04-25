@@ -20,59 +20,6 @@ namespace {
         }
     }
 
-    int slotIndexForRole(GameFacade& facade, FormationSlotRole role) {
-        EditableLineupSlotsModel* slotsModel = facade.getEditableLineupSlotsModel();
-        const int roleKey = static_cast<int>(role);
-        for (int row = 0; row < slotsModel->rowCount(); ++row) {
-            if (slotsModel->data(slotsModel->index(row, 0), EditableLineupSlotsModel::SlotRoleKeyRole).toInt() == roleKey) {
-                return slotsModel->data(slotsModel->index(row, 0), EditableLineupSlotsModel::SlotIndexRole).toInt();
-            }
-        }
-        return -1;
-    }
-
-    bool targetFormationContainsRole(FormationId formationId, int roleKey) {
-        const std::vector<FormationSlotRole>& targetTemplate = getFormationSlotTemplate(formationId);
-        return std::any_of(targetTemplate.begin(), targetTemplate.end(), [roleKey](FormationSlotRole role) {
-            return static_cast<int>(role) == roleKey;
-        });
-    }
-
-    int slotIndexForRoleMissingFromTarget(GameFacade& facade, FormationId targetFormationId) {
-        EditableLineupSlotsModel* slotsModel = facade.getEditableLineupSlotsModel();
-        for (int row = 0; row < slotsModel->rowCount(); ++row) {
-            const int roleKey = slotsModel->data(slotsModel->index(row, 0), EditableLineupSlotsModel::SlotRoleKeyRole).toInt();
-            if (!targetFormationContainsRole(targetFormationId, roleKey)) {
-                return slotsModel->data(slotsModel->index(row, 0), EditableLineupSlotsModel::SlotIndexRole).toInt();
-            }
-        }
-        return -1;
-    }
-
-    bool playerAssignedToRole(GameFacade& facade, int playerId, FormationSlotRole role) {
-        EditableLineupSlotsModel* slotsModel = facade.getEditableLineupSlotsModel();
-        const int roleKey = static_cast<int>(role);
-        for (int row = 0; row < slotsModel->rowCount(); ++row) {
-            const QModelIndex index = slotsModel->index(row, 0);
-            if (slotsModel->data(index, EditableLineupSlotsModel::SlotRoleKeyRole).toInt() == roleKey
-                && slotsModel->data(index, EditableLineupSlotsModel::AssignedPlayerIdRole).toInt() == playerId) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool rosterPlayerIsAssigned(GameFacade& facade, int playerId) {
-        EditableLineupRosterModel* rosterModel = facade.getEditableLineupRosterModel();
-        for (int row = 0; row < rosterModel->rowCount(); ++row) {
-            const QModelIndex index = rosterModel->index(row, 0);
-            if (rosterModel->data(index, EditableLineupRosterModel::PlayerIdRole).toInt() == playerId) {
-                return rosterModel->data(index, EditableLineupRosterModel::IsAssignedRole).toBool();
-            }
-        }
-        return false;
-    }
-
     void expectSupportedFormationPitchLayouts() {
         for (FormationId formationId : getSupportedFormationIds()) {
             const std::vector<FormationSlotRole>& slotTemplate = getFormationSlotTemplate(formationId);
@@ -156,6 +103,10 @@ int main(int argc, char* argv[]) {
         }
         expect(facade.getEditableLineupRosterModel()->rowCount() == players.size(),
             "editable lineup roster should match current team players");
+        expect(facade.getEditableLineupState()->slotCount() == 11,
+            "editable lineup should expose 11 slots");
+        expect(facade.getEditableLineupState()->assignedCount() == 0,
+            "editable lineup should start with no assigned players");
 
         expect(players.size() >= 2, "lineup edit smoke needs at least two players");
         expect(facade.getEditableLineupSlotsModel()->rowCount() >= 2,
@@ -173,7 +124,6 @@ int main(int argc, char* argv[]) {
             "initial editable lineup formation text should exist");
 
         QVariantMap targetFormationItem;
-        int unmatchedOldRoleSlotIndex = -1;
         for (const QVariant& itemValue : supportedFormations) {
             const QVariantMap item = itemValue.toMap();
             const int candidateFormation = item.value(QStringLiteral("formationId")).toInt();
@@ -181,22 +131,17 @@ int main(int argc, char* argv[]) {
                 continue;
             }
 
-            unmatchedOldRoleSlotIndex =
-                slotIndexForRoleMissingFromTarget(facade, static_cast<FormationId>(candidateFormation));
-            if (unmatchedOldRoleSlotIndex >= 0) {
-                targetFormationItem = item;
-                break;
-            }
+            targetFormationItem = item;
+            break;
         }
         expect(!targetFormationItem.isEmpty(),
-            "formation change smoke should find a target with at least one unmatched old role");
+            "formation change smoke should find another supported formation");
 
-        const int goalkeeperSlotIndex = slotIndexForRole(facade, FormationSlotRole::Goalkeeper);
-        expect(goalkeeperSlotIndex >= 0, "editable lineup should have a goalkeeper slot");
-        expect(facade.assignEditableLineupPlayerToSlot(firstPlayerId, goalkeeperSlotIndex),
-            "assigning preserved-role player before formation change should succeed");
-        expect(facade.assignEditableLineupPlayerToSlot(secondPlayerId, unmatchedOldRoleSlotIndex),
-            "assigning unmatched-role player before formation change should succeed");
+        qDebug() << "[Smoke] Checking explicit auto select...";
+        expect(facade.autoSelectEditableLineup(),
+            "auto-selecting editable lineup should succeed");
+        expect(facade.getEditableLineupState()->assignedCount() == 11,
+            "auto select should fill 11 slots when enough players exist");
 
         const int rosterCountBeforeFormationChange = facade.getEditableLineupRosterModel()->rowCount();
         const int targetFormation = targetFormationItem.value(QStringLiteral("formationId")).toInt();
@@ -214,10 +159,15 @@ int main(int argc, char* argv[]) {
             "editable lineup slot count should match selected formation template");
         expect(facade.getEditableLineupRosterModel()->rowCount() == rosterCountBeforeFormationChange,
             "editable lineup roster count should remain unchanged after formation change");
-        expect(playerAssignedToRole(facade, firstPlayerId, FormationSlotRole::Goalkeeper),
-            "same-role goalkeeper assignment should be preserved after formation change");
-        expect(!rosterPlayerIsAssigned(facade, secondPlayerId),
-            "player assigned to an unmatched old role should become unassigned after formation change");
+        expect(facade.getEditableLineupState()->assignedCount() == 0,
+            "formation change should clear all editable lineup assignments");
+
+        expect(facade.autoSelectEditableLineup(),
+            "auto select after formation change should succeed");
+        expect(facade.getEditableLineupState()->formation() == targetFormation,
+            "auto select should keep the selected editable formation");
+        expect(facade.getEditableLineupState()->assignedCount() == 11,
+            "auto select after formation change should fill the selected formation");
 
         qDebug() << "[Smoke] Checking editable lineup assign/move/replace semantics...";
         expect(facade.assignEditableLineupPlayerToSlot(firstPlayerId, 0),

@@ -6,6 +6,7 @@ Rectangle {
 
     property string label: ""
     property int value: 0
+    property bool compact: false
 
     function conditionColor(score) {
         const numeric = Number(score)
@@ -21,13 +22,13 @@ Rectangle {
     radius: 999
     color: Qt.rgba(0, 0, 0, 0.08)
     border.color: conditionColor(value)
-    implicitWidth: 86
-    implicitHeight: 24
+    implicitWidth: compact ? 52 : 86
+    implicitHeight: compact ? 22 : 24
 
     Label {
         anchors.centerIn: parent
         text: root.label + " " + root.value
-        font.pixelSize: 11
+        font.pixelSize: root.compact ? 10 : 11
         font.bold: true
         color: root.conditionColor(root.value)
     }

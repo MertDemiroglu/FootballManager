@@ -79,6 +79,9 @@ qt_add_qml_module(FM_UI
         LineupSlotCard.qml
         LineupRosterPanel.qml
         LineupRosterRow.qml
+        LineupStartingXISection.qml
+        LineupStartingXIRow.qml
+        PositionBadge.qml
         ConditionBadge.qml
         TransferOfferDialog.qml
 )
