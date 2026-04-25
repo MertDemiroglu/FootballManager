@@ -8,12 +8,15 @@ Rectangle {
     property var slotData: ({})
     property int selectedSlotIndex: -1
     property int selectedSourceSlotIndex: -1
+    property string warningText: ""
+    property string warningLevel: "none"
 
     readonly property int slotIndex: typeof slotData.slotIndex === "number" ? slotData.slotIndex : -1
     readonly property bool hasPlayer: !!slotData.hasAssignedPlayer && !slotData.isEmpty
     readonly property bool isSelected: selectedSlotIndex >= 0 && slotIndex === selectedSlotIndex
     readonly property bool isSourceSelected: selectedSourceSlotIndex >= 0 && slotIndex === selectedSourceSlotIndex
     readonly property bool isDropHighlighted: slotDropArea.containsDrag
+    readonly property bool hasWarning: warningText.length > 0 && warningLevel !== "none"
     property real dragHotSpotX: width / 2
     property real dragHotSpotY: height / 2
 
@@ -26,7 +29,7 @@ Rectangle {
     border.color: isDropHighlighted ? "#06b6d4" : (isSelected ? "#2563eb" : (isSourceSelected ? "#16a34a" : (hasPlayer ? "#e2e8f0" : "#f59e0b")))
     border.width: isDropHighlighted || isSelected || isSourceSelected ? 2 : 1
     opacity: slotDragArea.drag.active ? 0.72 : 1.0
-    implicitHeight: 34
+    implicitHeight: 50
 
     Item {
         id: slotDragSource
@@ -83,7 +86,7 @@ Rectangle {
         Label {
             Layout.fillWidth: true
             text: root.hasPlayer ? (root.slotData.assignedPlayerName || "Unknown") : "Empty"
-            font.pixelSize: 12
+            font.pixelSize: 13
             font.bold: root.hasPlayer
             color: root.hasPlayer ? "#101828" : "#92400e"
             elide: Text.ElideRight
@@ -97,6 +100,43 @@ Rectangle {
             font.pixelSize: 11
             font.bold: root.hasPlayer
             color: root.hasPlayer ? "#475467" : "#b45309"
+        }
+
+        ConditionBadge {
+            visible: root.hasPlayer
+            label: "F"
+            value: root.slotData.assignedPlayerForm || 0
+            compact: true
+        }
+
+        ConditionBadge {
+            visible: root.hasPlayer
+            label: "Fit"
+            value: root.slotData.assignedPlayerFitness || 0
+            compact: true
+        }
+
+        ConditionBadge {
+            visible: root.hasPlayer
+            label: "M"
+            value: root.slotData.assignedPlayerMorale || 0
+            compact: true
+        }
+
+        Label {
+            visible: root.hasWarning
+            text: "!"
+            font.pixelSize: 12
+            font.bold: true
+            color: "#b45309"
+            ToolTip.visible: warningMouse.containsMouse
+            ToolTip.text: root.warningText
+
+            MouseArea {
+                id: warningMouse
+                anchors.fill: parent
+                hoverEnabled: true
+            }
         }
     }
 

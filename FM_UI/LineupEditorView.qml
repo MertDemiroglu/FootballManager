@@ -256,6 +256,24 @@ Item {
         }
     }
 
+    function handlePlayerDroppedOnSquad(playerId, sourceSlotIndex) {
+        if (!gameFacade || playerId <= 0 || sourceSlotIndex < 0)
+            return
+
+        const ok = gameFacade.unassignEditableLineupPlayer(playerId)
+        if (ok) {
+            if (selectedPlayerId === playerId)
+                selectedPlayerId = 0
+            if (selectedSourceSlotIndex === sourceSlotIndex)
+                selectedSourceSlotIndex = -1
+            if (selectedSlotIndex === sourceSlotIndex)
+                selectedSlotIndex = -1
+            actionStatusText = "Player moved back to squad."
+        } else {
+            actionStatusText = "Drop unassign failed."
+        }
+    }
+
     Component.onCompleted: refreshSupportedFormations()
 
     Connections {
@@ -282,9 +300,9 @@ Item {
 
         Rectangle {
             Layout.fillWidth: true
-            radius: 10
-            color: "#f8fafc"
-            border.color: "#d0d5dd"
+            radius: 8
+            color: "#fbfcfe"
+            border.color: "#e4e7ec"
             implicitHeight: actionBarContent.implicitHeight + 12
 
             ColumnLayout {
@@ -336,32 +354,20 @@ Item {
                     Item { Layout.fillWidth: true }
                 }
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    Label {
-                        Layout.fillWidth: true
-                        text: selectedPlayerCurrentSlotText()
-                        font.pixelSize: 12
-                        color: "#475467"
-                        wrapMode: Text.WordWrap
-                    }
-
-                    Label {
-                        Layout.fillWidth: true
-                        text: targetSlotOccupantText()
-                        font.pixelSize: 12
-                        color: "#475467"
-                        wrapMode: Text.WordWrap
-                    }
-                }
-
                 GridLayout {
                     Layout.fillWidth: true
                     columns: width < 760 ? 2 : 6
-                    rowSpacing: 8
-                    columnSpacing: 8
+                    rowSpacing: 6
+                    columnSpacing: 6
+
+                    Label {
+                        Layout.fillWidth: true
+                        Layout.columnSpan: width < 760 ? 2 : 6
+                        text: "Manual controls"
+                        font.pixelSize: 11
+                        font.bold: true
+                        color: "#667085"
+                    }
 
                     Button {
                         Layout.fillWidth: true
@@ -410,10 +416,10 @@ Item {
 
                 Label {
                     Layout.fillWidth: true
-                    text: actionStatusText
-                    visible: actionStatusText.length > 0
+                    text: actionStatusText.length > 0 ? actionStatusText
+                        : selectedPlayerCurrentSlotText() + "  /  " + targetSlotOccupantText()
                     color: "#475467"
-                    font.pixelSize: 12
+                    font.pixelSize: 11
                     wrapMode: Text.WordWrap
                 }
             }
@@ -453,6 +459,9 @@ Item {
                 }
                 onSlotDroppedOnSlot: function(sourceSlotIndex, targetSlotIndex) {
                     root.handleSlotDroppedOnSlot(sourceSlotIndex, targetSlotIndex)
+                }
+                onPlayerDroppedOnSquad: function(playerId, sourceSlotIndex) {
+                    root.handlePlayerDroppedOnSquad(playerId, sourceSlotIndex)
                 }
             }
 
