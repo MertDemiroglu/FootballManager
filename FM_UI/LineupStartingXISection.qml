@@ -10,6 +10,8 @@ ColumnLayout {
     property int selectedSourceSlotIndex: -1
 
     signal slotClicked(int slotIndex)
+    signal playerDroppedOnSlot(int playerId, int slotIndex)
+    signal slotDroppedOnSlot(int sourceSlotIndex, int targetSlotIndex)
 
     function orderedSlots() {
         const rows = slotsModel && slotsModel.rows ? slotsModel.rows.slice() : []
@@ -58,6 +60,12 @@ ColumnLayout {
                 selectedSourceSlotIndex: root.selectedSourceSlotIndex
                 onClicked: function(slotIndex) {
                     root.slotClicked(slotIndex)
+                }
+                onPlayerDroppedOnSlot: function(playerId, slotIndex) {
+                    root.playerDroppedOnSlot(playerId, slotIndex)
+                }
+                onSlotDroppedOnSlot: function(sourceSlotIndex, targetSlotIndex) {
+                    root.slotDroppedOnSlot(sourceSlotIndex, targetSlotIndex)
                 }
             }
         }

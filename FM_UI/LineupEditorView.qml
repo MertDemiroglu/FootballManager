@@ -220,6 +220,42 @@ Item {
         }
     }
 
+    function handlePlayerDroppedOnSlot(playerId, targetSlotIndex) {
+        if (!gameFacade || playerId <= 0 || targetSlotIndex < 0)
+            return
+
+        const ok = gameFacade.assignEditableLineupPlayerToSlot(playerId, targetSlotIndex)
+        if (ok) {
+            selectedPlayerId = 0
+            selectedSourceSlotIndex = -1
+            selectedSlotIndex = targetSlotIndex
+            actionStatusText = "Dropped player into slot."
+        } else {
+            actionStatusText = "Drop assign failed."
+        }
+    }
+
+    function handleSlotDroppedOnSlot(sourceSlotIndex, targetSlotIndex) {
+        if (!gameFacade || sourceSlotIndex < 0 || targetSlotIndex < 0)
+            return
+        if (sourceSlotIndex === targetSlotIndex) {
+            selectedSourceSlotIndex = -1
+            selectedSlotIndex = targetSlotIndex
+            actionStatusText = ""
+            return
+        }
+
+        const ok = gameFacade.swapEditableLineupSlots(sourceSlotIndex, targetSlotIndex)
+        if (ok) {
+            selectedSourceSlotIndex = -1
+            selectedPlayerId = 0
+            selectedSlotIndex = targetSlotIndex
+            actionStatusText = "Dropped slot into slot."
+        } else {
+            actionStatusText = "Drop swap failed."
+        }
+    }
+
     Component.onCompleted: refreshSupportedFormations()
 
     Connections {
@@ -412,6 +448,12 @@ Item {
                 onSlotClicked: function(slotIndex) {
                     root.selectSlot(slotIndex)
                 }
+                onPlayerDroppedOnSlot: function(playerId, slotIndex) {
+                    root.handlePlayerDroppedOnSlot(playerId, slotIndex)
+                }
+                onSlotDroppedOnSlot: function(sourceSlotIndex, targetSlotIndex) {
+                    root.handleSlotDroppedOnSlot(sourceSlotIndex, targetSlotIndex)
+                }
             }
 
             LineupRosterPanel {
@@ -428,6 +470,12 @@ Item {
                 }
                 onPlayerClicked: function(playerId) {
                     root.selectPlayer(playerId)
+                }
+                onPlayerDroppedOnSlot: function(playerId, slotIndex) {
+                    root.handlePlayerDroppedOnSlot(playerId, slotIndex)
+                }
+                onSlotDroppedOnSlot: function(sourceSlotIndex, targetSlotIndex) {
+                    root.handleSlotDroppedOnSlot(sourceSlotIndex, targetSlotIndex)
                 }
             }
         }

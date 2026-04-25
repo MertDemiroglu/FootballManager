@@ -9,6 +9,7 @@ Rectangle {
     property int selectedPlayerId: 0
     readonly property int playerId: rowData.playerId || 0
     readonly property bool isSelected: playerId > 0 && playerId === selectedPlayerId
+    readonly property int sourceSlotIndex: rowData.isAssigned ? (rowData.assignedSlotIndex || -1) : -1
 
     signal clicked(int playerId)
 
@@ -16,7 +17,26 @@ Rectangle {
     border.color: isSelected ? "#2563eb" : (rowData.isAssigned ? "#93c5fd" : "#e4e7ec")
     border.width: isSelected ? 2 : 1
     color: isSelected ? "#dbeafe" : (rowData.isAssigned ? "#eff6ff" : "#ffffff")
+    opacity: playerDragArea.drag.active ? 0.72 : 1.0
     implicitHeight: 50
+
+    Item {
+        id: playerDragSource
+        width: root.width
+        height: root.height
+        x: 0
+        y: 0
+
+        property string dragKind: "player"
+        property int dragPlayerId: root.playerId
+        property int dragSourceSlotIndex: root.sourceSlotIndex
+        property int dragAssignedPlayerId: root.playerId
+
+        Drag.active: root.playerId > 0 && playerDragArea.drag.active
+        Drag.keys: [ "lineup-player" ]
+        Drag.hotSpot.x: width / 2
+        Drag.hotSpot.y: height / 2
+    }
 
     RowLayout {
         id: rosterContent
@@ -84,8 +104,18 @@ Rectangle {
     }
 
     MouseArea {
+        id: playerDragArea
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
+        drag.target: root.playerId > 0 ? playerDragSource : null
+        drag.threshold: 8
+        onReleased: {
+            if (root.playerId > 0) {
+                playerDragSource.Drag.drop()
+                playerDragSource.x = 0
+                playerDragSource.y = 0
+            }
+        }
         onClicked: {
             if (root.playerId > 0) {
                 root.clicked(root.playerId)
