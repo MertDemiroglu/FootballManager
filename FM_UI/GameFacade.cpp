@@ -5,6 +5,7 @@
 #include"fm/roster/Team.h"
 #include"fm/roster/Footballer.h"
 #include"fm/roster/Formation.h"
+#include"fm/roster/FormationPitchLayout.h"
 #include"fm/roster/FormationSlotRole.h"
 #include"fm/interaction/GameInteraction.h"
 #include"fm/interaction/PostMatchInteraction.h"
@@ -48,6 +49,8 @@ namespace {
         map.insert(QStringLiteral("hasPlayer"), false);
         return map;
     }
+
+    bool warnedUnsupportedEditableLineupPitchLayout = false;
 
     QString fromStd(const std::string& value) {
         return QString::fromStdString(value);
@@ -1970,6 +1973,24 @@ void GameFacade::refreshEditableLineupSlotsModel() {
         row.assignedPlayerForm = condition ? condition->getForm() : 0;
         row.assignedPlayerFitness = condition ? condition->getFitness() : 0;
         row.assignedPlayerMorale = condition ? condition->getMorale() : 0;
+
+        const std::optional<FormationPitchCoordinate> pitchCoordinate = getFormationPitchCoordinate(
+            lineup->getFormationId(),
+            slot.slotIndex,
+            slot.slotRole);
+        const FormationPitchCoordinate coordinate = pitchCoordinate.value_or(
+            getFallbackFormationPitchCoordinate(slot.slotIndex, lineup->getSlots().size(), slot.slotRole));
+        if (!pitchCoordinate.has_value() && !warnedUnsupportedEditableLineupPitchLayout) {
+            warnedUnsupportedEditableLineupPitchLayout = true;
+            qWarning() << "[GameFacade::refreshEditableLineupSlotsModel] Falling back to generic pitch coordinates."
+                       << "formation=" << static_cast<int>(lineup->getFormationId())
+                       << "slotIndex=" << static_cast<int>(slot.slotIndex)
+                       << "slotRole=" << static_cast<int>(slot.slotRole)
+                       << "slotCount=" << static_cast<int>(lineup->getSlots().size());
+        }
+        row.pitchX = coordinate.x;
+        row.pitchY = coordinate.y;
+        row.displayOrder = coordinate.displayOrder;
         rows.push_back(row);
     }
 

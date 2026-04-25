@@ -6,10 +6,12 @@
 
 #include <algorithm>
 #include <exception>
+#include <optional>
 #include <stdexcept>
 
 #include "GameFacade.h"
 #include "fm/roster/Formation.h"
+#include "fm/roster/FormationPitchLayout.h"
 
 namespace {
     void expect(bool condition, const QString& message) {
@@ -70,6 +72,24 @@ namespace {
         }
         return false;
     }
+
+    void expectSupportedFormationPitchLayouts() {
+        for (FormationId formationId : getSupportedFormationIds()) {
+            const std::vector<FormationSlotRole>& slotTemplate = getFormationSlotTemplate(formationId);
+            expect(slotTemplate.size() == 11, "supported formation template should have 11 slots");
+            for (std::size_t slotIndex = 0; slotIndex < slotTemplate.size(); ++slotIndex) {
+                const std::optional<FormationPitchCoordinate> coordinate =
+                    getFormationPitchCoordinate(formationId, slotIndex, slotTemplate[slotIndex]);
+                expect(coordinate.has_value(), "supported formation should have pitch coordinates");
+                expect(coordinate->x >= 0.0 && coordinate->x <= 1.0,
+                    "pitch coordinate x should be normalized");
+                expect(coordinate->y >= 0.0 && coordinate->y <= 1.0,
+                    "pitch coordinate y should be normalized");
+                expect(coordinate->displayOrder == static_cast<int>(slotIndex),
+                    "display order should match formation slot order");
+            }
+        }
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -77,6 +97,7 @@ int main(int argc, char* argv[]) {
 
     try {
         qDebug() << "[Smoke] Creating facade...";
+        expectSupportedFormationPitchLayouts();
         GameFacade facade;
 
         qDebug() << "[Smoke] Reading team selection...";
@@ -122,6 +143,17 @@ int main(int argc, char* argv[]) {
             "editable lineup state should report a lineup");
         expect(facade.getEditableLineupSlotsModel()->rowCount() > 0,
             "editable lineup slots should be populated");
+        const QVariantList slotRows = facade.getEditableLineupSlotsModel()->rows();
+        expect(!slotRows.isEmpty(), "editable lineup slot rows should be exposed");
+        for (const QVariant& slotValue : slotRows) {
+            const QVariantMap slotRow = slotValue.toMap();
+            const double pitchX = slotRow.value(QStringLiteral("pitchX"), -1.0).toDouble();
+            const double pitchY = slotRow.value(QStringLiteral("pitchY"), -1.0).toDouble();
+            expect(pitchX >= 0.0 && pitchX <= 1.0, "slot row pitchX should be normalized");
+            expect(pitchY >= 0.0 && pitchY <= 1.0, "slot row pitchY should be normalized");
+            expect(slotRow.contains(QStringLiteral("displayOrder")),
+                "slot row should expose displayOrder");
+        }
         expect(facade.getEditableLineupRosterModel()->rowCount() == players.size(),
             "editable lineup roster should match current team players");
 

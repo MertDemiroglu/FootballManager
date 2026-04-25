@@ -11,6 +11,7 @@ add_library(fm_core STATIC
     src/events/DomainEventPublisher.cpp
     src/match/EventQueue.cpp
     src/roster/Formation.cpp
+    src/roster/FormationPitchLayout.cpp
     src/competition/FixtureGenerator.cpp
     src/roster/Footballer.cpp
     src/roster/FootballerFactory.cpp
