@@ -10,6 +10,8 @@ Rectangle {
     readonly property int playerId: rowData.playerId || 0
     readonly property bool isSelected: playerId > 0 && playerId === selectedPlayerId
     readonly property int sourceSlotIndex: rowData.isAssigned ? (rowData.assignedSlotIndex || -1) : -1
+    property real dragHotSpotX: width / 2
+    property real dragHotSpotY: height / 2
 
     signal clicked(int playerId)
 
@@ -34,8 +36,8 @@ Rectangle {
 
         Drag.active: root.playerId > 0 && playerDragArea.drag.active
         Drag.keys: [ "lineup-player" ]
-        Drag.hotSpot.x: width / 2
-        Drag.hotSpot.y: height / 2
+        Drag.hotSpot.x: root.dragHotSpotX
+        Drag.hotSpot.y: root.dragHotSpotY
     }
 
     RowLayout {
@@ -109,6 +111,12 @@ Rectangle {
         cursorShape: Qt.PointingHandCursor
         drag.target: root.playerId > 0 ? playerDragSource : null
         drag.threshold: 8
+        onPressed: function(mouse) {
+            if (root.playerId > 0) {
+                root.dragHotSpotX = mouse.x
+                root.dragHotSpotY = mouse.y
+            }
+        }
         onReleased: {
             if (root.playerId > 0) {
                 playerDragSource.Drag.drop()

@@ -14,6 +14,8 @@ Rectangle {
     readonly property bool isSelected: selectedSlotIndex >= 0 && slotIndex === selectedSlotIndex
     readonly property bool isSourceSelected: selectedSourceSlotIndex >= 0 && slotIndex === selectedSourceSlotIndex
     readonly property bool isDropHighlighted: slotDropArea.containsDrag
+    property real dragHotSpotX: width / 2
+    property real dragHotSpotY: height / 2
 
     signal clicked(int slotIndex)
     signal playerDroppedOnSlot(int playerId, int slotIndex)
@@ -40,8 +42,8 @@ Rectangle {
 
         Drag.active: root.hasPlayer && slotDragArea.drag.active
         Drag.keys: [ "lineup-slot" ]
-        Drag.hotSpot.x: width / 2
-        Drag.hotSpot.y: height / 2
+        Drag.hotSpot.x: root.dragHotSpotX
+        Drag.hotSpot.y: root.dragHotSpotY
     }
 
     DropArea {
@@ -104,6 +106,12 @@ Rectangle {
         cursorShape: Qt.PointingHandCursor
         drag.target: root.hasPlayer ? slotDragSource : null
         drag.threshold: 8
+        onPressed: function(mouse) {
+            if (root.hasPlayer) {
+                root.dragHotSpotX = mouse.x
+                root.dragHotSpotY = mouse.y
+            }
+        }
         onReleased: {
             if (root.hasPlayer) {
                 slotDragSource.Drag.drop()
