@@ -13,6 +13,8 @@ Rectangle {
 
     signal slotClicked(int slotIndex)
     signal playerClicked(int playerId)
+    signal playerDroppedOnSlot(int playerId, int slotIndex)
+    signal slotDroppedOnSlot(int sourceSlotIndex, int targetSlotIndex)
 
     radius: 14
     border.color: "#d8dee8"
@@ -31,6 +33,12 @@ Rectangle {
             selectedSourceSlotIndex: root.selectedSourceSlotIndex
             onSlotClicked: function(slotIndex) {
                 root.slotClicked(slotIndex)
+            }
+            onPlayerDroppedOnSlot: function(playerId, slotIndex) {
+                root.playerDroppedOnSlot(playerId, slotIndex)
+            }
+            onSlotDroppedOnSlot: function(sourceSlotIndex, targetSlotIndex) {
+                root.slotDroppedOnSlot(sourceSlotIndex, targetSlotIndex)
             }
         }
 
