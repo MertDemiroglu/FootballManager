@@ -9,9 +9,50 @@ InteractionModalShell {
 
     visible: false
     maxCardWidth: 1020
+    focus: visible
+    z: 1000
 
     function clearDetails() {
         details = ({})
+    }
+
+    function dismiss() {
+        root.visible = false
+        clearDetails()
+        root.closeRequested()
+    }
+
+    function fallbackDetailsForPostMatch(matchId) {
+        if (!gameFacade || !gameFacade.interactionState) {
+            return null
+        }
+
+        const postMatch = gameFacade.interactionState.postMatch
+        if (!postMatch || !postMatch.hasData || postMatch.matchId !== matchId) {
+            return null
+        }
+
+        return {
+            hasData: true,
+            matchId: postMatch.matchId,
+            dateText: postMatch.dateText || "",
+            matchweek: postMatch.matchweek !== undefined ? postMatch.matchweek : 0,
+            homeTeamName: postMatch.homeTeamName || "Home",
+            awayTeamName: postMatch.awayTeamName || "Away",
+            score: (postMatch.homeGoals !== undefined ? postMatch.homeGoals : "-")
+                   + " - "
+                   + (postMatch.awayGoals !== undefined ? postMatch.awayGoals : "-"),
+            scorers: postMatch.scorerSummary || "No goals recorded.",
+            assists: postMatch.assistSummary || "No assists recorded.",
+            cards: postMatch.cardSummary || "No cards recorded.",
+            homeCoachName: postMatch.homeCoachName || "-",
+            awayCoachName: postMatch.awayCoachName || "-",
+            homeFormationText: postMatch.homeFormationText || "-",
+            awayFormationText: postMatch.awayFormationText || "-",
+            homeLineup: postMatch.homeLineup || [],
+            awayLineup: postMatch.awayLineup || [],
+            events: []
+        }
     }
 
     function openForMatch(matchId) {
@@ -20,13 +61,27 @@ InteractionModalShell {
         if (!matchId || matchId <= 0) {
             return
         }
-        const result = gameFacade.getMatchReportDetails(matchId)
-        if (!result || !result.hasData) {
+        const result = gameFacade ? gameFacade.getMatchReportDetails(matchId) : null
+        const resolvedDetails = (result && result.hasData) ? result : fallbackDetailsForPostMatch(matchId)
+        if (!resolvedDetails || !resolvedDetails.hasData) {
             return
         }
-        details = result
+        details = resolvedDetails
         root.visible = true
     }
+
+    onVisibleChanged: {
+        if (visible) {
+            root.forceActiveFocus()
+        }
+    }
+
+    Keys.onEscapePressed: function(event) {
+        root.dismiss()
+        event.accepted = true
+    }
+
+    onOverlayClicked: root.dismiss()
 
     Rectangle {
         width: parent.width
@@ -41,11 +96,22 @@ InteractionModalShell {
             anchors.margins: 10
             spacing: 6
 
-            Label {
-                text: "Match Report"
-                font.pixelSize: 24
-                font.bold: true
-                color: "#101828"
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+
+                Label {
+                    text: "Match Report"
+                    font.pixelSize: 24
+                    font.bold: true
+                    color: "#101828"
+                    Layout.fillWidth: true
+                }
+
+                Button {
+                    text: "Close"
+                    onClicked: root.dismiss()
+                }
             }
 
             Label {
@@ -150,10 +216,6 @@ InteractionModalShell {
         width: parent.width
         height: 42
         text: "Close"
-        onClicked: {
-            root.visible = false
-            root.clearDetails()
-            root.closeRequested()
-        }
+        onClicked: root.dismiss()
     }
 }

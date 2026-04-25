@@ -7,8 +7,8 @@ int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
 
-    QQmlApplicationEngine engine;
     GameFacade facade;
+    QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("gameFacade", &facade);
     QObject::connect(
         &engine,

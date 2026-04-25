@@ -1,7 +1,10 @@
 import QtQuick
+import QtQuick.Controls
 
 Item {
     id: root
+
+    signal overlayClicked()
 
     property real maxCardWidth: 520
     property real cardRadius: 12
@@ -19,28 +22,42 @@ Item {
 
     MouseArea {
         anchors.fill: parent
-        onClicked: function(mouse) { mouse.accepted = true }
+        onClicked: function(mouse) {
+            mouse.accepted = true
+            root.overlayClicked()
+        }
     }
 
     Rectangle {
         id: dialogCard
-        width: Math.min(parent.width - root.outerMargin, root.maxCardWidth)
-        implicitHeight: contentColumn.implicitHeight + (root.contentMargin * 2)
+        readonly property real contentHeight: contentColumn.implicitHeight + (root.contentMargin * 2)
+        width: Math.min(Math.max(0, parent.width - root.outerMargin), root.maxCardWidth)
+        implicitHeight: Math.min(contentHeight, Math.max(0, parent.height - root.outerMargin))
         height: implicitHeight
         anchors.centerIn: parent
         radius: root.cardRadius
         color: root.cardColor
         border.color: root.cardBorderColor
+        clip: true
 
-        Column {
-            id: contentColumn
-            anchors.top: parent.top
-            anchors.topMargin: root.contentMargin
-            anchors.left: parent.left
-            anchors.leftMargin: root.contentMargin
-            anchors.right: parent.right
-            anchors.rightMargin: root.contentMargin
-            spacing: 12
+        ScrollView {
+            id: dialogScroll
+            anchors.fill: parent
+            anchors.margins: root.contentMargin
+            clip: true
+            contentWidth: availableWidth
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+
+            Item {
+                width: dialogScroll.availableWidth
+                implicitHeight: contentColumn.implicitHeight
+
+                Column {
+                    id: contentColumn
+                    width: parent.width
+                    spacing: 12
+                }
+            }
         }
     }
 }

@@ -251,6 +251,7 @@ ApplicationWindow {
         anchors.fill: parent
         visible: root.interactionState.hasActiveInteraction
                  && root.interactionState.kind === root.interactionKinds.postMatch
+                 && !matchDetailDialog.visible
         interactionData: root.interactionState.postMatch
         onViewDetailsRequested: function(matchId) {
             root.openMatchDetails(matchId)
