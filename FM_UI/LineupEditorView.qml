@@ -24,6 +24,53 @@ Item {
     property int selectedSourceSlotIndex: -1
     property int selectedPlayerId: 0
     property string actionStatusText: ""
+    property var supportedFormations: []
+    property bool isSyncingFormationSelection: false
+
+    function refreshSupportedFormations() {
+        supportedFormations = gameFacade ? gameFacade.getEditableLineupSupportedFormations() : []
+        syncFormationSelection()
+    }
+
+    function formationIndexFor(formationId) {
+        for (let i = 0; i < supportedFormations.length; ++i) {
+            if (supportedFormations[i].formationId === formationId)
+                return i
+        }
+        return -1
+    }
+
+    function syncFormationSelection() {
+        if (!formationSelector || !lineupState || !lineupState.hasLineup)
+            return
+
+        isSyncingFormationSelection = true
+        formationSelector.currentIndex = formationIndexFor(lineupState.formation)
+        isSyncingFormationSelection = false
+    }
+
+    function changeFormationFromSelector(index) {
+        if (isSyncingFormationSelection || !gameFacade || !lineupState || !lineupState.hasLineup)
+            return
+        if (index < 0 || index >= supportedFormations.length)
+            return
+
+        const formationId = supportedFormations[index].formationId
+        if (formationId === undefined || formationId < 0 || formationId === lineupState.formation)
+            return
+
+        const ok = gameFacade.changeEditableLineupFormation(formationId)
+        if (ok) {
+            selectedSlotIndex = -1
+            selectedSourceSlotIndex = -1
+            selectedPlayerId = 0
+            actionStatusText = "Formation changed."
+            syncFormationSelection()
+        } else {
+            actionStatusText = "Formation change failed."
+            syncFormationSelection()
+        }
+    }
 
     function selectSlot(slotIndex) {
         selectedSlotIndex = slotIndex
@@ -158,6 +205,15 @@ Item {
         }
     }
 
+    Component.onCompleted: refreshSupportedFormations()
+
+    Connections {
+        target: lineupState
+        function onChanged() {
+            root.syncFormationSelection()
+        }
+    }
+
     ColumnLayout {
         id: layoutRoot
         anchors.fill: parent
@@ -189,6 +245,24 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
+
+                    Label {
+                        text: "Formation"
+                        font.pixelSize: 12
+                        color: "#344054"
+                    }
+
+                    ComboBox {
+                        id: formationSelector
+                        Layout.preferredWidth: 120
+                        model: root.supportedFormations
+                        textRole: "formationText"
+                        valueRole: "formationId"
+                        enabled: root.hasValidLineupData && count > 0
+                        onActivated: function(index) {
+                            root.changeFormationFromSelector(index)
+                        }
+                    }
 
                     Label {
                         text: "Selected Slot: " + slotLabelFor(selectedSlotIndex)
