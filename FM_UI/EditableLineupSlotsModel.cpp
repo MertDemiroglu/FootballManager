@@ -52,6 +52,12 @@ QVariant EditableLineupSlotsModel::data(const QModelIndex& index, int role) cons
         return row.assignedPlayerFitness;
     case AssignedPlayerMoraleRole:
         return row.assignedPlayerMorale;
+    case PitchXRole:
+        return row.pitchX;
+    case PitchYRole:
+        return row.pitchY;
+    case DisplayOrderRole:
+        return row.displayOrder;
     default:
         return {};
     }
@@ -73,6 +79,9 @@ QHash<int, QByteArray> EditableLineupSlotsModel::roleNames() const {
         { AssignedPlayerFormRole, "assignedPlayerForm" },
         { AssignedPlayerFitnessRole, "assignedPlayerFitness" },
         { AssignedPlayerMoraleRole, "assignedPlayerMorale" },
+        { PitchXRole, "pitchX" },
+        { PitchYRole, "pitchY" },
+        { DisplayOrderRole, "displayOrder" },
     };
 }
 
@@ -112,5 +121,8 @@ QVariantMap EditableLineupSlotsModel::toVariantMap(const Row& row) const {
     map.insert(QStringLiteral("assignedPlayerForm"), row.assignedPlayerForm);
     map.insert(QStringLiteral("assignedPlayerFitness"), row.assignedPlayerFitness);
     map.insert(QStringLiteral("assignedPlayerMorale"), row.assignedPlayerMorale);
+    map.insert(QStringLiteral("pitchX"), row.pitchX);
+    map.insert(QStringLiteral("pitchY"), row.pitchY);
+    map.insert(QStringLiteral("displayOrder"), row.displayOrder);
     return map;
 }

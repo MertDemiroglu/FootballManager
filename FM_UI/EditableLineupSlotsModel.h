@@ -26,6 +26,9 @@ public:
         int assignedPlayerForm = 0;
         int assignedPlayerFitness = 0;
         int assignedPlayerMorale = 0;
+        double pitchX = 0.5;
+        double pitchY = 0.5;
+        int displayOrder = 0;
     };
 
     enum Role {
@@ -43,6 +46,9 @@ public:
         AssignedPlayerFormRole,
         AssignedPlayerFitnessRole,
         AssignedPlayerMoraleRole,
+        PitchXRole,
+        PitchYRole,
+        DisplayOrderRole,
     };
 
     explicit EditableLineupSlotsModel(QObject* parent = nullptr);

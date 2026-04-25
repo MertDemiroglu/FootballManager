@@ -18,25 +18,14 @@ Rectangle {
     clip: true
     Layout.minimumHeight: 420
 
-    function roleGroup(slotRow) {
-        const role = slotRow.slotRole || ""
-        if (role === "GK")
-            return 0
-        if (role === "LB" || role === "CB" || role === "RB" || role === "LWB" || role === "RWB")
-            return 1
-        if (role === "DM" || role === "CM" || role === "AM" || role === "LM" || role === "RM")
-            return 2
-        return 3
+    function normalized(value, fallback) {
+        return typeof value === "number" ? Math.max(0, Math.min(1, value)) : fallback
     }
 
-    function slotsForGroup(groupIndex) {
-        const grouped = []
-        for (let i = 0; i < slotRows.length; ++i) {
-            const row = slotRows[i]
-            if (roleGroup(row) === groupIndex)
-                grouped.push(row)
-        }
-        return grouped
+    function clamped(value, minValue, maxValue) {
+        if (maxValue < minValue)
+            return minValue
+        return Math.max(minValue, Math.min(maxValue, value))
     }
 
     ColumnLayout {
@@ -52,57 +41,94 @@ Rectangle {
         }
 
         Rectangle {
+            id: pitchBackground
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.minimumHeight: 360
             radius: 12
-            color: "#1e7a46"
-            border.color: "#0f5132"
+            color: "#187343"
+            border.color: "#0d5130"
+            clip: true
 
             Rectangle {
-                anchors.centerIn: parent
-                width: parent.width * 0.88
-                height: parent.height * 0.88
+                id: pitchField
+                anchors.fill: parent
+                anchors.margins: 18
+                radius: 10
                 color: "transparent"
                 border.width: 2
-                border.color: "#ffffff"
-                radius: 10
+                border.color: "#e8fff1"
             }
 
             Rectangle {
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.verticalCenter: parent.verticalCenter
-                width: parent.width * 0.88
+                anchors.left: pitchField.left
+                anchors.right: pitchField.right
+                anchors.verticalCenter: pitchField.verticalCenter
                 height: 2
-                color: "#ffffff"
+                color: "#d9fbe7"
+                opacity: 0.85
             }
 
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 22
-                spacing: 10
+            Rectangle {
+                anchors.centerIn: pitchField
+                width: Math.min(pitchField.width, pitchField.height) * 0.22
+                height: width
+                radius: width / 2
+                color: "transparent"
+                border.width: 2
+                border.color: "#d9fbe7"
+                opacity: 0.85
+            }
+
+            Rectangle {
+                anchors.horizontalCenter: pitchField.horizontalCenter
+                anchors.top: pitchField.top
+                width: pitchField.width * 0.42
+                height: pitchField.height * 0.16
+                color: "transparent"
+                border.width: 2
+                border.color: "#d9fbe7"
+                opacity: 0.8
+            }
+
+            Rectangle {
+                anchors.horizontalCenter: pitchField.horizontalCenter
+                anchors.bottom: pitchField.bottom
+                width: pitchField.width * 0.42
+                height: pitchField.height * 0.16
+                color: "transparent"
+                border.width: 2
+                border.color: "#d9fbe7"
+                opacity: 0.8
+            }
+
+            Item {
+                id: cardsLayer
+                anchors.fill: pitchField
                 visible: root.slotRows.length > 0
 
+                readonly property real cardWidth: Math.max(118, Math.min(146, width * 0.20))
+                readonly property real cardHeight: Math.max(56, Math.min(66, height * 0.13))
+
                 Repeater {
-                    model: 4
+                    model: root.slotRows
 
-                    delegate: RowLayout {
-                        required property int index
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        spacing: 8
-
-                        Repeater {
-                            model: root.slotsForGroup(index)
-                            delegate: LineupSlotCard {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                slotData: modelData
-                                selectedSlotIndex: root.selectedSlotIndex
-                                selectedSourceSlotIndex: root.selectedSourceSlotIndex
-                                onClicked: function(slotIndex) {
-                                    root.slotClicked(slotIndex)
-                                }
-                            }
+                    delegate: LineupSlotCard {
+                        width: cardsLayer.cardWidth
+                        height: cardsLayer.cardHeight
+                        slotData: modelData
+                        selectedSlotIndex: root.selectedSlotIndex
+                        selectedSourceSlotIndex: root.selectedSourceSlotIndex
+                        x: root.clamped(
+                               root.normalized(modelData.pitchX, 0.5) * cardsLayer.width - width / 2,
+                               0,
+                               cardsLayer.width - width)
+                        y: root.clamped(
+                               root.normalized(modelData.pitchY, 0.5) * cardsLayer.height - height / 2,
+                               0,
+                               cardsLayer.height - height)
+                        onClicked: function(slotIndex) {
+                            root.slotClicked(slotIndex)
                         }
                     }
                 }
