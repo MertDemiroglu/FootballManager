@@ -418,8 +418,14 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.preferredWidth: 2
+                slotsModel: root.slotsModel
                 rosterModel: root.rosterModel
+                selectedSlotIndex: root.selectedSlotIndex
+                selectedSourceSlotIndex: root.selectedSourceSlotIndex
                 selectedPlayerId: root.selectedPlayerId
+                onSlotClicked: function(slotIndex) {
+                    root.selectSlot(slotIndex)
+                }
                 onPlayerClicked: function(playerId) {
                     root.selectPlayer(playerId)
                 }
