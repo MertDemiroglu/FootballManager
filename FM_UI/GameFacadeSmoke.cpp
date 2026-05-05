@@ -6,12 +6,22 @@
 
 #include <algorithm>
 #include <exception>
+#include <memory>
 #include <optional>
 #include <stdexcept>
+#include <string>
 
 #include "GameFacade.h"
+#include "fm/core/Game.h"
+#include "fm/match/EditableLineup.h"
+#include "fm/match/TeamSheet.h"
+#include "fm/roster/Defender.h"
+#include "fm/roster/Forward.h"
 #include "fm/roster/Formation.h"
 #include "fm/roster/FormationPitchLayout.h"
+#include "fm/roster/Goalkeeper.h"
+#include "fm/roster/Midfielder.h"
+#include "fm/roster/Team.h"
 
 namespace {
     void expect(bool condition, const QString& message) {
@@ -37,6 +47,47 @@ namespace {
             }
         }
     }
+
+    std::unique_ptr<Footballer> makePlayer(int index) {
+        const std::string name = "Smoke Player " + std::to_string(index);
+        if (index == 0) {
+            return std::make_unique<Goalkeeper>(name, "Smoke FC", 24, 60, 60, 60, 60, 60);
+        }
+        if (index <= 4) {
+            return std::make_unique<Defender>(name, PlayerPosition::CenterBack, "Smoke FC", 24, 60, 60, 60, 60, 60);
+        }
+        if (index <= 8) {
+            return std::make_unique<Midfielder>(name, PlayerPosition::CentralMidfielder, "Smoke FC", 24, 60, 60, 60, 60, 60);
+        }
+        return std::make_unique<Forward>(name, PlayerPosition::Striker, "Smoke FC", 24, 60, 60, 60, 60, 60);
+    }
+
+    void expectEditableLineupTeamSheetExport() {
+        Team team(91001, "Smoke FC");
+        for (int i = 0; i < 11; ++i) {
+            team.addPlayer(makePlayer(i));
+        }
+
+        EditableLineup lineup(team, FormationId::FourThreeThree);
+        expect(!lineup.toTeamSheetIfComplete().has_value(),
+            "incomplete editable lineup should not export to TeamSheet");
+
+        const auto& players = team.getPlayers();
+        for (std::size_t i = 0; i < lineup.getSlots().size(); ++i) {
+            expect(lineup.assignPlayerToSlot(players.at(i)->getId(), i),
+                "assigning smoke player to editable lineup slot should succeed");
+        }
+
+        const std::optional<TeamSheet> exported = lineup.toTeamSheetIfComplete();
+        expect(exported.has_value(), "complete editable lineup should export to TeamSheet");
+        expect(exported->teamId == team.getId(), "exported TeamSheet should keep team id");
+        expect(exported->formation == FormationId::FourThreeThree,
+            "exported TeamSheet should keep editable formation");
+        expect(exported->startingPlayerIds.size() == 11,
+            "exported TeamSheet should contain 11 starting player ids");
+        expect(exported->startingAssignments.size() == 11,
+            "exported TeamSheet should contain 11 slot assignments");
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -45,6 +96,14 @@ int main(int argc, char* argv[]) {
     try {
         qDebug() << "[Smoke] Creating facade...";
         expectSupportedFormationPitchLayouts();
+        expectEditableLineupTeamSheetExport();
+        {
+            Game gameWithoutPreMatch;
+            TeamSheet sheet;
+            sheet.teamId = 1;
+            expect(!gameWithoutPreMatch.replacePendingPreMatchTeamSheetForTeam(1, sheet),
+                "pending pre-match sheet replacement should fail safely without active pre-match");
+        }
         GameFacade facade;
 
         qDebug() << "[Smoke] Reading team selection...";
@@ -234,16 +293,37 @@ int main(int argc, char* argv[]) {
         expect(nextMatch.value(QStringLiteral("hasNextMatch")).toBool(),
             "dashboard next match should exist after boot");
 
+        expect(!facade.applyEditableLineupToActivePreMatch(),
+            "applying editable lineup should fail safely when no pre-match is active");
+        expect(facade.autoSelectEditableLineup(),
+            "auto select before managed pre-match should produce a complete editable lineup");
+
         bool sawTeamMatchHistory = false;
+        bool sawManagedPreMatch = false;
         qDebug() << "[Smoke] Advancing days until team match history appears...";
         for (int day = 0; day < 200; ++day) {
             expect(facade.advanceOneDay(), "advanceOneDay should succeed after start");
+            if (facade.getActiveInteractionKind() == QStringLiteral("pre_match")) {
+                sawManagedPreMatch = true;
+                expect(facade.applyEditableLineupToActivePreMatch(),
+                    "complete editable lineup should apply to active pre-match");
+                const QVariantMap preMatch = facade.getActivePreMatchInteraction();
+                const bool managedHome = preMatch.value(QStringLiteral("homeTeamId")).toInt() == facade.getSelectedTeamId();
+                const QVariantList managedLineup = managedHome
+                    ? preMatch.value(QStringLiteral("homeLineup")).toList()
+                    : preMatch.value(QStringLiteral("awayLineup")).toList();
+                expect(managedLineup.size() == 11,
+                    "active pre-match should expose 11 managed lineup rows after apply");
+                expect(facade.playActiveMatch(), "playActiveMatch should succeed for active pre-match");
+            }
             if (!facade.getCurrentTeamMatches().isEmpty()) {
                 sawTeamMatchHistory = true;
                 break;
             }
         }
 
+        expect(sawManagedPreMatch,
+            "smoke should encounter a managed-team pre-match interaction");
         expect(sawTeamMatchHistory,
             "team match history should become non-empty as the season advances");
         expect(!facade.getCurrentTeamSeasonStats().isEmpty(),

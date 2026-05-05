@@ -35,10 +35,10 @@ Rectangle {
 
         Label {
             Layout.fillWidth: true
-            text: rowData.playerName || "Unknown"
-            color: "#101828"
+            text: rowData.playerName || (rowData.hasPlayer === false ? "Empty" : "Unknown")
+            color: rowData.hasPlayer === false ? "#667085" : "#101828"
             font.pixelSize: 13
-            font.bold: true
+            font.bold: rowData.hasPlayer !== false
             elide: Text.ElideRight
         }
 
@@ -53,6 +53,7 @@ Rectangle {
             text: "OVR " + (rowData.overall !== undefined ? rowData.overall : "-")
             color: "#475467"
             font.pixelSize: 12
+            visible: rowData.hasPlayer !== false
         }
     }
 

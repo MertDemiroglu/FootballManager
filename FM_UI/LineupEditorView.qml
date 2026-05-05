@@ -230,6 +230,16 @@ Item {
         }
     }
 
+    function applyLineupToMatch() {
+        if (!gameFacade)
+            return
+
+        const ok = gameFacade.applyEditableLineupToActivePreMatch()
+        actionStatusText = ok
+            ? "Lineup applied to match."
+            : "Lineup incomplete. Current pre-match lineup unchanged."
+    }
+
     function handlePlayerDroppedOnSlot(playerId, targetSlotIndex) {
         if (!gameFacade || playerId <= 0 || targetSlotIndex < 0)
             return
@@ -376,6 +386,30 @@ Item {
                         radius: 8
                         color: parent.enabled ? (parent.down ? "#18a356" : root.accentGreen) : "#263442"
                         border.color: parent.enabled ? "#5ee08f" : "#3a4a58"
+                    }
+                }
+
+                Button {
+                    text: "Use For Match"
+                    visible: gameFacade
+                             && gameFacade.interactionState.hasActiveInteraction
+                             && gameFacade.interactionState.kind === "pre_match"
+                    enabled: root.hasValidLineupData
+                    Layout.preferredWidth: 132
+                    Layout.preferredHeight: 40
+                    onClicked: root.applyLineupToMatch()
+                    contentItem: Label {
+                        text: parent.text
+                        color: root.textPrimary
+                        font.pixelSize: 13
+                        font.bold: true
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        radius: 8
+                        color: parent.enabled ? (parent.down ? "#1d2b38" : "#111c28") : "#263442"
+                        border.color: parent.enabled ? (parent.hovered ? "#4c657a" : "#33485a") : "#3a4a58"
                     }
                 }
 

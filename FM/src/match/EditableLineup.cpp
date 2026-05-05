@@ -4,6 +4,7 @@
 #include"fm/roster/Team.h"
 
 #include<algorithm>
+#include<unordered_set>
 
 EditableLineup::EditableLineup(const Team& team, FormationId formationId)
     : teamId(team.getId()),
@@ -213,6 +214,46 @@ TeamSheet EditableLineup::exportAsTeamSheet() const {
 
         teamSheet.startingAssignments.push_back(TeamSheetSlotAssignment{ slot.slotRole, slot.assignedPlayerId });
         teamSheet.startingPlayerIds.push_back(slot.assignedPlayerId);
+    }
+
+    return teamSheet;
+}
+
+std::optional<TeamSheet> EditableLineup::toTeamSheetIfComplete() const {
+    if (teamId == 0 || !isFormationSupported(formationId) || lineupSlots.empty()) {
+        return std::nullopt;
+    }
+
+    std::unordered_set<PlayerId> assignedPlayerIds;
+    assignedPlayerIds.reserve(lineupSlots.size());
+
+    TeamSheet teamSheet;
+    teamSheet.teamId = teamId;
+    teamSheet.coachId = coachId;
+    teamSheet.formation = formationId;
+    teamSheet.startingAssignments.reserve(lineupSlots.size());
+    teamSheet.startingPlayerIds.reserve(lineupSlots.size());
+
+    for (const EditableLineupSlot& slot : lineupSlots) {
+        if (slot.assignedPlayerId == 0 || slot.slotRole == FormationSlotRole::Unknown) {
+            return std::nullopt;
+        }
+        if (!isPlayerInRoster(slot.assignedPlayerId)) {
+            return std::nullopt;
+        }
+
+        const auto [_, inserted] = assignedPlayerIds.insert(slot.assignedPlayerId);
+        if (!inserted) {
+            return std::nullopt;
+        }
+
+        teamSheet.startingAssignments.push_back(TeamSheetSlotAssignment{ slot.slotRole, slot.assignedPlayerId });
+        teamSheet.startingPlayerIds.push_back(slot.assignedPlayerId);
+    }
+
+    if (teamSheet.startingAssignments.size() != lineupSlots.size()
+        || teamSheet.startingPlayerIds.size() != lineupSlots.size()) {
+        return std::nullopt;
     }
 
     return teamSheet;

@@ -34,4 +34,5 @@ public:
     int getMatchweek() const;
     const TeamSheet& getHomeSheet() const;
     const TeamSheet& getAwaySheet() const;
+    bool replaceTeamSheetForTeam(TeamId teamId, TeamSheet teamSheet);
 };

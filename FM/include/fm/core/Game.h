@@ -114,6 +114,8 @@ public:
 	const TransferOfferDecisionInteraction* getActiveTransferOfferDecisionInteraction() const;
 	bool resolveActiveInteraction();
 	bool playPendingPreMatch();
+	bool replacePendingPreMatchTeamSheetForTeam(TeamId teamId, const TeamSheet& teamSheet);
+	bool replaceActivePreMatchDisplayTeamSheetForTeam(TeamId teamId, const TeamSheet& teamSheet);
 
 	bool acceptTransferOffer(OfferId offerId);
 	bool rejectTransferOffer(OfferId offerId);
