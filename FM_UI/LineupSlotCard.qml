@@ -23,9 +23,9 @@ Rectangle {
     signal slotDroppedOnSlot(int sourceSlotIndex, int targetSlotIndex)
 
     radius: 8
-    color: isDropHighlighted ? "#123642" : (isSelected ? "#132f55" : (isSourceSelected ? "#123821" : (hasPlayer ? "#111c28" : "#161820")))
-    border.color: isDropHighlighted ? "#23c7d4" : (isSelected ? "#4a90ff" : (isSourceSelected ? "#20b765" : (hasPlayer ? "#34495c" : "#f5b942")))
-    border.width: isDropHighlighted || isSelected || isSourceSelected ? 2 : 1
+    color: isDropHighlighted ? "#123642" : (hasPlayer ? "#111c28" : "#161820")
+    border.color: isDropHighlighted ? "#23c7d4" : (hasPlayer ? "#34495c" : "#f5b942")
+    border.width: isDropHighlighted ? 2 : 1
     opacity: slotDragArea.drag.active ? 0.72 : 1.0
     implicitWidth: 132
     implicitHeight: 60
@@ -78,8 +78,8 @@ Rectangle {
         width: roleLabel.implicitWidth + 12
         height: 18
         radius: 5
-        color: root.isSelected ? "#1b4c83" : (root.isSourceSelected ? "#145c32" : (root.hasPlayer ? "#1a2b3a" : "#312515"))
-        border.color: root.isSelected ? "#4a90ff" : (root.isSourceSelected ? "#20b765" : (root.hasPlayer ? "#40566a" : "#f5b942"))
+        color: root.hasPlayer ? "#1a2b3a" : "#312515"
+        border.color: root.hasPlayer ? "#40566a" : "#f5b942"
         opacity: 0.95
 
         Label {

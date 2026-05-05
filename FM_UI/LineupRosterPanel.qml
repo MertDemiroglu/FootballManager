@@ -45,12 +45,6 @@ ColumnLayout {
         })
     }
 
-    function squadCountText() {
-        if (squadFilter === "All")
-            return unassignedRosterRows.length + " available"
-        return filteredRosterRows.length + " shown / " + unassignedRosterRows.length + " available"
-    }
-
     signal slotClicked(int slotIndex)
     signal playerClicked(int playerId)
     signal playerDroppedOnSlot(int playerId, int slotIndex)
@@ -107,25 +101,10 @@ ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 10
 
-                Label {
-                    Layout.fillWidth: true
-                    text: "Squad"
-                    font.pixelSize: 18
-                    font.bold: true
-                    color: "#f7fbff"
-                    elide: Text.ElideRight
-                }
-
-                Label {
-                    text: root.squadCountText()
-                    font.pixelSize: 11
-                    color: "#91a4b6"
-                }
-
                 ComboBox {
                     id: squadFilterSelector
-                    Layout.preferredWidth: 122
-                    Layout.preferredHeight: 32
+                    Layout.preferredWidth: 148
+                    Layout.preferredHeight: 34
                     model: [ "All", "GK", "DEF", "MID", "ATT" ]
                     currentIndex: Math.max(0, [ "All", "GK", "DEF", "MID", "ATT" ].indexOf(root.squadFilter))
                     onActivated: function(index) {
@@ -137,7 +116,7 @@ ColumnLayout {
                         rightPadding: 24
                         text: "Filter: " + squadFilterSelector.currentText
                         color: "#f7fbff"
-                        font.pixelSize: 12
+                        font.pixelSize: 13
                         font.bold: true
                         verticalAlignment: Text.AlignVCenter
                         elide: Text.ElideRight
@@ -188,6 +167,8 @@ ColumnLayout {
                         }
                     }
                 }
+
+                Item { Layout.fillWidth: true }
             }
 
             RowLayout {
@@ -195,18 +176,12 @@ ColumnLayout {
                 Layout.rightMargin: root.scrollbarGutter
                 spacing: 8
 
-                Label {
-                    Layout.fillWidth: true
-                    text: "Player"
-                    font.pixelSize: 10
-                    font.bold: true
-                    color: "#6f8498"
-                }
+                Item { Layout.fillWidth: true }
 
-                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Overall"; font.pixelSize: 10; font.bold: true; color: "#6f8498"; horizontalAlignment: Text.AlignHCenter }
-                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Form"; font.pixelSize: 10; font.bold: true; color: "#6f8498"; horizontalAlignment: Text.AlignHCenter }
-                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Fitness"; font.pixelSize: 10; font.bold: true; color: "#6f8498"; horizontalAlignment: Text.AlignHCenter }
-                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Moral"; font.pixelSize: 10; font.bold: true; color: "#6f8498"; horizontalAlignment: Text.AlignHCenter }
+                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Overall"; font.pixelSize: 11; font.bold: true; color: "#b9c7d4"; horizontalAlignment: Text.AlignHCenter }
+                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Form"; font.pixelSize: 11; font.bold: true; color: "#b9c7d4"; horizontalAlignment: Text.AlignHCenter }
+                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Fitness"; font.pixelSize: 11; font.bold: true; color: "#b9c7d4"; horizontalAlignment: Text.AlignHCenter }
+                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Moral"; font.pixelSize: 11; font.bold: true; color: "#b9c7d4"; horizontalAlignment: Text.AlignHCenter }
             }
 
             Rectangle {
@@ -280,7 +255,7 @@ ColumnLayout {
                 Label {
                     anchors.centerIn: parent
                     visible: squadList.count === 0
-                    text: root.squadFilter === "All" ? "No available squad players" : "No players in this filter"
+                    text: root.squadFilter === "All" ? "No squad players shown" : "No players in this filter"
                     font.pixelSize: 12
                     color: "#91a4b6"
                 }

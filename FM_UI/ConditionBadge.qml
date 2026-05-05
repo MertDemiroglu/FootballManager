@@ -7,6 +7,7 @@ Rectangle {
     property string label: ""
     property int value: 0
     property bool compact: false
+    property bool valueOnly: false
 
     function conditionColor(score) {
         const normalizedLabel = (root.label || "").toLowerCase()
@@ -25,7 +26,7 @@ Rectangle {
 
     Label {
         anchors.centerIn: parent
-        text: root.label + " " + root.value
+        text: root.valueOnly ? String(root.value) : (root.label + " " + root.value)
         font.pixelSize: root.compact ? 10 : 11
         font.bold: true
         color: root.conditionColor(root.value)

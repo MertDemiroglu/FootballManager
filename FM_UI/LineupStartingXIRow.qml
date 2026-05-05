@@ -25,10 +25,15 @@ Rectangle {
     signal playerDroppedOnSlot(int playerId, int slotIndex)
     signal slotDroppedOnSlot(int sourceSlotIndex, int targetSlotIndex)
 
+    function numberOnly(summary, fallbackValue) {
+        const text = summary ? String(summary) : String(fallbackValue || "-")
+        return text.replace(/^OVR\s+/i, "")
+    }
+
     radius: 8
-    color: isDropHighlighted ? "#123642" : (isSelected ? "#132f55" : (isSourceSelected ? "#123821" : (hasPlayer ? "#101a25" : "#151820")))
-    border.color: isDropHighlighted ? "#23c7d4" : (isSelected ? "#4a90ff" : (isSourceSelected ? "#20b765" : (hasPlayer ? "#253747" : "#f5b942")))
-    border.width: isDropHighlighted || isSelected || isSourceSelected ? 2 : 1
+    color: isDropHighlighted ? "#123642" : (hasPlayer ? "#101a25" : "#151820")
+    border.color: isDropHighlighted ? "#23c7d4" : (hasPlayer ? "#253747" : "#f5b942")
+    border.width: isDropHighlighted ? 2 : 1
     opacity: slotDragArea.drag.active ? 0.72 : 1.0
     implicitHeight: 42
 
@@ -104,7 +109,7 @@ Rectangle {
             Label {
                 anchors.centerIn: parent
                 text: root.hasPlayer
-                      ? (root.slotData.assignedPlayerOverallSummary || ("OVR " + (root.slotData.assignedPlayerOverall || "-")))
+                      ? root.numberOnly(root.slotData.assignedPlayerOverallSummary, root.slotData.assignedPlayerOverall)
                       : "-"
                 font.pixelSize: 10
                 font.bold: true
@@ -116,6 +121,7 @@ Rectangle {
             label: "F"
             value: root.hasPlayer ? (root.slotData.assignedPlayerForm || 0) : 0
             compact: true
+            valueOnly: true
             Layout.preferredWidth: root.metricColumnWidth
         }
 
@@ -123,6 +129,7 @@ Rectangle {
             label: "Fit"
             value: root.hasPlayer ? (root.slotData.assignedPlayerFitness || 0) : 0
             compact: true
+            valueOnly: true
             Layout.preferredWidth: root.metricColumnWidth
         }
 
@@ -130,6 +137,7 @@ Rectangle {
             label: "M"
             value: root.hasPlayer ? (root.slotData.assignedPlayerMorale || 0) : 0
             compact: true
+            valueOnly: true
             Layout.preferredWidth: root.metricColumnWidth
         }
 

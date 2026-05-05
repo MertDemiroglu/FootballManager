@@ -16,10 +16,15 @@ Rectangle {
 
     signal clicked(int playerId)
 
+    function numberOnly(summary, fallbackValue) {
+        const text = summary ? String(summary) : String(fallbackValue || "-")
+        return text.replace(/^OVR\s+/i, "")
+    }
+
     radius: 8
-    border.color: isSelected ? "#4a90ff" : "#253747"
-    border.width: isSelected ? 2 : 1
-    color: isSelected ? "#132f55" : "#101a25"
+    border.color: "#253747"
+    border.width: 1
+    color: "#101a25"
     opacity: playerDragArea.drag.active ? 0.72 : 1.0
     implicitHeight: 42
 
@@ -72,7 +77,7 @@ Rectangle {
 
             Label {
                 anchors.centerIn: parent
-                text: rowData.overallSummary || ("OVR " + (rowData.overall || "-"))
+                text: root.numberOnly(rowData.overallSummary, rowData.overall)
                 font.pixelSize: 10
                 font.bold: true
                 color: "#d7e0e8"
@@ -83,6 +88,7 @@ Rectangle {
             label: "F"
             value: rowData.form
             compact: true
+            valueOnly: true
             Layout.preferredWidth: root.metricColumnWidth
         }
 
@@ -90,6 +96,7 @@ Rectangle {
             label: "Fit"
             value: rowData.fitness
             compact: true
+            valueOnly: true
             Layout.preferredWidth: root.metricColumnWidth
         }
 
@@ -97,6 +104,7 @@ Rectangle {
             label: "M"
             value: rowData.morale
             compact: true
+            valueOnly: true
             Layout.preferredWidth: root.metricColumnWidth
         }
     }
