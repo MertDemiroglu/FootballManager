@@ -7,11 +7,14 @@ Rectangle {
     property var slotData: ({})
     property int selectedSlotIndex: -1
     property int selectedSourceSlotIndex: -1
+    property string warningText: ""
+    property string warningLevel: "none"
     readonly property int slotIndex: typeof slotData.slotIndex === "number" ? slotData.slotIndex : -1
     readonly property bool isSelected: selectedSlotIndex >= 0 && slotIndex === selectedSlotIndex
     readonly property bool isSourceSelected: selectedSourceSlotIndex >= 0 && slotIndex === selectedSourceSlotIndex
     readonly property bool hasPlayer: !!slotData.hasAssignedPlayer && !slotData.isEmpty
     readonly property bool isDropHighlighted: slotDropArea.containsDrag
+    readonly property bool hasWarning: warningText.length > 0 && warningLevel !== "none"
     property real dragHotSpotX: width / 2
     property real dragHotSpotY: height / 2
 
@@ -114,6 +117,26 @@ Rectangle {
             color: root.hasPlayer ? "#64748b" : "#b45309"
             horizontalAlignment: Text.AlignLeft
             elide: Text.ElideRight
+        }
+    }
+
+    Label {
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: 4
+        anchors.rightMargin: 6
+        visible: root.hasWarning
+        text: "!"
+        font.pixelSize: 12
+        font.bold: true
+        color: "#b45309"
+        ToolTip.visible: warningMouse.containsMouse
+        ToolTip.text: root.warningText
+
+        MouseArea {
+            id: warningMouse
+            anchors.fill: parent
+            hoverEnabled: true
         }
     }
 

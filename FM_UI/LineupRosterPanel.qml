@@ -10,11 +10,21 @@ Rectangle {
     property int selectedSlotIndex: -1
     property int selectedSourceSlotIndex: -1
     property int selectedPlayerId: 0
+    readonly property var unassignedRosterRows: buildUnassignedRosterRows()
+    readonly property bool isSquadDropHighlighted: squadDropArea.containsDrag
+
+    function buildUnassignedRosterRows() {
+        const rows = rosterModel && rosterModel.rows ? rosterModel.rows : []
+        return rows.filter(function(row) {
+            return !row.isAssigned
+        })
+    }
 
     signal slotClicked(int slotIndex)
     signal playerClicked(int playerId)
     signal playerDroppedOnSlot(int playerId, int slotIndex)
     signal slotDroppedOnSlot(int sourceSlotIndex, int targetSlotIndex)
+    signal playerDroppedOnSquad(int playerId, int sourceSlotIndex)
 
     radius: 14
     border.color: "#d8dee8"
@@ -60,59 +70,74 @@ Rectangle {
             }
 
             Label {
-                text: (rosterModel ? rosterModel.count : 0) + " players"
+                text: unassignedRosterRows.length + " available"
                 font.pixelSize: 11
                 color: "#667085"
             }
         }
 
         Rectangle {
+            id: squadSection
             Layout.fillWidth: true
             Layout.fillHeight: true
             radius: 10
-            color: "#f8fafc"
-            border.color: "#edf2f7"
+            color: root.isSquadDropHighlighted ? "#ecfeff" : "#f8fafc"
+            border.color: root.isSquadDropHighlighted ? "#06b6d4" : "#edf2f7"
+            border.width: root.isSquadDropHighlighted ? 2 : 1
             clip: true
 
-            ListView {
+            DropArea {
+                id: squadDropArea
                 anchors.fill: parent
-                anchors.margins: 6
+                z: 20
+                keys: [ "lineup-player", "lineup-slot" ]
+
+                onDropped: function(drop) {
+                    const source = drop.source
+                    if (!source)
+                        return
+
+                    if (source.dragKind === "slot" && source.dragAssignedPlayerId > 0) {
+                        root.playerDroppedOnSquad(source.dragAssignedPlayerId, source.dragSourceSlotIndex)
+                        drop.acceptProposedAction()
+                    } else if (source.dragKind === "player" && source.dragPlayerId > 0 && source.dragSourceSlotIndex >= 0) {
+                        root.playerDroppedOnSquad(source.dragPlayerId, source.dragSourceSlotIndex)
+                        drop.acceptProposedAction()
+                    }
+                }
+            }
+
+            ListView {
+                id: squadList
+                anchors.fill: parent
+                anchors.leftMargin: 6
+                anchors.topMargin: 6
+                anchors.rightMargin: 18
+                anchors.bottomMargin: 6
                 clip: true
-                model: root.rosterModel
+                model: root.unassignedRosterRows
                 spacing: 6
                 boundsBehavior: Flickable.StopAtBounds
-                ScrollBar.vertical: ScrollBar {}
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AsNeeded
+                }
 
                 delegate: LineupRosterRow {
-                    required property int playerId
-                    required property string name
-                    required property string positionShort
-                    required property int overall
-                    required property string overallSummary
-                    required property int form
-                    required property int fitness
-                    required property int morale
-                    required property bool isAssigned
-                    required property int assignedSlotIndex
-
                     width: ListView.view ? ListView.view.width : 0
                     selectedPlayerId: root.selectedPlayerId
-                    rowData: ({
-                        playerId: playerId,
-                        name: name,
-                        positionShort: positionShort,
-                        overall: overall,
-                        overallSummary: overallSummary,
-                        form: form,
-                        fitness: fitness,
-                        morale: morale,
-                        isAssigned: isAssigned,
-                        assignedSlotIndex: assignedSlotIndex
-                    })
+                    rowData: modelData
                     onClicked: function(clickedPlayerId) {
                         root.playerClicked(clickedPlayerId)
                     }
                 }
+            }
+
+            Label {
+                anchors.centerIn: parent
+                visible: squadList.count === 0
+                text: "No available squad players"
+                font.pixelSize: 12
+                color: "#667085"
             }
         }
     }

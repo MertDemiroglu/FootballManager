@@ -16,9 +16,9 @@ Rectangle {
     signal clicked(int playerId)
 
     radius: 8
-    border.color: isSelected ? "#2563eb" : (rowData.isAssigned ? "#93c5fd" : "#e4e7ec")
+    border.color: isSelected ? "#2563eb" : "#e4e7ec"
     border.width: isSelected ? 2 : 1
-    color: isSelected ? "#dbeafe" : (rowData.isAssigned ? "#eff6ff" : "#ffffff")
+    color: isSelected ? "#dbeafe" : "#ffffff"
     opacity: playerDragArea.drag.active ? 0.72 : 1.0
     implicitHeight: 50
 
@@ -67,23 +67,6 @@ Rectangle {
             color: "#101828"
             elide: Text.ElideRight
             verticalAlignment: Text.AlignVCenter
-        }
-
-        Rectangle {
-            visible: rowData.isAssigned
-            radius: 999
-            color: "#dbeafe"
-            border.color: "#60a5fa"
-            implicitWidth: 34
-            implicitHeight: 22
-
-            Label {
-                anchors.centerIn: parent
-                text: "S#" + rowData.assignedSlotIndex
-                font.pixelSize: 10
-                font.bold: true
-                color: "#1d4ed8"
-            }
         }
 
         ConditionBadge {
