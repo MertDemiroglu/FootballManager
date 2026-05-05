@@ -104,7 +104,9 @@ ApplicationWindow {
     }
 
     header: ToolBar {
-        visible: root.currentView !== root.routes.home && root.currentView !== root.routes.teamSelection
+        visible: root.currentView !== root.routes.home
+                 && root.currentView !== root.routes.teamSelection
+                 && root.currentView !== root.routes.lineupEditor
         contentHeight: 52
 
         RowLayout {

@@ -10,6 +10,7 @@ Rectangle {
     property int selectedSourceSlotIndex: -1
     property string warningText: ""
     property string warningLevel: "none"
+    property int metricColumnWidth: 54
 
     readonly property int slotIndex: typeof slotData.slotIndex === "number" ? slotData.slotIndex : -1
     readonly property bool hasPlayer: !!slotData.hasAssignedPlayer && !slotData.isEmpty
@@ -24,12 +25,17 @@ Rectangle {
     signal playerDroppedOnSlot(int playerId, int slotIndex)
     signal slotDroppedOnSlot(int sourceSlotIndex, int targetSlotIndex)
 
+    function numberOnly(summary, fallbackValue) {
+        const text = summary ? String(summary) : String(fallbackValue || "-")
+        return text.replace(/^OVR\s+/i, "")
+    }
+
     radius: 8
-    color: isDropHighlighted ? "#ecfeff" : (isSelected ? "#dbeafe" : (isSourceSelected ? "#dcfce7" : (hasPlayer ? "#ffffff" : "#fffbeb")))
-    border.color: isDropHighlighted ? "#06b6d4" : (isSelected ? "#2563eb" : (isSourceSelected ? "#16a34a" : (hasPlayer ? "#e2e8f0" : "#f59e0b")))
-    border.width: isDropHighlighted || isSelected || isSourceSelected ? 2 : 1
+    color: isDropHighlighted ? "#123642" : (hasPlayer ? "#101a25" : "#151820")
+    border.color: isDropHighlighted ? "#23c7d4" : (hasPlayer ? "#253747" : "#f5b942")
+    border.width: isDropHighlighted ? 2 : 1
     opacity: slotDragArea.drag.active ? 0.72 : 1.0
-    implicitHeight: 50
+    implicitHeight: 42
 
     Item {
         id: slotDragSource
@@ -86,57 +92,74 @@ Rectangle {
         Label {
             Layout.fillWidth: true
             text: root.hasPlayer ? (root.slotData.assignedPlayerName || "Unknown") : "Empty"
-            font.pixelSize: 13
+            font.pixelSize: 12
             font.bold: root.hasPlayer
-            color: root.hasPlayer ? "#101828" : "#92400e"
+            color: root.hasPlayer ? "#f7fbff" : "#f5b942"
             elide: Text.ElideRight
             verticalAlignment: Text.AlignVCenter
         }
 
-        Label {
-            text: root.hasPlayer
-                  ? (root.slotData.assignedPlayerOverallSummary || ("OVR " + (root.slotData.assignedPlayerOverall || "-")))
-                  : "-"
-            font.pixelSize: 11
-            font.bold: root.hasPlayer
-            color: root.hasPlayer ? "#475467" : "#b45309"
-        }
+        Rectangle {
+            Layout.preferredWidth: root.metricColumnWidth
+            Layout.preferredHeight: 22
+            radius: 999
+            color: "#233241"
+            border.color: "#3a4d5e"
 
-        ConditionBadge {
-            visible: root.hasPlayer
-            label: "F"
-            value: root.slotData.assignedPlayerForm || 0
-            compact: true
-        }
-
-        ConditionBadge {
-            visible: root.hasPlayer
-            label: "Fit"
-            value: root.slotData.assignedPlayerFitness || 0
-            compact: true
-        }
-
-        ConditionBadge {
-            visible: root.hasPlayer
-            label: "M"
-            value: root.slotData.assignedPlayerMorale || 0
-            compact: true
-        }
-
-        Label {
-            visible: root.hasWarning
-            text: "!"
-            font.pixelSize: 12
-            font.bold: true
-            color: "#b45309"
-            ToolTip.visible: warningMouse.containsMouse
-            ToolTip.text: root.warningText
-
-            MouseArea {
-                id: warningMouse
-                anchors.fill: parent
-                hoverEnabled: true
+            Label {
+                anchors.centerIn: parent
+                text: root.hasPlayer
+                      ? root.numberOnly(root.slotData.assignedPlayerOverallSummary, root.slotData.assignedPlayerOverall)
+                      : "-"
+                font.pixelSize: 10
+                font.bold: true
+                color: root.hasPlayer ? "#d7e0e8" : "#7d8d9a"
             }
+        }
+
+        ConditionBadge {
+            label: "F"
+            value: root.hasPlayer ? (root.slotData.assignedPlayerForm || 0) : 0
+            compact: true
+            valueOnly: true
+            Layout.preferredWidth: root.metricColumnWidth
+        }
+
+        ConditionBadge {
+            label: "Fit"
+            value: root.hasPlayer ? (root.slotData.assignedPlayerFitness || 0) : 0
+            compact: true
+            valueOnly: true
+            Layout.preferredWidth: root.metricColumnWidth
+        }
+
+        ConditionBadge {
+            label: "M"
+            value: root.hasPlayer ? (root.slotData.assignedPlayerMorale || 0) : 0
+            compact: true
+            valueOnly: true
+            Layout.preferredWidth: root.metricColumnWidth
+        }
+
+    }
+
+    Label {
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.rightMargin: 4
+        anchors.topMargin: 3
+        visible: root.hasWarning
+        text: "!"
+        font.pixelSize: 12
+        font.bold: true
+        color: "#f5b942"
+        ToolTip.visible: warningMouse.containsMouse
+        ToolTip.text: root.warningText
+
+        MouseArea {
+            id: warningMouse
+            anchors.fill: parent
+            hoverEnabled: true
         }
     }
 

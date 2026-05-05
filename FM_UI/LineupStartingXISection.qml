@@ -8,6 +8,8 @@ ColumnLayout {
     property var slotsModel: null
     property int selectedSlotIndex: -1
     property int selectedSourceSlotIndex: -1
+    property int metricColumnWidth: 58
+    property string lineupPanelMode: "StartingXI"
 
     signal slotClicked(int slotIndex)
     signal playerDroppedOnSlot(int playerId, int slotIndex)
@@ -29,26 +31,55 @@ ColumnLayout {
 
     RowLayout {
         Layout.fillWidth: true
+        Layout.rightMargin: 8
         spacing: 8
 
-        Label {
-            Layout.fillWidth: true
-            text: "Starting XI"
-            font.pixelSize: 16
-            font.bold: true
-            color: "#17212f"
+        RowLayout {
+            Layout.preferredWidth: 238
+            Layout.preferredHeight: 32
+            spacing: 6
+
+            Repeater {
+                model: [
+                    { label: "Starting XI", mode: "StartingXI" },
+                    { label: "Substitutes", mode: "Substitutes" }
+                ]
+
+                delegate: Button {
+                    required property var modelData
+                    text: modelData.label
+                    Layout.preferredWidth: 116
+                    Layout.preferredHeight: 32
+                    onClicked: root.lineupPanelMode = modelData.mode
+                    contentItem: Label {
+                        text: parent.text
+                        color: root.lineupPanelMode === parent.modelData.mode ? "#f7fbff" : "#d7e2ec"
+                        font.pixelSize: 12
+                        font.bold: root.lineupPanelMode === parent.modelData.mode
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        radius: 7
+                        color: root.lineupPanelMode === parent.modelData.mode ? "#105e34" : "#111c28"
+                        border.color: root.lineupPanelMode === parent.modelData.mode ? "#2fb565" : "#33485a"
+                    }
+                }
+            }
         }
 
-        Label {
-            text: (slotsModel ? slotsModel.count : 0) + " slots"
-            font.pixelSize: 11
-            color: "#667085"
-        }
+        Item { Layout.fillWidth: true }
+
+        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Overall"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; visible: root.lineupPanelMode === "StartingXI" }
+        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Form"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; visible: root.lineupPanelMode === "StartingXI" }
+        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Fitness"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; visible: root.lineupPanelMode === "StartingXI" }
+        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Moral"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; visible: root.lineupPanelMode === "StartingXI" }
     }
 
     ColumnLayout {
         Layout.fillWidth: true
-        spacing: 4
+        spacing: 2
+        visible: root.lineupPanelMode === "StartingXI"
 
         Repeater {
             model: root.orderedSlots()
@@ -58,6 +89,7 @@ ColumnLayout {
                 slotData: modelData
                 selectedSlotIndex: root.selectedSlotIndex
                 selectedSourceSlotIndex: root.selectedSourceSlotIndex
+                metricColumnWidth: root.metricColumnWidth
                 onClicked: function(slotIndex) {
                     root.slotClicked(slotIndex)
                 }
@@ -68,6 +100,22 @@ ColumnLayout {
                     root.slotDroppedOnSlot(sourceSlotIndex, targetSlotIndex)
                 }
             }
+        }
+    }
+
+    Rectangle {
+        Layout.fillWidth: true
+        Layout.preferredHeight: 120
+        radius: 8
+        visible: root.lineupPanelMode === "Substitutes"
+        color: "#0b1520"
+        border.color: "#1f3040"
+
+        Label {
+            anchors.centerIn: parent
+            text: "Substitutes selection coming soon"
+            font.pixelSize: 13
+            color: "#91a4b6"
         }
     }
 }

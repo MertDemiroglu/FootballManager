@@ -28,12 +28,12 @@ Rectangle {
 
     function palette(group, shade) {
         const colors = {
-            gk: { fill: "#dcfce7", border: "#86efac", text: "#166534" },
-            defense: { fill: "#dbeafe", border: "#93c5fd", text: "#1d4ed8" },
-            midfield: { fill: "#fef3c7", border: "#fcd34d", text: "#92400e" },
-            wide: { fill: "#ffedd5", border: "#fdba74", text: "#c2410c" },
-            forward: { fill: "#fee2e2", border: "#fca5a5", text: "#b91c1c" },
-            unknown: { fill: "#f1f5f9", border: "#cbd5e1", text: "#475569" }
+            gk: { fill: "#123821", border: "#2fd06f", text: "#9df2ba" },
+            defense: { fill: "#122f55", border: "#4a90ff", text: "#b8d7ff" },
+            midfield: { fill: "#3a2f13", border: "#f4c542", text: "#ffe39b" },
+            wide: { fill: "#3a2214", border: "#f08a35", text: "#ffc18a" },
+            forward: { fill: "#3b171c", border: "#ef5d68", text: "#ffb1b8" },
+            unknown: { fill: "#263241", border: "#6c7c8c", text: "#d3dde6" }
         }
         return colors[group][shade]
     }
