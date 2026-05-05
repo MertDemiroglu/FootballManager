@@ -25,78 +25,59 @@ Rectangle {
     }
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 20
-        spacing: 16
+        anchors.leftMargin: 28
+        anchors.rightMargin: 28
+        anchors.topMargin: 18
+        anchors.bottomMargin: 24
+        spacing: 14
 
-        Rectangle {
+        Item {
             Layout.fillWidth: true
-            radius: 14
-            color: "#0f1a24"
-            border.color: "#243443"
-            border.width: 1
-            implicitHeight: headerContent.implicitHeight + 28
+            implicitHeight: 44
 
             RowLayout {
                 id: headerContent
                 anchors.fill: parent
-                anchors.leftMargin: 16
-                anchors.rightMargin: 16
-                anchors.topMargin: 14
-                anchors.bottomMargin: 14
-                spacing: 14
+                spacing: 12
 
                 Rectangle {
-                    Layout.preferredWidth: 44
-                    Layout.preferredHeight: 44
-                    radius: 10
-                    color: "#13251d"
-                    border.color: "#1f7a46"
+                    Layout.preferredWidth: 34
+                    Layout.preferredHeight: 34
+                    radius: 8
+                    color: "#10251a"
+                    border.color: "#2fb565"
 
                     Label {
                         anchors.centerIn: parent
                         text: "XI"
-                        font.pixelSize: 15
+                        font.pixelSize: 13
                         font.bold: true
                         color: "#7ee2a8"
                     }
                 }
 
-                ColumnLayout {
+                Label {
                     Layout.fillWidth: true
-                    spacing: 2
-
-                    Label {
-                        Layout.fillWidth: true
-                        text: shellState && shellState.selectedTeamName.length > 0
-                              ? shellState.selectedTeamName
-                              : (gameFacade ? gameFacade.getSelectedTeamName() : "Team")
-                        font.pixelSize: 13
-                        font.bold: true
-                        color: "#8fa3b8"
-                        elide: Text.ElideRight
-                    }
-
-                    Label {
-                        Layout.fillWidth: true
-                        text: "Lineup Editor"
-                        font.pixelSize: 30
-                        font.bold: true
-                        color: "#f7fbff"
-                        elide: Text.ElideRight
-                    }
+                    text: shellState && shellState.selectedTeamName.length > 0
+                          ? shellState.selectedTeamName
+                          : (gameFacade ? gameFacade.getSelectedTeamName() : "Team")
+                    font.pixelSize: 18
+                    font.bold: true
+                    color: "#f7fbff"
+                    elide: Text.ElideRight
                 }
 
                 Label {
                     visible: shellState && shellState.currentDateText.length > 0
                     text: shellState ? shellState.currentDateText : ""
-                    font.pixelSize: 13
-                    color: "#9aaebe"
+                    font.pixelSize: 14
+                    color: "#d6dde5"
                 }
 
                 Button {
                     text: "Back"
                     Layout.preferredWidth: 108
-                    Layout.preferredHeight: 40
+                    Layout.preferredHeight: 34
                     onClicked: root.backRequested()
                     contentItem: Label {
                         text: parent.text
@@ -113,6 +94,13 @@ Rectangle {
                     }
                 }
             }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: 1
+            color: "#1b2833"
+            opacity: 0.9
         }
 
         ScrollView {

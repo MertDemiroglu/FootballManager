@@ -15,10 +15,12 @@ Rectangle {
     signal slotDroppedOnSlot(int sourceSlotIndex, int targetSlotIndex)
 
     radius: 14
-    border.color: "#263847"
-    color: "#0f1a24"
+    border.color: "#1d5f3c"
+    color: "#0b1520"
     clip: true
     Layout.minimumHeight: 420
+    layer.enabled: true
+    layer.smooth: true
 
     function normalized(value, fallback) {
         return typeof value === "number" ? Math.max(0, Math.min(1, value)) : fallback
@@ -32,15 +34,8 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 16
-        spacing: 10
-
-        Label {
-            text: "Pitch"
-            font.pixelSize: 18
-            font.bold: true
-            color: "#f7fbff"
-        }
+        anchors.margins: 10
+        spacing: 0
 
         Rectangle {
             id: pitchBackground
@@ -49,14 +44,14 @@ Rectangle {
             Layout.minimumHeight: 360
             radius: 12
             color: "#0b5c34"
-            border.color: "#1c8b52"
+            border.color: "#237447"
             border.width: 1
             clip: true
 
             gradient: Gradient {
-                GradientStop { position: 0.0; color: "#0f6f3e" }
-                GradientStop { position: 0.52; color: "#0a5733" }
-                GradientStop { position: 1.0; color: "#073b27" }
+                GradientStop { position: 0.0; color: "#0d5f37" }
+                GradientStop { position: 0.46; color: "#073f28" }
+                GradientStop { position: 1.0; color: "#052c20" }
             }
 
             Repeater {
@@ -68,19 +63,28 @@ Rectangle {
                     width: pitchBackground.width
                     height: pitchBackground.height / 8
                     color: index % 2 === 0 ? "#ffffff" : "#000000"
-                    opacity: index % 2 === 0 ? 0.035 : 0.045
+                    opacity: index % 2 === 0 ? 0.025 : 0.05
                 }
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: parent.radius
+                color: "transparent"
+                border.width: 12
+                border.color: "#031910"
+                opacity: 0.22
             }
 
             Rectangle {
                 id: pitchField
                 anchors.fill: parent
-                anchors.margins: 18
+                anchors.margins: 16
                 radius: 10
                 color: "transparent"
                 border.width: 2
-                border.color: "#bdeed1"
-                opacity: 0.85
+                border.color: "#a9d1b5"
+                opacity: 0.62
             }
 
             Rectangle {
@@ -88,8 +92,8 @@ Rectangle {
                 anchors.right: pitchField.right
                 anchors.verticalCenter: pitchField.verticalCenter
                 height: 2
-                color: "#bdeed1"
-                opacity: 0.72
+                color: "#a9d1b5"
+                opacity: 0.58
             }
 
             Rectangle {
@@ -99,8 +103,8 @@ Rectangle {
                 radius: width / 2
                 color: "transparent"
                 border.width: 2
-                border.color: "#bdeed1"
-                opacity: 0.72
+                border.color: "#a9d1b5"
+                opacity: 0.56
             }
 
             Rectangle {
@@ -110,8 +114,8 @@ Rectangle {
                 height: pitchField.height * 0.16
                 color: "transparent"
                 border.width: 2
-                border.color: "#bdeed1"
-                opacity: 0.68
+                border.color: "#a9d1b5"
+                opacity: 0.54
             }
 
             Rectangle {
@@ -121,8 +125,8 @@ Rectangle {
                 height: pitchField.height * 0.16
                 color: "transparent"
                 border.width: 2
-                border.color: "#bdeed1"
-                opacity: 0.68
+                border.color: "#a9d1b5"
+                opacity: 0.54
             }
 
             Rectangle {
@@ -132,8 +136,8 @@ Rectangle {
                 height: pitchField.height * 0.07
                 color: "transparent"
                 border.width: 2
-                border.color: "#bdeed1"
-                opacity: 0.6
+                border.color: "#a9d1b5"
+                opacity: 0.5
             }
 
             Rectangle {
@@ -143,8 +147,8 @@ Rectangle {
                 height: pitchField.height * 0.07
                 color: "transparent"
                 border.width: 2
-                border.color: "#bdeed1"
-                opacity: 0.6
+                border.color: "#a9d1b5"
+                opacity: 0.5
             }
 
             Item {
@@ -152,8 +156,8 @@ Rectangle {
                 anchors.fill: pitchField
                 visible: root.slotRows.length > 0
 
-                readonly property real cardWidth: Math.max(112, Math.min(142, width * 0.19))
-                readonly property real cardHeight: Math.max(58, Math.min(68, height * 0.13))
+                readonly property real cardWidth: Math.max(124, Math.min(158, width * 0.19))
+                readonly property real cardHeight: Math.max(64, Math.min(78, height * 0.14))
 
                 Repeater {
                     model: root.slotRows

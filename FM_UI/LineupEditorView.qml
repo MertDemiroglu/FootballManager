@@ -27,7 +27,6 @@ Item {
     property string actionStatusText: ""
     property var supportedFormations: []
     property bool isSyncingFormationSelection: false
-    property bool manualControlsOpen: false
     property string selectedMentality: "Balanced"
     property string selectedTempo: "Normal"
 
@@ -289,7 +288,7 @@ Item {
         if (!lineupState || !lineupState.hasLineup)
             return "Lineup data unavailable"
         return "Formation " + (lineupState.formationText || "-")
-            + "  |  Assigned " + (lineupState.assignedCount || 0)
+            + "  -  Assigned " + (lineupState.assignedCount || 0)
             + "/" + (lineupState.slotCount || 0)
     }
 
@@ -311,55 +310,59 @@ Item {
     ColumnLayout {
         id: layoutRoot
         anchors.fill: parent
-        spacing: 12
+        spacing: 10
 
-        Rectangle {
+        ColumnLayout {
             Layout.fillWidth: true
-            radius: 8
-            color: root.panelColor
-            border.color: root.borderColor
-            implicitHeight: topContent.implicitHeight + 18
+            spacing: 8
+
+            Label {
+                Layout.fillWidth: true
+                text: "Lineup Editor"
+                font.pixelSize: 30
+                font.bold: true
+                color: root.textPrimary
+                elide: Text.ElideRight
+            }
 
             RowLayout {
-                id: topContent
-                anchors.fill: parent
-                anchors.margins: 9
-                spacing: 12
+                Layout.fillWidth: true
+                spacing: 10
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    Rectangle {
-                        Layout.preferredWidth: 9
-                        Layout.preferredHeight: 9
-                        radius: 5
-                        color: root.isLineupFull() ? root.accentGreen : root.accentAmber
-                    }
-
-                    Label {
-                        Layout.fillWidth: true
-                        text: root.assignedSummaryText()
-                        font.pixelSize: 14
-                        font.bold: true
-                        color: root.textPrimary
-                        elide: Text.ElideRight
-                    }
-
-                    Label {
-                        text: actionStatusText
-                        visible: actionStatusText.length > 0
-                        font.pixelSize: 12
-                        color: "#90f0b8"
-                        elide: Text.ElideRight
-                    }
+                Label {
+                    text: root.lineupState && root.lineupState.hasLineup
+                          ? ("Formation " + (root.lineupState.formationText || "-"))
+                          : "Lineup data unavailable"
+                    font.pixelSize: 14
+                    color: "#c7d1db"
                 }
+
+                Rectangle {
+                    Layout.preferredWidth: 7
+                    Layout.preferredHeight: 7
+                    radius: 4
+                    color: root.isLineupFull() ? root.accentGreen : root.accentAmber
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: root.lineupState && root.lineupState.hasLineup
+                          ? ("Assigned " + (root.lineupState.assignedCount || 0) + "/" + (root.lineupState.slotCount || 0))
+                          : ""
+                    font.pixelSize: 14
+                    color: "#c7d1db"
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
 
                 Button {
                     text: "Auto Select"
                     enabled: root.hasValidLineupData
-                    Layout.preferredWidth: 138
-                    Layout.preferredHeight: 38
+                    Layout.preferredWidth: 146
+                    Layout.preferredHeight: 40
                     onClicked: root.autoSelectLineup()
                     contentItem: Label {
                         text: parent.text
@@ -374,6 +377,15 @@ Item {
                         color: parent.enabled ? (parent.down ? "#18a356" : root.accentGreen) : "#263442"
                         border.color: parent.enabled ? "#5ee08f" : "#3a4a58"
                     }
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: actionStatusText
+                    visible: actionStatusText.length > 0
+                    font.pixelSize: 12
+                    color: "#90f0b8"
+                    elide: Text.ElideRight
                 }
             }
         }
@@ -422,31 +434,31 @@ Item {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    radius: 10
-                    color: root.panelColor
+                    radius: 8
+                    color: "#0d1721"
                     border.color: root.borderColor
-                    implicitHeight: tacticalContent.implicitHeight + 20
+                    implicitHeight: tacticalContent.implicitHeight + 24
 
-                    ColumnLayout {
+                    RowLayout {
                         id: tacticalContent
                         anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: 10
+                        anchors.margins: 14
+                        spacing: 16
 
-                        RowLayout {
-                            Layout.fillWidth: true
+                        ColumnLayout {
+                            Layout.preferredWidth: 158
                             spacing: 10
 
                             Label {
                                 text: "Formation"
-                                font.pixelSize: 12
-                                font.bold: true
-                                color: root.textSecondary
+                                font.pixelSize: 13
+                                color: "#c7d1db"
                             }
 
                             ComboBox {
                                 id: formationSelector
-                                Layout.preferredWidth: 128
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 38
                                 model: root.supportedFormations
                                 textRole: "formationText"
                                 valueRole: "formationId"
@@ -454,186 +466,168 @@ Item {
                                 onActivated: function(index) {
                                     root.changeFormationFromSelector(index)
                                 }
-                            }
 
-                            Label {
-                                text: "Mentality"
-                                font.pixelSize: 12
-                                font.bold: true
-                                color: root.textSecondary
-                            }
-
-                            Repeater {
-                                model: [ "Defensive", "Balanced", "Attacking" ]
-                                delegate: Button {
-                                    required property string modelData
-                                    text: modelData
-                                    Layout.preferredHeight: 30
-                                    onClicked: root.selectedMentality = modelData
-                                    contentItem: Label {
-                                        text: parent.text
-                                        color: root.selectedMentality === parent.text ? "#06120b" : root.textSecondary
-                                        font.pixelSize: 11
-                                        font.bold: root.selectedMentality === parent.text
-                                        horizontalAlignment: Text.AlignHCenter
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                    background: Rectangle {
-                                        radius: 7
-                                        color: root.selectedMentality === parent.text ? root.accentGreen : "#162432"
-                                        border.color: root.selectedMentality === parent.text ? "#63e69a" : "#2b4052"
-                                    }
-                                }
-                            }
-
-                            Label {
-                                text: "Tempo"
-                                font.pixelSize: 12
-                                font.bold: true
-                                color: root.textSecondary
-                            }
-
-                            Repeater {
-                                model: [ "Low", "Normal", "High" ]
-                                delegate: Button {
-                                    required property string modelData
-                                    text: modelData
-                                    Layout.preferredHeight: 30
-                                    onClicked: root.selectedTempo = modelData
-                                    contentItem: Label {
-                                        text: parent.text
-                                        color: root.selectedTempo === parent.text ? "#06120b" : root.textSecondary
-                                        font.pixelSize: 11
-                                        font.bold: root.selectedTempo === parent.text
-                                        horizontalAlignment: Text.AlignHCenter
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                    background: Rectangle {
-                                        radius: 7
-                                        color: root.selectedTempo === parent.text ? root.accentGreen : "#162432"
-                                        border.color: root.selectedTempo === parent.text ? "#63e69a" : "#2b4052"
-                                    }
-                                }
-                            }
-
-                            Item { Layout.fillWidth: true }
-
-                            Button {
-                                text: "More Options"
-                                Layout.preferredHeight: 30
-                                onClicked: root.manualControlsOpen = !root.manualControlsOpen
                                 contentItem: Label {
-                                    text: parent.text
+                                    leftPadding: 14
+                                    rightPadding: 30
+                                    text: formationSelector.displayText
                                     color: root.textPrimary
-                                    font.pixelSize: 11
+                                    font.pixelSize: 14
                                     font.bold: true
-                                    horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
+                                    elide: Text.ElideRight
+                                }
+                                indicator: Label {
+                                    x: formationSelector.width - width - 14
+                                    y: (formationSelector.height - height) / 2
+                                    text: "v"
+                                    color: "#c7d1db"
+                                    font.pixelSize: 14
+                                    font.bold: true
                                 }
                                 background: Rectangle {
                                     radius: 7
-                                    color: root.manualControlsOpen ? "#223446" : "#162432"
-                                    border.color: root.manualControlsOpen ? "#4c657a" : "#2b4052"
+                                    color: "#111c28"
+                                    border.color: formationSelector.enabled ? "#33485a" : "#263442"
+                                }
+                                popup: Popup {
+                                    y: formationSelector.height + 4
+                                    width: formationSelector.width
+                                    implicitHeight: contentItem.implicitHeight + 8
+                                    padding: 4
+                                    background: Rectangle {
+                                        radius: 7
+                                        color: "#101a25"
+                                        border.color: "#33485a"
+                                    }
+                                    contentItem: ListView {
+                                        implicitHeight: contentHeight
+                                        model: formationSelector.popup.visible ? formationSelector.delegateModel : null
+                                        currentIndex: formationSelector.highlightedIndex
+                                        clip: true
+                                    }
+                                }
+                                delegate: ItemDelegate {
+                                    width: formationSelector.width - 8
+                                    height: 32
+                                    contentItem: Label {
+                                        text: modelData.formationText || ""
+                                        color: "#f7fbff"
+                                        font.pixelSize: 13
+                                        verticalAlignment: Text.AlignVCenter
+                                        leftPadding: 8
+                                    }
+                                    background: Rectangle {
+                                        radius: 5
+                                        color: highlighted ? "#183524" : "transparent"
+                                    }
                                 }
                             }
                         }
 
-                        Rectangle {
+                        ColumnLayout {
                             Layout.fillWidth: true
-                            visible: root.manualControlsOpen
-                            radius: 8
-                            color: "#0b1520"
-                            border.color: "#263847"
-                            implicitHeight: manualContent.implicitHeight + 16
+                            spacing: 10
 
-                            ColumnLayout {
-                                id: manualContent
-                                anchors.fill: parent
-                                anchors.margins: 8
-                                spacing: 8
+                            Label {
+                                text: "Mentality"
+                                font.pixelSize: 13
+                                color: "#c7d1db"
+                            }
 
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 8
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 0
 
-                                    Label {
+                                Repeater {
+                                    model: [ "Defensive", "Balanced", "Attacking" ]
+                                    delegate: Button {
+                                        required property string modelData
+                                        text: modelData
                                         Layout.fillWidth: true
-                                        text: "Selected Slot: " + slotLabelFor(selectedSlotIndex)
-                                        font.pixelSize: 11
-                                        color: root.textSecondary
-                                        elide: Text.ElideRight
+                                        Layout.preferredHeight: 38
+                                        onClicked: root.selectedMentality = modelData
+                                        contentItem: Label {
+                                            text: parent.text
+                                            color: root.selectedMentality === parent.text ? "#f7fbff" : "#c7d1db"
+                                            font.pixelSize: 13
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                        background: Rectangle {
+                                            radius: 0
+                                            color: root.selectedMentality === parent.text ? "#105e34" : "#111c28"
+                                            border.color: root.selectedMentality === parent.text ? "#2fb565" : "#33485a"
+                                        }
                                     }
-
-                                    Label {
-                                        Layout.fillWidth: true
-                                        text: "Source Slot: " + slotLabelFor(selectedSourceSlotIndex)
-                                        font.pixelSize: 11
-                                        color: root.textSecondary
-                                        elide: Text.ElideRight
-                                    }
-
-                                    Label {
-                                        Layout.fillWidth: true
-                                        text: "Selected Player: " + playerLabelFor(selectedPlayerId)
-                                        font.pixelSize: 11
-                                        color: root.textSecondary
-                                        elide: Text.ElideRight
-                                    }
-                                }
-
-                                GridLayout {
-                                    Layout.fillWidth: true
-                                    columns: width < 760 ? 2 : 5
-                                    rowSpacing: 6
-                                    columnSpacing: 6
-
-                                    Button {
-                                        Layout.fillWidth: true
-                                        text: "Assign / Move"
-                                        enabled: selectedSlotIndex >= 0 && selectedPlayerId > 0
-                                        onClicked: root.assignSelectedPlayerToSelectedSlot()
-                                    }
-
-                                    Button {
-                                        Layout.fillWidth: true
-                                        text: "Use Slot Source"
-                                        enabled: selectedSlotIndex >= 0
-                                        onClicked: root.setSelectedSlotAsSource()
-                                    }
-
-                                    Button {
-                                        Layout.fillWidth: true
-                                        text: "Clear Slot"
-                                        enabled: selectedSlotIndex >= 0
-                                        onClicked: root.clearSelectedSlot()
-                                    }
-
-                                    Button {
-                                        Layout.fillWidth: true
-                                        text: "Unassign Player"
-                                        enabled: selectedPlayerId > 0
-                                        onClicked: root.unassignSelectedPlayer()
-                                    }
-
-                                    Button {
-                                        Layout.fillWidth: true
-                                        text: "Swap / Move Slots"
-                                        enabled: selectedSourceSlotIndex >= 0
-                                            && selectedSlotIndex >= 0
-                                            && selectedSourceSlotIndex !== selectedSlotIndex
-                                        onClicked: root.swapSelectedSlots()
-                                    }
-                                }
-
-                                Label {
-                                    Layout.fillWidth: true
-                                    text: actionStatusText.length > 0 ? actionStatusText
-                                        : selectedPlayerCurrentSlotText() + "  /  " + targetSlotOccupantText()
-                                    color: root.textSecondary
-                                    font.pixelSize: 11
-                                    wrapMode: Text.WordWrap
                                 }
                             }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+
+                            Label {
+                                text: "Tempo"
+                                font.pixelSize: 13
+                                color: "#c7d1db"
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 0
+
+                                Repeater {
+                                    model: [ "Low", "Normal", "High" ]
+                                    delegate: Button {
+                                        required property string modelData
+                                        text: modelData
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 38
+                                        onClicked: root.selectedTempo = modelData
+                                        contentItem: Label {
+                                            text: parent.text
+                                            color: root.selectedTempo === parent.text ? "#f7fbff" : "#c7d1db"
+                                            font.pixelSize: 13
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                        background: Rectangle {
+                                            radius: 0
+                                            color: root.selectedTempo === parent.text ? "#105e34" : "#111c28"
+                                            border.color: root.selectedTempo === parent.text ? "#2fb565" : "#33485a"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Button {
+                            text: "More Options"
+                            Layout.preferredWidth: 132
+                            Layout.preferredHeight: 38
+                            Layout.alignment: Qt.AlignBottom
+                            onClicked: root.actionStatusText = "More tactical options coming soon."
+                            contentItem: Label {
+                                text: parent.text
+                                color: root.textPrimary
+                                font.pixelSize: 13
+                                font.bold: true
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            background: Rectangle {
+                                radius: 7
+                                color: parent.down ? "#1d2b38" : "#111c28"
+                                border.color: parent.hovered ? "#4c657a" : "#33485a"
+                            }
+                        }
+
+                        Label {
+                            Layout.preferredWidth: 1
+                            visible: false
+                            text: selectedPlayerCurrentSlotText() + targetSlotOccupantText()
                         }
                     }
                 }

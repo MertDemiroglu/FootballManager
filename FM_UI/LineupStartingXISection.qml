@@ -8,7 +8,7 @@ ColumnLayout {
     property var slotsModel: null
     property int selectedSlotIndex: -1
     property int selectedSourceSlotIndex: -1
-    readonly property int metricColumnWidth: 54
+    property int metricColumnWidth: 58
 
     signal slotClicked(int slotIndex)
     signal playerDroppedOnSlot(int playerId, int slotIndex)
