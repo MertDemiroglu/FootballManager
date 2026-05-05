@@ -31,52 +31,49 @@ ColumnLayout {
 
     RowLayout {
         Layout.fillWidth: true
-        spacing: 0
+        Layout.rightMargin: 8
+        spacing: 8
 
-        Repeater {
-            model: [
-                { label: "Starting XI", mode: "StartingXI" },
-                { label: "Substitutes", mode: "Substitutes" }
-            ]
+        RowLayout {
+            Layout.preferredWidth: 238
+            Layout.preferredHeight: 32
+            spacing: 6
 
-            delegate: Button {
-                required property var modelData
-                text: modelData.label
-                Layout.preferredWidth: 116
-                Layout.preferredHeight: 32
-                onClicked: root.lineupPanelMode = modelData.mode
-                contentItem: Label {
-                    text: parent.text
-                    color: root.lineupPanelMode === parent.modelData.mode ? "#f7fbff" : "#c7d1db"
-                    font.pixelSize: 12
-                    font.bold: root.lineupPanelMode === parent.modelData.mode
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Rectangle {
-                    radius: 7
-                    color: root.lineupPanelMode === parent.modelData.mode ? "#105e34" : "#111c28"
-                    border.color: root.lineupPanelMode === parent.modelData.mode ? "#2fb565" : "#33485a"
+            Repeater {
+                model: [
+                    { label: "Starting XI", mode: "StartingXI" },
+                    { label: "Substitutes", mode: "Substitutes" }
+                ]
+
+                delegate: Button {
+                    required property var modelData
+                    text: modelData.label
+                    Layout.preferredWidth: 116
+                    Layout.preferredHeight: 32
+                    onClicked: root.lineupPanelMode = modelData.mode
+                    contentItem: Label {
+                        text: parent.text
+                        color: root.lineupPanelMode === parent.modelData.mode ? "#f7fbff" : "#d7e2ec"
+                        font.pixelSize: 12
+                        font.bold: root.lineupPanelMode === parent.modelData.mode
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        radius: 7
+                        color: root.lineupPanelMode === parent.modelData.mode ? "#105e34" : "#111c28"
+                        border.color: root.lineupPanelMode === parent.modelData.mode ? "#2fb565" : "#33485a"
+                    }
                 }
             }
         }
 
         Item { Layout.fillWidth: true }
-    }
 
-    RowLayout {
-        Layout.fillWidth: true
-        Layout.leftMargin: 8
-        Layout.rightMargin: 8
-        spacing: 8
-        visible: root.lineupPanelMode === "StartingXI"
-
-        Item { Layout.fillWidth: true }
-
-        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Overall"; font.pixelSize: 11; font.bold: true; color: "#b9c7d4"; horizontalAlignment: Text.AlignHCenter }
-        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Form"; font.pixelSize: 11; font.bold: true; color: "#b9c7d4"; horizontalAlignment: Text.AlignHCenter }
-        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Fitness"; font.pixelSize: 11; font.bold: true; color: "#b9c7d4"; horizontalAlignment: Text.AlignHCenter }
-        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Moral"; font.pixelSize: 11; font.bold: true; color: "#b9c7d4"; horizontalAlignment: Text.AlignHCenter }
+        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Overall"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; visible: root.lineupPanelMode === "StartingXI" }
+        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Form"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; visible: root.lineupPanelMode === "StartingXI" }
+        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Fitness"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; visible: root.lineupPanelMode === "StartingXI" }
+        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Moral"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; visible: root.lineupPanelMode === "StartingXI" }
     }
 
     ColumnLayout {

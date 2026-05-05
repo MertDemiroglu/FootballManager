@@ -12,7 +12,8 @@ ColumnLayout {
     property int selectedPlayerId: 0
     property string squadFilter: "All"
     readonly property int metricColumnWidth: 58
-    readonly property int scrollbarGutter: 22
+    readonly property int scrollbarGutter: 16
+    readonly property int metricHeaderRightInset: 30
     readonly property var unassignedRosterRows: buildUnassignedRosterRows()
     readonly property var filteredRosterRows: buildFilteredRosterRows()
     readonly property bool isSquadDropHighlighted: squadDropArea.containsDrag
@@ -99,11 +100,12 @@ ColumnLayout {
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 10
+                Layout.rightMargin: root.metricHeaderRightInset
+                spacing: 8
 
                 ComboBox {
                     id: squadFilterSelector
-                    Layout.preferredWidth: 148
+                    Layout.preferredWidth: 150
                     Layout.preferredHeight: 34
                     model: [ "All", "GK", "DEF", "MID", "ATT" ]
                     currentIndex: Math.max(0, [ "All", "GK", "DEF", "MID", "ATT" ].indexOf(root.squadFilter))
@@ -169,19 +171,11 @@ ColumnLayout {
                 }
 
                 Item { Layout.fillWidth: true }
-            }
 
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.rightMargin: root.scrollbarGutter
-                spacing: 8
-
-                Item { Layout.fillWidth: true }
-
-                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Overall"; font.pixelSize: 11; font.bold: true; color: "#b9c7d4"; horizontalAlignment: Text.AlignHCenter }
-                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Form"; font.pixelSize: 11; font.bold: true; color: "#b9c7d4"; horizontalAlignment: Text.AlignHCenter }
-                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Fitness"; font.pixelSize: 11; font.bold: true; color: "#b9c7d4"; horizontalAlignment: Text.AlignHCenter }
-                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Moral"; font.pixelSize: 11; font.bold: true; color: "#b9c7d4"; horizontalAlignment: Text.AlignHCenter }
+                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Overall"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Form"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Fitness"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Moral"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
             }
 
             Rectangle {
@@ -219,7 +213,7 @@ ColumnLayout {
                     anchors.fill: parent
                     anchors.leftMargin: 6
                     anchors.topMargin: 6
-                    anchors.rightMargin: root.scrollbarGutter
+                    anchors.rightMargin: 6
                     anchors.bottomMargin: 6
                     clip: true
                     model: root.filteredRosterRows
@@ -228,21 +222,22 @@ ColumnLayout {
                     ScrollBar.vertical: ScrollBar {
                         id: squadScrollBar
                         policy: ScrollBar.AsNeeded
-                        width: 6
+                        width: 5
                         anchors.right: parent.right
                         contentItem: Rectangle {
-                            implicitWidth: 6
+                            implicitWidth: 5
                             radius: 3
-                            color: squadScrollBar.pressed || squadScrollBar.hovered ? "#567084" : "#33485a"
+                            color: squadScrollBar.pressed || squadScrollBar.hovered ? "#6f8396" : "#566a7c"
                         }
                         background: Rectangle {
                             radius: 3
-                            color: "#101a25"
+                            color: "#0b1520"
+                            opacity: 0.85
                         }
                     }
 
                     delegate: LineupRosterRow {
-                        width: ListView.view ? ListView.view.width - 4 : 0
+                        width: ListView.view ? ListView.view.width - root.scrollbarGutter - 4 : 0
                         selectedPlayerId: root.selectedPlayerId
                         rowData: modelData
                         metricColumnWidth: root.metricColumnWidth

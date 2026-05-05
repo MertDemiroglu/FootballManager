@@ -110,6 +110,21 @@ Rectangle {
             clip: true
             contentWidth: availableWidth
             contentHeight: editorContent.height
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+            ScrollBar.vertical: ScrollBar {
+                id: editorVerticalScroll
+                policy: ScrollBar.AsNeeded
+                width: 8
+                contentItem: Rectangle {
+                    implicitWidth: 8
+                    radius: 4
+                    color: editorVerticalScroll.pressed || editorVerticalScroll.hovered ? "#53697a" : "#2c3d4c"
+                }
+                background: Rectangle {
+                    radius: 4
+                    color: "#071018"
+                }
+            }
 
             LineupEditorView {
                 id: editorContent
