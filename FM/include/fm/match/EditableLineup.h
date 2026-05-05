@@ -44,6 +44,7 @@ public:
     void applyTeamSheet(const TeamSheet& teamSheet);
 
     TeamSheet exportAsTeamSheet() const;
+    std::optional<TeamSheet> toTeamSheetIfComplete() const;
 
 private:
     TeamId teamId = 0;

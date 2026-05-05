@@ -267,7 +267,11 @@ ApplicationWindow {
         anchors.fill: parent
         visible: root.interactionState.hasActiveInteraction
                  && root.interactionState.kind === root.interactionKinds.preMatch
+                 && root.currentView !== root.routes.lineupEditor
         interactionData: root.interactionState.preMatch
+        onEditLineupRequested: {
+            root.navigateTo(root.routes.lineupEditor)
+        }
         onPlayMatchRequested: {
             root.playActiveMatch()
         }

@@ -6,6 +6,7 @@ InteractionModalShell {
     id: root
     property var interactionData: ({})
     signal playMatchRequested()
+    signal editLineupRequested()
 
     visible: false
     maxCardWidth: 980
@@ -68,10 +69,22 @@ InteractionModalShell {
         compactMode: true
     }
 
-    Button {
+    RowLayout {
         width: parent.width
-        height: 44
-        text: "Play Match"
-        onClicked: root.playMatchRequested()
+        spacing: 10
+
+        Button {
+            Layout.fillWidth: true
+            height: 44
+            text: "Edit Lineup"
+            onClicked: root.editLineupRequested()
+        }
+
+        Button {
+            Layout.fillWidth: true
+            height: 44
+            text: "Play Match"
+            onClicked: root.playMatchRequested()
+        }
     }
 }

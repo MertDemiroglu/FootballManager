@@ -138,6 +138,7 @@ public:
     Q_INVOKABLE bool swapEditableLineupSlots(int firstSlotIndex, int secondSlotIndex);
     Q_INVOKABLE bool clearEditableLineupSlot(int slotIndex);
     Q_INVOKABLE bool unassignEditableLineupPlayer(int playerId);
+    Q_INVOKABLE bool applyEditableLineupToActivePreMatch();
 
     Q_INVOKABLE QVariantMap getPlayerDetails(int playerId) const;
     Q_INVOKABLE QVariantMap getMatchReportDetails(qulonglong matchId) const;
@@ -191,6 +192,7 @@ private:
     void refreshInteractionStateObject();
     void refreshEditableLineup();
     void clearEditableLineupData();
+    void syncEditableLineupDisplayToActivePreMatch();
     void refreshEditableLineupViews();
     void refreshEditableLineupStateObject();
     void refreshEditableLineupSlotsModel();

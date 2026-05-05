@@ -885,6 +885,12 @@ bool GameFacade::playActiveMatch() {
 
     bool played = false;
     try {
+        if (currentGame->getActivePreMatchInteraction()) {
+            const bool applied = applyEditableLineupToActivePreMatch();
+            if (!applied) {
+                qWarning() << "[GameFacade::playActiveMatch] Editable lineup was not applied; using pending generated team sheet.";
+            }
+        }
         played = currentGame->playPendingPreMatch();
         if (!played) {
             setLastError(QStringLiteral("No playable pre-match interaction is active."));
@@ -1352,6 +1358,51 @@ bool GameFacade::unassignEditableLineupPlayer(int playerId) {
 
     refreshEditableLineupViews();
     emit gameStateChanged();
+    return true;
+}
+
+bool GameFacade::applyEditableLineupToActivePreMatch() {
+    if (!gameStarted) {
+        return false;
+    }
+
+    Game* currentGame = ensureGame();
+    if (!currentGame || !currentGame->getActivePreMatchInteraction()) {
+        return false;
+    }
+    if (!ensureSelectedTeamContext()) {
+        setLastError(QStringLiteral("No managed team is available for lineup application."));
+        publishGameStateChanged();
+        return false;
+    }
+    if (!ensureEditableLineupReady() || !editableLineup.has_value()) {
+        setLastError(QStringLiteral("Lineup is not ready. Current pre-match lineup unchanged."));
+        publishGameStateChanged();
+        return false;
+    }
+
+    const TeamId managedTeamId = currentGame->getManagedTeamId();
+    if (managedTeamId == 0 || editableLineup->getTeamId() != managedTeamId) {
+        setLastError(QStringLiteral("Lineup team does not match the managed team."));
+        publishGameStateChanged();
+        return false;
+    }
+
+    const std::optional<TeamSheet> teamSheet = editableLineup->toTeamSheetIfComplete();
+    if (!teamSheet.has_value()) {
+        setLastError(QStringLiteral("Lineup incomplete. Current pre-match lineup unchanged."));
+        publishGameStateChanged();
+        return false;
+    }
+
+    if (!currentGame->replacePendingPreMatchTeamSheetForTeam(managedTeamId, *teamSheet)) {
+        setLastError(QStringLiteral("Could not apply lineup to the active pre-match."));
+        publishGameStateChanged();
+        return false;
+    }
+
+    setLastError(QString());
+    publishGameStateChanged();
     return true;
 }
 
@@ -2115,6 +2166,8 @@ int GameFacade::getExpectedEditableLineupSlotCount() const {
 
 void GameFacade::publishGameStateChanged() {
     ensureSelectedTeamContext();
+    ensureEditableLineupReady();
+    syncEditableLineupDisplayToActivePreMatch();
     refreshStandingsModel();
     refreshCurrentTeamPlayersModel();
     refreshCurrentTeamRecentMatchesModel();
@@ -2125,8 +2178,40 @@ void GameFacade::publishGameStateChanged() {
     refreshDashboardUpcomingMatchesModel();
     refreshShellStateObject();
     refreshInteractionStateObject();
-    ensureEditableLineupReady();
     emit gameStateChanged();
+}
+
+void GameFacade::syncEditableLineupDisplayToActivePreMatch() {
+    if (!gameStarted || !editableLineup.has_value()) {
+        return;
+    }
+
+    Game* currentGame = ensureGame();
+    if (!currentGame || !currentGame->getActivePreMatchInteraction()) {
+        return;
+    }
+
+    const TeamId managedTeamId = currentGame->getManagedTeamId();
+    if (managedTeamId == 0 || editableLineup->getTeamId() != managedTeamId) {
+        return;
+    }
+
+    TeamSheet displaySheet;
+    displaySheet.teamId = managedTeamId;
+    displaySheet.coachId = editableLineup->getCoachId();
+    displaySheet.formation = editableLineup->getFormationId();
+    displaySheet.startingAssignments.reserve(editableLineup->getSlots().size());
+    displaySheet.startingPlayerIds.reserve(editableLineup->getSlots().size());
+
+    for (const EditableLineupSlot& slot : editableLineup->getSlots()) {
+        displaySheet.startingAssignments.push_back(TeamSheetSlotAssignment{ slot.slotRole, slot.assignedPlayerId });
+        if (slot.assignedPlayerId != 0) {
+            displaySheet.startingPlayerIds.push_back(slot.assignedPlayerId);
+        }
+    }
+
+    displaySheet.teamId = managedTeamId;
+    currentGame->replaceActivePreMatchDisplayTeamSheetForTeam(managedTeamId, displaySheet);
 }
 
 QString GameFacade::formatDate(const Date& date) const {
@@ -2262,10 +2347,11 @@ QVariantList GameFacade::buildLineupViewRows(const TeamSheet& teamSheet, const L
         row.insert(QStringLiteral("slotRoleKey"), static_cast<int>(assignment.slotRole));
         row.insert(QStringLiteral("slotRoleText"), formatSlotRole(assignment.slotRole));
         row.insert(QStringLiteral("playerId"), static_cast<int>(assignment.playerId));
+        row.insert(QStringLiteral("hasPlayer"), assignment.playerId != 0);
         row.insert(QStringLiteral("isManagedTeam"), teamSheet.teamId == selectedTeamId);
 
-        const Footballer* player = team->findPlayerById(assignment.playerId);
-        row.insert(QStringLiteral("playerName"), player ? fromStd(player->getName()) : QStringLiteral("Unknown"));
+        const Footballer* player = assignment.playerId != 0 ? team->findPlayerById(assignment.playerId) : nullptr;
+        row.insert(QStringLiteral("playerName"), player ? fromStd(player->getName()) : QStringLiteral("Empty"));
         row.insert(QStringLiteral("positionText"), player ? fromStd(player->getPosition()) : QStringLiteral("-"));
         row.insert(QStringLiteral("overall"), player ? player->totalPower() : 0);
         rows.push_back(row);

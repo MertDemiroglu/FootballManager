@@ -52,3 +52,15 @@ const TeamSheet& PreMatchInteraction::getHomeSheet() const {
 const TeamSheet& PreMatchInteraction::getAwaySheet() const {
     return awaySheet;
 }
+
+bool PreMatchInteraction::replaceTeamSheetForTeam(TeamId teamId, TeamSheet teamSheet) {
+    if (teamId == homeId) {
+        homeSheet = std::move(teamSheet);
+        return true;
+    }
+    if (teamId == awayId) {
+        awaySheet = std::move(teamSheet);
+        return true;
+    }
+    return false;
+}

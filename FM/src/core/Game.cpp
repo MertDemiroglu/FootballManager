@@ -592,6 +592,52 @@ bool Game::playPendingPreMatch() {
     return true;
 }
 
+bool Game::replacePendingPreMatchTeamSheetForTeam(TeamId teamId, const TeamSheet& teamSheet) {
+    if (teamId == 0 || teamSheet.teamId != teamId) {
+        return false;
+    }
+    if (!pendingPreMatchCommand.has_value()
+        || !pendingPreMatchHomeSheet.has_value()
+        || !pendingPreMatchAwaySheet.has_value()) {
+        return false;
+    }
+
+    PreMatchInteraction* interaction = dynamic_cast<PreMatchInteraction*>(interactionManager.getActiveInteraction());
+    if (!interaction) {
+        return false;
+    }
+
+    const PlayMatchCommand& command = *pendingPreMatchCommand;
+    if (teamId != command.homeId && teamId != command.awayId) {
+        return false;
+    }
+
+    if (!interaction->replaceTeamSheetForTeam(teamId, teamSheet)) {
+        return false;
+    }
+
+    if (teamId == command.homeId) {
+        pendingPreMatchHomeSheet = teamSheet;
+    } else {
+        pendingPreMatchAwaySheet = teamSheet;
+    }
+
+    return true;
+}
+
+bool Game::replaceActivePreMatchDisplayTeamSheetForTeam(TeamId teamId, const TeamSheet& teamSheet) {
+    if (teamId == 0 || teamSheet.teamId != teamId) {
+        return false;
+    }
+
+    PreMatchInteraction* interaction = dynamic_cast<PreMatchInteraction*>(interactionManager.getActiveInteraction());
+    if (!interaction) {
+        return false;
+    }
+
+    return interaction->replaceTeamSheetForTeam(teamId, teamSheet);
+}
+
 bool Game::resolveActiveInteraction() {
     if (getActivePreMatchInteraction()) {
         refreshTimePauseState();
