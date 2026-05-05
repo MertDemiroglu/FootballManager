@@ -23,8 +23,8 @@ Rectangle {
     signal slotDroppedOnSlot(int sourceSlotIndex, int targetSlotIndex)
 
     radius: 8
-    color: isDropHighlighted ? "#ecfeff" : (isSelected ? "#dbeafe" : (isSourceSelected ? "#dcfce7" : (hasPlayer ? "#f8fafc" : "#fffbeb")))
-    border.color: isDropHighlighted ? "#06b6d4" : (isSelected ? "#2563eb" : (isSourceSelected ? "#16a34a" : (hasPlayer ? "#e2e8f0" : "#f59e0b")))
+    color: isDropHighlighted ? "#123642" : (isSelected ? "#132f55" : (isSourceSelected ? "#123821" : (hasPlayer ? "#111c28" : "#161820")))
+    border.color: isDropHighlighted ? "#23c7d4" : (isSelected ? "#4a90ff" : (isSourceSelected ? "#20b765" : (hasPlayer ? "#34495c" : "#f5b942")))
     border.width: isDropHighlighted || isSelected || isSourceSelected ? 2 : 1
     opacity: slotDragArea.drag.active ? 0.72 : 1.0
     implicitWidth: 132
@@ -73,50 +73,60 @@ Rectangle {
     Rectangle {
         anchors.left: parent.left
         anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        width: 6
-        radius: 3
-        color: root.isSelected ? "#2563eb" : (root.isSourceSelected ? "#16a34a" : (root.hasPlayer ? "#64748b" : "#f59e0b"))
+        anchors.leftMargin: 6
+        anchors.topMargin: 6
+        width: roleLabel.implicitWidth + 12
+        height: 18
+        radius: 5
+        color: root.isSelected ? "#1b4c83" : (root.isSourceSelected ? "#145c32" : (root.hasPlayer ? "#1a2b3a" : "#312515"))
+        border.color: root.isSelected ? "#4a90ff" : (root.isSourceSelected ? "#20b765" : (root.hasPlayer ? "#40566a" : "#f5b942"))
         opacity: 0.95
+
+        Label {
+            id: roleLabel
+            anchors.centerIn: parent
+            text: root.slotData.slotLabel || root.slotData.slotRole || "Slot"
+            font.pixelSize: 9
+            font.bold: true
+            color: root.hasPlayer ? "#dce7f0" : "#ffd77a"
+        }
     }
 
     Column {
         anchors.fill: parent
-        anchors.leftMargin: 12
+        anchors.leftMargin: 8
         anchors.rightMargin: 8
-        anchors.topMargin: 6
+        anchors.topMargin: 27
         anchors.bottomMargin: 6
         spacing: 1
-
-        Label {
-            width: parent.width
-            text: root.slotData.slotLabel || root.slotData.slotRole || "Slot"
-            font.pixelSize: 10
-            font.bold: true
-            color: root.isSelected ? "#1d4ed8" : (root.isSourceSelected ? "#15803d" : "#475569")
-            horizontalAlignment: Text.AlignLeft
-            elide: Text.ElideRight
-        }
 
         Label {
             width: parent.width
             text: root.hasPlayer ? (root.slotData.assignedPlayerName || "Unknown") : "Empty"
             font.pixelSize: 12
             font.bold: root.hasPlayer
-            color: root.hasPlayer ? "#0f172a" : "#92400e"
+            color: root.hasPlayer ? "#f7fbff" : "#f5b942"
             horizontalAlignment: Text.AlignLeft
             elide: Text.ElideRight
         }
 
-        Label {
+        Rectangle {
             width: parent.width
-            text: root.hasPlayer
-                  ? (root.slotData.assignedPlayerOverallSummary || ("OVR " + (root.slotData.assignedPlayerOverall || "-")))
-                  : "-"
-            font.pixelSize: 10
-            color: root.hasPlayer ? "#64748b" : "#b45309"
-            horizontalAlignment: Text.AlignLeft
-            elide: Text.ElideRight
+            height: 18
+            radius: 5
+            color: root.hasPlayer ? "#263746" : "#211a12"
+            border.color: root.hasPlayer ? "#3a4d5e" : "#8a641e"
+
+            Label {
+                anchors.centerIn: parent
+                text: root.hasPlayer
+                      ? (root.slotData.assignedPlayerOverallSummary || ("OVR " + (root.slotData.assignedPlayerOverall || "-")))
+                      : "OVR -"
+                font.pixelSize: 10
+                font.bold: true
+                color: root.hasPlayer ? "#c9d6e2" : "#f5b942"
+                elide: Text.ElideRight
+            }
         }
     }
 

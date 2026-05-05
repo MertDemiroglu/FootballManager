@@ -6,7 +6,7 @@ Item {
     id: root
     Layout.fillWidth: true
     Layout.fillHeight: true
-    implicitHeight: Math.max(620, layoutRoot.implicitHeight)
+    implicitHeight: Math.max(700, layoutRoot.implicitHeight)
 
     // Uses the global GameFacade context property; backend models remain the source of truth.
     readonly property var lineupState: gameFacade.editableLineupState
@@ -20,12 +20,23 @@ Item {
         && rosterModel.count > 0
         && gameFacade.getSelectedTeamId() > 0
         && gameFacade.getSelectedLeagueId() > 0
+
     property int selectedSlotIndex: -1
     property int selectedSourceSlotIndex: -1
     property int selectedPlayerId: 0
     property string actionStatusText: ""
     property var supportedFormations: []
     property bool isSyncingFormationSelection: false
+    property bool manualControlsOpen: false
+    property string selectedMentality: "Balanced"
+    property string selectedTempo: "Normal"
+
+    readonly property color panelColor: "#0f1a24"
+    readonly property color borderColor: "#263847"
+    readonly property color textPrimary: "#f7fbff"
+    readonly property color textSecondary: "#91a4b6"
+    readonly property color accentGreen: "#20b765"
+    readonly property color accentAmber: "#f5b942"
 
     function refreshSupportedFormations() {
         supportedFormations = gameFacade ? gameFacade.getEditableLineupSupportedFormations() : []
@@ -274,6 +285,20 @@ Item {
         }
     }
 
+    function assignedSummaryText() {
+        if (!lineupState || !lineupState.hasLineup)
+            return "Lineup data unavailable"
+        return "Formation " + (lineupState.formationText || "-")
+            + "  |  Assigned " + (lineupState.assignedCount || 0)
+            + "/" + (lineupState.slotCount || 0)
+    }
+
+    function isLineupFull() {
+        return lineupState && lineupState.hasLineup
+            && (lineupState.assignedCount || 0) >= (lineupState.slotCount || 0)
+            && (lineupState.slotCount || 0) > 0
+    }
+
     Component.onCompleted: refreshSupportedFormations()
 
     Connections {
@@ -286,141 +311,69 @@ Item {
     ColumnLayout {
         id: layoutRoot
         anchors.fill: parent
-        spacing: 10
-
-        Label {
-            Layout.fillWidth: true
-            text: lineupState && lineupState.hasLineup
-                  ? "Formation " + (lineupState.formationText || "-") + " - Assigned " + (lineupState.assignedCount || 0) + "/" + (lineupState.slotCount || 0)
-                  : "Lineup data unavailable"
-            font.pixelSize: 14
-            color: "#526071"
-            wrapMode: Text.WordWrap
-        }
+        spacing: 12
 
         Rectangle {
             Layout.fillWidth: true
             radius: 8
-            color: "#fbfcfe"
-            border.color: "#e4e7ec"
-            implicitHeight: actionBarContent.implicitHeight + 12
+            color: root.panelColor
+            border.color: root.borderColor
+            implicitHeight: topContent.implicitHeight + 18
 
-            ColumnLayout {
-                id: actionBarContent
+            RowLayout {
+                id: topContent
                 anchors.fill: parent
-                anchors.margins: 6
-                spacing: 6
+                anchors.margins: 9
+                spacing: 12
 
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
 
-                    Label {
-                        text: "Formation"
-                        font.pixelSize: 12
-                        color: "#344054"
+                    Rectangle {
+                        Layout.preferredWidth: 9
+                        Layout.preferredHeight: 9
+                        radius: 5
+                        color: root.isLineupFull() ? root.accentGreen : root.accentAmber
                     }
-
-                    ComboBox {
-                        id: formationSelector
-                        Layout.preferredWidth: 120
-                        model: root.supportedFormations
-                        textRole: "formationText"
-                        valueRole: "formationId"
-                        enabled: root.hasValidLineupData && count > 0
-                        onActivated: function(index) {
-                            root.changeFormationFromSelector(index)
-                        }
-                    }
-
-                    Label {
-                        text: "Selected Slot: " + slotLabelFor(selectedSlotIndex)
-                        font.pixelSize: 12
-                        color: "#344054"
-                    }
-
-                    Label {
-                        text: "Source Slot: " + slotLabelFor(selectedSourceSlotIndex)
-                        font.pixelSize: 12
-                        color: "#344054"
-                    }
-
-                    Label {
-                        text: "Selected Player: " + playerLabelFor(selectedPlayerId)
-                        font.pixelSize: 12
-                        color: "#344054"
-                    }
-
-                    Item { Layout.fillWidth: true }
-                }
-
-                GridLayout {
-                    Layout.fillWidth: true
-                    columns: width < 760 ? 2 : 6
-                    rowSpacing: 6
-                    columnSpacing: 6
 
                     Label {
                         Layout.fillWidth: true
-                        Layout.columnSpan: width < 760 ? 2 : 6
-                        text: "Manual controls"
-                        font.pixelSize: 11
+                        text: root.assignedSummaryText()
+                        font.pixelSize: 14
                         font.bold: true
-                        color: "#667085"
+                        color: root.textPrimary
+                        elide: Text.ElideRight
                     }
 
-                    Button {
-                        Layout.fillWidth: true
-                        text: "Auto Select"
-                        enabled: root.hasValidLineupData
-                        onClicked: root.autoSelectLineup()
-                    }
-
-                    Button {
-                        Layout.fillWidth: true
-                        text: "Assign / Move Player To Slot"
-                        enabled: selectedSlotIndex >= 0 && selectedPlayerId > 0
-                        onClicked: root.assignSelectedPlayerToSelectedSlot()
-                    }
-
-                    Button {
-                        Layout.fillWidth: true
-                        text: "Use Selected Slot As Source"
-                        enabled: selectedSlotIndex >= 0
-                        onClicked: root.setSelectedSlotAsSource()
-                    }
-
-                    Button {
-                        Layout.fillWidth: true
-                        text: "Clear Slot"
-                        enabled: selectedSlotIndex >= 0
-                        onClicked: root.clearSelectedSlot()
-                    }
-
-                    Button {
-                        Layout.fillWidth: true
-                        text: "Unassign Player"
-                        enabled: selectedPlayerId > 0
-                        onClicked: root.unassignSelectedPlayer()
-                    }
-
-                    Button {
-                        Layout.fillWidth: true
-                        text: "Swap / Move Slots"
-                        enabled: selectedSourceSlotIndex >= 0
-                            && selectedSlotIndex >= 0
-                            && selectedSourceSlotIndex !== selectedSlotIndex
-                        onClicked: root.swapSelectedSlots()
+                    Label {
+                        text: actionStatusText
+                        visible: actionStatusText.length > 0
+                        font.pixelSize: 12
+                        color: "#90f0b8"
+                        elide: Text.ElideRight
                     }
                 }
 
-                Label {
-                    Layout.fillWidth: true
-                    text: actionStatusText.length > 0 ? actionStatusText
-                        : selectedPlayerCurrentSlotText() + "  /  " + targetSlotOccupantText()
-                    color: "#475467"
-                    font.pixelSize: 11
-                    wrapMode: Text.WordWrap
+                Button {
+                    text: "Auto Select"
+                    enabled: root.hasValidLineupData
+                    Layout.preferredWidth: 138
+                    Layout.preferredHeight: 38
+                    onClicked: root.autoSelectLineup()
+                    contentItem: Label {
+                        text: parent.text
+                        color: "#04130b"
+                        font.pixelSize: 13
+                        font.bold: true
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        radius: 8
+                        color: parent.enabled ? (parent.down ? "#18a356" : root.accentGreen) : "#263442"
+                        border.color: parent.enabled ? "#5ee08f" : "#3a4a58"
+                    }
                 }
             }
         }
@@ -428,7 +381,7 @@ Item {
         Label {
             Layout.fillWidth: true
             visible: !root.hasValidLineupData
-            color: "#b42318"
+            color: "#f87171"
             font.pixelSize: 12
             wrapMode: Text.WordWrap
             text: "Lineup debug: hasLineup=" + (lineupState ? lineupState.hasLineup : false)
@@ -441,24 +394,248 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.minimumHeight: 420
+            Layout.minimumHeight: 500
             spacing: 12
 
-            LineupPitchPanel {
+            ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.preferredWidth: 3
-                slotsModel: root.slotsModel
-                selectedSlotIndex: root.selectedSlotIndex
-                selectedSourceSlotIndex: root.selectedSourceSlotIndex
-                onSlotClicked: function(slotIndex) {
-                    root.selectSlot(slotIndex)
+                spacing: 12
+
+                LineupPitchPanel {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    slotsModel: root.slotsModel
+                    selectedSlotIndex: root.selectedSlotIndex
+                    selectedSourceSlotIndex: root.selectedSourceSlotIndex
+                    onSlotClicked: function(slotIndex) {
+                        root.selectSlot(slotIndex)
+                    }
+                    onPlayerDroppedOnSlot: function(playerId, slotIndex) {
+                        root.handlePlayerDroppedOnSlot(playerId, slotIndex)
+                    }
+                    onSlotDroppedOnSlot: function(sourceSlotIndex, targetSlotIndex) {
+                        root.handleSlotDroppedOnSlot(sourceSlotIndex, targetSlotIndex)
+                    }
                 }
-                onPlayerDroppedOnSlot: function(playerId, slotIndex) {
-                    root.handlePlayerDroppedOnSlot(playerId, slotIndex)
-                }
-                onSlotDroppedOnSlot: function(sourceSlotIndex, targetSlotIndex) {
-                    root.handleSlotDroppedOnSlot(sourceSlotIndex, targetSlotIndex)
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    radius: 10
+                    color: root.panelColor
+                    border.color: root.borderColor
+                    implicitHeight: tacticalContent.implicitHeight + 20
+
+                    ColumnLayout {
+                        id: tacticalContent
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        spacing: 10
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+
+                            Label {
+                                text: "Formation"
+                                font.pixelSize: 12
+                                font.bold: true
+                                color: root.textSecondary
+                            }
+
+                            ComboBox {
+                                id: formationSelector
+                                Layout.preferredWidth: 128
+                                model: root.supportedFormations
+                                textRole: "formationText"
+                                valueRole: "formationId"
+                                enabled: root.hasValidLineupData && count > 0
+                                onActivated: function(index) {
+                                    root.changeFormationFromSelector(index)
+                                }
+                            }
+
+                            Label {
+                                text: "Mentality"
+                                font.pixelSize: 12
+                                font.bold: true
+                                color: root.textSecondary
+                            }
+
+                            Repeater {
+                                model: [ "Defensive", "Balanced", "Attacking" ]
+                                delegate: Button {
+                                    required property string modelData
+                                    text: modelData
+                                    Layout.preferredHeight: 30
+                                    onClicked: root.selectedMentality = modelData
+                                    contentItem: Label {
+                                        text: parent.text
+                                        color: root.selectedMentality === parent.text ? "#06120b" : root.textSecondary
+                                        font.pixelSize: 11
+                                        font.bold: root.selectedMentality === parent.text
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                    background: Rectangle {
+                                        radius: 7
+                                        color: root.selectedMentality === parent.text ? root.accentGreen : "#162432"
+                                        border.color: root.selectedMentality === parent.text ? "#63e69a" : "#2b4052"
+                                    }
+                                }
+                            }
+
+                            Label {
+                                text: "Tempo"
+                                font.pixelSize: 12
+                                font.bold: true
+                                color: root.textSecondary
+                            }
+
+                            Repeater {
+                                model: [ "Low", "Normal", "High" ]
+                                delegate: Button {
+                                    required property string modelData
+                                    text: modelData
+                                    Layout.preferredHeight: 30
+                                    onClicked: root.selectedTempo = modelData
+                                    contentItem: Label {
+                                        text: parent.text
+                                        color: root.selectedTempo === parent.text ? "#06120b" : root.textSecondary
+                                        font.pixelSize: 11
+                                        font.bold: root.selectedTempo === parent.text
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                    background: Rectangle {
+                                        radius: 7
+                                        color: root.selectedTempo === parent.text ? root.accentGreen : "#162432"
+                                        border.color: root.selectedTempo === parent.text ? "#63e69a" : "#2b4052"
+                                    }
+                                }
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            Button {
+                                text: "More Options"
+                                Layout.preferredHeight: 30
+                                onClicked: root.manualControlsOpen = !root.manualControlsOpen
+                                contentItem: Label {
+                                    text: parent.text
+                                    color: root.textPrimary
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                                background: Rectangle {
+                                    radius: 7
+                                    color: root.manualControlsOpen ? "#223446" : "#162432"
+                                    border.color: root.manualControlsOpen ? "#4c657a" : "#2b4052"
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            visible: root.manualControlsOpen
+                            radius: 8
+                            color: "#0b1520"
+                            border.color: "#263847"
+                            implicitHeight: manualContent.implicitHeight + 16
+
+                            ColumnLayout {
+                                id: manualContent
+                                anchors.fill: parent
+                                anchors.margins: 8
+                                spacing: 8
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: "Selected Slot: " + slotLabelFor(selectedSlotIndex)
+                                        font.pixelSize: 11
+                                        color: root.textSecondary
+                                        elide: Text.ElideRight
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: "Source Slot: " + slotLabelFor(selectedSourceSlotIndex)
+                                        font.pixelSize: 11
+                                        color: root.textSecondary
+                                        elide: Text.ElideRight
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: "Selected Player: " + playerLabelFor(selectedPlayerId)
+                                        font.pixelSize: 11
+                                        color: root.textSecondary
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                GridLayout {
+                                    Layout.fillWidth: true
+                                    columns: width < 760 ? 2 : 5
+                                    rowSpacing: 6
+                                    columnSpacing: 6
+
+                                    Button {
+                                        Layout.fillWidth: true
+                                        text: "Assign / Move"
+                                        enabled: selectedSlotIndex >= 0 && selectedPlayerId > 0
+                                        onClicked: root.assignSelectedPlayerToSelectedSlot()
+                                    }
+
+                                    Button {
+                                        Layout.fillWidth: true
+                                        text: "Use Slot Source"
+                                        enabled: selectedSlotIndex >= 0
+                                        onClicked: root.setSelectedSlotAsSource()
+                                    }
+
+                                    Button {
+                                        Layout.fillWidth: true
+                                        text: "Clear Slot"
+                                        enabled: selectedSlotIndex >= 0
+                                        onClicked: root.clearSelectedSlot()
+                                    }
+
+                                    Button {
+                                        Layout.fillWidth: true
+                                        text: "Unassign Player"
+                                        enabled: selectedPlayerId > 0
+                                        onClicked: root.unassignSelectedPlayer()
+                                    }
+
+                                    Button {
+                                        Layout.fillWidth: true
+                                        text: "Swap / Move Slots"
+                                        enabled: selectedSourceSlotIndex >= 0
+                                            && selectedSlotIndex >= 0
+                                            && selectedSourceSlotIndex !== selectedSlotIndex
+                                        onClicked: root.swapSelectedSlots()
+                                    }
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: actionStatusText.length > 0 ? actionStatusText
+                                        : selectedPlayerCurrentSlotText() + "  /  " + targetSlotOccupantText()
+                                    color: root.textSecondary
+                                    font.pixelSize: 11
+                                    wrapMode: Text.WordWrap
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

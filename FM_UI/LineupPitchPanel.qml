@@ -15,8 +15,8 @@ Rectangle {
     signal slotDroppedOnSlot(int sourceSlotIndex, int targetSlotIndex)
 
     radius: 14
-    border.color: "#d8dee8"
-    color: "#ffffff"
+    border.color: "#263847"
+    color: "#0f1a24"
     clip: true
     Layout.minimumHeight: 420
 
@@ -39,7 +39,7 @@ Rectangle {
             text: "Pitch"
             font.pixelSize: 18
             font.bold: true
-            color: "#17212f"
+            color: "#f7fbff"
         }
 
         Rectangle {
@@ -48,9 +48,29 @@ Rectangle {
             Layout.fillHeight: true
             Layout.minimumHeight: 360
             radius: 12
-            color: "#187343"
-            border.color: "#0d5130"
+            color: "#0b5c34"
+            border.color: "#1c8b52"
+            border.width: 1
             clip: true
+
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: "#0f6f3e" }
+                GradientStop { position: 0.52; color: "#0a5733" }
+                GradientStop { position: 1.0; color: "#073b27" }
+            }
+
+            Repeater {
+                model: 8
+                delegate: Rectangle {
+                    required property int index
+                    x: 0
+                    y: pitchBackground.height * index / 8
+                    width: pitchBackground.width
+                    height: pitchBackground.height / 8
+                    color: index % 2 === 0 ? "#ffffff" : "#000000"
+                    opacity: index % 2 === 0 ? 0.035 : 0.045
+                }
+            }
 
             Rectangle {
                 id: pitchField
@@ -59,7 +79,8 @@ Rectangle {
                 radius: 10
                 color: "transparent"
                 border.width: 2
-                border.color: "#e8fff1"
+                border.color: "#bdeed1"
+                opacity: 0.85
             }
 
             Rectangle {
@@ -67,8 +88,8 @@ Rectangle {
                 anchors.right: pitchField.right
                 anchors.verticalCenter: pitchField.verticalCenter
                 height: 2
-                color: "#d9fbe7"
-                opacity: 0.85
+                color: "#bdeed1"
+                opacity: 0.72
             }
 
             Rectangle {
@@ -78,8 +99,8 @@ Rectangle {
                 radius: width / 2
                 color: "transparent"
                 border.width: 2
-                border.color: "#d9fbe7"
-                opacity: 0.85
+                border.color: "#bdeed1"
+                opacity: 0.72
             }
 
             Rectangle {
@@ -89,8 +110,8 @@ Rectangle {
                 height: pitchField.height * 0.16
                 color: "transparent"
                 border.width: 2
-                border.color: "#d9fbe7"
-                opacity: 0.8
+                border.color: "#bdeed1"
+                opacity: 0.68
             }
 
             Rectangle {
@@ -100,8 +121,30 @@ Rectangle {
                 height: pitchField.height * 0.16
                 color: "transparent"
                 border.width: 2
-                border.color: "#d9fbe7"
-                opacity: 0.8
+                border.color: "#bdeed1"
+                opacity: 0.68
+            }
+
+            Rectangle {
+                anchors.horizontalCenter: pitchField.horizontalCenter
+                anchors.top: pitchField.top
+                width: pitchField.width * 0.22
+                height: pitchField.height * 0.07
+                color: "transparent"
+                border.width: 2
+                border.color: "#bdeed1"
+                opacity: 0.6
+            }
+
+            Rectangle {
+                anchors.horizontalCenter: pitchField.horizontalCenter
+                anchors.bottom: pitchField.bottom
+                width: pitchField.width * 0.22
+                height: pitchField.height * 0.07
+                color: "transparent"
+                border.width: 2
+                border.color: "#bdeed1"
+                opacity: 0.6
             }
 
             Item {
@@ -109,8 +152,8 @@ Rectangle {
                 anchors.fill: pitchField
                 visible: root.slotRows.length > 0
 
-                readonly property real cardWidth: Math.max(118, Math.min(146, width * 0.20))
-                readonly property real cardHeight: Math.max(56, Math.min(66, height * 0.13))
+                readonly property real cardWidth: Math.max(112, Math.min(142, width * 0.19))
+                readonly property real cardHeight: Math.max(58, Math.min(68, height * 0.13))
 
                 Repeater {
                     model: root.slotRows

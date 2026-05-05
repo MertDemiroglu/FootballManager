@@ -7,6 +7,7 @@ Rectangle {
 
     property var rowData: ({})
     property int selectedPlayerId: 0
+    property int metricColumnWidth: 54
     readonly property int playerId: rowData.playerId || 0
     readonly property bool isSelected: playerId > 0 && playerId === selectedPlayerId
     readonly property int sourceSlotIndex: rowData.isAssigned ? (rowData.assignedSlotIndex || -1) : -1
@@ -16,11 +17,11 @@ Rectangle {
     signal clicked(int playerId)
 
     radius: 8
-    border.color: isSelected ? "#2563eb" : "#e4e7ec"
+    border.color: isSelected ? "#4a90ff" : "#253747"
     border.width: isSelected ? 2 : 1
-    color: isSelected ? "#dbeafe" : "#ffffff"
+    color: isSelected ? "#132f55" : "#101a25"
     opacity: playerDragArea.drag.active ? 0.72 : 1.0
-    implicitHeight: 50
+    implicitHeight: 42
 
     Item {
         id: playerDragSource
@@ -53,38 +54,50 @@ Rectangle {
         }
 
         Label {
-            text: rowData.overallSummary || ("OVR " + (rowData.overall || "-"))
-            font.pixelSize: 11
-            font.bold: true
-            color: "#475467"
-        }
-
-        Label {
             Layout.fillWidth: true
             text: rowData.name || "Unknown"
-            font.pixelSize: 13
+            font.pixelSize: 12
             font.bold: true
-            color: "#101828"
+            color: "#f7fbff"
             elide: Text.ElideRight
             verticalAlignment: Text.AlignVCenter
+        }
+
+        Rectangle {
+            Layout.preferredWidth: root.metricColumnWidth
+            Layout.preferredHeight: 22
+            radius: 999
+            color: "#233241"
+            border.color: "#3a4d5e"
+
+            Label {
+                anchors.centerIn: parent
+                text: rowData.overallSummary || ("OVR " + (rowData.overall || "-"))
+                font.pixelSize: 10
+                font.bold: true
+                color: "#d7e0e8"
+            }
         }
 
         ConditionBadge {
             label: "F"
             value: rowData.form
             compact: true
+            Layout.preferredWidth: root.metricColumnWidth
         }
 
         ConditionBadge {
             label: "Fit"
             value: rowData.fitness
             compact: true
+            Layout.preferredWidth: root.metricColumnWidth
         }
 
         ConditionBadge {
             label: "M"
             value: rowData.morale
             compact: true
+            Layout.preferredWidth: root.metricColumnWidth
         }
     }
 

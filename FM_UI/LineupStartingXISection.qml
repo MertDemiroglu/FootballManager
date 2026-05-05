@@ -8,6 +8,7 @@ ColumnLayout {
     property var slotsModel: null
     property int selectedSlotIndex: -1
     property int selectedSourceSlotIndex: -1
+    readonly property int metricColumnWidth: 54
 
     signal slotClicked(int slotIndex)
     signal playerDroppedOnSlot(int playerId, int slotIndex)
@@ -36,19 +37,39 @@ ColumnLayout {
             text: "Starting XI"
             font.pixelSize: 16
             font.bold: true
-            color: "#17212f"
+            color: "#f7fbff"
         }
 
         Label {
             text: (slotsModel ? slotsModel.count : 0) + " slots"
             font.pixelSize: 11
-            color: "#667085"
+            color: "#91a4b6"
         }
+    }
+
+    RowLayout {
+        Layout.fillWidth: true
+        Layout.leftMargin: 8
+        Layout.rightMargin: 8
+        spacing: 8
+
+        Label {
+            Layout.fillWidth: true
+            text: "Player"
+            font.pixelSize: 10
+            font.bold: true
+            color: "#6f8498"
+        }
+
+        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Overall"; font.pixelSize: 10; font.bold: true; color: "#6f8498"; horizontalAlignment: Text.AlignHCenter }
+        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Form"; font.pixelSize: 10; font.bold: true; color: "#6f8498"; horizontalAlignment: Text.AlignHCenter }
+        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Fitness"; font.pixelSize: 10; font.bold: true; color: "#6f8498"; horizontalAlignment: Text.AlignHCenter }
+        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Moral"; font.pixelSize: 10; font.bold: true; color: "#6f8498"; horizontalAlignment: Text.AlignHCenter }
     }
 
     ColumnLayout {
         Layout.fillWidth: true
-        spacing: 4
+        spacing: 2
 
         Repeater {
             model: root.orderedSlots()
@@ -58,6 +79,7 @@ ColumnLayout {
                 slotData: modelData
                 selectedSlotIndex: root.selectedSlotIndex
                 selectedSourceSlotIndex: root.selectedSourceSlotIndex
+                metricColumnWidth: root.metricColumnWidth
                 onClicked: function(slotIndex) {
                     root.slotClicked(slotIndex)
                 }
