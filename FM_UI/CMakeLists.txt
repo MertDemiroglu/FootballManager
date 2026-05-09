@@ -60,6 +60,7 @@ qt_add_qml_module(FM_UI
         Main.qml
         HomeView.qml
         NewGameView.qml
+        AppIcon.qml
         DashboardView.qml
         TransferOffersView.qml
         StandingsView.qml
@@ -84,6 +85,26 @@ qt_add_qml_module(FM_UI
         PositionBadge.qml
         ConditionBadge.qml
         TransferOfferDialog.qml
+    RESOURCES
+        assets/icons/standings.svg
+        assets/icons/team.svg
+        assets/icons/lineup.svg
+        assets/icons/transfers.svg
+        assets/icons/fixtures.svg
+        assets/icons/calendar.svg
+        assets/icons/settings.svg
+        assets/icons/main-menu.svg
+        assets/icons/trophy.svg
+        assets/icons/star.svg
+        assets/icons/record.svg
+        assets/icons/ball.svg
+        assets/icons/form.svg
+        assets/icons/play.svg
+        assets/icons/pause.svg
+        assets/icons/home.svg
+        assets/icons/away.svg
+        assets/icons/stats.svg
+        assets/icons/chevron-right.svg
 )
 
 qt_add_executable(game_facade_smoke

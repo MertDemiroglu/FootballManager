@@ -40,6 +40,38 @@ Item {
         return dashboardState.currentDateText || shellState.currentDateText || ""
     }
 
+    function normalizedTeamName(value) {
+        return String(value || "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+    }
+
+    function teamPalette(value) {
+        const name = normalizedTeamName(value)
+        if (name.indexOf("alanyaspor") >= 0) {
+            return { base: "#f97316", accent: "#22c55e", text: "#071016" }
+        }
+        if (name.indexOf("basaksehir") >= 0) {
+            return { base: "#1d4ed8", accent: "#f97316", text: "#f8fafc" }
+        }
+        if (name.indexOf("rizespor") >= 0) {
+            return { base: "#16a34a", accent: "#f8fafc", text: "#071016" }
+        }
+        if (name.indexOf("trabzonspor") >= 0) {
+            return { base: "#7f1d1d", accent: "#2563eb", text: "#f8fafc" }
+        }
+        if (name.indexOf("samsunspor") >= 0) {
+            return { base: "#dc2626", accent: "#f8fafc", text: "#071016" }
+        }
+        return { base: "#0f1a24", accent: green, text: "#f8fafc" }
+    }
+
+    function teamInitial(value) {
+        const text = String(value || "").trim()
+        return text.length > 0 ? text.charAt(0).toUpperCase() : "-"
+    }
+
     function formCharacters() {
         const rawForm = String(dashboardState.recentForm || "")
         const cleaned = rawForm.toUpperCase().replace(/[^WDL]/g, "")
@@ -81,10 +113,7 @@ Item {
     }
 
     function pointsText() {
-        if (standingsRow.hasData) {
-            return standingsRow.points
-        }
-        return teamStats.points
+        return standingsRow.hasData ? standingsRow.points : teamStats.points
     }
 
     function positionText() {
@@ -159,29 +188,11 @@ Item {
                     anchors.rightMargin: 16
                     spacing: 18
 
-                    Rectangle {
-                        Layout.preferredWidth: 48
-                        Layout.preferredHeight: 48
-                        radius: 24
-                        color: "#f8fafc"
-                        border.color: root.green
-
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: 26
-                            height: 34
-                            radius: 8
-                            color: "#f97316"
-                            border.color: "#0f172a"
-                        }
-
-                        Label {
-                            anchors.centerIn: parent
-                            text: "A"
-                            font.pixelSize: 20
-                            font.bold: true
-                            color: "#0f172a"
-                        }
+                    TeamBadge {
+                        Layout.preferredWidth: 50
+                        Layout.preferredHeight: 50
+                        teamName: root.teamName()
+                        badgeSize: 50
                     }
 
                     Label {
@@ -210,8 +221,8 @@ Item {
                         Layout.preferredWidth: 190
                         Layout.preferredHeight: 62
                         text: root.timePaused ? "Resume" : "Pause"
+                        iconName: root.timePaused ? "play" : "pause"
                         accentColor: root.timePaused ? root.green : root.red
-                        glyph: root.timePaused ? ">" : "||"
                         enabled: root.hasActiveGame
                         onClicked: {
                             if (root.timePaused) {
@@ -230,7 +241,7 @@ Item {
                 spacing: 20
 
                 Rectangle {
-                    Layout.preferredWidth: 190
+                    Layout.preferredWidth: 220
                     Layout.fillHeight: true
                     radius: 12
                     color: root.shellColor
@@ -239,41 +250,41 @@ Item {
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 24
-                        spacing: 10
+                        anchors.margins: 22
+                        spacing: 8
 
                         SidebarItem {
                             Layout.fillWidth: true
                             label: "Standings"
-                            glyph: "T"
+                            iconName: "standings"
                             onClicked: root.openStandingsRequested()
                         }
 
                         SidebarItem {
                             Layout.fillWidth: true
                             label: "Team"
-                            glyph: "P"
+                            iconName: "team"
                             onClicked: root.openTeamRequested()
                         }
 
                         SidebarItem {
                             Layout.fillWidth: true
                             label: "Lineup Editor"
-                            glyph: "XI"
+                            iconName: "lineup"
                             onClicked: root.openLineupEditorRequested()
                         }
 
                         SidebarItem {
                             Layout.fillWidth: true
                             label: "Transfers"
-                            glyph: "$"
+                            iconName: "transfers"
                             onClicked: root.openTransfersRequested()
                         }
 
                         SidebarItem {
                             Layout.fillWidth: true
                             label: "Fixtures"
-                            glyph: "C"
+                            iconName: "fixtures"
                             enabled: false
                         }
 
@@ -290,14 +301,14 @@ Item {
                         SidebarItem {
                             Layout.fillWidth: true
                             label: "Settings"
-                            glyph: "*"
+                            iconName: "settings"
                             enabled: false
                         }
 
                         SidebarItem {
                             Layout.fillWidth: true
                             label: "Main Menu"
-                            glyph: "<"
+                            iconName: "main-menu"
                             enabled: false
                         }
                     }
@@ -393,7 +404,6 @@ Item {
                                                 teamName: root.nextMatch && root.nextMatch.hasNextMatch
                                                           ? root.nextMatch.awayTeamName
                                                           : "Opponent"
-                                                alt: true
                                             }
                                         }
                                     }
@@ -457,7 +467,7 @@ Item {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 424
                                 title: "Season Stats"
-                                glyph: "|||"
+                                iconName: "stats"
 
                                 ColumnLayout {
                                     anchors.fill: parent
@@ -467,7 +477,7 @@ Item {
 
                                     StatRow {
                                         Layout.fillWidth: true
-                                        glyph: "T"
+                                        iconName: "trophy"
                                         label: "League Position"
                                         value: root.positionText()
                                         valueColor: root.green
@@ -475,21 +485,21 @@ Item {
 
                                     StatRow {
                                         Layout.fillWidth: true
-                                        glyph: "*"
+                                        iconName: "star"
                                         label: "Points"
                                         value: String(root.pointsText())
                                     }
 
                                     StatRow {
                                         Layout.fillWidth: true
-                                        glyph: "R"
+                                        iconName: "record"
                                         label: "Record"
                                         value: root.recordText()
                                     }
 
                                     StatRow {
                                         Layout.fillWidth: true
-                                        glyph: "G"
+                                        iconName: "ball"
                                         label: "Goals For / Against"
                                         value: root.teamStats.goalsFor + " / " + root.teamStats.goalsAgainst
                                     }
@@ -505,12 +515,12 @@ Item {
                                             anchors.rightMargin: 8
                                             spacing: 16
 
-                                            Label {
+                                            AppIcon {
                                                 Layout.preferredWidth: 28
-                                                text: "~"
-                                                color: root.textSecondary
-                                                font.pixelSize: 24
-                                                horizontalAlignment: Text.AlignHCenter
+                                                Layout.preferredHeight: 28
+                                                name: "form"
+                                                size: 24
+                                                opacity: 0.95
                                             }
 
                                             Label {
@@ -563,7 +573,7 @@ Item {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 444
                                 title: "Schedule Overview"
-                                glyph: "C"
+                                iconName: "calendar"
                                 headerRightText: "View Full Schedule"
                                 headerRightEnabled: false
 
@@ -579,14 +589,20 @@ Item {
 
                                         delegate: FixtureRow {
                                             required property int index
+                                            required property string dateText
+                                            required property string homeTeamName
+                                            required property string awayTeamName
+                                            required property bool isHome
+                                            required property int matchweek
 
                                             Layout.fillWidth: true
                                             visible: index < 3
-                                            dateText: model.dateText || ""
-                                            title: root.matchTitle(model.homeTeamName, model.awayTeamName)
-                                            locationText: root.matchLocation(model.isHome)
-                                            matchweekText: root.matchweekText(model.matchweek)
-                                            homeFixture: model.isHome
+                                            fixtureDateText: dateText
+                                            fixtureTitle: root.matchTitle(homeTeamName, awayTeamName)
+                                            fixtureLocationText: root.matchLocation(isHome)
+                                            fixtureMatchweekText: root.matchweekText(matchweek)
+                                            homeFixture: isHome
+                                            badgeTeamName: isHome ? awayTeamName : homeTeamName
                                         }
                                     }
 
@@ -617,7 +633,7 @@ Item {
         id: actionRoot
         signal clicked()
         property string text: ""
-        property string glyph: ""
+        property string iconName: ""
         property color accentColor: root.green
         property bool enabled: true
 
@@ -639,11 +655,9 @@ Item {
                 anchors.centerIn: parent
                 spacing: 12
 
-                Label {
-                    text: actionRoot.glyph
-                    color: "#ffffff"
-                    font.pixelSize: 21
-                    font.bold: true
+                AppIcon {
+                    name: actionRoot.iconName
+                    size: 24
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
@@ -671,10 +685,10 @@ Item {
         id: navRoot
         signal clicked()
         property string label: ""
-        property string glyph: ""
+        property string iconName: ""
         property bool enabled: true
 
-        Layout.preferredHeight: 58
+        Layout.preferredHeight: 56
         opacity: enabled ? 1.0 : 0.42
 
         Rectangle {
@@ -687,15 +701,14 @@ Item {
                 anchors.fill: parent
                 anchors.leftMargin: 8
                 anchors.rightMargin: 8
-                spacing: 14
+                spacing: 12
 
-                Label {
-                    Layout.preferredWidth: 30
-                    text: navRoot.glyph
-                    color: navRoot.enabled && navMouse.containsMouse ? root.green : root.textSecondary
-                    font.pixelSize: 18
-                    font.bold: true
-                    horizontalAlignment: Text.AlignHCenter
+                AppIcon {
+                    Layout.preferredWidth: 26
+                    Layout.preferredHeight: 26
+                    name: navRoot.iconName
+                    size: 24
+                    opacity: navRoot.enabled && navMouse.containsMouse ? 1.0 : 0.88
                 }
 
                 Label {
@@ -703,7 +716,7 @@ Item {
                     text: navRoot.label
                     color: root.textPrimary
                     opacity: navRoot.enabled ? 0.92 : 0.7
-                    font.pixelSize: 18
+                    font.pixelSize: 16
                     elide: Text.ElideRight
                 }
             }
@@ -722,7 +735,7 @@ Item {
     component DashboardCard: Rectangle {
         id: cardRoot
         property string title: ""
-        property string glyph: ""
+        property string iconName: ""
         property string headerRightText: ""
         property bool headerRightEnabled: true
         property color titleColor: root.textPrimary
@@ -752,12 +765,13 @@ Item {
             anchors.topMargin: 28
             spacing: 14
 
-            Label {
-                visible: cardRoot.glyph.length > 0
-                text: cardRoot.glyph
-                color: root.green
-                font.pixelSize: 24
-                font.bold: true
+            AppIcon {
+                visible: cardRoot.iconName.length > 0
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                name: cardRoot.iconName
+                size: 26
+                opacity: 0.98
             }
 
             Label {
@@ -777,11 +791,57 @@ Item {
                 font.pixelSize: 15
             }
 
-            Label {
+            AppIcon {
                 visible: cardRoot.headerRightText.length > 0
-                text: ">"
-                color: root.textSecondary
-                font.pixelSize: 24
+                Layout.preferredWidth: 22
+                Layout.preferredHeight: 22
+                name: "chevron-right"
+                size: 22
+                opacity: 0.8
+            }
+        }
+    }
+
+    component TeamBadge: Item {
+        id: badgeRoot
+        property string teamName: ""
+        property int badgeSize: 58
+        readonly property var palette: root.teamPalette(teamName)
+
+        implicitWidth: badgeSize
+        implicitHeight: badgeSize
+
+        Rectangle {
+            anchors.fill: parent
+            radius: width / 2
+            color: "#f8fafc"
+            border.color: badgeRoot.palette.accent
+            border.width: 2
+
+            Rectangle {
+                width: parent.width * 0.5
+                height: parent.height * 0.62
+                anchors.centerIn: parent
+                radius: 8
+                color: badgeRoot.palette.base
+                border.color: "#0f172a"
+                border.width: 1
+            }
+
+            Rectangle {
+                width: parent.width * 0.14
+                height: parent.height * 0.62
+                anchors.centerIn: parent
+                radius: 4
+                color: badgeRoot.palette.accent
+            }
+
+            Label {
+                anchors.centerIn: parent
+                text: root.teamInitial(badgeRoot.teamName)
+                color: badgeRoot.palette.text
+                font.pixelSize: Math.max(16, badgeRoot.badgeSize * 0.32)
+                font.bold: true
             }
         }
     }
@@ -789,7 +849,6 @@ Item {
     component TeamMark: Item {
         id: teamMarkRoot
         property string teamName: ""
-        property bool alt: false
 
         Layout.preferredHeight: 160
 
@@ -798,30 +857,10 @@ Item {
             width: parent.width
             spacing: 14
 
-            Rectangle {
-                width: 100
-                height: 100
-                radius: 50
-                color: "#f8fafc"
-                border.color: teamMarkRoot.alt ? "#38bdf8" : root.green
+            TeamBadge {
+                badgeSize: 100
+                teamName: teamMarkRoot.teamName
                 anchors.horizontalCenter: parent.horizontalCenter
-
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: 48
-                    height: 62
-                    radius: 11
-                    color: teamMarkRoot.alt ? "#1d4ed8" : "#f97316"
-                    border.color: "#0f172a"
-                }
-
-                Label {
-                    anchors.centerIn: parent
-                    text: teamMarkRoot.teamName.length > 0 ? teamMarkRoot.teamName.charAt(0).toUpperCase() : "?"
-                    color: "#0f172a"
-                    font.pixelSize: 30
-                    font.bold: true
-                }
             }
 
             Label {
@@ -838,7 +877,7 @@ Item {
 
     component StatRow: Rectangle {
         id: statRoot
-        property string glyph: ""
+        property string iconName: ""
         property string label: ""
         property string value: ""
         property color valueColor: root.textPrimary
@@ -852,13 +891,12 @@ Item {
             anchors.rightMargin: 8
             spacing: 16
 
-            Label {
+            AppIcon {
                 Layout.preferredWidth: 28
-                text: statRoot.glyph
-                color: root.textSecondary
-                font.pixelSize: 21
-                font.bold: true
-                horizontalAlignment: Text.AlignHCenter
+                Layout.preferredHeight: 28
+                name: statRoot.iconName
+                size: 24
+                opacity: 0.95
             }
 
             Label {
@@ -889,12 +927,13 @@ Item {
 
     component FixtureRow: Rectangle {
         id: fixtureRoot
-        property string dateText: ""
-        property string title: ""
-        property string locationText: ""
-        property string matchweekText: ""
+        property string fixtureDateText: ""
+        property string fixtureTitle: ""
+        property string fixtureLocationText: ""
+        property string fixtureMatchweekText: ""
+        property string badgeTeamName: ""
         property bool homeFixture: false
-        readonly property var parts: root.dateParts(dateText)
+        readonly property var parts: root.dateParts(fixtureDateText)
 
         Layout.preferredHeight: 102
         color: "transparent"
@@ -941,20 +980,11 @@ Item {
                 opacity: 0.75
             }
 
-            Rectangle {
+            TeamBadge {
                 Layout.preferredWidth: 58
                 Layout.preferredHeight: 58
-                radius: 29
-                color: root.panelAltColor
-                border.color: root.borderColor
-
-                Label {
-                    anchors.centerIn: parent
-                    text: fixtureRoot.title.length > 0 ? fixtureRoot.title.charAt(0).toUpperCase() : "?"
-                    color: root.textPrimary
-                    font.pixelSize: 22
-                    font.bold: true
-                }
+                badgeSize: 58
+                teamName: fixtureRoot.badgeTeamName
             }
 
             ColumnLayout {
@@ -963,7 +993,7 @@ Item {
 
                 Label {
                     Layout.fillWidth: true
-                    text: fixtureRoot.title
+                    text: fixtureRoot.fixtureTitle
                     color: root.textPrimary
                     font.pixelSize: 18
                     font.bold: true
@@ -974,7 +1004,7 @@ Item {
                     spacing: 10
 
                     Label {
-                        text: fixtureRoot.locationText
+                        text: fixtureRoot.fixtureLocationText
                         color: root.textSecondary
                         font.pixelSize: 16
                     }
@@ -987,24 +1017,27 @@ Item {
                     }
 
                     Label {
-                        text: fixtureRoot.matchweekText
+                        text: fixtureRoot.fixtureMatchweekText
                         color: root.textSecondary
                         font.pixelSize: 16
                     }
                 }
             }
 
-            Label {
-                text: fixtureRoot.homeFixture ? "H" : "A"
-                color: fixtureRoot.homeFixture ? root.green : root.textSecondary
-                font.pixelSize: 22
-                font.bold: true
+            AppIcon {
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                name: fixtureRoot.homeFixture ? "home" : "away"
+                size: 26
+                opacity: fixtureRoot.homeFixture ? 1.0 : 0.82
             }
 
-            Label {
-                text: ">"
-                color: root.textSecondary
-                font.pixelSize: 28
+            AppIcon {
+                Layout.preferredWidth: 24
+                Layout.preferredHeight: 24
+                name: "chevron-right"
+                size: 24
+                opacity: 0.8
             }
         }
 
