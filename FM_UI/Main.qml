@@ -57,8 +57,7 @@ ApplicationWindow {
     }
 
     function viewUsesPageMargins(viewName) {
-        return viewName === routes.dashboard
-               || viewName === routes.standings
+        return viewName === routes.standings
                || viewName === routes.team
                || viewName === routes.transfers
     }
@@ -107,6 +106,7 @@ ApplicationWindow {
         visible: root.currentView !== root.routes.home
                  && root.currentView !== root.routes.teamSelection
                  && root.currentView !== root.routes.lineupEditor
+                 && root.currentView !== root.routes.dashboard
         contentHeight: 52
 
         RowLayout {
