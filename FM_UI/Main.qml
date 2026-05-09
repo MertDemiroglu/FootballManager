@@ -11,7 +11,7 @@ ApplicationWindow {
     minimumWidth: 900
     minimumHeight: 700
     title: "Football Manager"
-    color: "#f5f5f5"
+    color: "#071016"
 
     readonly property QtObject routes: QtObject {
         readonly property string home: "home"
@@ -35,6 +35,7 @@ ApplicationWindow {
     readonly property var interactionState: gameFacade.interactionState
 
     property string currentView: shellState.hasStartedGame ? routes.dashboard : routes.home
+    property string returnRouteAfterLineupEditor: ""
 
     function componentForView(viewName) {
         if (viewName === routes.home) {
@@ -76,6 +77,28 @@ ApplicationWindow {
 
     function navigateTo(viewName) {
         goTo(viewName)
+    }
+
+    function openLineupEditor(returnRoute) {
+        returnRouteAfterLineupEditor = returnRoute || routes.dashboard
+        navigateTo(routes.lineupEditor)
+    }
+
+    function returnFromLineupEditor() {
+        const targetRoute = returnRouteAfterLineupEditor
+        returnRouteAfterLineupEditor = ""
+        if (targetRoute === routes.preMatch) {
+            gameFacade.applyEditableLineupToActivePreMatch()
+            if (root.interactionState.hasActiveInteraction
+                && root.interactionState.kind === root.interactionKinds.preMatch) {
+                root.navigateTo(root.routes.preMatch)
+            } else {
+                root.navigateTo(root.routes.dashboard)
+            }
+            return
+        }
+
+        root.navigateTo(root.routes.dashboard)
     }
 
     function pauseSimulation() {
@@ -204,7 +227,7 @@ ApplicationWindow {
                 root.navigateTo(root.routes.transfers)
             }
             onOpenLineupEditorRequested: {
-                root.navigateTo(root.routes.lineupEditor)
+                root.openLineupEditor(root.routes.dashboard)
             }
             onOpenPreMatchRequested: {
                 root.navigateTo(root.routes.preMatch)
@@ -235,7 +258,7 @@ ApplicationWindow {
                 root.navigateTo(root.routes.dashboard)
             }
             onOpenLineupEditorRequested: {
-                root.navigateTo(root.routes.lineupEditor)
+                root.openLineupEditor(root.routes.dashboard)
             }
             onOpenMatchDetailRequested: function(matchId) {
                 root.openMatchDetails(matchId)
@@ -247,7 +270,7 @@ ApplicationWindow {
         id: lineupEditorComponent
         LineupEditorScreen {
             onBackRequested: {
-                root.navigateTo(root.routes.dashboard)
+                root.returnFromLineupEditor()
             }
         }
     }
@@ -272,7 +295,7 @@ ApplicationWindow {
                 root.navigateTo(root.routes.dashboard)
             }
             onEditLineupRequested: {
-                root.navigateTo(root.routes.lineupEditor)
+                root.openLineupEditor(root.routes.preMatch)
             }
             onPlayMatchRequested: {
                 root.playActiveMatch()

@@ -34,44 +34,15 @@ Rectangle {
         return "UNK"
     }
 
-    function roleOccurrence(rows, index, roleText) {
-        let count = 0
-        for (let i = 0; i <= index && i < rows.length; ++i) {
-            if (String(rows[i].slotRoleText || "").toUpperCase() === String(roleText || "").toUpperCase()) {
-                count += 1
-            }
-        }
-        return count
+    function normalized(value, fallback) {
+        return typeof value === "number" ? Math.max(0, Math.min(1, value)) : fallback
     }
 
-    function tokenPoint(rows, index, roleText) {
-        const role = String(roleText || "").toUpperCase()
-        const occurrence = roleOccurrence(rows, index, role)
-        if (role === "GK") {
-            return { x: 0.5, y: 0.86 }
+    function fallbackPoint(index) {
+        return {
+            x: 0.18 + ((index % 4) * 0.21),
+            y: 0.24 + (Math.floor(index / 4) * 0.18)
         }
-        if (role === "LB") {
-            return { x: 0.14, y: 0.67 }
-        }
-        if (role === "RB") {
-            return { x: 0.86, y: 0.67 }
-        }
-        if (role === "CB") {
-            return { x: occurrence === 1 ? 0.38 : 0.62, y: 0.67 }
-        }
-        if (role === "LM") {
-            return { x: 0.14, y: 0.43 }
-        }
-        if (role === "RM") {
-            return { x: 0.86, y: 0.43 }
-        }
-        if (role === "CM" || role === "DM" || role === "AM") {
-            return { x: occurrence === 1 ? 0.38 : 0.62, y: 0.43 }
-        }
-        if (role === "ST" || role === "CF") {
-            return { x: occurrence === 1 ? 0.38 : 0.62, y: 0.19 }
-        }
-        return { x: 0.18 + ((index % 4) * 0.21), y: 0.28 + (Math.floor(index / 4) * 0.18) }
     }
 
     function metricText(row) {
@@ -112,18 +83,19 @@ Rectangle {
     }
 
     Rectangle {
+        id: pitchField
         anchors.fill: parent
-        anchors.margins: 10
+        anchors.margins: 16
         color: "transparent"
         border.color: "#d7e7d7"
-        border.width: 1
+        border.width: 2
         opacity: 0.32
     }
 
     Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.verticalCenter: parent.verticalCenter
-        width: parent.width * 0.18
+        width: Math.min(pitchField.width, pitchField.height) * 0.22
         height: width
         radius: width / 2
         color: "transparent"
@@ -142,9 +114,9 @@ Rectangle {
 
     Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 10
-        width: parent.width * 0.58
-        height: parent.height * 0.22
+        anchors.top: pitchField.top
+        width: pitchField.width * 0.58
+        height: pitchField.height * 0.22
         color: "transparent"
         border.color: "#d7e7d7"
         opacity: 0.28
@@ -152,33 +124,44 @@ Rectangle {
 
     Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: 10
-        width: parent.width * 0.58
-        height: parent.height * 0.22
+        anchors.bottom: pitchField.bottom
+        width: pitchField.width * 0.58
+        height: pitchField.height * 0.22
         color: "transparent"
         border.color: "#d7e7d7"
         opacity: 0.28
     }
 
-    Repeater {
-        model: root.lineupRows || []
+    Item {
+        id: tokenLayer
+        anchors.fill: pitchField
+        anchors.leftMargin: 22
+        anchors.rightMargin: 22
+        anchors.topMargin: 28
+        anchors.bottomMargin: 28
 
-        delegate: LineupPlayerToken {
-            id: token
-            readonly property var point: root.tokenPoint(root.lineupRows || [], index, modelData.slotRoleText)
+        Repeater {
+            model: root.lineupRows || []
 
-            x: Math.max(4, Math.min(root.width - width - 4, root.width * point.x - width / 2))
-            y: Math.max(4, Math.min(root.height - height - 4, root.height * point.y - height / 2))
-            positionText: modelData.slotRoleText || modelData.positionText || "-"
-            playerName: modelData.playerName || ""
-            kitColorPrimary: root.kitColorPrimary
-            kitColorSecondary: root.kitColorSecondary
-            positionGroup: root.positionGroup(modelData.slotRoleText || modelData.positionText)
-            mode: root.mode
-            showMetric: root.showMetrics
-            metricText: root.metricText(modelData)
-            empty: modelData.hasPlayer === false
+            delegate: LineupPlayerToken {
+                id: token
+                readonly property var fallback: root.fallbackPoint(index)
+                readonly property real pointX: root.normalized(modelData.pitchX, fallback.x)
+                readonly property real pointY: root.normalized(modelData.pitchY, fallback.y)
+
+                x: Math.max(0, Math.min(tokenLayer.width - width, tokenLayer.width * pointX - width / 2))
+                y: Math.max(0, Math.min(tokenLayer.height - height, tokenLayer.height * pointY - height / 2))
+                positionText: modelData.slotRoleText || modelData.positionText || "-"
+                playerName: modelData.playerName || ""
+                surname: modelData.surname || ""
+                kitColorPrimary: root.kitColorPrimary
+                kitColorSecondary: root.kitColorSecondary
+                positionGroup: root.positionGroup(modelData.slotRoleText || modelData.positionText)
+                mode: root.mode
+                showMetric: root.showMetrics && root.metricText(modelData).length > 0
+                metricText: root.metricText(modelData)
+                empty: modelData.hasPlayer === false
+            }
         }
     }
 

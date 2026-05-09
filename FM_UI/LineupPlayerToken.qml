@@ -26,8 +26,8 @@ Item {
                                             ? root.positionGroup
                                             : groupFromPosition(root.positionText)
 
-    width: 82
-    height: root.showMetric ? 72 : 62
+    width: 86
+    height: root.showMetric ? 82 : 70
 
     function surnameFromName(fullName) {
         const parts = String(fullName || "").trim().split(/\s+/).filter(function(part) { return part.length > 0 })
@@ -54,63 +54,66 @@ Item {
     function bandColor(group) {
         switch (group) {
         case "GK":
-            return "#16a34a"
+            return "#15803d"
         case "DEF":
-            return "#2563eb"
+            return "#1d4ed8"
         case "MID":
-            return "#f59e0b"
+            return "#d97706"
         case "FWD":
-            return "#dc2626"
+            return "#b91c1c"
         default:
-            return "#64748b"
+            return "#475569"
         }
     }
 
     Item {
         id: shirt
-        width: 32
-        height: 25
+        width: 40
+        height: 31
         anchors.horizontalCenter: parent.horizontalCenter
         y: 0
         visible: !root.empty
 
         Rectangle {
-            x: 6
-            y: 5
-            width: 20
-            height: 18
-            radius: 5
+            x: 8
+            y: 6
+            width: 24
+            height: 22
+            radius: 6
             color: root.kitColorPrimary
             border.color: "#0f172a"
+            border.width: 1
         }
 
         Rectangle {
             x: 0
-            y: 7
-            width: 10
-            height: 11
+            y: 8
+            width: 13
+            height: 13
             radius: 4
             rotation: -18
             color: root.kitColorSecondary
             border.color: "#0f172a"
+            border.width: 1
         }
 
         Rectangle {
-            x: 22
-            y: 7
-            width: 10
-            height: 11
+            x: 27
+            y: 8
+            width: 13
+            height: 13
             radius: 4
             rotation: 18
             color: root.kitColorSecondary
             border.color: "#0f172a"
+            border.width: 1
         }
 
         Rectangle {
-            x: 14
-            y: 5
+            x: 18
+            y: 6
             width: 4
-            height: 18
+            height: 22
             radius: 2
             color: root.kitColorSecondary
             opacity: 0.9
@@ -120,9 +123,9 @@ Item {
     Rectangle {
         id: body
         anchors.horizontalCenter: parent.horizontalCenter
-        y: root.empty ? 14 : 23
-        width: 72
-        height: root.showMetric ? 44 : 36
+        y: root.empty ? 19 : 27
+        width: 82
+        height: root.showMetric ? 52 : 40
         radius: 7
         color: root.empty ? "#111827" : "#111923"
         border.color: root.empty ? "#334155" : "#405264"
@@ -132,7 +135,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            height: 18
+            height: 19
             radius: 6
             color: root.empty ? "#334155" : root.bandColor(root.resolvedGroup)
 
@@ -140,7 +143,7 @@ Item {
                 anchors.centerIn: parent
                 text: root.positionText || "-"
                 color: "#f8fafc"
-                font.pixelSize: 11
+                font.pixelSize: 12
                 font.bold: true
             }
         }
@@ -149,7 +152,8 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.topMargin: 20
+            anchors.topMargin: 21
+            height: 20
             text: root.resolvedName
             color: root.empty ? "#94a3b8" : "#f8fafc"
             font.pixelSize: 13
@@ -159,12 +163,12 @@ Item {
         }
 
         Rectangle {
-            width: 36
+            width: 40
             height: 17
             radius: 8
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
-            anchors.bottomMargin: 3
+            anchors.bottomMargin: 4
             visible: root.showMetric
             color: "#0b1118"
             border.color: "#405264"
