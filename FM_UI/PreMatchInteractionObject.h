@@ -19,6 +19,8 @@ class PreMatchInteractionObject : public QObject {
     Q_PROPERTY(QString fixtureLabel READ fixtureLabel NOTIFY changed)
     Q_PROPERTY(QString homeCoachName READ homeCoachName NOTIFY changed)
     Q_PROPERTY(QString awayCoachName READ awayCoachName NOTIFY changed)
+    Q_PROPERTY(QString homeRecentForm READ homeRecentForm NOTIFY changed)
+    Q_PROPERTY(QString awayRecentForm READ awayRecentForm NOTIFY changed)
     Q_PROPERTY(QString homeFormationText READ homeFormationText NOTIFY changed)
     Q_PROPERTY(QString awayFormationText READ awayFormationText NOTIFY changed)
     Q_PROPERTY(QString formationText READ formationText NOTIFY changed)
@@ -39,6 +41,8 @@ public:
     QString fixtureLabel() const;
     QString homeCoachName() const;
     QString awayCoachName() const;
+    QString homeRecentForm() const;
+    QString awayRecentForm() const;
     QString homeFormationText() const;
     QString awayFormationText() const;
     QString formationText() const;
@@ -54,6 +58,8 @@ public:
         const QString& awayTeamName,
         const QString& homeCoachName,
         const QString& awayCoachName,
+        const QString& homeRecentForm,
+        const QString& awayRecentForm,
         const QString& homeFormationText,
         const QString& awayFormationText,
         const QString& formationText,
@@ -75,6 +81,8 @@ private:
     QString awayTeamNameValue;
     QString homeCoachNameValue;
     QString awayCoachNameValue;
+    QString homeRecentFormValue;
+    QString awayRecentFormValue;
     QString homeFormationTextValue;
     QString awayFormationTextValue;
     QString formationTextValue;

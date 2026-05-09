@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "TeamVisuals.js" as TeamVisuals
 
 Item {
     id: root
@@ -138,13 +139,13 @@ Item {
                 anchors.fill: parent
                 anchors.leftMargin: 28
                 anchors.rightMargin: 28
-                anchors.topMargin: 24
+                anchors.topMargin: 22
                 anchors.bottomMargin: 20
-                spacing: 18
+                spacing: 28
 
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 142
+                    Layout.preferredHeight: 134
                     spacing: 28
 
                     ScoreTeamHero {
@@ -165,7 +166,7 @@ Item {
 
                             Label {
                                 text: interactionData.homeGoals !== undefined ? interactionData.homeGoals : "-"
-                                color: root.green
+                                color: root.textPrimary
                                 font.pixelSize: 64
                                 font.bold: true
                             }
@@ -216,8 +217,8 @@ Item {
                         formationText: interactionData.homeFormationText || "-"
                         lineupRows: interactionData.homeLineup || []
                         averageText: "Avg Rating -"
-                        kitPrimary: "#f97316"
-                        kitSecondary: "#22c55e"
+                        kitPrimary: TeamVisuals.primaryColor(interactionData.homeTeamName || "")
+                        kitSecondary: TeamVisuals.secondaryColor(interactionData.homeTeamName || "")
                     }
 
                     MatchStatsPanel {
@@ -232,8 +233,8 @@ Item {
                         formationText: interactionData.awayFormationText || "-"
                         lineupRows: interactionData.awayLineup || []
                         averageText: "Avg Rating -"
-                        kitPrimary: "#1d4ed8"
-                        kitSecondary: "#f97316"
+                        kitPrimary: TeamVisuals.primaryColor(interactionData.awayTeamName || "")
+                        kitSecondary: TeamVisuals.secondaryColor(interactionData.awayTeamName || "")
                     }
                 }
 
@@ -334,11 +335,12 @@ Item {
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 18
-            spacing: 12
+            anchors.margins: 20
+            spacing: 16
 
             RowLayout {
                 Layout.fillWidth: true
+                Layout.preferredHeight: 52
 
                 Column {
                     Layout.fillWidth: true
@@ -357,6 +359,7 @@ Item {
             MatchPitchPreview {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                Layout.topMargin: 4
                 lineupRows: pitchPanelRoot.lineupRows
                 formationText: pitchPanelRoot.formationText
                 mode: "postMatch"

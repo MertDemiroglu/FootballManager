@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "TeamVisuals.js" as TeamVisuals
 
 Item {
     id: root
@@ -19,6 +20,7 @@ Item {
     readonly property color borderColor: "#243442"
     readonly property color textPrimary: "#f5f7fa"
     readonly property color textSecondary: "#a8b3c1"
+    readonly property color textMuted: "#64748b"
     readonly property color green: "#22c55e"
 
     function hasMatchData() {
@@ -137,19 +139,19 @@ Item {
                 anchors.fill: parent
                 anchors.leftMargin: 30
                 anchors.rightMargin: 30
-                anchors.topMargin: 24
+                anchors.topMargin: 26
                 anchors.bottomMargin: 22
-                spacing: 20
+                spacing: 28
 
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 132
+                    Layout.preferredHeight: 126
                     spacing: 28
 
                     TeamHero {
                         Layout.fillWidth: true
                         teamName: interactionData.homeTeamName || "Home"
-                        sideText: "Home"
+                        recentForm: interactionData.homeRecentForm || ""
                         alignRight: true
                     }
 
@@ -178,7 +180,7 @@ Item {
                     TeamHero {
                         Layout.fillWidth: true
                         teamName: interactionData.awayTeamName || "Away"
-                        sideText: "Away"
+                        recentForm: interactionData.awayRecentForm || ""
                         alignRight: false
                     }
                 }
@@ -195,8 +197,8 @@ Item {
                         teamName: interactionData.homeTeamName || "Home"
                         formationText: interactionData.homeFormationText || "-"
                         lineupRows: interactionData.homeLineup || []
-                        kitPrimary: "#f97316"
-                        kitSecondary: "#22c55e"
+                        kitPrimary: TeamVisuals.primaryColor(interactionData.homeTeamName || "")
+                        kitSecondary: TeamVisuals.secondaryColor(interactionData.homeTeamName || "")
                     }
 
                     PitchPanel {
@@ -206,8 +208,8 @@ Item {
                         teamName: interactionData.awayTeamName || "Away"
                         formationText: interactionData.awayFormationText || "-"
                         lineupRows: interactionData.awayLineup || []
-                        kitPrimary: "#1d4ed8"
-                        kitSecondary: "#f97316"
+                        kitPrimary: TeamVisuals.primaryColor(interactionData.awayTeamName || "")
+                        kitSecondary: TeamVisuals.secondaryColor(interactionData.awayTeamName || "")
                     }
                 }
 
@@ -242,7 +244,7 @@ Item {
     component TeamHero: Item {
         id: teamHeroRoot
         property string teamName: ""
-        property string sideText: ""
+        property string recentForm: ""
         property bool alignRight: false
 
         RowLayout {
@@ -271,12 +273,82 @@ Item {
                     elide: Text.ElideRight
                 }
 
-                Label {
+                RecentFormBoxes {
+                    formText: teamHeroRoot.recentForm
+                    alignRight: teamHeroRoot.alignRight
                     width: parent.width
-                    text: teamHeroRoot.sideText
-                    color: teamHeroRoot.sideText === "Home" ? root.green : "#38bdf8"
-                    font.pixelSize: 17
-                    horizontalAlignment: alignRight ? Text.AlignRight : Text.AlignLeft
+                }
+            }
+        }
+    }
+
+    component RecentFormBoxes: Item {
+        id: formRoot
+        property string formText: ""
+        property bool alignRight: false
+        readonly property var results: formCharacters(formText)
+
+        height: 24
+
+        function formCharacters(value) {
+            const cleaned = String(value || "").toUpperCase().replace(/[^WDL]/g, "")
+            const chars = cleaned.length ? cleaned.split("").slice(0, 5) : []
+            while (chars.length < 5) {
+                chars.push("")
+            }
+            return chars
+        }
+
+        function resultColor(result) {
+            if (result === "W") {
+                return root.green
+            }
+            if (result === "D") {
+                return "#d97706"
+            }
+            if (result === "L") {
+                return "#dc2626"
+            }
+            return root.borderColor
+        }
+
+        function resultBackground(result) {
+            if (result === "W") {
+                return "#123824"
+            }
+            if (result === "D") {
+                return "#35270f"
+            }
+            if (result === "L") {
+                return "#351616"
+            }
+            return "#0b141d"
+        }
+
+        Row {
+            anchors.right: formRoot.alignRight ? parent.right : undefined
+            anchors.left: formRoot.alignRight ? undefined : parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 6
+
+            Repeater {
+                model: formRoot.results
+
+                Rectangle {
+                    width: 24
+                    height: 24
+                    radius: 5
+                    color: formRoot.resultBackground(modelData)
+                    border.color: formRoot.resultColor(modelData)
+                    opacity: modelData.length > 0 ? 1.0 : 0.65
+
+                    Label {
+                        anchors.centerIn: parent
+                        text: modelData
+                        color: modelData.length > 0 ? root.textPrimary : root.textMuted
+                        font.pixelSize: 11
+                        font.bold: true
+                    }
                 }
             }
         }
@@ -297,11 +369,12 @@ Item {
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 18
-            spacing: 12
+            anchors.margins: 20
+            spacing: 16
 
             RowLayout {
                 Layout.fillWidth: true
+                Layout.preferredHeight: 62
 
                 AppIcon {
                     Layout.preferredWidth: 28
@@ -328,6 +401,7 @@ Item {
             MatchPitchPreview {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                Layout.topMargin: 4
                 lineupRows: pitchPanelRoot.lineupRows
                 formationText: pitchPanelRoot.formationText
                 mode: "preMatch"

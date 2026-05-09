@@ -26,8 +26,8 @@ Item {
                                             ? root.positionGroup
                                             : groupFromPosition(root.positionText)
 
-    width: 86
-    height: root.showMetric ? 82 : 70
+    width: 90
+    height: root.showMetric ? 90 : 76
 
     function surnameFromName(fullName) {
         const parts = String(fullName || "").trim().split(/\s+/).filter(function(part) { return part.length > 0 })
@@ -68,18 +68,18 @@ Item {
 
     Item {
         id: shirt
-        width: 40
-        height: 31
+        width: 46
+        height: 36
         anchors.horizontalCenter: parent.horizontalCenter
         y: 0
         visible: !root.empty
 
         Rectangle {
-            x: 8
-            y: 6
-            width: 24
-            height: 22
-            radius: 6
+            x: 10
+            y: 7
+            width: 26
+            height: 25
+            radius: 7
             color: root.kitColorPrimary
             border.color: "#0f172a"
             border.width: 1
@@ -87,9 +87,9 @@ Item {
 
         Rectangle {
             x: 0
-            y: 8
-            width: 13
-            height: 13
+            y: 10
+            width: 16
+            height: 14
             radius: 4
             rotation: -18
             color: root.kitColorSecondary
@@ -98,10 +98,10 @@ Item {
         }
 
         Rectangle {
-            x: 27
-            y: 8
-            width: 13
-            height: 13
+            x: 30
+            y: 10
+            width: 16
+            height: 14
             radius: 4
             rotation: 18
             color: root.kitColorSecondary
@@ -110,22 +110,34 @@ Item {
         }
 
         Rectangle {
-            x: 18
-            y: 6
-            width: 4
-            height: 22
+            x: 21
+            y: 7
+            width: 5
+            height: 25
             radius: 2
             color: root.kitColorSecondary
             opacity: 0.9
+        }
+
+        Rectangle {
+            x: 17
+            y: 6
+            width: 12
+            height: 7
+            radius: 4
+            color: "#dbeafe"
+            opacity: 0.9
+            border.color: "#0f172a"
+            border.width: 1
         }
     }
 
     Rectangle {
         id: body
         anchors.horizontalCenter: parent.horizontalCenter
-        y: root.empty ? 19 : 27
-        width: 82
-        height: root.showMetric ? 52 : 40
+        y: root.empty ? 21 : 30
+        width: 86
+        height: root.showMetric ? 58 : 44
         radius: 7
         color: root.empty ? "#111827" : "#111923"
         border.color: root.empty ? "#334155" : "#405264"
@@ -135,7 +147,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            height: 19
+            height: 20
             radius: 6
             color: root.empty ? "#334155" : root.bandColor(root.resolvedGroup)
 
@@ -152,23 +164,23 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.topMargin: 21
-            height: 20
+            anchors.topMargin: 23
+            height: 23
             text: root.resolvedName
             color: root.empty ? "#94a3b8" : "#f8fafc"
-            font.pixelSize: 13
+            font.pixelSize: 14
             font.bold: true
             horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight
         }
 
         Rectangle {
-            width: 40
-            height: 17
+            width: 42
+            height: 18
             radius: 8
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
-            anchors.bottomMargin: 4
+            anchors.bottomMargin: 5
             visible: root.showMetric
             color: "#0b1118"
             border.color: "#405264"

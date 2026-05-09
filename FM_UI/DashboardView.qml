@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "TeamVisuals.js" as TeamVisuals
 
 Item {
     id: root
@@ -44,36 +45,12 @@ Item {
         return dashboardState.currentDateText || shellState.currentDateText || ""
     }
 
-    function normalizedTeamName(value) {
-        return String(value || "")
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .toLowerCase()
-    }
-
     function teamPalette(value) {
-        const name = normalizedTeamName(value)
-        if (name.indexOf("alanyaspor") >= 0) {
-            return { base: "#f97316", accent: "#22c55e", text: "#071016" }
-        }
-        if (name.indexOf("basaksehir") >= 0) {
-            return { base: "#1d4ed8", accent: "#f97316", text: "#f8fafc" }
-        }
-        if (name.indexOf("rizespor") >= 0) {
-            return { base: "#16a34a", accent: "#f8fafc", text: "#071016" }
-        }
-        if (name.indexOf("trabzonspor") >= 0) {
-            return { base: "#7f1d1d", accent: "#2563eb", text: "#f8fafc" }
-        }
-        if (name.indexOf("samsunspor") >= 0) {
-            return { base: "#dc2626", accent: "#f8fafc", text: "#071016" }
-        }
-        return { base: "#0f1a24", accent: green, text: "#f8fafc" }
+        return TeamVisuals.palette(value)
     }
 
     function teamInitial(value) {
-        const text = String(value || "").trim()
-        return text.length > 0 ? text.charAt(0).toUpperCase() : "-"
+        return TeamVisuals.initial(value)
     }
 
     function formCharacters() {
@@ -842,7 +819,7 @@ Item {
             anchors.fill: parent
             radius: width / 2
             color: "#f8fafc"
-            border.color: badgeRoot.palette.accent
+            border.color: badgeRoot.palette.secondary
             border.width: 2
 
             Rectangle {
@@ -850,7 +827,7 @@ Item {
                 height: parent.height * 0.62
                 anchors.centerIn: parent
                 radius: 8
-                color: badgeRoot.palette.base
+                color: badgeRoot.palette.primary
                 border.color: "#0f172a"
                 border.width: 1
             }
@@ -860,7 +837,7 @@ Item {
                 height: parent.height * 0.62
                 anchors.centerIn: parent
                 radius: 4
-                color: badgeRoot.palette.accent
+                color: badgeRoot.palette.secondary
             }
 
             Label {

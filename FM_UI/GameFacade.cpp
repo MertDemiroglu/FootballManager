@@ -1845,6 +1845,8 @@ void GameFacade::refreshInteractionStateObject() {
             league ? fromStd(league->getTeamName(preMatch->getAwayId())) : QString(),
             homeTeam ? fromStd(homeTeam->getHeadCoach().getName()) : QStringLiteral("-"),
             awayTeam ? fromStd(awayTeam->getHeadCoach().getName()) : QStringLiteral("-"),
+            league ? fromStd(league->getRecentFormString(preMatch->getHomeId(), 5)) : QString(),
+            league ? fromStd(league->getRecentFormString(preMatch->getAwayId(), 5)) : QString(),
             formatFormation(preMatch->getHomeSheet().formation),
             formatFormation(preMatch->getAwaySheet().formation),
             preMatch->getHomeId() == selectedTeamId ? formatFormation(preMatch->getHomeSheet().formation)
@@ -2684,6 +2686,8 @@ QVariantMap GameFacade::toPreMatchInteractionMap(const PreMatchInteraction& inte
         const Team* awayTeam = league->findTeamById(interaction.getAwayId());
         map.insert(QStringLiteral("homeCoachName"), homeTeam ? fromStd(homeTeam->getHeadCoach().getName()) : QStringLiteral("-"));
         map.insert(QStringLiteral("awayCoachName"), awayTeam ? fromStd(awayTeam->getHeadCoach().getName()) : QStringLiteral("-"));
+        map.insert(QStringLiteral("homeRecentForm"), fromStd(league->getRecentFormString(interaction.getHomeId(), 5)));
+        map.insert(QStringLiteral("awayRecentForm"), fromStd(league->getRecentFormString(interaction.getAwayId(), 5)));
         map.insert(QStringLiteral("homeFormationText"), formatFormation(interaction.getHomeSheet().formation));
         map.insert(QStringLiteral("awayFormationText"), formatFormation(interaction.getAwaySheet().formation));
         map.insert(QStringLiteral("homeLineup"), buildLineupViewRows(interaction.getHomeSheet(), league));
