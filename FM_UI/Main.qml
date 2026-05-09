@@ -21,6 +21,8 @@ ApplicationWindow {
         readonly property string team: "team"
         readonly property string lineupEditor: "lineupEditor"
         readonly property string transfers: "transfers"
+        readonly property string preMatch: "preMatch"
+        readonly property string postMatch: "postMatch"
     }
 
     readonly property QtObject interactionKinds: QtObject {
@@ -52,6 +54,12 @@ ApplicationWindow {
         }
         if (viewName === routes.lineupEditor) {
             return lineupEditorComponent
+        }
+        if (viewName === routes.preMatch) {
+            return preMatchComponent
+        }
+        if (viewName === routes.postMatch) {
+            return postMatchComponent
         }
         return dashboardComponent
     }
@@ -107,6 +115,8 @@ ApplicationWindow {
                  && root.currentView !== root.routes.teamSelection
                  && root.currentView !== root.routes.lineupEditor
                  && root.currentView !== root.routes.dashboard
+                 && root.currentView !== root.routes.preMatch
+                 && root.currentView !== root.routes.postMatch
         contentHeight: 52
 
         RowLayout {
@@ -196,6 +206,9 @@ ApplicationWindow {
             onOpenLineupEditorRequested: {
                 root.navigateTo(root.routes.lineupEditor)
             }
+            onOpenPreMatchRequested: {
+                root.navigateTo(root.routes.preMatch)
+            }
             onPauseRequested: {
                 root.pauseSimulation()
             }
@@ -248,32 +261,48 @@ ApplicationWindow {
         }
     }
 
-    PostMatchDialog {
-        id: postMatchDialog
-        anchors.fill: parent
-        visible: root.interactionState.hasActiveInteraction
-                 && root.interactionState.kind === root.interactionKinds.postMatch
-        interactionData: root.interactionState.postMatch
-        onViewDetailsRequested: function(matchId) {
-            root.openMatchDetails(matchId)
-        }
-        onContinueRequested: {
-            root.resolveActiveInteraction()
+    Component {
+        id: preMatchComponent
+
+        PreMatchScreen {
+            interactionData: root.interactionState.preMatch
+            selectedTeamName: root.shellState.selectedTeamName || "No Team"
+            currentDateText: root.shellState.currentDateText || ""
+            onBackRequested: {
+                root.navigateTo(root.routes.dashboard)
+            }
+            onEditLineupRequested: {
+                root.navigateTo(root.routes.lineupEditor)
+            }
+            onPlayMatchRequested: {
+                root.playActiveMatch()
+                Qt.callLater(function() {
+                    if (root.interactionState.hasActiveInteraction
+                        && root.interactionState.kind === root.interactionKinds.postMatch) {
+                        root.navigateTo(root.routes.postMatch)
+                    }
+                })
+            }
         }
     }
 
-    PreMatchDialog {
-        id: preMatchDialog
-        anchors.fill: parent
-        visible: root.interactionState.hasActiveInteraction
-                 && root.interactionState.kind === root.interactionKinds.preMatch
-                 && root.currentView !== root.routes.lineupEditor
-        interactionData: root.interactionState.preMatch
-        onEditLineupRequested: {
-            root.navigateTo(root.routes.lineupEditor)
-        }
-        onPlayMatchRequested: {
-            root.playActiveMatch()
+    Component {
+        id: postMatchComponent
+
+        PostMatchScreen {
+            interactionData: root.interactionState.postMatch
+            selectedTeamName: root.shellState.selectedTeamName || "No Team"
+            currentDateText: root.shellState.currentDateText || ""
+            onBackRequested: {
+                root.navigateTo(root.routes.dashboard)
+            }
+            onViewDetailsRequested: function(matchId) {
+                root.openMatchDetails(matchId)
+            }
+            onContinueRequested: {
+                root.resolveActiveInteraction()
+                root.navigateTo(root.routes.dashboard)
+            }
         }
     }
 

@@ -10,16 +10,20 @@ Item {
     signal openTeamRequested()
     signal openLineupEditorRequested()
     signal openTransfersRequested()
+    signal openPreMatchRequested()
     signal pauseRequested()
     signal resumeRequested()
 
     readonly property var dashboardState: gameFacade.dashboardState
     readonly property var shellState: gameFacade.shellState
+    readonly property var interactionState: gameFacade.interactionState
     readonly property var nextMatch: dashboardState.nextMatch
     readonly property var teamStats: dashboardState.teamStats
     readonly property var standingsRow: dashboardState.standingsRow
     readonly property bool hasActiveGame: dashboardState.hasData
     readonly property bool timePaused: shellState.timePaused
+    readonly property bool hasActivePreMatch: interactionState.hasActiveInteraction
+                                               && interactionState.kind === "pre_match"
 
     readonly property color backgroundColor: "#071016"
     readonly property color shellColor: "#08111a"
@@ -450,14 +454,37 @@ Item {
                                         Layout.preferredWidth: 270
                                         Layout.preferredHeight: 48
                                         radius: 12
-                                        color: "#0c1720"
-                                        border.color: root.borderColor
+                                        color: root.hasActivePreMatch ? root.green : "#0c1720"
+                                        border.color: root.hasActivePreMatch ? Qt.lighter(root.green, 1.1) : root.borderColor
 
-                                        Label {
+                                        Row {
                                             anchors.centerIn: parent
-                                            text: root.nextMatch && root.nextMatch.hasNextMatch ? "Upcoming match" : "Schedule pending"
-                                            color: root.textSecondary
-                                            font.pixelSize: 17
+                                            spacing: 10
+
+                                            AppIcon {
+                                                visible: root.hasActivePreMatch
+                                                name: "play"
+                                                size: 20
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+
+                                            Label {
+                                                text: root.hasActivePreMatch
+                                                      ? "Go to Match"
+                                                      : (root.nextMatch && root.nextMatch.hasNextMatch ? "Upcoming match" : "Schedule pending")
+                                                color: root.hasActivePreMatch ? "#ffffff" : root.textSecondary
+                                                font.pixelSize: 17
+                                                font.bold: root.hasActivePreMatch
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            enabled: root.hasActivePreMatch
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.openPreMatchRequested()
                                         }
                                     }
                                 }
