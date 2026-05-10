@@ -7,7 +7,13 @@
 // - crestAssetKey / badgePath
 
 function normalizedTeamName(value) {
-    return String(value || "")
+    return String(value || "").trim()
+        .replace(/[\u00c7\u00e7]/g, "c")
+        .replace(/[\u011e\u011f]/g, "g")
+        .replace(/[\u0130I\u0131]/g, "i")
+        .replace(/[\u00d6\u00f6]/g, "o")
+        .replace(/[\u015e\u015f]/g, "s")
+        .replace(/[\u00dc\u00fc]/g, "u")
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .toLowerCase()
@@ -21,14 +27,11 @@ function palette(teamName) {
     if (name.indexOf("basaksehir") >= 0) {
         return { primary: "#1d4ed8", secondary: "#f97316", text: "#f8fafc" }
     }
-    if (name.indexOf("baå") >= 0) {
-        return { primary: "#1d4ed8", secondary: "#f97316", text: "#f8fafc" }
+    if (name.indexOf("caykur rizespor") >= 0 || name.indexOf("rizespor") >= 0) {
+        return { primary: "#16a34a", secondary: "#f8fafc", text: "#071016" }
     }
     if (name.indexOf("trabzonspor") >= 0) {
         return { primary: "#7f1d1d", secondary: "#2563eb", text: "#f8fafc" }
-    }
-    if (name.indexOf("rizespor") >= 0) {
-        return { primary: "#16a34a", secondary: "#f8fafc", text: "#071016" }
     }
     if (name.indexOf("samsunspor") >= 0) {
         return { primary: "#dc2626", secondary: "#f8fafc", text: "#071016" }
@@ -48,13 +51,7 @@ function palette(teamName) {
     if (name.indexOf("fenerbahce") >= 0) {
         return { primary: "#facc15", secondary: "#172554", text: "#071016" }
     }
-    if (name.indexOf("fenerbah") >= 0) {
-        return { primary: "#facc15", secondary: "#172554", text: "#071016" }
-    }
     if (name.indexOf("besiktas") >= 0) {
-        return { primary: "#111827", secondary: "#f8fafc", text: "#f8fafc" }
-    }
-    if (name.indexOf("beå") >= 0) {
         return { primary: "#111827", secondary: "#f8fafc", text: "#f8fafc" }
     }
     if (name.indexOf("konyaspor") >= 0) {
@@ -66,16 +63,16 @@ function palette(teamName) {
     if (name.indexOf("eyupspor") >= 0) {
         return { primary: "#7e22ce", secondary: "#facc15", text: "#f8fafc" }
     }
-    if (name.indexOf("kas") >= 0 && name.indexOf("mpa") >= 0) {
+    if (name.indexOf("kasimpasa") >= 0) {
         return { primary: "#111827", secondary: "#f8fafc", text: "#f8fafc" }
     }
     if (name.indexOf("kocaelispor") >= 0) {
         return { primary: "#16a34a", secondary: "#111827", text: "#f8fafc" }
     }
-    if (name.indexOf("gen") >= 0 && name.indexOf("lerbirli") >= 0) {
+    if (name.indexOf("genclerbirligi") >= 0) {
         return { primary: "#dc2626", secondary: "#111827", text: "#f8fafc" }
     }
-    if (name.indexOf("karag") >= 0) {
+    if (name.indexOf("fatih karagumruk") >= 0 || name.indexOf("karagumruk") >= 0) {
         return { primary: "#dc2626", secondary: "#111827", text: "#f8fafc" }
     }
     return { primary: "#0f1a24", secondary: "#22c55e", text: "#f8fafc" }

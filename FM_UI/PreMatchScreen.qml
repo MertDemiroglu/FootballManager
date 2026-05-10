@@ -28,6 +28,20 @@ Item {
         return interactionData && interactionData.hasData !== false && (interactionData.homeTeamName || interactionData.awayTeamName)
     }
 
+    function averageOverallText(lineupRows) {
+        const rows = lineupRows || []
+        let total = 0
+        let count = 0
+        for (let i = 0; i < rows.length; ++i) {
+            const overall = Number(rows[i].overall || 0)
+            if (overall > 0) {
+                total += overall
+                count += 1
+            }
+        }
+        return count > 0 ? Math.round(total / count) : "--"
+    }
+
     Rectangle {
         anchors.fill: parent
         color: root.backgroundColor
@@ -406,8 +420,7 @@ Item {
                 Column {
                     spacing: 4
                     Label { text: "Formation: " + (formationText || "-"); color: root.textSecondary; font.pixelSize: 14; horizontalAlignment: Text.AlignRight; width: 160 }
-                    // TODO: compute average starting XI overall from TeamSheet rows in GameFacade/backend later.
-                    Label { text: "Avg XI OVR --"; color: root.textSecondary; font.pixelSize: 14; horizontalAlignment: Text.AlignRight; width: 160 }
+                    Label { text: "Avg XI OVR " + root.averageOverallText(pitchPanelRoot.lineupRows); color: root.textSecondary; font.pixelSize: 14; horizontalAlignment: Text.AlignRight; width: 160 }
                 }
             }
 

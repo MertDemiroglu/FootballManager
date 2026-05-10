@@ -10,12 +10,20 @@ Rectangle {
     property bool valueOnly: false
 
     function conditionColor(score) {
-        const normalizedLabel = (root.label || "").toLowerCase()
-        if (normalizedLabel === "fit" || normalizedLabel === "fitness")
-            return "#2fd06f"
-        if (normalizedLabel === "m" || normalizedLabel === "mor" || normalizedLabel === "moral" || normalizedLabel === "morale")
-            return "#f4c542"
-        return "#f2b84b"
+        if (score === undefined || score === null || isNaN(score)) {
+            return "#64748b"
+        }
+        const normalizedScore = Math.max(0, Math.min(100, Number(score)))
+        if (normalizedScore >= 80) {
+            return "#22c55e"
+        }
+        if (normalizedScore >= 60) {
+            return "#d9c53f"
+        }
+        if (normalizedScore >= 40) {
+            return "#f97316"
+        }
+        return "#ef4444"
     }
 
     radius: 999

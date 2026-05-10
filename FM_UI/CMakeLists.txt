@@ -76,8 +76,6 @@ qt_add_qml_module(FM_UI
         PlayerDetailsDialog.qml
         UiHelpers.js
         InteractionModalShell.qml
-        PreMatchDialog.qml
-        PostMatchDialog.qml
         MatchDetailDialog.qml
         LineupSlotRow.qml
         TeamLineupCard.qml
