@@ -406,7 +406,8 @@ Item {
                 Column {
                     spacing: 4
                     Label { text: "Formation: " + (formationText || "-"); color: root.textSecondary; font.pixelSize: 14; horizontalAlignment: Text.AlignRight; width: 160 }
-                    Label { text: "Avg XI OVR -"; color: root.textSecondary; font.pixelSize: 14; horizontalAlignment: Text.AlignRight; width: 160 }
+                    // TODO: compute average starting XI overall from TeamSheet rows in GameFacade/backend later.
+                    Label { text: "Avg XI OVR --"; color: root.textSecondary; font.pixelSize: 14; horizontalAlignment: Text.AlignRight; width: 160 }
                 }
             }
 

@@ -62,6 +62,7 @@ qt_add_qml_module(FM_UI
         NewGameView.qml
         AppIcon.qml
         DashboardView.qml
+        FootballPitchSurface.qml
         LineupPlayerToken.qml
         MatchPitchPreview.qml
         MatchTeamBadge.qml

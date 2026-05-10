@@ -27,7 +27,7 @@ Item {
                                             : groupFromPosition(root.positionText)
 
     width: 90
-    height: root.showMetric ? 90 : 76
+    height: root.showMetric ? 100 : 76
 
     function surnameFromName(fullName) {
         const parts = String(fullName || "").trim().split(/\s+/).filter(function(part) { return part.length > 0 })
@@ -137,7 +137,7 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         y: root.empty ? 21 : 30
         width: 86
-        height: root.showMetric ? 58 : 44
+        height: root.showMetric ? 66 : 44
         radius: 7
         color: root.empty ? "#111827" : "#111923"
         border.color: root.empty ? "#334155" : "#405264"
@@ -165,7 +165,7 @@ Item {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.topMargin: 23
-            height: 23
+            height: 19
             text: root.resolvedName
             color: root.empty ? "#94a3b8" : "#f8fafc"
             font.pixelSize: 14

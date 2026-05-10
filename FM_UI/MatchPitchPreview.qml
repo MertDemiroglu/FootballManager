@@ -11,10 +11,7 @@ Rectangle {
     property string kitColorSecondary: "#22c55e"
     property bool showMetrics: mode === "postMatch"
 
-    radius: 10
-    color: "#15351f"
-    border.color: "#526c55"
-    border.width: 2
+    color: "transparent"
     clip: true
 
     function positionGroup(roleText) {
@@ -46,6 +43,7 @@ Rectangle {
     }
 
     function metricText(row) {
+        // TODO: Populate real player match ratings from future match engine/player rating system.
         if (row.matchRating !== undefined && row.matchRating > 0) {
             return Number(row.matchRating).toFixed(1)
         }
@@ -58,87 +56,18 @@ Rectangle {
         return ""
     }
 
-    Rectangle {
+    FootballPitchSurface {
+        id: pitchSurface
         anchors.fill: parent
-        opacity: 0.18
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#2f5f36" }
-            GradientStop { position: 1.0; color: "#0b2415" }
-        }
-    }
-
-    Grid {
-        anchors.fill: parent
-        columns: 6
-        rows: 10
-        opacity: 0.08
-        Repeater {
-            model: 60
-            Rectangle {
-                width: root.width / 6
-                height: root.height / 10
-                color: index % 2 === 0 ? "#ffffff" : "#000000"
-            }
-        }
-    }
-
-    Rectangle {
-        id: pitchField
-        anchors.fill: parent
-        anchors.margins: 28
-        color: "transparent"
-        border.color: "#d7e7d7"
-        border.width: 2
-        opacity: 0.32
-    }
-
-    Rectangle {
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.verticalCenter: parent.verticalCenter
-        width: Math.min(pitchField.width, pitchField.height) * 0.22
-        height: width
-        radius: width / 2
-        color: "transparent"
-        border.color: "#d7e7d7"
-        opacity: 0.28
-    }
-
-    Rectangle {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        height: 1
-        color: "#d7e7d7"
-        opacity: 0.24
-    }
-
-    Rectangle {
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: pitchField.top
-        width: pitchField.width * 0.58
-        height: pitchField.height * 0.22
-        color: "transparent"
-        border.color: "#d7e7d7"
-        opacity: 0.28
-    }
-
-    Rectangle {
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: pitchField.bottom
-        width: pitchField.width * 0.58
-        height: pitchField.height * 0.22
-        color: "transparent"
-        border.color: "#d7e7d7"
-        opacity: 0.28
+        fieldMargin: 28
     }
 
     Item {
         id: tokenLayer
-        anchors.fill: pitchField
-        anchors.leftMargin: 40
-        anchors.rightMargin: 40
-        anchors.topMargin: 46
-        anchors.bottomMargin: 46
+        x: pitchSurface.x + pitchSurface.fieldItem.x + 40
+        y: pitchSurface.y + pitchSurface.fieldItem.y + 46
+        width: Math.max(1, pitchSurface.fieldItem.width - 80)
+        height: Math.max(1, pitchSurface.fieldItem.height - 92)
 
         Repeater {
             model: root.lineupRows || []

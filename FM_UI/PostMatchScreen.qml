@@ -216,7 +216,7 @@ Item {
                         teamName: interactionData.homeTeamName || "Home"
                         formationText: interactionData.homeFormationText || "-"
                         lineupRows: interactionData.homeLineup || []
-                        averageText: "Avg Rating -"
+                        averageText: "Avg Rating --"
                         kitPrimary: TeamVisuals.primaryColor(interactionData.homeTeamName || "")
                         kitSecondary: TeamVisuals.secondaryColor(interactionData.homeTeamName || "")
                     }
@@ -232,7 +232,7 @@ Item {
                         teamName: interactionData.awayTeamName || "Away"
                         formationText: interactionData.awayFormationText || "-"
                         lineupRows: interactionData.awayLineup || []
-                        averageText: "Avg Rating -"
+                        averageText: "Avg Rating --"
                         kitPrimary: TeamVisuals.primaryColor(interactionData.awayTeamName || "")
                         kitSecondary: TeamVisuals.secondaryColor(interactionData.awayTeamName || "")
                     }
