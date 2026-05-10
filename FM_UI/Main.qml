@@ -36,6 +36,8 @@ ApplicationWindow {
 
     property string currentView: shellState.hasStartedGame ? routes.dashboard : routes.home
     property string returnRouteAfterLineupEditor: ""
+    property bool matchFlowTransitionInProgress: false
+    property var lastValidPreMatchData: ({})
 
     function componentForView(viewName) {
         if (viewName === routes.home) {
@@ -76,7 +78,81 @@ ApplicationWindow {
     }
 
     function navigateTo(viewName) {
+        if (viewName === routes.preMatch) {
+            cachePreMatchDataIfValid()
+        }
         goTo(viewName)
+    }
+
+    function hasCachedPreMatchData() {
+        return lastValidPreMatchData && lastValidPreMatchData.hasData === true
+    }
+
+    function snapshotPreMatchData(data) {
+        return {
+            hasData: data.hasData,
+            matchId: data.matchId,
+            dateText: data.dateText || "",
+            matchweek: data.matchweek || 0,
+            homeTeamId: data.homeTeamId || 0,
+            awayTeamId: data.awayTeamId || 0,
+            homeTeamName: data.homeTeamName || "",
+            awayTeamName: data.awayTeamName || "",
+            homeRecentForm: data.homeRecentForm || "",
+            awayRecentForm: data.awayRecentForm || "",
+            homeFormationText: data.homeFormationText || "",
+            awayFormationText: data.awayFormationText || "",
+            formationText: data.formationText || "",
+            homeLineup: data.homeLineup || [],
+            awayLineup: data.awayLineup || []
+        }
+    }
+
+    function cachePreMatchDataIfValid() {
+        if (interactionState.hasActiveInteraction
+            && interactionState.kind === interactionKinds.preMatch
+            && interactionState.preMatch
+            && interactionState.preMatch.hasData) {
+            lastValidPreMatchData = snapshotPreMatchData(interactionState.preMatch)
+        }
+    }
+
+    function effectivePreMatchData() {
+        if (matchFlowTransitionInProgress && hasCachedPreMatchData()) {
+            return lastValidPreMatchData
+        }
+        return interactionState.preMatch
+    }
+
+    function finishMatchFlowTransitionOrFallback() {
+        if (interactionState.hasActiveInteraction
+            && interactionState.kind === interactionKinds.postMatch) {
+            navigateTo(routes.postMatch)
+            matchFlowTransitionInProgress = false
+            return
+        }
+
+        navigateTo(routes.dashboard)
+        matchFlowTransitionInProgress = false
+    }
+
+    function playActiveMatchAndNavigateToPostMatch() {
+        cachePreMatchDataIfValid()
+        matchFlowTransitionInProgress = true
+        gameFacade.playActiveMatch()
+
+        Qt.callLater(function() {
+            if (interactionState.hasActiveInteraction
+                && interactionState.kind === interactionKinds.postMatch) {
+                navigateTo(routes.postMatch)
+                matchFlowTransitionInProgress = false
+                return
+            }
+
+            Qt.callLater(function() {
+                root.finishMatchFlowTransitionOrFallback()
+            })
+        })
     }
 
     function openLineupEditor(returnRoute) {
@@ -284,11 +360,26 @@ ApplicationWindow {
         }
     }
 
+    Connections {
+        target: root.interactionState
+        function onChanged() {
+            root.cachePreMatchDataIfValid()
+        }
+    }
+
+    Connections {
+        target: root.interactionState.preMatch
+        function onChanged() {
+            root.cachePreMatchDataIfValid()
+        }
+    }
+
     Component {
         id: preMatchComponent
 
         PreMatchScreen {
-            interactionData: root.interactionState.preMatch
+            interactionData: root.effectivePreMatchData()
+            suppressFallback: root.matchFlowTransitionInProgress
             selectedTeamName: root.shellState.selectedTeamName || "No Team"
             currentDateText: root.shellState.currentDateText || ""
             onBackRequested: {
@@ -298,13 +389,7 @@ ApplicationWindow {
                 root.openLineupEditor(root.routes.preMatch)
             }
             onPlayMatchRequested: {
-                root.playActiveMatch()
-                Qt.callLater(function() {
-                    if (root.interactionState.hasActiveInteraction
-                        && root.interactionState.kind === root.interactionKinds.postMatch) {
-                        root.navigateTo(root.routes.postMatch)
-                    }
-                })
+                root.playActiveMatchAndNavigateToPostMatch()
             }
         }
     }

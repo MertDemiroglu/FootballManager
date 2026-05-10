@@ -139,13 +139,13 @@ Item {
                 anchors.fill: parent
                 anchors.leftMargin: 28
                 anchors.rightMargin: 28
-                anchors.topMargin: 22
+                anchors.topMargin: 30
                 anchors.bottomMargin: 20
-                spacing: 28
+                spacing: 38
 
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 134
+                    Layout.preferredHeight: 144
                     spacing: 28
 
                     ScoreTeamHero {
@@ -359,7 +359,10 @@ Item {
             MatchPitchPreview {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.topMargin: 4
+                Layout.topMargin: 12
+                Layout.leftMargin: 12
+                Layout.rightMargin: 12
+                Layout.bottomMargin: 8
                 lineupRows: pitchPanelRoot.lineupRows
                 formationText: pitchPanelRoot.formationText
                 mode: "postMatch"

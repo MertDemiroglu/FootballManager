@@ -9,6 +9,7 @@ Item {
     property var interactionData: ({})
     property string selectedTeamName: ""
     property string currentDateText: ""
+    property bool suppressFallback: false
 
     signal backRequested()
     signal editLineupRequested()
@@ -95,7 +96,18 @@ Item {
             Loader {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                sourceComponent: root.hasMatchData() ? matchContent : fallbackContent
+                sourceComponent: root.hasMatchData() ? matchContent : (root.suppressFallback ? emptyContent : fallbackContent)
+            }
+        }
+    }
+
+    Component {
+        id: emptyContent
+
+        Item {
+            Rectangle {
+                anchors.fill: parent
+                color: root.backgroundColor
             }
         }
     }
@@ -139,13 +151,13 @@ Item {
                 anchors.fill: parent
                 anchors.leftMargin: 30
                 anchors.rightMargin: 30
-                anchors.topMargin: 26
-                anchors.bottomMargin: 22
-                spacing: 28
+                anchors.topMargin: 34
+                anchors.bottomMargin: 24
+                spacing: 38
 
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 126
+                    Layout.preferredHeight: 132
                     spacing: 28
 
                     TeamHero {
@@ -401,7 +413,10 @@ Item {
             MatchPitchPreview {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.topMargin: 4
+                Layout.topMargin: 12
+                Layout.leftMargin: 12
+                Layout.rightMargin: 12
+                Layout.bottomMargin: 8
                 lineupRows: pitchPanelRoot.lineupRows
                 formationText: pitchPanelRoot.formationText
                 mode: "preMatch"

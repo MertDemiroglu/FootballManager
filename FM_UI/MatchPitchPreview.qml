@@ -85,7 +85,7 @@ Rectangle {
     Rectangle {
         id: pitchField
         anchors.fill: parent
-        anchors.margins: 18
+        anchors.margins: 28
         color: "transparent"
         border.color: "#d7e7d7"
         border.width: 2
@@ -135,10 +135,10 @@ Rectangle {
     Item {
         id: tokenLayer
         anchors.fill: pitchField
-        anchors.leftMargin: 30
-        anchors.rightMargin: 30
-        anchors.topMargin: 34
-        anchors.bottomMargin: 34
+        anchors.leftMargin: 40
+        anchors.rightMargin: 40
+        anchors.topMargin: 46
+        anchors.bottomMargin: 46
 
         Repeater {
             model: root.lineupRows || []
