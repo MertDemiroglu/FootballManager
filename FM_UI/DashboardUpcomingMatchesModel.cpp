@@ -24,8 +24,20 @@ QVariant DashboardUpcomingMatchesModel::data(const QModelIndex& index, int role)
         return row.dateText;
     case HomeTeamNameRole:
         return row.homeTeamName;
+    case HomePrimaryColorRole:
+        return row.homePrimaryColor;
+    case HomeSecondaryColorRole:
+        return row.homeSecondaryColor;
+    case HomeTextColorRole:
+        return row.homeTextColor;
     case AwayTeamNameRole:
         return row.awayTeamName;
+    case AwayPrimaryColorRole:
+        return row.awayPrimaryColor;
+    case AwaySecondaryColorRole:
+        return row.awaySecondaryColor;
+    case AwayTextColorRole:
+        return row.awayTextColor;
     case IsHomeRole:
         return row.isHome;
     case MatchweekRole:
@@ -39,7 +51,13 @@ QHash<int, QByteArray> DashboardUpcomingMatchesModel::roleNames() const {
     return {
         { DateTextRole, "dateText" },
         { HomeTeamNameRole, "homeTeamName" },
+        { HomePrimaryColorRole, "homePrimaryColor" },
+        { HomeSecondaryColorRole, "homeSecondaryColor" },
+        { HomeTextColorRole, "homeTextColor" },
         { AwayTeamNameRole, "awayTeamName" },
+        { AwayPrimaryColorRole, "awayPrimaryColor" },
+        { AwaySecondaryColorRole, "awaySecondaryColor" },
+        { AwayTextColorRole, "awayTextColor" },
         { IsHomeRole, "isHome" },
         { MatchweekRole, "matchweek" },
     };

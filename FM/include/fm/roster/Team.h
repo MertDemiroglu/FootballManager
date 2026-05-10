@@ -21,6 +21,8 @@ private:
 	TeamId id;
 	Money transferBudget, wageBudget, totalBudget;
 	std::string name;
+	std::string primaryColor;
+	std::string secondaryColor;
 	std::vector<std::unique_ptr<Footballer>> players;
 	std::unordered_map<PlayerId, Footballer*> playerIndexById;
 	HeadCoach headCoach;
@@ -37,6 +39,9 @@ public:
 
 	//takimin adini verir
 	const std::string& getName() const;
+	const std::string& getPrimaryColor() const;
+	const std::string& getSecondaryColor() const;
+	void setTeamColors(const std::string& primaryColor, const std::string& secondaryColor);
 
 	//oyuncu sayisini verir
 	std::size_t playerCount() const;

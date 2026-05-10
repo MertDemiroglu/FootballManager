@@ -23,6 +23,7 @@ void WorldBootstrapLoader::load(World& world, const LeagueRules& rules, const Se
 
         for (const TeamSeedData& teamSeed : leagueSeed.teams) {
             auto team = std::make_unique<Team>(teamSeed.id, teamSeed.name);
+            team->setTeamColors(teamSeed.primaryColor, teamSeed.secondaryColor);
 
             if (teamSeed.leagueId != leagueSeed.id) {
                 throw std::logic_error("team seed league id mismatch for team id: " + std::to_string(teamSeed.id));

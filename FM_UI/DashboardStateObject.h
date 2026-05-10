@@ -13,6 +13,9 @@ class DashboardStateObject : public QObject {
 
     Q_PROPERTY(bool hasData READ hasData NOTIFY changed)
     Q_PROPERTY(QString selectedTeamName READ selectedTeamName NOTIFY changed)
+    Q_PROPERTY(QString selectedTeamPrimaryColor READ selectedTeamPrimaryColor NOTIFY changed)
+    Q_PROPERTY(QString selectedTeamSecondaryColor READ selectedTeamSecondaryColor NOTIFY changed)
+    Q_PROPERTY(QString selectedTeamTextColor READ selectedTeamTextColor NOTIFY changed)
     Q_PROPERTY(QString currentDateText READ currentDateText NOTIFY changed)
     Q_PROPERTY(QString gameStateText READ gameStateText NOTIFY changed)
     Q_PROPERTY(QString managerName READ managerName NOTIFY changed)
@@ -26,6 +29,9 @@ public:
 
     bool hasData() const;
     QString selectedTeamName() const;
+    QString selectedTeamPrimaryColor() const;
+    QString selectedTeamSecondaryColor() const;
+    QString selectedTeamTextColor() const;
     QString currentDateText() const;
     QString gameStateText() const;
     QString managerName() const;
@@ -37,6 +43,9 @@ public:
 
     void setRootValues(bool hasData,
         const QString& selectedTeamName,
+        const QString& selectedTeamPrimaryColor,
+        const QString& selectedTeamSecondaryColor,
+        const QString& selectedTeamTextColor,
         const QString& currentDateText,
         const QString& gameStateText,
         const QString& managerName,
@@ -49,6 +58,9 @@ signals:
 private:
     bool hasDataValue = false;
     QString selectedTeamNameValue;
+    QString selectedTeamPrimaryColorValue;
+    QString selectedTeamSecondaryColorValue;
+    QString selectedTeamTextColorValue;
     QString currentDateTextValue;
     QString gameStateTextValue;
     QString managerNameValue;

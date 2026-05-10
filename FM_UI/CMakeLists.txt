@@ -66,7 +66,6 @@ qt_add_qml_module(FM_UI
         LineupPlayerToken.qml
         MatchPitchPreview.qml
         MatchTeamBadge.qml
-        TeamVisuals.js
         PreMatchScreen.qml
         PostMatchScreen.qml
         TransferOffersView.qml

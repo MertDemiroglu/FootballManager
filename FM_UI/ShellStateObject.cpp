@@ -12,6 +12,18 @@ QString ShellStateObject::selectedTeamName() const {
     return selectedTeamNameValue;
 }
 
+QString ShellStateObject::selectedTeamPrimaryColor() const {
+    return selectedTeamPrimaryColorValue;
+}
+
+QString ShellStateObject::selectedTeamSecondaryColor() const {
+    return selectedTeamSecondaryColorValue;
+}
+
+QString ShellStateObject::selectedTeamTextColor() const {
+    return selectedTeamTextColorValue;
+}
+
 QString ShellStateObject::currentDateText() const {
     return currentDateTextValue;
 }
@@ -30,12 +42,18 @@ bool ShellStateObject::timePaused() const {
 
 void ShellStateObject::setFromValues(bool newHasStartedGame,
     const QString& newSelectedTeamName,
+    const QString& newSelectedTeamPrimaryColor,
+    const QString& newSelectedTeamSecondaryColor,
+    const QString& newSelectedTeamTextColor,
     const QString& newCurrentDateText,
     const QString& newCurrentStateText,
     const QString& newManagerName,
     bool newTimePaused) {
     if (hasStartedGameValue == newHasStartedGame
         && selectedTeamNameValue == newSelectedTeamName
+        && selectedTeamPrimaryColorValue == newSelectedTeamPrimaryColor
+        && selectedTeamSecondaryColorValue == newSelectedTeamSecondaryColor
+        && selectedTeamTextColorValue == newSelectedTeamTextColor
         && currentDateTextValue == newCurrentDateText
         && currentStateTextValue == newCurrentStateText
         && managerNameValue == newManagerName
@@ -45,6 +63,9 @@ void ShellStateObject::setFromValues(bool newHasStartedGame,
 
     hasStartedGameValue = newHasStartedGame;
     selectedTeamNameValue = newSelectedTeamName;
+    selectedTeamPrimaryColorValue = newSelectedTeamPrimaryColor;
+    selectedTeamSecondaryColorValue = newSelectedTeamSecondaryColor;
+    selectedTeamTextColorValue = newSelectedTeamTextColor;
     currentDateTextValue = newCurrentDateText;
     currentStateTextValue = newCurrentStateText;
     managerNameValue = newManagerName;
@@ -53,5 +74,5 @@ void ShellStateObject::setFromValues(bool newHasStartedGame,
 }
 
 void ShellStateObject::clear() {
-    setFromValues(false, QString(), QString(), QString(), QString(), true);
+    setFromValues(false, QString(), QString(), QString(), QString(), QString(), QString(), QString(), true);
 }

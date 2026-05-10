@@ -1,13 +1,15 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import "TeamVisuals.js" as TeamVisuals
 
 Item {
     id: root
 
     property var interactionData: ({})
     property string selectedTeamName: ""
+    property string selectedTeamPrimaryColor: "#22c55e"
+    property string selectedTeamSecondaryColor: "#0f172a"
+    property string selectedTeamTextColor: "#f8fafc"
     property string currentDateText: ""
 
     signal continueRequested()
@@ -52,6 +54,9 @@ Item {
                         Layout.preferredHeight: 44
                         badgeSize: 44
                         teamName: root.selectedTeamName || interactionData.homeTeamName || "No Team"
+                        primaryColor: root.selectedTeamPrimaryColor
+                        secondaryColor: root.selectedTeamSecondaryColor
+                        textColor: root.selectedTeamTextColor
                     }
 
                     Label {
@@ -153,7 +158,10 @@ Item {
                         teamName: interactionData.homeTeamName || "Home"
                         sideText: "Home"
                         alignRight: true
-                        accentColor: root.green
+                        primaryColor: interactionData.homePrimaryColor || "#22c55e"
+                        secondaryColor: interactionData.homeSecondaryColor || "#0f172a"
+                        badgeTextColor: interactionData.homeTextColor || "#f8fafc"
+                        accentColor: interactionData.homePrimaryColor || root.green
                     }
 
                     Column {
@@ -201,7 +209,10 @@ Item {
                         teamName: interactionData.awayTeamName || "Away"
                         sideText: "Away"
                         alignRight: false
-                        accentColor: "#38bdf8"
+                        primaryColor: interactionData.awayPrimaryColor || "#22c55e"
+                        secondaryColor: interactionData.awaySecondaryColor || "#0f172a"
+                        badgeTextColor: interactionData.awayTextColor || "#f8fafc"
+                        accentColor: interactionData.awayPrimaryColor || "#38bdf8"
                     }
                 }
 
@@ -216,9 +227,9 @@ Item {
                         teamName: interactionData.homeTeamName || "Home"
                         formationText: interactionData.homeFormationText || "-"
                         lineupRows: interactionData.homeLineup || []
-                        averageText: "Avg Rating --"
-                        kitPrimary: TeamVisuals.primaryColor(interactionData.homeTeamName || "")
-                        kitSecondary: TeamVisuals.secondaryColor(interactionData.homeTeamName || "")
+                        averageText: "Avg Rating " + (interactionData.homeAverageOverallText || "--")
+                        kitPrimary: interactionData.homePrimaryColor || "#22c55e"
+                        kitSecondary: interactionData.homeSecondaryColor || "#0f172a"
                     }
 
                     MatchStatsPanel {
@@ -232,9 +243,9 @@ Item {
                         teamName: interactionData.awayTeamName || "Away"
                         formationText: interactionData.awayFormationText || "-"
                         lineupRows: interactionData.awayLineup || []
-                        averageText: "Avg Rating --"
-                        kitPrimary: TeamVisuals.primaryColor(interactionData.awayTeamName || "")
-                        kitSecondary: TeamVisuals.secondaryColor(interactionData.awayTeamName || "")
+                        averageText: "Avg Rating " + (interactionData.awayAverageOverallText || "--")
+                        kitPrimary: interactionData.awayPrimaryColor || "#22c55e"
+                        kitSecondary: interactionData.awaySecondaryColor || "#0f172a"
                     }
                 }
 
@@ -274,6 +285,9 @@ Item {
         property string teamName: ""
         property string sideText: ""
         property bool alignRight: false
+        property string primaryColor: "#22c55e"
+        property string secondaryColor: "#0f172a"
+        property string badgeTextColor: "#f8fafc"
         property color accentColor: root.green
 
         RowLayout {
@@ -286,6 +300,9 @@ Item {
                 Layout.preferredHeight: 92
                 badgeSize: 92
                 teamName: scoreTeamHeroRoot.teamName
+                primaryColor: scoreTeamHeroRoot.primaryColor
+                secondaryColor: scoreTeamHeroRoot.secondaryColor
+                textColor: scoreTeamHeroRoot.badgeTextColor
             }
 
             Column {

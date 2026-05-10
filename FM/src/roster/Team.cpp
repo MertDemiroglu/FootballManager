@@ -19,6 +19,9 @@
 #include<utility>
 
 namespace {
+    constexpr const char* DefaultPrimaryColor = "#22c55e";
+    constexpr const char* DefaultSecondaryColor = "#0f172a";
+
     std::atomic<TeamId>& getNextTeamIdCounter() {
         static std::atomic<TeamId> nextId{ 1 };
         return nextId;
@@ -49,6 +52,8 @@ Team::Team(TeamId id, const std::string& name)
       transferBudget(0),
       totalBudget(0),
       name(name),
+      primaryColor(DefaultPrimaryColor),
+      secondaryColor(DefaultSecondaryColor),
       headCoach(buildDefaultHeadCoachName(name), FormationId::FourFourTwo) {
     if (id == 0) {
         throw std::invalid_argument("team id cannot be zero");
@@ -66,6 +71,20 @@ TeamId Team::getId() const {
 const std::string& Team::getName() const {
     return name;
 }
+
+const std::string& Team::getPrimaryColor() const {
+    return primaryColor;
+}
+
+const std::string& Team::getSecondaryColor() const {
+    return secondaryColor;
+}
+
+void Team::setTeamColors(const std::string& newPrimaryColor, const std::string& newSecondaryColor) {
+    primaryColor = newPrimaryColor.empty() ? DefaultPrimaryColor : newPrimaryColor;
+    secondaryColor = newSecondaryColor.empty() ? DefaultSecondaryColor : newSecondaryColor;
+}
+
 const HeadCoach& Team::getHeadCoach() const {
     return headCoach;
 }
