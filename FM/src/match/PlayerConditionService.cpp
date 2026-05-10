@@ -50,7 +50,7 @@ int PlayerConditionService::fitnessDeltaFromMinutes(int minutesPlayed) {
 		throw std::logic_error("match minutes cannot be negative for condition update");
 	}
 	//Daha sonra takimin temposuna gore hesaplanacak
-	return minutesPlayed*(0.9);
+	return -static_cast<int>(minutesPlayed * 0.9);
 }
 
 int PlayerConditionService::formDeltaFromMatch(const MatchPlayerReport& playerReport, const MatchReport& report) {

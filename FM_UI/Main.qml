@@ -11,7 +11,7 @@ ApplicationWindow {
     minimumWidth: 900
     minimumHeight: 700
     title: "Football Manager"
-    color: "#f5f5f5"
+    color: "#071016"
 
     readonly property QtObject routes: QtObject {
         readonly property string home: "home"
@@ -21,6 +21,8 @@ ApplicationWindow {
         readonly property string team: "team"
         readonly property string lineupEditor: "lineupEditor"
         readonly property string transfers: "transfers"
+        readonly property string preMatch: "preMatch"
+        readonly property string postMatch: "postMatch"
     }
 
     readonly property QtObject interactionKinds: QtObject {
@@ -33,6 +35,9 @@ ApplicationWindow {
     readonly property var interactionState: gameFacade.interactionState
 
     property string currentView: shellState.hasStartedGame ? routes.dashboard : routes.home
+    property string returnRouteAfterLineupEditor: ""
+    property bool matchFlowTransitionInProgress: false
+    property var lastValidPreMatchData: ({})
 
     function componentForView(viewName) {
         if (viewName === routes.home) {
@@ -53,12 +58,17 @@ ApplicationWindow {
         if (viewName === routes.lineupEditor) {
             return lineupEditorComponent
         }
+        if (viewName === routes.preMatch) {
+            return preMatchComponent
+        }
+        if (viewName === routes.postMatch) {
+            return postMatchComponent
+        }
         return dashboardComponent
     }
 
     function viewUsesPageMargins(viewName) {
-        return viewName === routes.dashboard
-               || viewName === routes.standings
+        return viewName === routes.standings
                || viewName === routes.team
                || viewName === routes.transfers
     }
@@ -68,7 +78,103 @@ ApplicationWindow {
     }
 
     function navigateTo(viewName) {
+        if (viewName === routes.preMatch) {
+            cachePreMatchDataIfValid()
+        }
         goTo(viewName)
+    }
+
+    function hasCachedPreMatchData() {
+        return lastValidPreMatchData && lastValidPreMatchData.hasData === true
+    }
+
+    function snapshotPreMatchData(data) {
+        return {
+            hasData: data.hasData,
+            matchId: data.matchId,
+            dateText: data.dateText || "",
+            matchweek: data.matchweek || 0,
+            homeTeamId: data.homeTeamId || 0,
+            awayTeamId: data.awayTeamId || 0,
+            homeTeamName: data.homeTeamName || "",
+            awayTeamName: data.awayTeamName || "",
+            homeRecentForm: data.homeRecentForm || "",
+            awayRecentForm: data.awayRecentForm || "",
+            homeFormationText: data.homeFormationText || "",
+            awayFormationText: data.awayFormationText || "",
+            formationText: data.formationText || "",
+            homeLineup: data.homeLineup || [],
+            awayLineup: data.awayLineup || []
+        }
+    }
+
+    function cachePreMatchDataIfValid() {
+        if (interactionState.hasActiveInteraction
+            && interactionState.kind === interactionKinds.preMatch
+            && interactionState.preMatch
+            && interactionState.preMatch.hasData) {
+            lastValidPreMatchData = snapshotPreMatchData(interactionState.preMatch)
+        }
+    }
+
+    function effectivePreMatchData() {
+        if (matchFlowTransitionInProgress && hasCachedPreMatchData()) {
+            return lastValidPreMatchData
+        }
+        return interactionState.preMatch
+    }
+
+    function finishMatchFlowTransitionOrFallback() {
+        if (interactionState.hasActiveInteraction
+            && interactionState.kind === interactionKinds.postMatch) {
+            navigateTo(routes.postMatch)
+            matchFlowTransitionInProgress = false
+            return
+        }
+
+        navigateTo(routes.dashboard)
+        matchFlowTransitionInProgress = false
+    }
+
+    function playActiveMatchAndNavigateToPostMatch() {
+        cachePreMatchDataIfValid()
+        matchFlowTransitionInProgress = true
+        gameFacade.playActiveMatch()
+
+        Qt.callLater(function() {
+            if (interactionState.hasActiveInteraction
+                && interactionState.kind === interactionKinds.postMatch) {
+                navigateTo(routes.postMatch)
+                matchFlowTransitionInProgress = false
+                return
+            }
+
+            Qt.callLater(function() {
+                root.finishMatchFlowTransitionOrFallback()
+            })
+        })
+    }
+
+    function openLineupEditor(returnRoute) {
+        returnRouteAfterLineupEditor = returnRoute || routes.dashboard
+        navigateTo(routes.lineupEditor)
+    }
+
+    function returnFromLineupEditor() {
+        const targetRoute = returnRouteAfterLineupEditor
+        returnRouteAfterLineupEditor = ""
+        if (targetRoute === routes.preMatch) {
+            gameFacade.applyEditableLineupToActivePreMatch()
+            if (root.interactionState.hasActiveInteraction
+                && root.interactionState.kind === root.interactionKinds.preMatch) {
+                root.navigateTo(root.routes.preMatch)
+            } else {
+                root.navigateTo(root.routes.dashboard)
+            }
+            return
+        }
+
+        root.navigateTo(root.routes.dashboard)
     }
 
     function pauseSimulation() {
@@ -107,6 +213,9 @@ ApplicationWindow {
         visible: root.currentView !== root.routes.home
                  && root.currentView !== root.routes.teamSelection
                  && root.currentView !== root.routes.lineupEditor
+                 && root.currentView !== root.routes.dashboard
+                 && root.currentView !== root.routes.preMatch
+                 && root.currentView !== root.routes.postMatch
         contentHeight: 52
 
         RowLayout {
@@ -194,7 +303,10 @@ ApplicationWindow {
                 root.navigateTo(root.routes.transfers)
             }
             onOpenLineupEditorRequested: {
-                root.navigateTo(root.routes.lineupEditor)
+                root.openLineupEditor(root.routes.dashboard)
+            }
+            onOpenPreMatchRequested: {
+                root.navigateTo(root.routes.preMatch)
             }
             onPauseRequested: {
                 root.pauseSimulation()
@@ -222,7 +334,7 @@ ApplicationWindow {
                 root.navigateTo(root.routes.dashboard)
             }
             onOpenLineupEditorRequested: {
-                root.navigateTo(root.routes.lineupEditor)
+                root.openLineupEditor(root.routes.dashboard)
             }
             onOpenMatchDetailRequested: function(matchId) {
                 root.openMatchDetails(matchId)
@@ -234,7 +346,7 @@ ApplicationWindow {
         id: lineupEditorComponent
         LineupEditorScreen {
             onBackRequested: {
-                root.navigateTo(root.routes.dashboard)
+                root.returnFromLineupEditor()
             }
         }
     }
@@ -248,32 +360,57 @@ ApplicationWindow {
         }
     }
 
-    PostMatchDialog {
-        id: postMatchDialog
-        anchors.fill: parent
-        visible: root.interactionState.hasActiveInteraction
-                 && root.interactionState.kind === root.interactionKinds.postMatch
-        interactionData: root.interactionState.postMatch
-        onViewDetailsRequested: function(matchId) {
-            root.openMatchDetails(matchId)
-        }
-        onContinueRequested: {
-            root.resolveActiveInteraction()
+    Connections {
+        target: root.interactionState
+        function onChanged() {
+            root.cachePreMatchDataIfValid()
         }
     }
 
-    PreMatchDialog {
-        id: preMatchDialog
-        anchors.fill: parent
-        visible: root.interactionState.hasActiveInteraction
-                 && root.interactionState.kind === root.interactionKinds.preMatch
-                 && root.currentView !== root.routes.lineupEditor
-        interactionData: root.interactionState.preMatch
-        onEditLineupRequested: {
-            root.navigateTo(root.routes.lineupEditor)
+    Connections {
+        target: root.interactionState.preMatch
+        function onChanged() {
+            root.cachePreMatchDataIfValid()
         }
-        onPlayMatchRequested: {
-            root.playActiveMatch()
+    }
+
+    Component {
+        id: preMatchComponent
+
+        PreMatchScreen {
+            interactionData: root.effectivePreMatchData()
+            suppressFallback: root.matchFlowTransitionInProgress
+            selectedTeamName: root.shellState.selectedTeamName || "No Team"
+            currentDateText: root.shellState.currentDateText || ""
+            onBackRequested: {
+                root.navigateTo(root.routes.dashboard)
+            }
+            onEditLineupRequested: {
+                root.openLineupEditor(root.routes.preMatch)
+            }
+            onPlayMatchRequested: {
+                root.playActiveMatchAndNavigateToPostMatch()
+            }
+        }
+    }
+
+    Component {
+        id: postMatchComponent
+
+        PostMatchScreen {
+            interactionData: root.interactionState.postMatch
+            selectedTeamName: root.shellState.selectedTeamName || "No Team"
+            currentDateText: root.shellState.currentDateText || ""
+            onBackRequested: {
+                root.navigateTo(root.routes.dashboard)
+            }
+            onViewDetailsRequested: function(matchId) {
+                root.openMatchDetails(matchId)
+            }
+            onContinueRequested: {
+                root.resolveActiveInteraction()
+                root.navigateTo(root.routes.dashboard)
+            }
         }
     }
 

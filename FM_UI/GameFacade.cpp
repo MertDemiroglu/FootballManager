@@ -33,6 +33,7 @@
 #include"EditableLineupRosterModel.h"
 
 #include<QDebug>
+#include<QRegularExpression>
 
 #include<algorithm>
 #include<exception>
@@ -51,9 +52,43 @@ namespace {
     }
 
     bool warnedUnsupportedEditableLineupPitchLayout = false;
+    bool warnedUnsupportedMatchLineupPitchLayout = false;
 
     QString fromStd(const std::string& value) {
         return QString::fromStdString(value);
+    }
+
+    QString surnameFromName(const QString& value) {
+        const QString trimmed = value.trimmed();
+        if (trimmed.isEmpty()) {
+            return QStringLiteral("Empty");
+        }
+
+        const QStringList parts = trimmed.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+        return parts.isEmpty() ? QStringLiteral("Empty") : parts.last();
+    }
+
+    FormationPitchCoordinate pitchCoordinateForLineupRow(
+        FormationId formationId,
+        std::size_t slotIndex,
+        std::size_t slotCount,
+        FormationSlotRole slotRole) {
+        const std::optional<FormationPitchCoordinate> pitchCoordinate =
+            getFormationPitchCoordinate(formationId, slotIndex, slotRole);
+        if (pitchCoordinate.has_value()) {
+            return *pitchCoordinate;
+        }
+
+        if (!warnedUnsupportedMatchLineupPitchLayout) {
+            warnedUnsupportedMatchLineupPitchLayout = true;
+            qWarning() << "[GameFacade] Falling back to generic match lineup pitch coordinates."
+                       << "formation=" << static_cast<int>(formationId)
+                       << "slotIndex=" << static_cast<int>(slotIndex)
+                       << "slotRole=" << static_cast<int>(slotRole)
+                       << "slotCount=" << static_cast<int>(slotCount);
+        }
+
+        return getFallbackFormationPitchCoordinate(slotIndex, slotCount, slotRole);
     }
 
     QString monthName(Month month) {
@@ -1810,6 +1845,8 @@ void GameFacade::refreshInteractionStateObject() {
             league ? fromStd(league->getTeamName(preMatch->getAwayId())) : QString(),
             homeTeam ? fromStd(homeTeam->getHeadCoach().getName()) : QStringLiteral("-"),
             awayTeam ? fromStd(awayTeam->getHeadCoach().getName()) : QStringLiteral("-"),
+            league ? fromStd(league->getRecentFormString(preMatch->getHomeId(), 5)) : QString(),
+            league ? fromStd(league->getRecentFormString(preMatch->getAwayId(), 5)) : QString(),
             formatFormation(preMatch->getHomeSheet().formation),
             formatFormation(preMatch->getAwaySheet().formation),
             preMatch->getHomeId() == selectedTeamId ? formatFormation(preMatch->getHomeSheet().formation)
@@ -2342,17 +2379,32 @@ QVariantList GameFacade::buildLineupViewRows(const TeamSheet& teamSheet, const L
     }
 
     rows.reserve(static_cast<qsizetype>(teamSheet.startingAssignments.size()));
-    for (const TeamSheetSlotAssignment& assignment : teamSheet.startingAssignments) {
+    for (std::size_t slotIndex = 0; slotIndex < teamSheet.startingAssignments.size(); ++slotIndex) {
+        const TeamSheetSlotAssignment& assignment = teamSheet.startingAssignments[slotIndex];
         QVariantMap row;
+        const QString slotRoleText = formatSlotRole(assignment.slotRole);
+        const FormationPitchCoordinate coordinate = pitchCoordinateForLineupRow(
+            teamSheet.formation,
+            slotIndex,
+            teamSheet.startingAssignments.size(),
+            assignment.slotRole);
+
+        row.insert(QStringLiteral("slotIndex"), static_cast<int>(slotIndex));
+        row.insert(QStringLiteral("slotRole"), slotRoleText);
         row.insert(QStringLiteral("slotRoleKey"), static_cast<int>(assignment.slotRole));
-        row.insert(QStringLiteral("slotRoleText"), formatSlotRole(assignment.slotRole));
+        row.insert(QStringLiteral("slotRoleText"), slotRoleText);
         row.insert(QStringLiteral("playerId"), static_cast<int>(assignment.playerId));
         row.insert(QStringLiteral("hasPlayer"), assignment.playerId != 0);
         row.insert(QStringLiteral("isManagedTeam"), teamSheet.teamId == selectedTeamId);
+        row.insert(QStringLiteral("pitchX"), coordinate.x);
+        row.insert(QStringLiteral("pitchY"), coordinate.y);
+        row.insert(QStringLiteral("displayOrder"), coordinate.displayOrder);
 
         const Footballer* player = assignment.playerId != 0 ? team->findPlayerById(assignment.playerId) : nullptr;
-        row.insert(QStringLiteral("playerName"), player ? fromStd(player->getName()) : QStringLiteral("Empty"));
-        row.insert(QStringLiteral("positionText"), player ? fromStd(player->getPosition()) : QStringLiteral("-"));
+        const QString playerName = player ? fromStd(player->getName()) : QStringLiteral("Empty");
+        row.insert(QStringLiteral("playerName"), playerName);
+        row.insert(QStringLiteral("surname"), surnameFromName(playerName));
+        row.insert(QStringLiteral("positionText"), slotRoleText);
         row.insert(QStringLiteral("overall"), player ? player->totalPower() : 0);
         rows.push_back(row);
     }
@@ -2373,16 +2425,30 @@ QVariantList GameFacade::buildLineupViewRows(const MatchLineupSnapshot& snapshot
     for (std::size_t i = 0; i < snapshot.startingPlayerIds.size(); ++i) {
         const PlayerId playerId = snapshot.startingPlayerIds[i];
         const FormationSlotRole slotRole = i < slotTemplate.size() ? slotTemplate[i] : FormationSlotRole::Unknown;
+        const QString slotRoleText = formatSlotRole(slotRole);
+        const FormationPitchCoordinate coordinate = pitchCoordinateForLineupRow(
+            snapshot.formation,
+            i,
+            snapshot.startingPlayerIds.size(),
+            slotRole);
 
         QVariantMap row;
+        row.insert(QStringLiteral("slotIndex"), static_cast<int>(i));
+        row.insert(QStringLiteral("slotRole"), slotRoleText);
         row.insert(QStringLiteral("slotRoleKey"), static_cast<int>(slotRole));
-        row.insert(QStringLiteral("slotRoleText"), formatSlotRole(slotRole));
+        row.insert(QStringLiteral("slotRoleText"), slotRoleText);
         row.insert(QStringLiteral("playerId"), static_cast<int>(playerId));
+        row.insert(QStringLiteral("hasPlayer"), playerId != 0);
         row.insert(QStringLiteral("isManagedTeam"), snapshot.teamId == selectedTeamId);
+        row.insert(QStringLiteral("pitchX"), coordinate.x);
+        row.insert(QStringLiteral("pitchY"), coordinate.y);
+        row.insert(QStringLiteral("displayOrder"), coordinate.displayOrder);
 
         const Footballer* player = team ? team->findPlayerById(playerId) : nullptr;
-        row.insert(QStringLiteral("playerName"), player ? fromStd(player->getName()) : QStringLiteral("Unknown"));
-        row.insert(QStringLiteral("positionText"), player ? fromStd(player->getPosition()) : QStringLiteral("-"));
+        const QString playerName = player ? fromStd(player->getName()) : QStringLiteral("Empty");
+        row.insert(QStringLiteral("playerName"), playerName);
+        row.insert(QStringLiteral("surname"), surnameFromName(playerName));
+        row.insert(QStringLiteral("positionText"), slotRoleText);
         row.insert(QStringLiteral("overall"), player ? player->totalPower() : 0);
         rows.push_back(row);
     }
@@ -2620,6 +2686,8 @@ QVariantMap GameFacade::toPreMatchInteractionMap(const PreMatchInteraction& inte
         const Team* awayTeam = league->findTeamById(interaction.getAwayId());
         map.insert(QStringLiteral("homeCoachName"), homeTeam ? fromStd(homeTeam->getHeadCoach().getName()) : QStringLiteral("-"));
         map.insert(QStringLiteral("awayCoachName"), awayTeam ? fromStd(awayTeam->getHeadCoach().getName()) : QStringLiteral("-"));
+        map.insert(QStringLiteral("homeRecentForm"), fromStd(league->getRecentFormString(interaction.getHomeId(), 5)));
+        map.insert(QStringLiteral("awayRecentForm"), fromStd(league->getRecentFormString(interaction.getAwayId(), 5)));
         map.insert(QStringLiteral("homeFormationText"), formatFormation(interaction.getHomeSheet().formation));
         map.insert(QStringLiteral("awayFormationText"), formatFormation(interaction.getAwaySheet().formation));
         map.insert(QStringLiteral("homeLineup"), buildLineupViewRows(interaction.getHomeSheet(), league));

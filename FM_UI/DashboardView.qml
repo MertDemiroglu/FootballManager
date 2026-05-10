@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import "UiHelpers.js" as UiHelpers
+import "TeamVisuals.js" as TeamVisuals
 
 Item {
     id: root
@@ -11,534 +11,1047 @@ Item {
     signal openTeamRequested()
     signal openLineupEditorRequested()
     signal openTransfersRequested()
+    signal openPreMatchRequested()
     signal pauseRequested()
     signal resumeRequested()
 
-    readonly property int pagePadding: 24
-    readonly property int sectionSpacing: 20
-
     readonly property var dashboardState: gameFacade.dashboardState
+    readonly property var shellState: gameFacade.shellState
+    readonly property var interactionState: gameFacade.interactionState
     readonly property var nextMatch: dashboardState.nextMatch
     readonly property var teamStats: dashboardState.teamStats
     readonly property var standingsRow: dashboardState.standingsRow
     readonly property bool hasActiveGame: dashboardState.hasData
+    readonly property bool timePaused: shellState.timePaused
+    readonly property bool hasActivePreMatch: interactionState.hasActiveInteraction
+                                               && interactionState.kind === "pre_match"
+
+    readonly property color backgroundColor: "#071016"
+    readonly property color shellColor: "#08111a"
+    readonly property color panelColor: "#0f1a24"
+    readonly property color panelAltColor: "#101f2b"
+    readonly property color borderColor: "#243442"
+    readonly property color textPrimary: "#f5f7fa"
+    readonly property color textSecondary: "#a8b3c1"
+    readonly property color textMuted: "#64748b"
+    readonly property color green: "#22c55e"
+    readonly property color red: "#b91c1c"
+
+    function teamName() {
+        return dashboardState.selectedTeamName || "No Team"
+    }
+
+    function currentDateText() {
+        return dashboardState.currentDateText || shellState.currentDateText || ""
+    }
+
+    function teamPalette(value) {
+        return TeamVisuals.palette(value)
+    }
+
+    function teamInitial(value) {
+        return TeamVisuals.initial(value)
+    }
 
     function formCharacters() {
         const rawForm = String(dashboardState.recentForm || "")
-        if (!rawForm.length) {
-            return []
-        }
-
         const cleaned = rawForm.toUpperCase().replace(/[^WDL]/g, "")
-        return cleaned.length ? cleaned.split("") : []
+        const chars = cleaned.length ? cleaned.split("").slice(0, 5) : []
+        while (chars.length < 5) {
+            chars.push("")
+        }
+        return chars
     }
 
+    function resultColor(result) {
+        if (result === "W") {
+            return green
+        }
+        if (result === "D") {
+            return "#f59e0b"
+        }
+        if (result === "L") {
+            return "#ef4444"
+        }
+        return borderColor
+    }
 
+    function resultBackground(result) {
+        if (result === "W") {
+            return "#123824"
+        }
+        if (result === "D") {
+            return "#3a2c12"
+        }
+        if (result === "L") {
+            return "#3a1717"
+        }
+        return "#0b141d"
+    }
+
+    function recordText() {
+        return teamStats.wins + "W " + teamStats.draws + "D " + teamStats.losses + "L"
+    }
+
+    function pointsText() {
+        return standingsRow.hasData ? standingsRow.points : teamStats.points
+    }
+
+    function positionText() {
+        return standingsRow.hasData ? standingsRow.position + getOrdinalSuffix(standingsRow.position) : "--"
+    }
+
+    function getOrdinalSuffix(position) {
+        const mod100 = position % 100
+        if (mod100 >= 11 && mod100 <= 13) {
+            return "th"
+        }
+        switch (position % 10) {
+        case 1:
+            return "st"
+        case 2:
+            return "nd"
+        case 3:
+            return "rd"
+        default:
+            return "th"
+        }
+    }
+
+    function matchTitle(homeTeam, awayTeam) {
+        return (homeTeam || "") + " vs " + (awayTeam || "")
+    }
+
+    function matchLocation(isHome) {
+        return isHome ? "Home" : "Away"
+    }
+
+    function matchweekText(matchweek) {
+        return "Matchweek " + (matchweek || "--")
+    }
+
+    function dateParts(dateText) {
+        const text = String(dateText || "")
+        const pieces = text.replace(",", "").split(" ").filter(function(part) { return part.length > 0 })
+        if (pieces.length >= 3) {
+            return {
+                month: pieces[0].slice(0, 3).toUpperCase(),
+                day: pieces[1],
+                year: pieces[2]
+            }
+        }
+        return {
+            month: "",
+            day: text || "--",
+            year: ""
+        }
+    }
 
     Rectangle {
         anchors.fill: parent
-        color: "#f4f6fb"
+        color: root.backgroundColor
 
-        ScrollView {
-            id: dashboardScroll
+        ColumnLayout {
             anchors.fill: parent
-            clip: true
-            contentWidth: availableWidth
+            anchors.margins: 8
+            spacing: 18
 
-            Item {
-                width: dashboardScroll.availableWidth
-                implicitHeight: pageColumn.implicitHeight + (root.pagePadding * 2)
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 90
+                radius: 12
+                color: root.shellColor
+                border.color: root.borderColor
 
-                Column {
-                    id: pageColumn
-                    x: root.pagePadding
-                    y: root.pagePadding
-                    width: Math.max(0, parent.width - (root.pagePadding * 2))
-                    spacing: root.sectionSpacing
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 24
+                    anchors.rightMargin: 16
+                    spacing: 18
 
-                    Rectangle {
-                        width: parent.width
-                        radius: 18
-                        color: "#ffffff"
-                        border.color: "#d8dee8"
-                        implicitHeight: headerContent.implicitHeight + 48
-                        visible: root.hasActiveGame
+                    TeamBadge {
+                        Layout.preferredWidth: 50
+                        Layout.preferredHeight: 50
+                        teamName: root.teamName()
+                        badgeSize: 50
+                    }
 
-                        ColumnLayout {
-                            id: headerContent
-                            anchors.fill: parent
-                            anchors.margins: 24
-                            spacing: 18
+                    Label {
+                        Layout.fillWidth: true
+                        text: root.teamName()
+                        color: root.textPrimary
+                        font.pixelSize: 28
+                        font.bold: true
+                        elide: Text.ElideRight
+                    }
 
-                            Label {
-                                text: root.dashboardState.selectedTeamName || "No Team"
-                                font.pixelSize: 34
-                                font.bold: true
-                                color: "#17212f"
-                                Layout.fillWidth: true
-                                elide: Text.ElideRight
-                            }
-
-                            Label {
-                                text: "Season overview, fixtures, team form and league snapshot for the active club."
-                                color: "#526071"
-                                font.pixelSize: 16
-                                Layout.fillWidth: true
-                                wrapMode: Text.WordWrap
-                            }
-
-                            GridLayout {
-                                Layout.fillWidth: true
-                                columns: width >= 760 ? 4 : 2
-                                rowSpacing: 12
-                                columnSpacing: 20
-
-                                Label { text: "Date"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                Label {
-                                    text: root.dashboardState.currentDateText || "—"
-                                    font.pixelSize: 16
-                                    color: "#475467"
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
-                                }
-                                Label { text: "State"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                Label {
-                                    text: root.dashboardState.gameStateText || "—"
-                                    font.pixelSize: 16
-                                    color: "#475467"
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
-                                }
-                                Label { text: "Manager"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                Label {
-                                    text: root.dashboardState.managerName || "—"
-                                    font.pixelSize: 16
-                                    color: "#475467"
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
-                                }
-                                Label { text: "Club"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                Label {
-                                    text: root.dashboardState.selectedTeamName || "—"
-                                    font.pixelSize: 16
-                                    color: "#475467"
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
-                                }
-                            }
-                        }
+                    Label {
+                        text: root.currentDateText()
+                        color: root.textPrimary
+                        opacity: 0.9
+                        font.pixelSize: 18
                     }
 
                     Rectangle {
-                        width: parent.width
-                        radius: 18
-                        color: "#ffffff"
-                        border.color: "#d8dee8"
-                        implicitHeight: emptyStateContent.implicitHeight + 40
-                        visible: !root.hasActiveGame
-
-                        Column {
-                            id: emptyStateContent
-                            x: 24
-                            y: 20
-                            width: Math.max(0, parent.width - 48)
-                            spacing: 10
-
-                            Label {
-                                width: parent.width
-                                text: "Start a new game from the home screen to view the dashboard."
-                                color: "#17212f"
-                                font.pixelSize: 24
-                                font.bold: true
-                                wrapMode: Text.WordWrap
-                            }
-
-                            Label {
-                                width: parent.width
-                                text: "Once a club is selected, this page shows the next match, team season numbers and your current league position."
-                                color: "#667085"
-                                font.pixelSize: 16
-                                wrapMode: Text.WordWrap
-                            }
-                        }
+                        Layout.preferredWidth: 1
+                        Layout.preferredHeight: 60
+                        color: root.borderColor
                     }
 
-                    GridLayout {
-                        width: parent.width
-                        visible: root.hasActiveGame
-                        columns: width >= 1100 ? 3 : (width >= 720 ? 2 : 1)
-                        rowSpacing: root.sectionSpacing
-                        columnSpacing: root.sectionSpacing
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignTop
-                            radius: 18
-                            color: "#ffffff"
-                            border.color: "#d8dee8"
-                            implicitHeight: scheduleCardContent.implicitHeight + 40
-
-                            ColumnLayout {
-                                id: scheduleCardContent
-                                anchors.fill: parent
-                                anchors.margins: 20
-                                spacing: 16
-
-                                Label {
-                                    text: "Schedule Overview"
-                                    font.pixelSize: 24
-                                    font.bold: true
-                                    color: "#17212f"
-                                }
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 8
-
-                                    Label {
-                                        text: "Next Match"
-                                        font.pixelSize: 17
-                                        font.bold: true
-                                        color: "#344054"
-                                    }
-
-                                    Label {
-                                        Layout.fillWidth: true
-                                        text: root.nextMatch && root.nextMatch.hasNextMatch
-                                              ? (root.nextMatch.dateText || "—") + " • "
-                                                + (root.nextMatch.homeTeamName || "") + " vs "
-                                                + (root.nextMatch.awayTeamName || "")
-                                              : "No upcoming match"
-                                        wrapMode: Text.WordWrap
-                                        font.pixelSize: 16
-                                        color: "#475467"
-                                    }
-
-                                    Label {
-                                        Layout.fillWidth: true
-                                        text: root.nextMatch && root.nextMatch.hasNextMatch
-                                              ? ((root.nextMatch.isHome ? "Home" : "Away")
-                                                 + " • Matchweek " + (root.nextMatch.matchweek || "—"))
-                                              : ""
-                                        font.pixelSize: 15
-                                        color: "#667085"
-                                        visible: text.length > 0
-                                    }
-                                }
-
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    height: 1
-                                    color: "#eaecf0"
-                                }
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 10
-
-                                    Label {
-                                        text: "Recent Form"
-                                        font.pixelSize: 17
-                                        font.bold: true
-                                        color: "#344054"
-                                    }
-
-                                    Flow {
-                                        Layout.fillWidth: true
-                                        spacing: 8
-                                        visible: root.formCharacters().length > 0
-
-                                        Repeater {
-                                            model: root.formCharacters()
-
-                                            delegate: Rectangle {
-                                                required property string modelData
-                                                radius: 999
-                                                color: UiHelpers.resultBackground(modelData)
-                                                border.color: UiHelpers.resultColor(modelData)
-                                                width: 38
-                                                height: 38
-
-                                                Label {
-                                                    anchors.centerIn: parent
-                                                    text: modelData
-                                                    font.pixelSize: 15
-                                                    font.bold: true
-                                                    color: UiHelpers.resultColor(modelData)
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    Label {
-                                        visible: root.formCharacters().length === 0
-                                        text: "No data"
-                                        font.pixelSize: 15
-                                        color: "#667085"
-                                    }
-                                }
-
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    height: 1
-                                    color: "#eaecf0"
-                                }
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 10
-
-                                    Label {
-                                        text: "Upcoming Matches"
-                                        font.pixelSize: 17
-                                        font.bold: true
-                                        color: "#344054"
-                                    }
-
-                                    Repeater {
-                                        id: upcomingMatchesRepeater
-                                        model: gameFacade.dashboardUpcomingMatchesModel
-
-                                        delegate: Rectangle {
-                                            required property string dateText
-                                            required property string homeTeamName
-                                            required property string awayTeamName
-                                            required property bool isHome
-                                            required property int matchweek
-                                            Layout.fillWidth: true
-                                            radius: 12
-                                            color: "#f8fafc"
-                                            border.color: "#e4e7ec"
-                                            implicitHeight: upcomingMatchContent.implicitHeight + 24
-
-                                            ColumnLayout {
-                                                id: upcomingMatchContent
-                                                anchors.fill: parent
-                                                anchors.margins: 12
-                                                spacing: 6
-
-                                                Label {
-                                                    Layout.fillWidth: true
-                                                    text: dateText || "—"
-                                                    font.pixelSize: 15
-                                                    color: "#344054"
-                                                }
-
-                                                Label {
-                                                    Layout.fillWidth: true
-                                                    text: (homeTeamName || "") + " vs " + (awayTeamName || "")
-                                                    wrapMode: Text.WordWrap
-                                                    font.pixelSize: 16
-                                                    color: "#17212f"
-                                                }
-
-                                                Label {
-                                                    Layout.fillWidth: true
-                                                    text: (isHome ? "Home" : "Away") + " • Matchweek " + (matchweek || "—")
-                                                    font.pixelSize: 15
-                                                    color: "#667085"
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    Label {
-                                        visible: upcomingMatchesRepeater.count === 0
-                                        text: "No upcoming match"
-                                        font.pixelSize: 15
-                                        color: "#667085"
-                                    }
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignTop
-                            radius: 18
-                            color: "#ffffff"
-                            border.color: "#d8dee8"
-                            implicitHeight: teamStatsCardContent.implicitHeight + 40
-
-                            ColumnLayout {
-                                id: teamStatsCardContent
-                                anchors.fill: parent
-                                anchors.margins: 20
-                                spacing: 16
-
-                                Label {
-                                    text: "Team Stats"
-                                    font.pixelSize: 24
-                                    font.bold: true
-                                    color: "#17212f"
-                                }
-
-                                GridLayout {
-                                    Layout.fillWidth: true
-                                    columns: 2
-                                    rowSpacing: 12
-                                    columnSpacing: 18
-
-                                    Label { text: "Played"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.teamStats.played; font.pixelSize: 17; color: "#475467" }
-                                    Label { text: "Wins"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.teamStats.wins; font.pixelSize: 17; color: "#475467" }
-                                    Label { text: "Draws"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.teamStats.draws; font.pixelSize: 17; color: "#475467" }
-                                    Label { text: "Losses"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.teamStats.losses; font.pixelSize: 17; color: "#475467" }
-                                    Label { text: "Goals For"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.teamStats.goalsFor; font.pixelSize: 17; color: "#475467" }
-                                    Label { text: "Goals Against"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.teamStats.goalsAgainst; font.pixelSize: 17; color: "#475467" }
-                                    Label { text: "Goal Difference"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.teamStats.goalDifference; font.pixelSize: 17; color: "#475467" }
-                                    Label { text: "Points"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.teamStats.points; font.pixelSize: 17; color: "#475467" }
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignTop
-                            radius: 18
-                            color: "#ffffff"
-                            border.color: "#d8dee8"
-                            implicitHeight: leagueCardContent.implicitHeight + 40
-
-                            ColumnLayout {
-                                id: leagueCardContent
-                                anchors.fill: parent
-                                anchors.margins: 20
-                                spacing: 16
-
-                                Label {
-                                    text: "League Position"
-                                    font.pixelSize: 24
-                                    font.bold: true
-                                    color: "#17212f"
-                                }
-
-                                GridLayout {
-                                    Layout.fillWidth: true
-                                    columns: 2
-                                    rowSpacing: 12
-                                    columnSpacing: 18
-
-                                    Label { text: "Position"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.standingsRow.hasData ? root.standingsRow.position : "—"; font.pixelSize: 17; color: "#475467" }
-                                    Label { text: "Points"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.standingsRow.hasData ? root.standingsRow.points : "—"; font.pixelSize: 17; color: "#475467" }
-                                    Label { text: "Played"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.standingsRow.hasData ? root.standingsRow.played : "—"; font.pixelSize: 17; color: "#475467" }
-                                    Label { text: "Goal Difference"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label { text: root.standingsRow.hasData ? root.standingsRow.goalDifference : "—"; font.pixelSize: 17; color: "#475467" }
-                                    Label { text: "Record"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label {
-                                        text: root.standingsRow.hasData
-                                              ? root.standingsRow.wins + "W "
-                                                + root.standingsRow.draws + "D "
-                                                + root.standingsRow.losses + "L"
-                                              : "—"
-                                        font.pixelSize: 17
-                                        color: "#475467"
-                                    }
-                                    Label { text: "Team"; font.bold: true; font.pixelSize: 16; color: "#344054" }
-                                    Label {
-                                        text: root.standingsRow.hasData
-                                              ? root.standingsRow.teamName
-                                              : (root.dashboardState.selectedTeamName || "—")
-                                        font.pixelSize: 17
-                                        color: "#475467"
-                                        Layout.fillWidth: true
-                                        elide: Text.ElideRight
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        width: parent.width
-                        radius: 18
-                        color: "#ffffff"
-                        border.color: "#d8dee8"
-                        implicitHeight: actionContent.implicitHeight + 32
-                        visible: root.hasActiveGame
-
-                        RowLayout {
-                            id: actionContent
-                            anchors.fill: parent
-                            anchors.margins: 16
-                            spacing: 12
-
-                            Button {
-                                text: "Resume"
-                                Layout.preferredHeight: 46
-                                font.pixelSize: 15
-                                enabled: root.hasActiveGame
-                                onClicked: root.resumeRequested()
-                            }
-
-                            Button {
-                                text: "Pause"
-                                Layout.preferredHeight: 46
-                                font.pixelSize: 15
-                                enabled: root.hasActiveGame
-                                onClicked: root.pauseRequested()
-                            }
-
-                            Button {
-                                text: "Next Day (Debug)"
-                                Layout.preferredHeight: 46
-                                font.pixelSize: 15
-                                onClicked: gameFacade.advanceOneDay()
-                            }
-
-                            Item { Layout.fillWidth: true }
-
-                                                        Label {
-                                text: gameFacade.hasActiveInteraction()
-                                      ? "Interaction Active"
-                                      : (gameFacade.isTimePaused() ? "Paused" : "Running")
-                                color: gameFacade.hasActiveInteraction() ? "#b42318" : "#475467"
-                                font.pixelSize: 14
-                                Layout.alignment: Qt.AlignVCenter
-                            }
-
-                            Button {
-                                text: "Standings"
-                                Layout.preferredHeight: 46
-                                font.pixelSize: 15
-                                onClicked: root.openStandingsRequested()
-                            }
-
-                            Button {
-                                text: "Team"
-                                Layout.preferredHeight: 46
-                                font.pixelSize: 15
-                                onClicked: root.openTeamRequested()
-                            }
-
-                            Button {
-                                text: "Lineup Editor"
-                                Layout.preferredHeight: 46
-                                font.pixelSize: 15
-                                enabled: root.hasActiveGame
-                                onClicked: root.openLineupEditorRequested()
-                            }
-
-                            Button{
-                                text: "Transfers"
-                                Layout.preferredHeight: 46
-                                font.pixelSize: 15
-                                onClicked: root.openTransfersRequested()
+                    ShellActionButton {
+                        Layout.preferredWidth: 190
+                        Layout.preferredHeight: 62
+                        text: root.timePaused ? "Resume" : "Pause"
+                        iconName: root.timePaused ? "play" : "pause"
+                        accentColor: root.timePaused ? root.green : root.red
+                        enabled: root.hasActiveGame
+                        onClicked: {
+                            if (root.timePaused) {
+                                root.resumeRequested()
+                            } else {
+                                root.pauseRequested()
                             }
                         }
                     }
                 }
             }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                spacing: 20
+
+                Rectangle {
+                    Layout.preferredWidth: 220
+                    Layout.fillHeight: true
+                    radius: 12
+                    color: root.shellColor
+                    border.color: root.borderColor
+                    visible: root.hasActiveGame
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 22
+                        spacing: 8
+
+                        SidebarItem {
+                            Layout.fillWidth: true
+                            label: "Standings"
+                            iconName: "standings"
+                            onClicked: root.openStandingsRequested()
+                        }
+
+                        SidebarItem {
+                            Layout.fillWidth: true
+                            label: "Team"
+                            iconName: "team"
+                            onClicked: root.openTeamRequested()
+                        }
+
+                        SidebarItem {
+                            Layout.fillWidth: true
+                            label: "Lineup Editor"
+                            iconName: "lineup"
+                            onClicked: root.openLineupEditorRequested()
+                        }
+
+                        SidebarItem {
+                            Layout.fillWidth: true
+                            label: "Transfers"
+                            iconName: "transfers"
+                            onClicked: root.openTransfersRequested()
+                        }
+
+                        SidebarItem {
+                            Layout.fillWidth: true
+                            label: "Fixtures"
+                            iconName: "fixtures"
+                            enabled: false
+                        }
+
+                        Item {
+                            Layout.fillHeight: true
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 1
+                            color: root.borderColor
+                        }
+
+                        SidebarItem {
+                            Layout.fillWidth: true
+                            label: "Settings"
+                            iconName: "settings"
+                            enabled: false
+                        }
+
+                        SidebarItem {
+                            Layout.fillWidth: true
+                            label: "Main Menu"
+                            iconName: "main-menu"
+                            enabled: false
+                        }
+                    }
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 12
+                        color: root.panelColor
+                        border.color: root.borderColor
+                        visible: !root.hasActiveGame
+
+                        Column {
+                            anchors.centerIn: parent
+                            width: Math.min(parent.width - 64, 560)
+                            spacing: 12
+
+                            Label {
+                                width: parent.width
+                                text: "Start a new game from the home screen to view the dashboard."
+                                color: root.textPrimary
+                                font.pixelSize: 24
+                                font.bold: true
+                                horizontalAlignment: Text.AlignHCenter
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Label {
+                                width: parent.width
+                                text: "Once a club is selected, this dark dashboard will show the next match, season stats and upcoming schedule."
+                                color: root.textSecondary
+                                font.pixelSize: 16
+                                horizontalAlignment: Text.AlignHCenter
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+                    }
+
+                    ScrollView {
+                        id: contentScroll
+                        anchors.fill: parent
+                        clip: true
+                        visible: root.hasActiveGame
+                        contentWidth: availableWidth
+
+                        GridLayout {
+                            width: contentScroll.availableWidth
+                            columns: width >= 980 ? 2 : 1
+                            columnSpacing: 18
+                            rowSpacing: 18
+
+                            DashboardCard {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 424
+                                title: "NEXT MATCH"
+                                titleColor: root.green
+
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 30
+                                    anchors.topMargin: 72
+                                    spacing: 18
+
+                                    Item {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 162
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            spacing: 24
+
+                                            TeamMark {
+                                                Layout.fillWidth: true
+                                                teamName: root.nextMatch && root.nextMatch.hasNextMatch
+                                                          ? root.nextMatch.homeTeamName
+                                                          : root.teamName()
+                                            }
+
+                                            Label {
+                                                text: "VS"
+                                                color: root.textPrimary
+                                                opacity: 0.82
+                                                font.pixelSize: 25
+                                                font.bold: true
+                                            }
+
+                                            TeamMark {
+                                                Layout.fillWidth: true
+                                                teamName: root.nextMatch && root.nextMatch.hasNextMatch
+                                                          ? root.nextMatch.awayTeamName
+                                                          : "Opponent"
+                                            }
+                                        }
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: root.nextMatch && root.nextMatch.hasNextMatch
+                                              ? root.nextMatch.dateText || "--"
+                                              : "No upcoming match"
+                                        color: root.textPrimary
+                                        opacity: 0.92
+                                        font.pixelSize: 20
+                                        horizontalAlignment: Text.AlignHCenter
+                                        elide: Text.ElideRight
+                                    }
+
+                                    RowLayout {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        spacing: 12
+                                        visible: root.nextMatch && root.nextMatch.hasNextMatch
+
+                                        Label {
+                                            text: root.matchLocation(root.nextMatch.isHome)
+                                            color: root.textPrimary
+                                            font.pixelSize: 17
+                                        }
+
+                                        Rectangle {
+                                            Layout.preferredWidth: 5
+                                            Layout.preferredHeight: 5
+                                            radius: 3
+                                            color: root.green
+                                        }
+
+                                        Label {
+                                            text: root.matchweekText(root.nextMatch.matchweek)
+                                            color: root.textPrimary
+                                            font.pixelSize: 17
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        Layout.preferredWidth: 270
+                                        Layout.preferredHeight: 48
+                                        radius: 12
+                                        color: root.hasActivePreMatch ? root.green : "#0c1720"
+                                        border.color: root.hasActivePreMatch ? Qt.lighter(root.green, 1.1) : root.borderColor
+
+                                        Row {
+                                            anchors.centerIn: parent
+                                            spacing: 10
+
+                                            AppIcon {
+                                                visible: root.hasActivePreMatch
+                                                name: "play"
+                                                size: 20
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+
+                                            Label {
+                                                text: root.hasActivePreMatch
+                                                      ? "Go to Match"
+                                                      : (root.nextMatch && root.nextMatch.hasNextMatch ? "Upcoming match" : "Schedule pending")
+                                                color: root.hasActivePreMatch ? "#ffffff" : root.textSecondary
+                                                font.pixelSize: 17
+                                                font.bold: root.hasActivePreMatch
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            enabled: root.hasActivePreMatch
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.openPreMatchRequested()
+                                        }
+                                    }
+                                }
+                            }
+
+                            DashboardCard {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 424
+                                title: "Season Stats"
+                                iconName: "stats"
+
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 16
+                                    anchors.topMargin: 74
+                                    spacing: 0
+
+                                    StatRow {
+                                        Layout.fillWidth: true
+                                        iconName: "trophy"
+                                        label: "League Position"
+                                        value: root.positionText()
+                                        valueColor: root.green
+                                    }
+
+                                    StatRow {
+                                        Layout.fillWidth: true
+                                        iconName: "star"
+                                        label: "Points"
+                                        value: String(root.pointsText())
+                                    }
+
+                                    StatRow {
+                                        Layout.fillWidth: true
+                                        iconName: "record"
+                                        label: "Record"
+                                        value: root.recordText()
+                                    }
+
+                                    StatRow {
+                                        Layout.fillWidth: true
+                                        iconName: "ball"
+                                        label: "Goals For / Against"
+                                        value: root.teamStats.goalsFor + " / " + root.teamStats.goalsAgainst
+                                    }
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 62
+                                        color: "transparent"
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 12
+                                            anchors.rightMargin: 8
+                                            spacing: 16
+
+                                            AppIcon {
+                                                Layout.preferredWidth: 28
+                                                Layout.preferredHeight: 28
+                                                name: "form"
+                                                size: 24
+                                                opacity: 0.95
+                                            }
+
+                                            Label {
+                                                Layout.fillWidth: true
+                                                text: "Recent Form"
+                                                color: root.textSecondary
+                                                font.pixelSize: 18
+                                                elide: Text.ElideRight
+                                            }
+
+                                            Row {
+                                                spacing: 10
+
+                                                Repeater {
+                                                    model: root.formCharacters()
+
+                                                    delegate: Rectangle {
+                                                        required property string modelData
+                                                        width: 32
+                                                        height: 32
+                                                        radius: 5
+                                                        color: root.resultBackground(modelData)
+                                                        border.color: root.resultColor(modelData)
+
+                                                        Label {
+                                                            anchors.centerIn: parent
+                                                            text: modelData
+                                                            color: root.resultColor(modelData)
+                                                            font.pixelSize: 13
+                                                            font.bold: true
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            anchors.bottom: parent.bottom
+                                            height: 1
+                                            color: root.borderColor
+                                            opacity: 0.7
+                                        }
+                                    }
+                                }
+                            }
+
+                            DashboardCard {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 444
+                                title: "Schedule Overview"
+                                iconName: "calendar"
+                                headerRightText: "View Full Schedule"
+                                headerRightEnabled: false
+
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 20
+                                    anchors.topMargin: 72
+                                    spacing: 0
+
+                                    Repeater {
+                                        id: upcomingMatchesRepeater
+                                        model: gameFacade.dashboardUpcomingMatchesModel
+
+                                        delegate: FixtureRow {
+                                            required property int index
+                                            required property string dateText
+                                            required property string homeTeamName
+                                            required property string awayTeamName
+                                            required property bool isHome
+                                            required property int matchweek
+
+                                            Layout.fillWidth: true
+                                            visible: index < 3
+                                            fixtureDateText: dateText
+                                            fixtureTitle: root.matchTitle(homeTeamName, awayTeamName)
+                                            fixtureLocationText: root.matchLocation(isHome)
+                                            fixtureMatchweekText: root.matchweekText(matchweek)
+                                            homeFixture: isHome
+                                            badgeTeamName: isHome ? awayTeamName : homeTeamName
+                                        }
+                                    }
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        visible: upcomingMatchesRepeater.count === 0
+                                        text: "No upcoming match"
+                                        color: root.textSecondary
+                                        font.pixelSize: 16
+                                        horizontalAlignment: Text.AlignHCenter
+                                        topPadding: 60
+                                    }
+                                }
+                            }
+
+                            Item {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 444
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    component ShellActionButton: Item {
+        id: actionRoot
+        signal clicked()
+        property string text: ""
+        property string iconName: ""
+        property color accentColor: root.green
+        property bool enabled: true
+
+        opacity: enabled ? 1.0 : 0.45
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 10
+            color: !actionRoot.enabled
+                   ? "#14202a"
+                   : actionMouse.pressed
+                     ? Qt.darker(actionRoot.accentColor, 1.25)
+                     : actionMouse.containsMouse
+                       ? Qt.lighter(actionRoot.accentColor, 1.08)
+                       : actionRoot.accentColor
+            border.color: Qt.lighter(actionRoot.accentColor, 1.1)
+
+            Row {
+                anchors.centerIn: parent
+                spacing: 12
+
+                AppIcon {
+                    name: actionRoot.iconName
+                    size: 24
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Label {
+                    text: actionRoot.text
+                    color: "#ffffff"
+                    font.pixelSize: 20
+                    font.bold: true
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+
+            MouseArea {
+                id: actionMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                enabled: actionRoot.enabled
+                cursorShape: Qt.PointingHandCursor
+                onClicked: actionRoot.clicked()
+            }
+        }
+    }
+
+    component SidebarItem: Item {
+        id: navRoot
+        signal clicked()
+        property string label: ""
+        property string iconName: ""
+        property bool enabled: true
+
+        Layout.preferredHeight: 56
+        opacity: enabled ? 1.0 : 0.42
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 8
+            color: navRoot.enabled && (navMouse.containsMouse || navMouse.pressed) ? "#10291d" : "transparent"
+            border.color: navRoot.enabled && navMouse.containsMouse ? root.green : "transparent"
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                spacing: 12
+
+                AppIcon {
+                    Layout.preferredWidth: 26
+                    Layout.preferredHeight: 26
+                    name: navRoot.iconName
+                    size: 24
+                    opacity: navRoot.enabled && navMouse.containsMouse ? 1.0 : 0.88
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: navRoot.label
+                    color: root.textPrimary
+                    opacity: navRoot.enabled ? 0.92 : 0.7
+                    font.pixelSize: 16
+                    elide: Text.ElideRight
+                }
+            }
+
+            MouseArea {
+                id: navMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                enabled: navRoot.enabled
+                cursorShape: Qt.PointingHandCursor
+                onClicked: navRoot.clicked()
+            }
+        }
+    }
+
+    component DashboardCard: Rectangle {
+        id: cardRoot
+        property string title: ""
+        property string iconName: ""
+        property string headerRightText: ""
+        property bool headerRightEnabled: true
+        property color titleColor: root.textPrimary
+
+        radius: 12
+        color: root.panelColor
+        border.color: root.borderColor
+        clip: true
+
+        Rectangle {
+            anchors.fill: parent
+            color: "transparent"
+
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: "#0b1922" }
+                GradientStop { position: 1.0; color: root.panelColor }
+            }
+            opacity: 0.72
+        }
+
+        RowLayout {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.leftMargin: 30
+            anchors.rightMargin: 24
+            anchors.topMargin: 28
+            spacing: 14
+
+            AppIcon {
+                visible: cardRoot.iconName.length > 0
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                name: cardRoot.iconName
+                size: 26
+                opacity: 0.98
+            }
+
+            Label {
+                Layout.fillWidth: true
+                text: cardRoot.title
+                color: cardRoot.titleColor
+                font.pixelSize: cardRoot.title === cardRoot.title.toUpperCase() ? 16 : 23
+                font.bold: true
+                elide: Text.ElideRight
+            }
+
+            Label {
+                visible: cardRoot.headerRightText.length > 0
+                text: cardRoot.headerRightText
+                color: root.green
+                opacity: cardRoot.headerRightEnabled ? 1.0 : 0.55
+                font.pixelSize: 15
+            }
+
+            AppIcon {
+                visible: cardRoot.headerRightText.length > 0
+                Layout.preferredWidth: 22
+                Layout.preferredHeight: 22
+                name: "chevron-right"
+                size: 22
+                opacity: 0.8
+            }
+        }
+    }
+
+    component TeamBadge: Item {
+        id: badgeRoot
+        property string teamName: ""
+        property int badgeSize: 58
+        readonly property var palette: root.teamPalette(teamName)
+
+        implicitWidth: badgeSize
+        implicitHeight: badgeSize
+
+        Rectangle {
+            anchors.fill: parent
+            radius: width / 2
+            color: "#f8fafc"
+            border.color: badgeRoot.palette.secondary
+            border.width: 2
+
+            Rectangle {
+                width: parent.width * 0.5
+                height: parent.height * 0.62
+                anchors.centerIn: parent
+                radius: 8
+                color: badgeRoot.palette.primary
+                border.color: "#0f172a"
+                border.width: 1
+            }
+
+            Rectangle {
+                width: parent.width * 0.14
+                height: parent.height * 0.62
+                anchors.centerIn: parent
+                radius: 4
+                color: badgeRoot.palette.secondary
+            }
+
+            Label {
+                anchors.centerIn: parent
+                text: root.teamInitial(badgeRoot.teamName)
+                color: badgeRoot.palette.text
+                font.pixelSize: Math.max(16, badgeRoot.badgeSize * 0.32)
+                font.bold: true
+            }
+        }
+    }
+
+    component TeamMark: Item {
+        id: teamMarkRoot
+        property string teamName: ""
+
+        Layout.preferredHeight: 160
+
+        Column {
+            anchors.centerIn: parent
+            width: parent.width
+            spacing: 14
+
+            TeamBadge {
+                badgeSize: 100
+                teamName: teamMarkRoot.teamName
+                anchors.horizontalCenter: parent.horizontalCenter
+            }
+
+            Label {
+                width: parent.width
+                text: teamMarkRoot.teamName || "--"
+                color: root.textPrimary
+                font.pixelSize: 23
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+            }
+        }
+    }
+
+    component StatRow: Rectangle {
+        id: statRoot
+        property string iconName: ""
+        property string label: ""
+        property string value: ""
+        property color valueColor: root.textPrimary
+
+        height: 62
+        color: "transparent"
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 12
+            anchors.rightMargin: 8
+            spacing: 16
+
+            AppIcon {
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                name: statRoot.iconName
+                size: 24
+                opacity: 0.95
+            }
+
+            Label {
+                Layout.fillWidth: true
+                text: statRoot.label
+                color: root.textSecondary
+                font.pixelSize: 18
+                elide: Text.ElideRight
+            }
+
+            Label {
+                text: statRoot.value
+                color: statRoot.valueColor
+                font.pixelSize: 18
+                horizontalAlignment: Text.AlignRight
+            }
+        }
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: 1
+            color: root.borderColor
+            opacity: 0.7
+        }
+    }
+
+    component FixtureRow: Rectangle {
+        id: fixtureRoot
+        property string fixtureDateText: ""
+        property string fixtureTitle: ""
+        property string fixtureLocationText: ""
+        property string fixtureMatchweekText: ""
+        property string badgeTeamName: ""
+        property bool homeFixture: false
+        readonly property var parts: root.dateParts(fixtureDateText)
+
+        Layout.preferredHeight: 102
+        color: "transparent"
+
+        RowLayout {
+            anchors.fill: parent
+            spacing: 16
+
+            Column {
+                Layout.preferredWidth: 58
+                spacing: 2
+
+                Label {
+                    width: parent.width
+                    text: fixtureRoot.parts.month
+                    color: root.green
+                    font.pixelSize: 14
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                }
+
+                Label {
+                    width: parent.width
+                    text: fixtureRoot.parts.day
+                    color: root.textPrimary
+                    font.pixelSize: 26
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                }
+
+                Label {
+                    width: parent.width
+                    text: fixtureRoot.parts.year
+                    color: root.textSecondary
+                    font.pixelSize: 14
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+
+            Rectangle {
+                Layout.preferredWidth: 1
+                Layout.fillHeight: true
+                color: root.borderColor
+                opacity: 0.75
+            }
+
+            TeamBadge {
+                Layout.preferredWidth: 58
+                Layout.preferredHeight: 58
+                badgeSize: 58
+                teamName: fixtureRoot.badgeTeamName
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 7
+
+                Label {
+                    Layout.fillWidth: true
+                    text: fixtureRoot.fixtureTitle
+                    color: root.textPrimary
+                    font.pixelSize: 18
+                    font.bold: true
+                    elide: Text.ElideRight
+                }
+
+                RowLayout {
+                    spacing: 10
+
+                    Label {
+                        text: fixtureRoot.fixtureLocationText
+                        color: root.textSecondary
+                        font.pixelSize: 16
+                    }
+
+                    Rectangle {
+                        Layout.preferredWidth: 5
+                        Layout.preferredHeight: 5
+                        radius: 3
+                        color: root.green
+                    }
+
+                    Label {
+                        text: fixtureRoot.fixtureMatchweekText
+                        color: root.textSecondary
+                        font.pixelSize: 16
+                    }
+                }
+            }
+
+            AppIcon {
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                name: fixtureRoot.homeFixture ? "home" : "away"
+                size: 26
+                opacity: fixtureRoot.homeFixture ? 1.0 : 0.82
+            }
+
+            AppIcon {
+                Layout.preferredWidth: 24
+                Layout.preferredHeight: 24
+                name: "chevron-right"
+                size: 24
+                opacity: 0.8
+            }
+        }
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: 1
+            color: root.borderColor
+            opacity: 0.65
         }
     }
 }

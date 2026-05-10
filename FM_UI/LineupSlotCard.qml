@@ -15,6 +15,8 @@ Rectangle {
     readonly property bool hasPlayer: !!slotData.hasAssignedPlayer && !slotData.isEmpty
     readonly property bool isDropHighlighted: slotDropArea.containsDrag
     readonly property bool hasWarning: warningText.length > 0 && warningLevel !== "none"
+    property string kitColorPrimary: "#f97316"
+    property string kitColorSecondary: "#22c55e"
     property real dragHotSpotX: width / 2
     property real dragHotSpotY: height / 2
 
@@ -22,13 +24,17 @@ Rectangle {
     signal playerDroppedOnSlot(int playerId, int slotIndex)
     signal slotDroppedOnSlot(int sourceSlotIndex, int targetSlotIndex)
 
-    radius: 8
-    color: isDropHighlighted ? "#123642" : (hasPlayer ? "#111c28" : "#161820")
-    border.color: isDropHighlighted ? "#23c7d4" : (hasPlayer ? "#34495c" : "#f5b942")
-    border.width: isDropHighlighted ? 2 : 1
+    radius: 12
+    color: isDropHighlighted ? "#123642" : (isSelected ? "#10291d" : "transparent")
+    border.color: isDropHighlighted
+                  ? "#23c7d4"
+                  : (isSourceSelected ? "#f59e0b"
+                                      : (isSelected ? "#22c55e"
+                                                    : (hasWarning ? "#b45309" : "transparent")))
+    border.width: (isDropHighlighted || isSelected || isSourceSelected || hasWarning) ? 2 : 1
     opacity: slotDragArea.drag.active ? 0.72 : 1.0
-    implicitWidth: 132
-    implicitHeight: 60
+    implicitWidth: 108
+    implicitHeight: 122
 
     Item {
         id: slotDragSource
@@ -70,63 +76,36 @@ Rectangle {
         }
     }
 
-    Rectangle {
-        anchors.left: parent.left
-        anchors.top: parent.top
-        anchors.leftMargin: 6
-        anchors.topMargin: 6
-        width: roleLabel.implicitWidth + 12
-        height: 18
-        radius: 5
-        color: root.hasPlayer ? "#1a2b3a" : "#312515"
-        border.color: root.hasPlayer ? "#40566a" : "#f5b942"
-        opacity: 0.95
-
-        Label {
-            id: roleLabel
-            anchors.centerIn: parent
-            text: root.slotData.slotLabel || root.slotData.slotRole || "Slot"
-            font.pixelSize: 9
-            font.bold: true
-            color: root.hasPlayer ? "#dce7f0" : "#ffd77a"
-        }
+    LineupPlayerToken {
+        id: playerToken
+        anchors.centerIn: parent
+        anchors.verticalCenterOffset: root.hasPlayer ? -12 : 0
+        positionText: root.slotData.slotLabel || root.slotData.slotRole || "Slot"
+        playerName: root.slotData.assignedPlayerName || ""
+        kitColorPrimary: root.kitColorPrimary
+        kitColorSecondary: root.kitColorSecondary
+        metricText: ""
+        showMetric: false
+        mode: "lineupEditor"
+        empty: !root.hasPlayer
     }
 
-    Column {
-        anchors.fill: parent
-        anchors.leftMargin: 8
-        anchors.rightMargin: 8
-        anchors.topMargin: 27
-        anchors.bottomMargin: 6
-        spacing: 1
+    Rectangle {
+        visible: root.hasPlayer
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: playerToken.y + playerToken.height + 6
+        width: 44
+        height: 18
+        radius: 8
+        color: "#0b1118"
+        border.color: "#405264"
 
         Label {
-            width: parent.width
-            text: root.hasPlayer ? (root.slotData.assignedPlayerName || "Unknown") : "Empty"
-            font.pixelSize: 12
-            font.bold: root.hasPlayer
-            color: root.hasPlayer ? "#f7fbff" : "#f5b942"
-            horizontalAlignment: Text.AlignLeft
-            elide: Text.ElideRight
-        }
-
-        Rectangle {
-            width: parent.width
-            height: 18
-            radius: 5
-            color: root.hasPlayer ? "#263746" : "#211a12"
-            border.color: root.hasPlayer ? "#3a4d5e" : "#8a641e"
-
-            Label {
-                anchors.centerIn: parent
-                text: root.hasPlayer
-                      ? (root.slotData.assignedPlayerOverallSummary || ("OVR " + (root.slotData.assignedPlayerOverall || "-")))
-                      : "OVR -"
-                font.pixelSize: 10
-                font.bold: true
-                color: root.hasPlayer ? "#c9d6e2" : "#f5b942"
-                elide: Text.ElideRight
-            }
+            anchors.centerIn: parent
+            text: root.slotData.assignedPlayerOverall > 0 ? String(root.slotData.assignedPlayerOverall) : "-"
+            color: "#f8fafc"
+            font.pixelSize: 11
+            font.bold: true
         }
     }
 

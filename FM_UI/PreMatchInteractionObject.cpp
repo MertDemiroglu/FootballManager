@@ -50,6 +50,14 @@ QString PreMatchInteractionObject::awayCoachName() const {
     return awayCoachNameValue;
 }
 
+QString PreMatchInteractionObject::homeRecentForm() const {
+    return homeRecentFormValue;
+}
+
+QString PreMatchInteractionObject::awayRecentForm() const {
+    return awayRecentFormValue;
+}
+
 QString PreMatchInteractionObject::homeFormationText() const {
     return homeFormationTextValue;
 }
@@ -79,6 +87,8 @@ void PreMatchInteractionObject::setFromValues(qulonglong newMatchId,
     const QString& newAwayTeamName,
     const QString& newHomeCoachName,
     const QString& newAwayCoachName,
+    const QString& newHomeRecentForm,
+    const QString& newAwayRecentForm,
     const QString& newHomeFormationText,
     const QString& newAwayFormationText,
     const QString& newFormationText,
@@ -94,6 +104,8 @@ void PreMatchInteractionObject::setFromValues(qulonglong newMatchId,
         && awayTeamNameValue == newAwayTeamName
         && homeCoachNameValue == newHomeCoachName
         && awayCoachNameValue == newAwayCoachName
+        && homeRecentFormValue == newHomeRecentForm
+        && awayRecentFormValue == newAwayRecentForm
         && homeFormationTextValue == newHomeFormationText
         && awayFormationTextValue == newAwayFormationText
         && formationTextValue == newFormationText
@@ -112,6 +124,8 @@ void PreMatchInteractionObject::setFromValues(qulonglong newMatchId,
     awayTeamNameValue = newAwayTeamName;
     homeCoachNameValue = newHomeCoachName;
     awayCoachNameValue = newAwayCoachName;
+    homeRecentFormValue = newHomeRecentForm;
+    awayRecentFormValue = newAwayRecentForm;
     homeFormationTextValue = newHomeFormationText;
     awayFormationTextValue = newAwayFormationText;
     formationTextValue = newFormationText;
@@ -131,6 +145,8 @@ void PreMatchInteractionObject::clear() {
         && awayTeamNameValue.isEmpty()
         && homeCoachNameValue.isEmpty()
         && awayCoachNameValue.isEmpty()
+        && homeRecentFormValue.isEmpty()
+        && awayRecentFormValue.isEmpty()
         && homeFormationTextValue.isEmpty()
         && awayFormationTextValue.isEmpty()
         && formationTextValue.isEmpty()
@@ -149,6 +165,8 @@ void PreMatchInteractionObject::clear() {
     awayTeamNameValue.clear();
     homeCoachNameValue.clear();
     awayCoachNameValue.clear();
+    homeRecentFormValue.clear();
+    awayRecentFormValue.clear();
     homeFormationTextValue.clear();
     awayFormationTextValue.clear();
     formationTextValue.clear();
