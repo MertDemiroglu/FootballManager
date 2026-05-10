@@ -376,3 +376,7 @@ compile_commands.json
 .rcc/
 .qmlcache/
 qmlcache/
+
+# Local Visual Studio CMake settings
+CMakeSettings.json
+CMakeUserPresets.json
