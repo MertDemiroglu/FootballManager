@@ -10,7 +10,13 @@ public:
     struct Row {
         QString dateText;
         QString homeTeamName;
+        QString homePrimaryColor;
+        QString homeSecondaryColor;
+        QString homeTextColor;
         QString awayTeamName;
+        QString awayPrimaryColor;
+        QString awaySecondaryColor;
+        QString awayTextColor;
         bool isHome = false;
         int matchweek = 0;
     };
@@ -18,7 +24,13 @@ public:
     enum Role {
         DateTextRole = Qt::UserRole + 1,
         HomeTeamNameRole,
+        HomePrimaryColorRole,
+        HomeSecondaryColorRole,
+        HomeTextColorRole,
         AwayTeamNameRole,
+        AwayPrimaryColorRole,
+        AwaySecondaryColorRole,
+        AwayTextColorRole,
         IsHomeRole,
         MatchweekRole,
     };

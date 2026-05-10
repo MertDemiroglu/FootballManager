@@ -1,13 +1,15 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import "TeamVisuals.js" as TeamVisuals
 
 Item {
     id: root
 
     property var interactionData: ({})
     property string selectedTeamName: ""
+    property string selectedTeamPrimaryColor: "#22c55e"
+    property string selectedTeamSecondaryColor: "#0f172a"
+    property string selectedTeamTextColor: "#f8fafc"
     property string currentDateText: ""
     property bool suppressFallback: false
 
@@ -26,20 +28,6 @@ Item {
 
     function hasMatchData() {
         return interactionData && interactionData.hasData !== false && (interactionData.homeTeamName || interactionData.awayTeamName)
-    }
-
-    function averageOverallText(lineupRows) {
-        const rows = lineupRows || []
-        let total = 0
-        let count = 0
-        for (let i = 0; i < rows.length; ++i) {
-            const overall = Number(rows[i].overall || 0)
-            if (overall > 0) {
-                total += overall
-                count += 1
-            }
-        }
-        return count > 0 ? Math.round(total / count) : "--"
     }
 
     Rectangle {
@@ -67,6 +55,9 @@ Item {
                         Layout.preferredHeight: 44
                         badgeSize: 44
                         teamName: root.selectedTeamName || interactionData.homeTeamName || "No Team"
+                        primaryColor: root.selectedTeamPrimaryColor
+                        secondaryColor: root.selectedTeamSecondaryColor
+                        textColor: root.selectedTeamTextColor
                     }
 
                     Label {
@@ -177,6 +168,9 @@ Item {
                     TeamHero {
                         Layout.fillWidth: true
                         teamName: interactionData.homeTeamName || "Home"
+                        primaryColor: interactionData.homePrimaryColor || "#22c55e"
+                        secondaryColor: interactionData.homeSecondaryColor || "#0f172a"
+                        badgeTextColor: interactionData.homeTextColor || "#f8fafc"
                         recentForm: interactionData.homeRecentForm || ""
                         alignRight: true
                     }
@@ -206,6 +200,9 @@ Item {
                     TeamHero {
                         Layout.fillWidth: true
                         teamName: interactionData.awayTeamName || "Away"
+                        primaryColor: interactionData.awayPrimaryColor || "#22c55e"
+                        secondaryColor: interactionData.awaySecondaryColor || "#0f172a"
+                        badgeTextColor: interactionData.awayTextColor || "#f8fafc"
                         recentForm: interactionData.awayRecentForm || ""
                         alignRight: false
                     }
@@ -223,8 +220,9 @@ Item {
                         teamName: interactionData.homeTeamName || "Home"
                         formationText: interactionData.homeFormationText || "-"
                         lineupRows: interactionData.homeLineup || []
-                        kitPrimary: TeamVisuals.primaryColor(interactionData.homeTeamName || "")
-                        kitSecondary: TeamVisuals.secondaryColor(interactionData.homeTeamName || "")
+                        averageOverallText: interactionData.homeAverageOverallText || "--"
+                        kitPrimary: interactionData.homePrimaryColor || "#22c55e"
+                        kitSecondary: interactionData.homeSecondaryColor || "#0f172a"
                     }
 
                     PitchPanel {
@@ -234,8 +232,9 @@ Item {
                         teamName: interactionData.awayTeamName || "Away"
                         formationText: interactionData.awayFormationText || "-"
                         lineupRows: interactionData.awayLineup || []
-                        kitPrimary: TeamVisuals.primaryColor(interactionData.awayTeamName || "")
-                        kitSecondary: TeamVisuals.secondaryColor(interactionData.awayTeamName || "")
+                        averageOverallText: interactionData.awayAverageOverallText || "--"
+                        kitPrimary: interactionData.awayPrimaryColor || "#22c55e"
+                        kitSecondary: interactionData.awaySecondaryColor || "#0f172a"
                     }
                 }
 
@@ -270,6 +269,9 @@ Item {
     component TeamHero: Item {
         id: teamHeroRoot
         property string teamName: ""
+        property string primaryColor: "#22c55e"
+        property string secondaryColor: "#0f172a"
+        property string badgeTextColor: "#f8fafc"
         property string recentForm: ""
         property bool alignRight: false
 
@@ -283,6 +285,9 @@ Item {
                 Layout.preferredHeight: 92
                 badgeSize: 92
                 teamName: teamHeroRoot.teamName
+                primaryColor: teamHeroRoot.primaryColor
+                secondaryColor: teamHeroRoot.secondaryColor
+                textColor: teamHeroRoot.badgeTextColor
             }
 
             Column {
@@ -386,6 +391,7 @@ Item {
         property string teamName: ""
         property string formationText: ""
         property var lineupRows: []
+        property string averageOverallText: "--"
         property string kitPrimary: "#f97316"
         property string kitSecondary: "#22c55e"
 
@@ -420,7 +426,7 @@ Item {
                 Column {
                     spacing: 4
                     Label { text: "Formation: " + (formationText || "-"); color: root.textSecondary; font.pixelSize: 14; horizontalAlignment: Text.AlignRight; width: 160 }
-                    Label { text: "Avg XI OVR " + root.averageOverallText(pitchPanelRoot.lineupRows); color: root.textSecondary; font.pixelSize: 14; horizontalAlignment: Text.AlignRight; width: 160 }
+                    Label { text: "Avg XI OVR " + (pitchPanelRoot.averageOverallText || "--"); color: root.textSecondary; font.pixelSize: 14; horizontalAlignment: Text.AlignRight; width: 160 }
                 }
             }
 

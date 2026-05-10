@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import "TeamVisuals.js" as TeamVisuals
 
 Rectangle {
     id: root
@@ -11,6 +10,8 @@ Rectangle {
     property int selectedSlotIndex: -1
     property int selectedSourceSlotIndex: -1
     property string teamName: gameFacade.shellState.selectedTeamName || ""
+    property string teamPrimaryColor: gameFacade.shellState.selectedTeamPrimaryColor || "#22c55e"
+    property string teamSecondaryColor: gameFacade.shellState.selectedTeamSecondaryColor || "#0f172a"
 
     signal slotClicked(int slotIndex)
     signal playerDroppedOnSlot(int playerId, int slotIndex)
@@ -62,8 +63,8 @@ Rectangle {
                         slotData: modelData
                         selectedSlotIndex: root.selectedSlotIndex
                         selectedSourceSlotIndex: root.selectedSourceSlotIndex
-                        kitColorPrimary: TeamVisuals.primaryColor(root.teamName)
-                        kitColorSecondary: TeamVisuals.secondaryColor(root.teamName)
+                        kitColorPrimary: root.teamPrimaryColor
+                        kitColorSecondary: root.teamSecondaryColor
                         x: root.clamped(
                                root.normalized(modelData.pitchX, 0.5) * cardsLayer.width - width / 2,
                                0,

@@ -6,6 +6,13 @@
 #include <utility>
 
 namespace {
+    constexpr const char* DefaultPrimaryColor = "#22c55e";
+    constexpr const char* DefaultSecondaryColor = "#0f172a";
+
+    std::string fallbackColor(std::string color, const char* fallback) {
+        return color.empty() ? std::string(fallback) : color;
+    }
+
     FormationId parseFormationId(int rawValue) {
         switch (rawValue) {
         case 0:
@@ -58,7 +65,7 @@ std::vector<LeagueSeedData> SqliteBootstrapRepository::loadLeagues() const {
     {
         const char* teamSql =
             "SELECT t.id, t.league_id, t.name, t.transfer_budget, t.wage_budget, t.total_budget, "
-            "c.id, c.name, c.preferred_formation "
+            "t.primary_color, t.secondary_color, c.id, c.name, c.preferred_formation "
             "FROM teams t "
             "JOIN coaches c ON c.id = t.coach_id "
             "ORDER BY t.id";
@@ -80,9 +87,11 @@ std::vector<LeagueSeedData> SqliteBootstrapRepository::loadLeagues() const {
             team.transferBudget = static_cast<Money>(teamStmt.columnInt64(3));
             team.wageBudget = static_cast<Money>(teamStmt.columnInt64(4));
             team.totalBudget = static_cast<Money>(teamStmt.columnInt64(5));
-            team.coach.id = static_cast<CoachId>(teamStmt.columnInt(6));
-            team.coach.name = teamStmt.columnText(7);
-            team.coach.preferredFormation = parseFormationId(teamStmt.columnInt(8));
+            team.primaryColor = fallbackColor(teamStmt.columnText(6), DefaultPrimaryColor);
+            team.secondaryColor = fallbackColor(teamStmt.columnText(7), DefaultSecondaryColor);
+            team.coach.id = static_cast<CoachId>(teamStmt.columnInt(8));
+            team.coach.name = teamStmt.columnText(9);
+            team.coach.preferredFormation = parseFormationId(teamStmt.columnInt(10));
 
             if (team.id == 0) {
                 throw std::runtime_error("team id cannot be zero in seed data");

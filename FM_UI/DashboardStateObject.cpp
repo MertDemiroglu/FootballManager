@@ -15,6 +15,18 @@ QString DashboardStateObject::selectedTeamName() const {
     return selectedTeamNameValue;
 }
 
+QString DashboardStateObject::selectedTeamPrimaryColor() const {
+    return selectedTeamPrimaryColorValue;
+}
+
+QString DashboardStateObject::selectedTeamSecondaryColor() const {
+    return selectedTeamSecondaryColorValue;
+}
+
+QString DashboardStateObject::selectedTeamTextColor() const {
+    return selectedTeamTextColorValue;
+}
+
 QString DashboardStateObject::currentDateText() const {
     return currentDateTextValue;
 }
@@ -45,12 +57,18 @@ DashboardStandingsRowObject* DashboardStateObject::standingsRow() const {
 
 void DashboardStateObject::setRootValues(bool newHasData,
     const QString& newSelectedTeamName,
+    const QString& newSelectedTeamPrimaryColor,
+    const QString& newSelectedTeamSecondaryColor,
+    const QString& newSelectedTeamTextColor,
     const QString& newCurrentDateText,
     const QString& newGameStateText,
     const QString& newManagerName,
     const QString& newRecentForm) {
     hasDataValue = newHasData;
     selectedTeamNameValue = newSelectedTeamName;
+    selectedTeamPrimaryColorValue = newSelectedTeamPrimaryColor;
+    selectedTeamSecondaryColorValue = newSelectedTeamSecondaryColor;
+    selectedTeamTextColorValue = newSelectedTeamTextColor;
     currentDateTextValue = newCurrentDateText;
     gameStateTextValue = newGameStateText;
     managerNameValue = newManagerName;
@@ -59,7 +77,7 @@ void DashboardStateObject::setRootValues(bool newHasData,
 }
 
 void DashboardStateObject::clear() {
-    setRootValues(false, QString(), QString(), QString(), QString(), QString());
+    setRootValues(false, QString(), QString(), QString(), QString(), QString(), QString(), QString(), QString());
     nextMatchObject.clear();
     teamStatsObject.clear();
     standingsRowObject.clear();

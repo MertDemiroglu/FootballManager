@@ -28,6 +28,7 @@ add_library(fm_core STATIC
     src/match/MatchSimulation.cpp
     src/match/PlayerConditionState.cpp
     src/match/PlayerConditionService.cpp
+    src/match/TeamSheetEvaluationService.cpp
     src/interaction/PreMatchInteraction.cpp
     src/interaction/PostMatchInteraction.cpp
     src/match/PlayMatchCommandHandler.cpp

@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import "TeamVisuals.js" as TeamVisuals
 
 Item {
     id: root
@@ -45,12 +44,9 @@ Item {
         return dashboardState.currentDateText || shellState.currentDateText || ""
     }
 
-    function teamPalette(value) {
-        return TeamVisuals.palette(value)
-    }
-
     function teamInitial(value) {
-        return TeamVisuals.initial(value)
+        const text = String(value || "").trim()
+        return text.length > 0 ? text.charAt(0).toUpperCase() : "-"
     }
 
     function formCharacters() {
@@ -173,6 +169,9 @@ Item {
                         Layout.preferredWidth: 50
                         Layout.preferredHeight: 50
                         teamName: root.teamName()
+                        primaryColor: dashboardState.selectedTeamPrimaryColor
+                        secondaryColor: dashboardState.selectedTeamSecondaryColor
+                        textColor: dashboardState.selectedTeamTextColor
                         badgeSize: 50
                     }
 
@@ -370,6 +369,15 @@ Item {
                                                 teamName: root.nextMatch && root.nextMatch.hasNextMatch
                                                           ? root.nextMatch.homeTeamName
                                                           : root.teamName()
+                                                primaryColor: root.nextMatch && root.nextMatch.hasNextMatch
+                                                              ? root.nextMatch.homePrimaryColor
+                                                              : dashboardState.selectedTeamPrimaryColor
+                                                secondaryColor: root.nextMatch && root.nextMatch.hasNextMatch
+                                                                ? root.nextMatch.homeSecondaryColor
+                                                                : dashboardState.selectedTeamSecondaryColor
+                                                textColor: root.nextMatch && root.nextMatch.hasNextMatch
+                                                           ? root.nextMatch.homeTextColor
+                                                           : dashboardState.selectedTeamTextColor
                                             }
 
                                             Label {
@@ -385,6 +393,15 @@ Item {
                                                 teamName: root.nextMatch && root.nextMatch.hasNextMatch
                                                           ? root.nextMatch.awayTeamName
                                                           : "Opponent"
+                                                primaryColor: root.nextMatch && root.nextMatch.hasNextMatch
+                                                              ? root.nextMatch.awayPrimaryColor
+                                                              : "#22c55e"
+                                                secondaryColor: root.nextMatch && root.nextMatch.hasNextMatch
+                                                                ? root.nextMatch.awaySecondaryColor
+                                                                : "#0f172a"
+                                                textColor: root.nextMatch && root.nextMatch.hasNextMatch
+                                                           ? root.nextMatch.awayTextColor
+                                                           : "#f8fafc"
                                             }
                                         }
                                     }
@@ -595,7 +612,13 @@ Item {
                                             required property int index
                                             required property string dateText
                                             required property string homeTeamName
+                                            required property string homePrimaryColor
+                                            required property string homeSecondaryColor
+                                            required property string homeTextColor
                                             required property string awayTeamName
+                                            required property string awayPrimaryColor
+                                            required property string awaySecondaryColor
+                                            required property string awayTextColor
                                             required property bool isHome
                                             required property int matchweek
 
@@ -607,6 +630,9 @@ Item {
                                             fixtureMatchweekText: root.matchweekText(matchweek)
                                             homeFixture: isHome
                                             badgeTeamName: isHome ? awayTeamName : homeTeamName
+                                            badgePrimaryColor: isHome ? awayPrimaryColor : homePrimaryColor
+                                            badgeSecondaryColor: isHome ? awaySecondaryColor : homeSecondaryColor
+                                            badgeTextColor: isHome ? awayTextColor : homeTextColor
                                         }
                                     }
 
@@ -809,8 +835,10 @@ Item {
     component TeamBadge: Item {
         id: badgeRoot
         property string teamName: ""
+        property string primaryColor: "#22c55e"
+        property string secondaryColor: "#0f172a"
+        property string textColor: "#f8fafc"
         property int badgeSize: 58
-        readonly property var palette: root.teamPalette(teamName)
 
         implicitWidth: badgeSize
         implicitHeight: badgeSize
@@ -819,7 +847,7 @@ Item {
             anchors.fill: parent
             radius: width / 2
             color: "#f8fafc"
-            border.color: badgeRoot.palette.secondary
+            border.color: badgeRoot.secondaryColor || "#0f172a"
             border.width: 2
 
             Rectangle {
@@ -827,7 +855,7 @@ Item {
                 height: parent.height * 0.62
                 anchors.centerIn: parent
                 radius: 8
-                color: badgeRoot.palette.primary
+                color: badgeRoot.primaryColor || "#22c55e"
                 border.color: "#0f172a"
                 border.width: 1
             }
@@ -837,13 +865,13 @@ Item {
                 height: parent.height * 0.62
                 anchors.centerIn: parent
                 radius: 4
-                color: badgeRoot.palette.secondary
+                color: badgeRoot.secondaryColor || "#0f172a"
             }
 
             Label {
                 anchors.centerIn: parent
                 text: root.teamInitial(badgeRoot.teamName)
-                color: badgeRoot.palette.text
+                color: badgeRoot.textColor || "#f8fafc"
                 font.pixelSize: Math.max(16, badgeRoot.badgeSize * 0.32)
                 font.bold: true
             }
@@ -853,6 +881,9 @@ Item {
     component TeamMark: Item {
         id: teamMarkRoot
         property string teamName: ""
+        property string primaryColor: "#22c55e"
+        property string secondaryColor: "#0f172a"
+        property string textColor: "#f8fafc"
 
         Layout.preferredHeight: 160
 
@@ -864,6 +895,9 @@ Item {
             TeamBadge {
                 badgeSize: 100
                 teamName: teamMarkRoot.teamName
+                primaryColor: teamMarkRoot.primaryColor
+                secondaryColor: teamMarkRoot.secondaryColor
+                textColor: teamMarkRoot.textColor
                 anchors.horizontalCenter: parent.horizontalCenter
             }
 
@@ -936,6 +970,9 @@ Item {
         property string fixtureLocationText: ""
         property string fixtureMatchweekText: ""
         property string badgeTeamName: ""
+        property string badgePrimaryColor: "#22c55e"
+        property string badgeSecondaryColor: "#0f172a"
+        property string badgeTextColor: "#f8fafc"
         property bool homeFixture: false
         readonly property var parts: root.dateParts(fixtureDateText)
 
@@ -989,6 +1026,9 @@ Item {
                 Layout.preferredHeight: 58
                 badgeSize: 58
                 teamName: fixtureRoot.badgeTeamName
+                primaryColor: fixtureRoot.badgePrimaryColor
+                secondaryColor: fixtureRoot.badgeSecondaryColor
+                textColor: fixtureRoot.badgeTextColor
             }
 
             ColumnLayout {

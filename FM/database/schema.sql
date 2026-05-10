@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS teams (
     transfer_budget INTEGER NOT NULL,
     wage_budget INTEGER NOT NULL,
     total_budget INTEGER NOT NULL,
+    primary_color TEXT NOT NULL DEFAULT '#22c55e',
+    secondary_color TEXT NOT NULL DEFAULT '#0f172a',
     coach_id INTEGER NOT NULL,
     FOREIGN KEY (league_id) REFERENCES leagues(id),
     FOREIGN KEY (coach_id) REFERENCES coaches(id)

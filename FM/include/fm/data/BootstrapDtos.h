@@ -34,6 +34,8 @@ struct TeamSeedData {
     Money transferBudget = 0;
     Money wageBudget = 0;
     Money totalBudget = 0;
+    std::string primaryColor;
+    std::string secondaryColor;
     CoachSeedData coach;
     std::vector<PlayerSeedData> players;
 };

@@ -9,6 +9,9 @@ class ShellStateObject : public QObject {
 
     Q_PROPERTY(bool hasStartedGame READ hasStartedGame NOTIFY changed)
     Q_PROPERTY(QString selectedTeamName READ selectedTeamName NOTIFY changed)
+    Q_PROPERTY(QString selectedTeamPrimaryColor READ selectedTeamPrimaryColor NOTIFY changed)
+    Q_PROPERTY(QString selectedTeamSecondaryColor READ selectedTeamSecondaryColor NOTIFY changed)
+    Q_PROPERTY(QString selectedTeamTextColor READ selectedTeamTextColor NOTIFY changed)
     Q_PROPERTY(QString currentDateText READ currentDateText NOTIFY changed)
     Q_PROPERTY(QString currentStateText READ currentStateText NOTIFY changed)
     Q_PROPERTY(QString managerName READ managerName NOTIFY changed)
@@ -19,6 +22,9 @@ public:
 
     bool hasStartedGame() const;
     QString selectedTeamName() const;
+    QString selectedTeamPrimaryColor() const;
+    QString selectedTeamSecondaryColor() const;
+    QString selectedTeamTextColor() const;
     QString currentDateText() const;
     QString currentStateText() const;
     QString managerName() const;
@@ -26,6 +32,9 @@ public:
 
     void setFromValues(bool hasStartedGame,
         const QString& selectedTeamName,
+        const QString& selectedTeamPrimaryColor,
+        const QString& selectedTeamSecondaryColor,
+        const QString& selectedTeamTextColor,
         const QString& currentDateText,
         const QString& currentStateText,
         const QString& managerName,
@@ -38,6 +47,9 @@ signals:
 private:
     bool hasStartedGameValue = false;
     QString selectedTeamNameValue;
+    QString selectedTeamPrimaryColorValue;
+    QString selectedTeamSecondaryColorValue;
+    QString selectedTeamTextColorValue;
     QString currentDateTextValue;
     QString currentStateTextValue;
     QString managerNameValue;

@@ -125,7 +125,12 @@ int main(int argc, char* argv[]) {
             "valid league/team should start the game");
 
         expect(facade.hasStartedGame(), "started flag should be true");
-        expect(!facade.getDashboard().isEmpty(), "dashboard should not be empty");
+        const QVariantMap dashboard = facade.getDashboard();
+        expect(!dashboard.isEmpty(), "dashboard should not be empty");
+        expect(!dashboard.value(QStringLiteral("selectedTeamPrimaryColor")).toString().isEmpty(),
+            "dashboard should expose selected team primary color");
+        expect(!dashboard.value(QStringLiteral("selectedTeamSecondaryColor")).toString().isEmpty(),
+            "dashboard should expose selected team secondary color");
         expect(facade.getSelectedLeagueId() == leagueId, "selected league id should roundtrip");
         expect(!facade.getSelectedTeamName().isEmpty(), "selected team name should not be empty");
         expect(facade.getSelectedTeamId() > 0, "selected team id should resolve in fresh game");
@@ -292,6 +297,10 @@ int main(int argc, char* argv[]) {
         const QVariantMap nextMatch = facade.getDashboard().value(QStringLiteral("nextMatch")).toMap();
         expect(nextMatch.value(QStringLiteral("hasNextMatch")).toBool(),
             "dashboard next match should exist after boot");
+        expect(!nextMatch.value(QStringLiteral("homePrimaryColor")).toString().isEmpty(),
+            "dashboard next match should expose home primary color");
+        expect(!nextMatch.value(QStringLiteral("awayPrimaryColor")).toString().isEmpty(),
+            "dashboard next match should expose away primary color");
 
         expect(!facade.applyEditableLineupToActivePreMatch(),
             "applying editable lineup should fail safely when no pre-match is active");
@@ -301,9 +310,25 @@ int main(int argc, char* argv[]) {
         bool sawTeamMatchHistory = false;
         bool sawManagedPreMatch = false;
         qDebug() << "[Smoke] Advancing days until team match history appears...";
-        for (int day = 0; day < 200; ++day) {
+        expect(facade.resumeSimulation(), "smoke should resume simulation before advancing days");
+        for (int day = 0; day < 370; ++day) {
             expect(facade.advanceOneDay(), "advanceOneDay should succeed after start");
-            if (facade.getActiveInteractionKind() == QStringLiteral("pre_match")) {
+            const QString activeKind = facade.getActiveInteractionKind();
+            if (activeKind == QStringLiteral("transfer_offer")) {
+                expect(facade.rejectActiveTransferOffer(),
+                    "smoke should resolve transfer offers while advancing toward a managed match");
+                expect(facade.resumeSimulation(),
+                    "smoke should resume after resolving a transfer offer");
+                continue;
+            }
+            if (activeKind == QStringLiteral("post_match")) {
+                expect(facade.resolveActiveInteraction(),
+                    "smoke should resolve post-match interactions while advancing");
+                expect(facade.resumeSimulation(),
+                    "smoke should resume after resolving a post-match interaction");
+                continue;
+            }
+            if (activeKind == QStringLiteral("pre_match")) {
                 sawManagedPreMatch = true;
                 expect(facade.applyEditableLineupToActivePreMatch(),
                     "complete editable lineup should apply to active pre-match");
@@ -314,7 +339,19 @@ int main(int argc, char* argv[]) {
                     : preMatch.value(QStringLiteral("awayLineup")).toList();
                 expect(managedLineup.size() == 11,
                     "active pre-match should expose 11 managed lineup rows after apply");
+                expect(!preMatch.value(QStringLiteral("homePrimaryColor")).toString().isEmpty(),
+                    "active pre-match should expose home primary color");
+                expect(!preMatch.value(QStringLiteral("awayPrimaryColor")).toString().isEmpty(),
+                    "active pre-match should expose away primary color");
+                expect(!preMatch.value(QStringLiteral("homeAverageOverallText")).toString().isEmpty(),
+                    "active pre-match should expose home average overall text");
+                expect(!preMatch.value(QStringLiteral("awayAverageOverallText")).toString().isEmpty(),
+                    "active pre-match should expose away average overall text");
                 expect(facade.playActiveMatch(), "playActiveMatch should succeed for active pre-match");
+                if (facade.getActiveInteractionKind() == QStringLiteral("post_match")) {
+                    expect(facade.resolveActiveInteraction(),
+                        "post-match interaction should resolve after managed match smoke");
+                }
             }
             if (!facade.getCurrentTeamMatches().isEmpty()) {
                 sawTeamMatchHistory = true;

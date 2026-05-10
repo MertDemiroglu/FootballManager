@@ -381,6 +381,9 @@ ApplicationWindow {
             interactionData: root.effectivePreMatchData()
             suppressFallback: root.matchFlowTransitionInProgress
             selectedTeamName: root.shellState.selectedTeamName || "No Team"
+            selectedTeamPrimaryColor: root.shellState.selectedTeamPrimaryColor || "#22c55e"
+            selectedTeamSecondaryColor: root.shellState.selectedTeamSecondaryColor || "#0f172a"
+            selectedTeamTextColor: root.shellState.selectedTeamTextColor || "#f8fafc"
             currentDateText: root.shellState.currentDateText || ""
             onBackRequested: {
                 root.navigateTo(root.routes.dashboard)
@@ -400,6 +403,9 @@ ApplicationWindow {
         PostMatchScreen {
             interactionData: root.interactionState.postMatch
             selectedTeamName: root.shellState.selectedTeamName || "No Team"
+            selectedTeamPrimaryColor: root.shellState.selectedTeamPrimaryColor || "#22c55e"
+            selectedTeamSecondaryColor: root.shellState.selectedTeamSecondaryColor || "#0f172a"
+            selectedTeamTextColor: root.shellState.selectedTeamTextColor || "#f8fafc"
             currentDateText: root.shellState.currentDateText || ""
             onBackRequested: {
                 root.navigateTo(root.routes.dashboard)
