@@ -34,7 +34,7 @@ Rectangle {
     border.width: (isDropHighlighted || isSelected || isSourceSelected || hasWarning) ? 2 : 1
     opacity: slotDragArea.drag.active ? 0.72 : 1.0
     implicitWidth: 108
-    implicitHeight: 110
+    implicitHeight: 122
 
     Item {
         id: slotDragSource
@@ -77,17 +77,36 @@ Rectangle {
     }
 
     LineupPlayerToken {
+        id: playerToken
         anchors.centerIn: parent
+        anchors.verticalCenterOffset: root.hasPlayer ? -12 : 0
         positionText: root.slotData.slotLabel || root.slotData.slotRole || "Slot"
         playerName: root.slotData.assignedPlayerName || ""
         kitColorPrimary: root.kitColorPrimary
         kitColorSecondary: root.kitColorSecondary
-        metricText: root.hasPlayer && root.slotData.assignedPlayerOverall > 0
-                    ? String(root.slotData.assignedPlayerOverall)
-                    : ""
-        showMetric: root.hasPlayer
+        metricText: ""
+        showMetric: false
         mode: "lineupEditor"
         empty: !root.hasPlayer
+    }
+
+    Rectangle {
+        visible: root.hasPlayer
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: playerToken.y + playerToken.height + 6
+        width: 44
+        height: 18
+        radius: 8
+        color: "#0b1118"
+        border.color: "#405264"
+
+        Label {
+            anchors.centerIn: parent
+            text: root.slotData.assignedPlayerOverall > 0 ? String(root.slotData.assignedPlayerOverall) : "-"
+            color: "#f8fafc"
+            font.pixelSize: 11
+            font.bold: true
+        }
     }
 
     Label {

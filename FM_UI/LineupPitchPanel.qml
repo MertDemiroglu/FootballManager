@@ -51,7 +51,7 @@ Rectangle {
                 visible: root.slotRows.length > 0
 
                 readonly property real cardWidth: 108
-                readonly property real cardHeight: 110
+                readonly property real cardHeight: 122
 
                 Repeater {
                     model: root.slotRows
