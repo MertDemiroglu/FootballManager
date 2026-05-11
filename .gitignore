@@ -265,6 +265,12 @@ ServiceFabricBackup/
 *.mdf
 *.ldf
 *.ndf
+FM/database/*.db
+FM/database/*.db-shm
+FM/database/*.db-wal
+saves/
+runtime/
+local-saves/
 *.db-shm
 *.db-wal
 
