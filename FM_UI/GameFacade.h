@@ -43,7 +43,6 @@ struct MatchReport;
 struct PlayerSeasonStats;
 struct TransferOffer;
 struct TeamSheet;
-struct MatchLineupSnapshot;
 enum class FormationId;
 enum class FormationSlotRole;
 
@@ -209,8 +208,6 @@ private:
     QString formatFormation(FormationId formation) const;
     QString formatSlotRole(FormationSlotRole role) const;
     QString formatPositionShortCode(const Footballer& player) const;
-    QVariantList buildLineupViewRows(const TeamSheet& teamSheet, const League* league) const;
-    QVariantList buildLineupViewRows(const MatchLineupSnapshot& snapshot, const League* league) const;
 
     QVariantMap toNextMatchMap(const FixtureMatchPreview& preview) const;
     QVariantMap toTeamStatsMap(const TeamSeasonStats& stats) const;

@@ -227,7 +227,7 @@ Item {
                         teamName: interactionData.homeTeamName || "Home"
                         formationText: interactionData.homeFormationText || "-"
                         lineupRows: interactionData.homeLineup || []
-                        averageText: "Avg Rating " + (interactionData.homeAverageOverallText || "--")
+                        averageText: "Avg XI OVR " + (interactionData.homeAverageOverallText || "--")
                         kitPrimary: interactionData.homePrimaryColor || "#22c55e"
                         kitSecondary: interactionData.homeSecondaryColor || "#0f172a"
                     }
@@ -243,7 +243,7 @@ Item {
                         teamName: interactionData.awayTeamName || "Away"
                         formationText: interactionData.awayFormationText || "-"
                         lineupRows: interactionData.awayLineup || []
-                        averageText: "Avg Rating " + (interactionData.awayAverageOverallText || "--")
+                        averageText: "Avg XI OVR " + (interactionData.awayAverageOverallText || "--")
                         kitPrimary: interactionData.awayPrimaryColor || "#22c55e"
                         kitSecondary: interactionData.awaySecondaryColor || "#0f172a"
                     }

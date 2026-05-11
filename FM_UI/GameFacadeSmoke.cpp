@@ -12,6 +12,7 @@
 #include <string>
 
 #include "GameFacade.h"
+#include "InteractionStateObject.h"
 #include "fm/core/Game.h"
 #include "fm/match/EditableLineup.h"
 #include "fm/match/TeamSheet.h"
@@ -347,8 +348,33 @@ int main(int argc, char* argv[]) {
                     "active pre-match should expose home average overall text");
                 expect(!preMatch.value(QStringLiteral("awayAverageOverallText")).toString().isEmpty(),
                     "active pre-match should expose away average overall text");
+                expect(facade.getInteractionState()->preMatch()->homePrimaryColor()
+                        == preMatch.value(QStringLiteral("homePrimaryColor")).toString(),
+                    "pre-match QObject should expose home primary color");
+                expect(facade.getInteractionState()->preMatch()->awayPrimaryColor()
+                        == preMatch.value(QStringLiteral("awayPrimaryColor")).toString(),
+                    "pre-match QObject should expose away primary color");
+                expect(facade.getInteractionState()->preMatch()->homeAverageOverallText()
+                        == preMatch.value(QStringLiteral("homeAverageOverallText")).toString(),
+                    "pre-match QObject should expose home average overall text");
+                expect(facade.getInteractionState()->preMatch()->awayAverageOverallText()
+                        == preMatch.value(QStringLiteral("awayAverageOverallText")).toString(),
+                    "pre-match QObject should expose away average overall text");
                 expect(facade.playActiveMatch(), "playActiveMatch should succeed for active pre-match");
                 if (facade.getActiveInteractionKind() == QStringLiteral("post_match")) {
+                    const QVariantMap postMatch = facade.getActivePostMatchInteraction();
+                    expect(facade.getInteractionState()->postMatch()->homePrimaryColor()
+                            == postMatch.value(QStringLiteral("homePrimaryColor")).toString(),
+                        "post-match QObject should expose home primary color");
+                    expect(facade.getInteractionState()->postMatch()->awayPrimaryColor()
+                            == postMatch.value(QStringLiteral("awayPrimaryColor")).toString(),
+                        "post-match QObject should expose away primary color");
+                    expect(facade.getInteractionState()->postMatch()->homeAverageOverallText()
+                            == postMatch.value(QStringLiteral("homeAverageOverallText")).toString(),
+                        "post-match QObject should expose home average overall text");
+                    expect(facade.getInteractionState()->postMatch()->awayAverageOverallText()
+                            == postMatch.value(QStringLiteral("awayAverageOverallText")).toString(),
+                        "post-match QObject should expose away average overall text");
                     expect(facade.resolveActiveInteraction(),
                         "post-match interaction should resolve after managed match smoke");
                 }
