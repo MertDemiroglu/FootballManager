@@ -1972,6 +1972,12 @@ void GameFacade::refreshInteractionStateObject() {
             static_cast<int>(view.awayTeamId),
             fromStd(view.home.team.name),
             fromStd(view.away.team.name),
+            fromStd(view.home.team.primaryColor),
+            fromStd(view.home.team.secondaryColor),
+            fromStd(view.home.team.textColor),
+            fromStd(view.away.team.primaryColor),
+            fromStd(view.away.team.secondaryColor),
+            fromStd(view.away.team.textColor),
             fromStd(view.home.coachName),
             fromStd(view.away.coachName),
             fromStd(view.homeRecentForm),
@@ -1979,6 +1985,8 @@ void GameFacade::refreshInteractionStateObject() {
             fromStd(view.home.formationText),
             fromStd(view.away.formationText),
             formationText,
+            fromStd(view.home.summary.averageOverallText),
+            fromStd(view.away.summary.averageOverallText),
             toLineupVariantList(view.home, selectedTeamId),
             toLineupVariantList(view.away, selectedTeamId)
         );
@@ -2019,6 +2027,12 @@ void GameFacade::refreshInteractionStateObject() {
             static_cast<int>(view.awayTeamId),
             fromStd(view.home.team.name),
             fromStd(view.away.team.name),
+            fromStd(view.home.team.primaryColor),
+            fromStd(view.home.team.secondaryColor),
+            fromStd(view.home.team.textColor),
+            fromStd(view.away.team.primaryColor),
+            fromStd(view.away.team.secondaryColor),
+            fromStd(view.away.team.textColor),
             view.homeGoals,
             view.awayGoals,
             scorerSummary,
@@ -2028,6 +2042,8 @@ void GameFacade::refreshInteractionStateObject() {
             fromStd(view.away.coachName),
             fromStd(view.home.formationText),
             fromStd(view.away.formationText),
+            fromStd(view.home.summary.averageOverallText),
+            fromStd(view.away.summary.averageOverallText),
             toLineupVariantList(view.home, selectedTeamId),
             toLineupVariantList(view.away, selectedTeamId)
         );

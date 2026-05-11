@@ -36,6 +36,30 @@ QString PostMatchInteractionObject::awayTeamName() const {
     return awayTeamNameValue;
 }
 
+QString PostMatchInteractionObject::homePrimaryColor() const {
+    return homePrimaryColorValue;
+}
+
+QString PostMatchInteractionObject::homeSecondaryColor() const {
+    return homeSecondaryColorValue;
+}
+
+QString PostMatchInteractionObject::homeTextColor() const {
+    return homeTextColorValue;
+}
+
+QString PostMatchInteractionObject::awayPrimaryColor() const {
+    return awayPrimaryColorValue;
+}
+
+QString PostMatchInteractionObject::awaySecondaryColor() const {
+    return awaySecondaryColorValue;
+}
+
+QString PostMatchInteractionObject::awayTextColor() const {
+    return awayTextColorValue;
+}
+
 int PostMatchInteractionObject::homeGoals() const {
     return homeGoalsValue;
 }
@@ -80,6 +104,14 @@ QString PostMatchInteractionObject::awayFormationText() const {
     return awayFormationTextValue;
 }
 
+QString PostMatchInteractionObject::homeAverageOverallText() const {
+    return homeAverageOverallTextValue;
+}
+
+QString PostMatchInteractionObject::awayAverageOverallText() const {
+    return awayAverageOverallTextValue;
+}
+
 QVariantList PostMatchInteractionObject::homeLineup() const {
     return homeLineupValue;
 }
@@ -95,6 +127,12 @@ void PostMatchInteractionObject::setFromValues(qulonglong newMatchId,
     int newAwayTeamId,
     const QString& newHomeTeamName,
     const QString& newAwayTeamName,
+    const QString& newHomePrimaryColor,
+    const QString& newHomeSecondaryColor,
+    const QString& newHomeTextColor,
+    const QString& newAwayPrimaryColor,
+    const QString& newAwaySecondaryColor,
+    const QString& newAwayTextColor,
     int newHomeGoals,
     int newAwayGoals,
     const QString& newScorerSummary,
@@ -104,6 +142,8 @@ void PostMatchInteractionObject::setFromValues(qulonglong newMatchId,
     const QString& newAwayCoachName,
     const QString& newHomeFormationText,
     const QString& newAwayFormationText,
+    const QString& newHomeAverageOverallText,
+    const QString& newAwayAverageOverallText,
     const QVariantList& newHomeLineup,
     const QVariantList& newAwayLineup) {
     if (hasDataValue
@@ -114,6 +154,12 @@ void PostMatchInteractionObject::setFromValues(qulonglong newMatchId,
         && awayTeamIdValue == newAwayTeamId
         && homeTeamNameValue == newHomeTeamName
         && awayTeamNameValue == newAwayTeamName
+        && homePrimaryColorValue == newHomePrimaryColor
+        && homeSecondaryColorValue == newHomeSecondaryColor
+        && homeTextColorValue == newHomeTextColor
+        && awayPrimaryColorValue == newAwayPrimaryColor
+        && awaySecondaryColorValue == newAwaySecondaryColor
+        && awayTextColorValue == newAwayTextColor
         && homeGoalsValue == newHomeGoals
         && awayGoalsValue == newAwayGoals
         && scorerSummaryValue == newScorerSummary
@@ -123,6 +169,8 @@ void PostMatchInteractionObject::setFromValues(qulonglong newMatchId,
         && awayCoachNameValue == newAwayCoachName
         && homeFormationTextValue == newHomeFormationText
         && awayFormationTextValue == newAwayFormationText
+        && homeAverageOverallTextValue == newHomeAverageOverallText
+        && awayAverageOverallTextValue == newAwayAverageOverallText
         && homeLineupValue == newHomeLineup
         && awayLineupValue == newAwayLineup) {
         return;
@@ -136,6 +184,12 @@ void PostMatchInteractionObject::setFromValues(qulonglong newMatchId,
     awayTeamIdValue = newAwayTeamId;
     homeTeamNameValue = newHomeTeamName;
     awayTeamNameValue = newAwayTeamName;
+    homePrimaryColorValue = newHomePrimaryColor;
+    homeSecondaryColorValue = newHomeSecondaryColor;
+    homeTextColorValue = newHomeTextColor;
+    awayPrimaryColorValue = newAwayPrimaryColor;
+    awaySecondaryColorValue = newAwaySecondaryColor;
+    awayTextColorValue = newAwayTextColor;
     homeGoalsValue = newHomeGoals;
     awayGoalsValue = newAwayGoals;
     scorerSummaryValue = newScorerSummary;
@@ -145,6 +199,8 @@ void PostMatchInteractionObject::setFromValues(qulonglong newMatchId,
     awayCoachNameValue = newAwayCoachName;
     homeFormationTextValue = newHomeFormationText;
     awayFormationTextValue = newAwayFormationText;
+    homeAverageOverallTextValue = newHomeAverageOverallText;
+    awayAverageOverallTextValue = newAwayAverageOverallText;
     homeLineupValue = newHomeLineup;
     awayLineupValue = newAwayLineup;
     emit changed();
@@ -159,6 +215,12 @@ void PostMatchInteractionObject::clear() {
         && awayTeamIdValue == 0
         && homeTeamNameValue.isEmpty()
         && awayTeamNameValue.isEmpty()
+        && homePrimaryColorValue == QStringLiteral("#22c55e")
+        && homeSecondaryColorValue == QStringLiteral("#0f172a")
+        && homeTextColorValue == QStringLiteral("#f8fafc")
+        && awayPrimaryColorValue == QStringLiteral("#22c55e")
+        && awaySecondaryColorValue == QStringLiteral("#0f172a")
+        && awayTextColorValue == QStringLiteral("#f8fafc")
         && homeGoalsValue == 0
         && awayGoalsValue == 0
         && scorerSummaryValue.isEmpty()
@@ -168,6 +230,8 @@ void PostMatchInteractionObject::clear() {
         && awayCoachNameValue.isEmpty()
         && homeFormationTextValue.isEmpty()
         && awayFormationTextValue.isEmpty()
+        && homeAverageOverallTextValue == QStringLiteral("--")
+        && awayAverageOverallTextValue == QStringLiteral("--")
         && homeLineupValue.isEmpty()
         && awayLineupValue.isEmpty()) {
         return;
@@ -181,6 +245,12 @@ void PostMatchInteractionObject::clear() {
     awayTeamIdValue = 0;
     homeTeamNameValue.clear();
     awayTeamNameValue.clear();
+    homePrimaryColorValue = QStringLiteral("#22c55e");
+    homeSecondaryColorValue = QStringLiteral("#0f172a");
+    homeTextColorValue = QStringLiteral("#f8fafc");
+    awayPrimaryColorValue = QStringLiteral("#22c55e");
+    awaySecondaryColorValue = QStringLiteral("#0f172a");
+    awayTextColorValue = QStringLiteral("#f8fafc");
     homeGoalsValue = 0;
     awayGoalsValue = 0;
     scorerSummaryValue.clear();
@@ -190,6 +260,8 @@ void PostMatchInteractionObject::clear() {
     awayCoachNameValue.clear();
     homeFormationTextValue.clear();
     awayFormationTextValue.clear();
+    homeAverageOverallTextValue = QStringLiteral("--");
+    awayAverageOverallTextValue = QStringLiteral("--");
     homeLineupValue.clear();
     awayLineupValue.clear();
     emit changed();
