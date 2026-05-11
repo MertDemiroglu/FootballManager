@@ -5,6 +5,7 @@
 #include<optional>
 #include<vector>
 
+#include"fm/core/GameBootstrapOptions.h"
 #include"fm/competition/MatchScheduler.h"
 #include"fm/competition/FixtureGenerator.h"
 
@@ -26,18 +27,6 @@ class TransferOfferDecisionInteraction;
 class Team;
 
 struct TransferOffer;
-
-enum class GameBootstrapMode {
-	Sqlite
-};
-
-struct GameBootstrapOptions {
-	GameBootstrapMode mode = GameBootstrapMode::Sqlite;
-	std::string sqliteDbPath;
-	std::string sqliteSchemaPath;
-	std::string sqliteSeedPath;
-	bool initializeDatabaseWithSeed = true;
-};
 
 class Game {
 private:
@@ -70,7 +59,6 @@ private:
 	void temporaryForDebug_tryCreateWeeklyManagedTransferOffer();
 public:
 	//Game constructor
-	Game();
 	explicit Game(const GameBootstrapOptions& bootstrapOptions);
 	~Game();
 

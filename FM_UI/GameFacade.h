@@ -22,6 +22,7 @@
 #include<memory>
 #include<optional>
 
+#include"fm/core/GameBootstrapOptions.h"
 #include"fm/common/Types.h"
 #include"fm/match/EditableLineup.h"
 
@@ -70,6 +71,7 @@ class GameFacade : public QObject {
 
 public:
     explicit GameFacade(QObject* parent = nullptr);
+    explicit GameFacade(const GameBootstrapOptions& bootstrapOptions, QObject* parent = nullptr);
     ~GameFacade();
 
     Q_INVOKABLE QVariantList getTeamSelectionList() const;
@@ -147,6 +149,7 @@ signals:
     void lastErrorChanged();
 
 private:
+    GameBootstrapOptions bootstrapOptions;
     std::unique_ptr<Game> game;
     StandingsTableModel standingsModel;
     TeamPlayersModel teamPlayersModel;

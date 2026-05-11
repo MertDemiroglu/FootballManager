@@ -89,8 +89,22 @@ target_link_libraries(fm_sqlite_bootstrap_smoke PRIVATE fm_core)
 target_compile_features(fm_core PUBLIC cxx_std_17)
 target_compile_features(fm_runner PRIVATE cxx_std_17)
 target_compile_features(fm_sqlite_bootstrap_smoke PRIVATE cxx_std_17)
-target_compile_definitions(fm_core PRIVATE FM_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
 target_include_directories(fm_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+function(copy_fm_database_assets target_name)
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target_name}>/database"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/database/schema.sql"
+            "$<TARGET_FILE_DIR:${target_name}>/database/schema.sql"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/database/seed.sql"
+            "$<TARGET_FILE_DIR:${target_name}>/database/seed.sql"
+    )
+endfunction()
+
+copy_fm_database_assets(fm_runner)
+copy_fm_database_assets(fm_sqlite_bootstrap_smoke)
