@@ -1,45 +1,65 @@
-#include "fm/competition/LeagueRules.h"
-#include "fm/competition/SeasonPlan.h"
-#include "fm/core/World.h"
-#include "fm/data/SqliteBootstrapDatabaseInitializer.h"
-#include "fm/data/WorldBootstrapService.h"
+#include "fm/core/Game.h"
+#include "fm/core/LeagueContext.h"
+#include "fm/competition/League.h"
+#include "fm/roster/Team.h"
 
 #include <cstdlib>
+#include <exception>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 
-int main(int argc, char** argv) {
-    if (argc < 2) {
-        std::cerr << "usage: fm_sqlite_bootstrap_smoke <sqlite_db_path> [--init <schema.sql> [seed.sql]]\n";
-        return EXIT_FAILURE;
+namespace {
+    const char* usage() {
+        return "usage: fm_sqlite_bootstrap_smoke <sqlite_db_path> "
+               "[--open-existing | --create-if-missing <schema.sql> <seed.sql> | --reset <schema.sql> <seed.sql>]";
     }
 
-    try {
-        const std::string dbPath = argv[1];
-        const LeagueRules rules = LeagueRules::makeSuperLig();
-        const SeasonPlan seasonPlan = SeasonPlan::build(2025, rules);
-        World world;
+    GameBootstrapOptions buildBootstrapOptions(int argc, char** argv) {
+        if (argc < 2) {
+            throw std::invalid_argument(usage());
+        }
 
-        if (argc >= 4 && std::string(argv[2]) == "--init") {
-            const std::string schemaPath = argv[3];
-            if (argc >= 5) {
-                const std::string seedPath = argv[4];
-                WorldBootstrapService::initializeAndLoadIntoWorldFromSqlite(world, dbPath, schemaPath, seedPath, rules, seasonPlan);
-            }
-            else {
-                SqliteBootstrapDatabaseInitializer::initialize(dbPath, schemaPath);
-                WorldBootstrapService::loadIntoWorldFromSqlite(world, dbPath, rules, seasonPlan);
-            }
+        GameBootstrapOptions options;
+        options.mode = GameBootstrapMode::Sqlite;
+        options.sqliteDbPath = argv[1];
+
+        if (argc == 2) {
+            options.databaseOpenMode = DatabaseOpenMode::OpenExisting;
+            return options;
         }
-        else {
-            WorldBootstrapService::loadIntoWorldFromSqlite(world, dbPath, rules, seasonPlan);
+
+        const std::string modeArg = argv[2];
+        if (modeArg == "--open-existing" && argc == 3) {
+            options.databaseOpenMode = DatabaseOpenMode::OpenExisting;
+            return options;
         }
+        if (modeArg == "--create-if-missing" && argc == 5) {
+            options.databaseOpenMode = DatabaseOpenMode::CreateFromSeedIfMissing;
+            options.sqliteSchemaPath = argv[3];
+            options.sqliteSeedPath = argv[4];
+            return options;
+        }
+        if (modeArg == "--reset" && argc == 5) {
+            options.databaseOpenMode = DatabaseOpenMode::ResetFromSeed;
+            options.sqliteSchemaPath = argv[3];
+            options.sqliteSeedPath = argv[4];
+            return options;
+        }
+
+        throw std::invalid_argument(usage());
+    }
+}
+
+int main(int argc, char** argv) {
+    try {
+        Game game(buildBootstrapOptions(argc, argv));
 
         std::size_t leagueCount = 0;
         std::size_t teamCount = 0;
         std::size_t playerCount = 0;
 
-        world.forEachLeagueContext([&](const LeagueContext& context) {
+        game.forEachLeagueContext([&](const LeagueContext& context) {
             ++leagueCount;
             for (const auto& [teamId, team] : context.getLeague().getTeams()) {
                 (void)teamId;

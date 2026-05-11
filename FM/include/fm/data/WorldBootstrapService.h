@@ -18,4 +18,12 @@ public:
         const std::string& seedSqlPath,
         const LeagueRules& rules,
         const SeasonPlan& seasonPlan);
+
+    static void resetAndLoadIntoWorldFromSqlite(
+        World& world,
+        const std::string& dbPath,
+        const std::string& schemaSqlPath,
+        const std::string& seedSqlPath,
+        const LeagueRules& rules,
+        const SeasonPlan& seasonPlan);
 };

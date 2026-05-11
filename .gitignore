@@ -265,9 +265,6 @@ ServiceFabricBackup/
 *.mdf
 *.ldf
 *.ndf
-FM/database/*.db
-FM/database/*.db-shm
-FM/database/*.db-wal
 *.db-shm
 *.db-wal
 

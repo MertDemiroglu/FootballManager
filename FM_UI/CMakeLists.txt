@@ -178,13 +178,14 @@ target_link_libraries(game_facade_smoke
 )
 
 function(copy_fm_ui_database_assets target_name)
+    set(fm_database_asset_dir "${CMAKE_SOURCE_DIR}/FM")
     add_custom_command(TARGET ${target_name} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target_name}>/database"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_SOURCE_DIR}/FM/database/schema.sql"
+            "${fm_database_asset_dir}/database/schema.sql"
             "$<TARGET_FILE_DIR:${target_name}>/database/schema.sql"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_SOURCE_DIR}/FM/database/seed.sql"
+            "${fm_database_asset_dir}/database/seed.sql"
             "$<TARGET_FILE_DIR:${target_name}>/database/seed.sql"
     )
 endfunction()

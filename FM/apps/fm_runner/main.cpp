@@ -22,18 +22,28 @@
 namespace {
 
     GameBootstrapOptions buildBootstrapOptions(int argc, char** argv) {
-        if (argc != 1 && argc != 4) {
-            throw std::invalid_argument("usage: fm_runner [sqlite_db_path schema.sql seed.sql]");
+        if (argc != 1 && argc != 4 && argc != 5) {
+            throw std::invalid_argument("usage: fm_runner [sqlite_db_path schema.sql seed.sql] | [--reset sqlite_db_path schema.sql seed.sql]");
         }
 
         GameBootstrapOptions options;
         options.mode = GameBootstrapMode::Sqlite;
-        options.initializeDatabaseWithSeed = true;
+        options.databaseOpenMode = DatabaseOpenMode::CreateFromSeedIfMissing;
 
         if (argc == 4) {
             options.sqliteDbPath = argv[1];
             options.sqliteSchemaPath = argv[2];
             options.sqliteSeedPath = argv[3];
+            return options;
+        }
+        if (argc == 5) {
+            if (std::string(argv[1]) != "--reset") {
+                throw std::invalid_argument("usage: fm_runner [sqlite_db_path schema.sql seed.sql] | [--reset sqlite_db_path schema.sql seed.sql]");
+            }
+            options.databaseOpenMode = DatabaseOpenMode::ResetFromSeed;
+            options.sqliteDbPath = argv[2];
+            options.sqliteSchemaPath = argv[3];
+            options.sqliteSeedPath = argv[4];
             return options;
         }
 

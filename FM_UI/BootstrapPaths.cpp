@@ -49,10 +49,10 @@ namespace BootstrapPaths {
 
         GameBootstrapOptions options;
         options.mode = GameBootstrapMode::Sqlite;
+        options.databaseOpenMode = DatabaseOpenMode::CreateFromSeedIfMissing;
         options.sqliteDbPath = runtimeDatabasePath.toStdString();
         options.sqliteSchemaPath = schemaPath.toStdString();
         options.sqliteSeedPath = seedPath.toStdString();
-        options.initializeDatabaseWithSeed = true;
         return options;
     }
 }

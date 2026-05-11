@@ -21,3 +21,14 @@ void WorldBootstrapService::initializeAndLoadIntoWorldFromSqlite(
     SqliteBootstrapDatabaseInitializer::initializeWithSeed(dbPath, schemaSqlPath, seedSqlPath);
     loadIntoWorldFromSqlite(world, dbPath, rules, seasonPlan);
 }
+
+void WorldBootstrapService::resetAndLoadIntoWorldFromSqlite(
+    World& world,
+    const std::string& dbPath,
+    const std::string& schemaSqlPath,
+    const std::string& seedSqlPath,
+    const LeagueRules& rules,
+    const SeasonPlan& seasonPlan) {
+    SqliteBootstrapDatabaseInitializer::resetWithSeed(dbPath, schemaSqlPath, seedSqlPath);
+    loadIntoWorldFromSqlite(world, dbPath, rules, seasonPlan);
+}

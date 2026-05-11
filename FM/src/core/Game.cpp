@@ -14,6 +14,7 @@
 #include"fm/match/TeamSheet.h"
 #include"fm/match/PlayerConditionService.h"
 
+#include<filesystem>
 #include<stdexcept>
 #include<utility>
 
@@ -26,19 +27,53 @@ namespace {
         return SeasonPlan::build(2025, rules);
     }
 
+    bool sqliteDatabaseFileExists(const std::string& dbPath) {
+        std::error_code error;
+        const bool exists = std::filesystem::exists(dbPath, error);
+        if (error) {
+            throw std::invalid_argument("failed to inspect sqlite db path '" + dbPath + "': " + error.message());
+        }
+        return exists;
+    }
+
+    void requireSqliteSeedAssets(const GameBootstrapOptions& bootstrapOptions, const std::string& context) {
+        if (bootstrapOptions.sqliteSchemaPath.empty()) {
+            throw std::invalid_argument("sqlite schema path cannot be empty " + context);
+        }
+        if (bootstrapOptions.sqliteSeedPath.empty()) {
+            throw std::invalid_argument("sqlite seed path cannot be empty " + context);
+        }
+    }
+
     void bootstrapWorldFromSqlite(World& world, const GameBootstrapOptions& bootstrapOptions, const LeagueRules& rules, const SeasonPlan& seasonPlan) {
         if (bootstrapOptions.sqliteDbPath.empty()) {
             throw std::invalid_argument("sqlite db path cannot be empty");
         }
 
-        if (bootstrapOptions.initializeDatabaseWithSeed) {
-            if (bootstrapOptions.sqliteSchemaPath.empty()) {
-                throw std::invalid_argument("sqlite schema path cannot be empty when initializing database");
+        switch (bootstrapOptions.databaseOpenMode) {
+        case DatabaseOpenMode::OpenExisting:
+            if (!sqliteDatabaseFileExists(bootstrapOptions.sqliteDbPath)) {
+                throw std::invalid_argument("sqlite db path does not exist for OpenExisting mode: " + bootstrapOptions.sqliteDbPath);
             }
-            if (bootstrapOptions.sqliteSeedPath.empty()) {
-                throw std::invalid_argument("sqlite seed path cannot be empty when initializing database");
+            WorldBootstrapService::loadIntoWorldFromSqlite(world, bootstrapOptions.sqliteDbPath, rules, seasonPlan);
+            return;
+        case DatabaseOpenMode::CreateFromSeedIfMissing:
+            if (sqliteDatabaseFileExists(bootstrapOptions.sqliteDbPath)) {
+                WorldBootstrapService::loadIntoWorldFromSqlite(world, bootstrapOptions.sqliteDbPath, rules, seasonPlan);
+                return;
             }
+            requireSqliteSeedAssets(bootstrapOptions, "when creating missing sqlite database from seed");
             WorldBootstrapService::initializeAndLoadIntoWorldFromSqlite(
+                world,
+                bootstrapOptions.sqliteDbPath,
+                bootstrapOptions.sqliteSchemaPath,
+                bootstrapOptions.sqliteSeedPath,
+                rules,
+                seasonPlan);
+            return;
+        case DatabaseOpenMode::ResetFromSeed:
+            requireSqliteSeedAssets(bootstrapOptions, "when resetting sqlite database from seed");
+            WorldBootstrapService::resetAndLoadIntoWorldFromSqlite(
                 world,
                 bootstrapOptions.sqliteDbPath,
                 bootstrapOptions.sqliteSchemaPath,
@@ -48,7 +83,7 @@ namespace {
             return;
         }
 
-        WorldBootstrapService::loadIntoWorldFromSqlite(world, bootstrapOptions.sqliteDbPath, rules, seasonPlan);
+        throw std::invalid_argument("unsupported database open mode");
     }
 }
 
