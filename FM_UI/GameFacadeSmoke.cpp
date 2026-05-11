@@ -14,7 +14,9 @@
 #include "GameFacade.h"
 #include "BootstrapPaths.h"
 #include "InteractionStateObject.h"
+#include "SaveSlotPaths.h"
 #include "fm/core/Game.h"
+#include "fm/core/LeagueContext.h"
 #include "fm/match/EditableLineup.h"
 #include "fm/match/TeamSheet.h"
 #include "fm/roster/Defender.h"
@@ -90,6 +92,46 @@ namespace {
         expect(exported->startingAssignments.size() == 11,
             "exported TeamSheet should contain 11 slot assignments");
     }
+
+    void expectSaveMetadataLifecycle() {
+        GameBootstrapOptions options = SaveSlotPaths::createBootstrapOptionsForSaveSlot(
+            QStringLiteral("smoke_metadata"),
+            DatabaseOpenMode::ResetFromSeed);
+        Game game(options);
+
+        LeagueId leagueId = 0;
+        TeamId teamId = 0;
+        game.forEachLeagueContext([&](const LeagueContext& context) {
+            if (leagueId != 0 || context.getLeague().getTeams().empty()) {
+                return;
+            }
+            leagueId = context.getLeague().getId();
+            teamId = context.getLeague().getTeams().begin()->first;
+        });
+
+        expect(leagueId > 0 && teamId > 0,
+            "metadata lifecycle smoke should resolve a managed club candidate");
+
+        const SaveMetadata initialMetadata = game.getSaveMetadata();
+        expect(initialMetadata.saveSlotId == "smoke_metadata",
+            "metadata lifecycle smoke should persist save slot id");
+        expect(initialMetadata.currentDate == "2025-07-01",
+            "metadata lifecycle smoke should start from boot date");
+
+        game.setUserTeam(leagueId, teamId);
+        const SaveMetadata managedMetadata = game.getSaveMetadata();
+        expect(managedMetadata.managedLeagueId == leagueId,
+            "metadata lifecycle smoke should update managed league id");
+        expect(managedMetadata.managedTeamId == teamId,
+            "metadata lifecycle smoke should update managed team id");
+
+        game.updateDaily();
+        const SaveMetadata advancedMetadata = game.getSaveMetadata();
+        expect(advancedMetadata.currentDate == "2025-07-02",
+            "metadata lifecycle smoke should update current date after advancing");
+        expect(!advancedMetadata.updatedAtUtc.empty(),
+            "metadata lifecycle smoke should expose updated_at_utc");
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -99,6 +141,7 @@ int main(int argc, char* argv[]) {
         qDebug() << "[Smoke] Creating facade...";
         expectSupportedFormationPitchLayouts();
         expectEditableLineupTeamSheetExport();
+        expectSaveMetadataLifecycle();
         {
             Game gameWithoutPreMatch(BootstrapPaths::createGameBootstrapOptions());
             TeamSheet sheet;
@@ -139,6 +182,19 @@ int main(int argc, char* argv[]) {
         expect(facade.getManagerName() == QStringLiteral("Facade Test Manager"),
             "manager name should roundtrip");
         expect(facade.getLastError().isEmpty(), "last error should be cleared after successful start");
+        const QVariantMap initialSaveMetadata = facade.getCurrentSaveMetadata();
+        expect(initialSaveMetadata.value(QStringLiteral("saveSlotId")).toString() == QStringLiteral("default"),
+            "save metadata should expose the default save slot id");
+        expect(initialSaveMetadata.value(QStringLiteral("saveName")).toString() == QStringLiteral("Default Save"),
+            "save metadata should expose the default save name");
+        expect(initialSaveMetadata.value(QStringLiteral("managerName")).toString() == QStringLiteral("Facade Test Manager"),
+            "save metadata should persist manager name");
+        expect(initialSaveMetadata.value(QStringLiteral("managedLeagueId")).toInt() == leagueId,
+            "save metadata should persist managed league id");
+        expect(initialSaveMetadata.value(QStringLiteral("managedTeamId")).toInt() == teamId,
+            "save metadata should persist managed team id");
+        expect(!initialSaveMetadata.value(QStringLiteral("currentDate")).toString().isEmpty(),
+            "save metadata should expose current date");
 
         qDebug() << "[Smoke] Reading standings...";
         const QVariantList standings = facade.getStandingsTable();
@@ -390,6 +446,11 @@ int main(int argc, char* argv[]) {
             "smoke should encounter a managed-team pre-match interaction");
         expect(sawTeamMatchHistory,
             "team match history should become non-empty as the season advances");
+        const QVariantMap advancedSaveMetadata = facade.getCurrentSaveMetadata();
+        expect(!advancedSaveMetadata.value(QStringLiteral("currentDate")).toString().isEmpty(),
+            "save metadata should keep exposing current date after advancing days");
+        expect(!advancedSaveMetadata.value(QStringLiteral("updatedAtUtc")).toString().isEmpty(),
+            "save metadata should expose updated_at_utc");
         expect(!facade.getCurrentTeamSeasonStats().isEmpty(),
             "team season stats should be available");
 

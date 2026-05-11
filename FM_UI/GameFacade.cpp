@@ -538,6 +538,7 @@ bool GameFacade::startNewGameInternal(LeagueId leagueId, TeamId teamId, const QS
     }
 
     currentGame->setUserTeam(leagueId, teamInNewGame->getId());
+    currentGame->setSaveManagerName(trimmedManagerName.toStdString());
     currentGame->pauseSimulation();
     selectedLeagueId = leagueId;
     selectedTeamId = teamInNewGame->getId();
@@ -710,6 +711,24 @@ QString GameFacade::getManagerName() const {
 
 QString GameFacade::getLastError() const {
     return lastError;
+}
+
+QVariantMap GameFacade::getCurrentSaveMetadata() const {
+    const Game* currentGame = ensureGame();
+    const SaveMetadata metadata = currentGame ? currentGame->getSaveMetadata() : SaveMetadata{};
+
+    QVariantMap map;
+    map.insert(QStringLiteral("saveSlotId"), fromStd(metadata.saveSlotId));
+    map.insert(QStringLiteral("saveName"), fromStd(metadata.saveName));
+    map.insert(QStringLiteral("managerName"), fromStd(metadata.managerName));
+    map.insert(QStringLiteral("managedLeagueId"), static_cast<int>(metadata.managedLeagueId));
+    map.insert(QStringLiteral("managedTeamId"), static_cast<int>(metadata.managedTeamId));
+    map.insert(QStringLiteral("currentDate"), fromStd(metadata.currentDate));
+    map.insert(QStringLiteral("createdAtUtc"), fromStd(metadata.createdAtUtc));
+    map.insert(QStringLiteral("updatedAtUtc"), fromStd(metadata.updatedAtUtc));
+    map.insert(QStringLiteral("schemaVersion"), metadata.schemaVersion);
+    map.insert(QStringLiteral("worldVersion"), metadata.worldVersion);
+    return map;
 }
 
 void GameFacade::clearLastError() {

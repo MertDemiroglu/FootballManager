@@ -86,6 +86,7 @@ public:
     Q_INVOKABLE int getSelectedTeamId() const;
     Q_INVOKABLE QString getManagerName() const;
     Q_INVOKABLE QString getLastError() const;
+    Q_INVOKABLE QVariantMap getCurrentSaveMetadata() const;
     Q_INVOKABLE void clearLastError();
 
     Q_INVOKABLE QVariantMap getDashboard() const;

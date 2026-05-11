@@ -18,4 +18,6 @@ struct GameBootstrapOptions {
     std::string sqliteDbPath;
     std::string sqliteSchemaPath;
     std::string sqliteSeedPath;
+    std::string saveSlotId = "default";
+    std::string saveName = "Default Save";
 };

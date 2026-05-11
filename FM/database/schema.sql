@@ -1,4 +1,19 @@
 PRAGMA foreign_keys = ON;
+PRAGMA user_version = 1;
+
+CREATE TABLE IF NOT EXISTS save_metadata (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    save_slot_id TEXT NOT NULL,
+    save_name TEXT NOT NULL,
+    manager_name TEXT NOT NULL,
+    managed_league_id INTEGER NOT NULL DEFAULT 0,
+    managed_team_id INTEGER NOT NULL DEFAULT 0,
+    current_date TEXT NOT NULL,
+    created_at_utc TEXT NOT NULL,
+    updated_at_utc TEXT NOT NULL,
+    schema_version INTEGER NOT NULL DEFAULT 1,
+    world_version INTEGER NOT NULL DEFAULT 1
+);
 
 CREATE TABLE IF NOT EXISTS leagues (
     id INTEGER PRIMARY KEY,

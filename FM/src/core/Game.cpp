@@ -5,6 +5,7 @@
 #include"fm/competition/League.h"
 
 #include"fm/data/WorldBootstrapService.h"
+#include"fm/data/SqliteSaveMetadataRepository.h"
 #include"fm/interaction/PostMatchInteraction.h"
 
 #include"fm/interaction/TransferOfferDecisionInteraction.h"
@@ -15,6 +16,8 @@
 #include"fm/match/PlayerConditionService.h"
 
 #include<filesystem>
+#include<iomanip>
+#include<sstream>
 #include<stdexcept>
 #include<utility>
 
@@ -25,6 +28,14 @@ namespace {
 
     SeasonPlan buildDefaultBootstrapSeasonPlan(const LeagueRules& rules) {
         return SeasonPlan::build(2025, rules);
+    }
+
+    std::string dateToIsoString(const Date& date) {
+        std::ostringstream output;
+        output << std::setw(4) << std::setfill('0') << date.getYear() << "-"
+            << std::setw(2) << std::setfill('0') << static_cast<int>(date.getMonth()) << "-"
+            << std::setw(2) << std::setfill('0') << date.getDay();
+        return output.str();
     }
 
     bool sqliteDatabaseFileExists(const std::string& dbPath) {
@@ -87,6 +98,54 @@ namespace {
     }
 }
 
+void Game::ensureSaveMetadata(const GameBootstrapOptions& bootstrapOptions) {
+    if (bootstrapOptions.mode != GameBootstrapMode::Sqlite || bootstrapOptions.sqliteDbPath.empty()) {
+        saveMetadataEnabled = false;
+        return;
+    }
+
+    saveMetadataDbPath = bootstrapOptions.sqliteDbPath;
+    saveMetadataEnabled = true;
+
+    SqliteSaveMetadataRepository repository(saveMetadataDbPath);
+    if (!repository.exists()) {
+        SaveMetadata defaultMetadata;
+        defaultMetadata.saveSlotId = bootstrapOptions.saveSlotId;
+        defaultMetadata.saveName = bootstrapOptions.saveName;
+        defaultMetadata.managerName = "Manager";
+        defaultMetadata.managedLeagueId = user.getManagedLeagueId();
+        defaultMetadata.managedTeamId = user.getManagedTeamId();
+        defaultMetadata.currentDate = dateToIsoString(date);
+        defaultMetadata.schemaVersion = 1;
+        defaultMetadata.worldVersion = 1;
+        repository.insertDefault(defaultMetadata);
+    }
+
+    saveMetadata = repository.load();
+}
+
+void Game::updateManagedClubSaveMetadata() {
+    if (!saveMetadataEnabled) {
+        return;
+    }
+
+    SqliteSaveMetadataRepository repository(saveMetadataDbPath);
+    repository.updateManagedClub(user.getManagedLeagueId(), user.getManagedTeamId());
+    repository.touchUpdatedAt();
+    saveMetadata = repository.load();
+}
+
+void Game::updateCurrentDateSaveMetadata() {
+    if (!saveMetadataEnabled) {
+        return;
+    }
+
+    SqliteSaveMetadataRepository repository(saveMetadataDbPath);
+    repository.updateCurrentDate(dateToIsoString(date));
+    repository.touchUpdatedAt();
+    saveMetadata = repository.load();
+}
+
 Game::~Game() = default;
 
 Game::Game(const GameBootstrapOptions& bootstrapOptions)
@@ -110,6 +169,7 @@ Game::Game(const GameBootstrapOptions& bootstrapOptions)
     switch (bootstrapOptions.mode) {
     case GameBootstrapMode::Sqlite:
         bootstrapWorldFromSqlite(world, bootstrapOptions, rules, seasonPlan);
+        ensureSaveMetadata(bootstrapOptions);
         break;
     default:
         throw std::invalid_argument("unsupported game bootstrap mode");
@@ -331,6 +391,7 @@ void Game::updateDaily() {
         world.forEachLeagueContext([&conditionService](LeagueContext& context) {
             conditionService.applyDailyRecovery(context.getLeague());
             });
+        updateCurrentDateSaveMetadata();
     }
     world.getTransferOfferService().expirePendingOffers(date);//gecici cozum 2. kere expire kontrolu
 }
@@ -794,6 +855,19 @@ void Game::setUserTeam(LeagueId leagueId, TeamId teamId) {
         throw std::logic_error("cannot set user team for unknown team in league");
     }
     user.setTeam(leagueId, teamId);
+    updateManagedClubSaveMetadata();
+}
+
+void Game::setSaveManagerName(const std::string& managerName) {
+    if (!saveMetadataEnabled) {
+        saveMetadata.managerName = managerName.empty() ? "Manager" : managerName;
+        return;
+    }
+
+    SqliteSaveMetadataRepository repository(saveMetadataDbPath);
+    repository.updateManagerName(managerName);
+    repository.touchUpdatedAt();
+    saveMetadata = repository.load();
 }
 
 LeagueId Game::getManagedLeagueId() const {
@@ -802,6 +876,10 @@ LeagueId Game::getManagedLeagueId() const {
 
 TeamId Game::getManagedTeamId() const {
     return user.getManagedTeamId();
+}
+
+SaveMetadata Game::getSaveMetadata() const {
+    return saveMetadata;
 }
 
 GameState Game::getState() const {

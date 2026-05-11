@@ -54,6 +54,11 @@ namespace {
 int main(int argc, char** argv) {
     try {
         Game game(buildBootstrapOptions(argc, argv));
+        const SaveMetadata metadata = game.getSaveMetadata();
+        if (metadata.saveSlotId.empty() || metadata.currentDate.empty()
+            || metadata.schemaVersion != 1 || metadata.worldVersion != 1) {
+            throw std::runtime_error("sqlite bootstrap loaded invalid save metadata");
+        }
 
         std::size_t leagueCount = 0;
         std::size_t teamCount = 0;
