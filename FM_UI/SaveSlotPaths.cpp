@@ -44,6 +44,13 @@ namespace SaveSlotPaths {
         return QStringLiteral("default");
     }
 
+    QString defaultSaveNameForSlot(const QString& saveSlotId) {
+        if (saveSlotId == defaultSaveSlotId()) {
+            return QStringLiteral("Default Save");
+        }
+        return saveSlotId;
+    }
+
     QString saveSlotDirectory(const QString& saveSlotId) {
         requireSaveSlotId(saveSlotId);
         return requireDirectory(savesRootDirectory() + QStringLiteral("/") + saveSlotId, "save slot directory");
@@ -62,6 +69,8 @@ namespace SaveSlotPaths {
         options.sqliteDbPath = saveDatabasePath(saveSlotId).toStdString();
         options.sqliteSchemaPath = BootstrapPaths::schemaAssetPath().toStdString();
         options.sqliteSeedPath = BootstrapPaths::seedAssetPath().toStdString();
+        options.saveSlotId = saveSlotId.toStdString();
+        options.saveName = defaultSaveNameForSlot(saveSlotId).toStdString();
         return options;
     }
 

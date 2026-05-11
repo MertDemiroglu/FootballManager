@@ -10,6 +10,7 @@
 #include"fm/competition/FixtureGenerator.h"
 
 #include"fm/common/Date.h"
+#include"fm/data/SaveMetadata.h"
 #include"fm/interaction/InteractionManager.h"
 #include"fm/match/EventQueue.h"
 #include"fm/core/User.h"
@@ -40,7 +41,10 @@ private:
 	User user;
 	bool timePaused;
 	bool userPaused;
-	bool dateWasReset;
+    bool dateWasReset;
+    bool saveMetadataEnabled = false;
+    std::string saveMetadataDbPath;
+    SaveMetadata saveMetadata;
 	std::optional<PlayMatchCommand> pendingPreMatchCommand;
     std::optional<TeamSheet> pendingPreMatchHomeSheet;
     std::optional<TeamSheet> pendingPreMatchAwaySheet;
@@ -55,6 +59,9 @@ private:
 	void seasonStartChecksForContext(LeagueContext& context);
 	void seasonEndChecksForContext(LeagueContext& context);
 	void refreshTimePauseState();
+    void ensureSaveMetadata(const GameBootstrapOptions& bootstrapOptions);
+    void updateManagedClubSaveMetadata();
+    void updateCurrentDateSaveMetadata();
 
 	void temporaryForDebug_tryCreateWeeklyManagedTransferOffer();
 public:
@@ -111,8 +118,10 @@ public:
 
 	//Kullanici takimini disaridan set eder
 	void setUserTeam(LeagueId leagueId, TeamId teamId);
+    void setSaveManagerName(const std::string& managerName);
 	LeagueId getManagedLeagueId() const;
 	TeamId getManagedTeamId() const;
+    SaveMetadata getSaveMetadata() const;
 
 	//tarih nesnesini verir non-const
 	Date& getDate();
