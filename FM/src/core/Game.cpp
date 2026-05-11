@@ -18,21 +18,6 @@
 #include<utility>
 
 namespace {
-    GameBootstrapOptions buildDefaultGameBootstrapOptions() {
-        GameBootstrapOptions options;
-#ifdef FM_SOURCE_DIR
-        options.sqliteDbPath = std::string(FM_SOURCE_DIR) + "/database/superlig_dev.db";
-        options.sqliteSchemaPath = std::string(FM_SOURCE_DIR) + "/database/schema.sql";
-        options.sqliteSeedPath = std::string(FM_SOURCE_DIR) + "/database/seed.sql";
-#else
-        options.sqliteDbPath = "FM/database/superlig_dev.db";
-        options.sqliteSchemaPath = "FM/database/schema.sql";
-        options.sqliteSeedPath = "FM/database/seed.sql";
-#endif
-        options.initializeDatabaseWithSeed = true;
-        return options;
-    }
-
     LeagueRules buildDefaultBootstrapLeagueRules() {
         return LeagueRules::makeSuperLig();
     }
@@ -47,6 +32,12 @@ namespace {
         }
 
         if (bootstrapOptions.initializeDatabaseWithSeed) {
+            if (bootstrapOptions.sqliteSchemaPath.empty()) {
+                throw std::invalid_argument("sqlite schema path cannot be empty when initializing database");
+            }
+            if (bootstrapOptions.sqliteSeedPath.empty()) {
+                throw std::invalid_argument("sqlite seed path cannot be empty when initializing database");
+            }
             WorldBootstrapService::initializeAndLoadIntoWorldFromSqlite(
                 world,
                 bootstrapOptions.sqliteDbPath,
@@ -62,8 +53,6 @@ namespace {
 }
 
 Game::~Game() = default;
-
-Game::Game() : Game(buildDefaultGameBootstrapOptions()) {}
 
 Game::Game(const GameBootstrapOptions& bootstrapOptions)
     : date(2025, Month::July, 1),

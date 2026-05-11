@@ -11,6 +11,8 @@ qt_standard_project_setup()
 
 qt_add_executable(FM_UI
     main.cpp
+    BootstrapPaths.cpp
+    BootstrapPaths.h
     GameFacade.cpp
     GameFacade.h
     StandingsTableModel.cpp
@@ -113,6 +115,8 @@ qt_add_qml_module(FM_UI
 
 qt_add_executable(game_facade_smoke
     GameFacadeSmoke.cpp
+    BootstrapPaths.cpp
+    BootstrapPaths.h
     GameFacade.cpp
     GameFacade.h
     StandingsTableModel.cpp
@@ -172,3 +176,18 @@ target_link_libraries(game_facade_smoke
         Qt6::Core
         fm_core
 )
+
+function(copy_fm_ui_database_assets target_name)
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target_name}>/database"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/FM/database/schema.sql"
+            "$<TARGET_FILE_DIR:${target_name}>/database/schema.sql"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/FM/database/seed.sql"
+            "$<TARGET_FILE_DIR:${target_name}>/database/seed.sql"
+    )
+endfunction()
+
+copy_fm_ui_database_assets(FM_UI)
+copy_fm_ui_database_assets(game_facade_smoke)

@@ -12,6 +12,7 @@
 #include <string>
 
 #include "GameFacade.h"
+#include "BootstrapPaths.h"
 #include "InteractionStateObject.h"
 #include "fm/core/Game.h"
 #include "fm/match/EditableLineup.h"
@@ -99,7 +100,7 @@ int main(int argc, char* argv[]) {
         expectSupportedFormationPitchLayouts();
         expectEditableLineupTeamSheetExport();
         {
-            Game gameWithoutPreMatch;
+            Game gameWithoutPreMatch(BootstrapPaths::createGameBootstrapOptions());
             TeamSheet sheet;
             sheet.teamId = 1;
             expect(!gameWithoutPreMatch.replacePendingPreMatchTeamSheetForTeam(1, sheet),

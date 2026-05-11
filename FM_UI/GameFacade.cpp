@@ -1,5 +1,7 @@
 #include"GameFacade.h"
 
+#include"BootstrapPaths.h"
+
 #include"fm/core/Game.h"
 #include"fm/core/LeagueContext.h"
 #include"fm/roster/Team.h"
@@ -357,7 +359,12 @@ namespace {
 }
 
 GameFacade::GameFacade(QObject* parent)
+    : GameFacade(BootstrapPaths::createGameBootstrapOptions(), parent) {
+}
+
+GameFacade::GameFacade(const GameBootstrapOptions& bootstrapOptions, QObject* parent)
     : QObject(parent),
+      bootstrapOptions(bootstrapOptions),
       standingsModel(this),
       teamPlayersModel(this),
       teamRecentMatchesModel(this),
@@ -377,7 +384,7 @@ GameFacade::~GameFacade() {}
 
 Game* GameFacade::ensureGame() {
     if (!game) {
-        game = std::make_unique<Game>();
+        game = std::make_unique<Game>(bootstrapOptions);
     }
     return game.get();
 }

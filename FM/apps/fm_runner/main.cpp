@@ -1,4 +1,5 @@
 ﻿#include<cstdlib>
+#include<filesystem>
 #include<iomanip>
 #include<iostream>
 #include<optional>
@@ -19,6 +20,34 @@
 #include"fm/events/MatchPlayedEvent.h"
 
 namespace {
+
+    GameBootstrapOptions buildBootstrapOptions(int argc, char** argv) {
+        if (argc != 1 && argc != 4) {
+            throw std::invalid_argument("usage: fm_runner [sqlite_db_path schema.sql seed.sql]");
+        }
+
+        GameBootstrapOptions options;
+        options.mode = GameBootstrapMode::Sqlite;
+        options.initializeDatabaseWithSeed = true;
+
+        if (argc == 4) {
+            options.sqliteDbPath = argv[1];
+            options.sqliteSchemaPath = argv[2];
+            options.sqliteSeedPath = argv[3];
+            return options;
+        }
+
+        const std::filesystem::path executablePath(argv[0]);
+        const std::filesystem::path baseDirectory =
+            executablePath.has_parent_path() ? executablePath.parent_path() : std::filesystem::current_path();
+        const std::filesystem::path runtimeDirectory = baseDirectory / "runtime";
+        std::filesystem::create_directories(runtimeDirectory);
+
+        options.sqliteDbPath = (runtimeDirectory / "superlig_runner.db").string();
+        options.sqliteSchemaPath = (baseDirectory / "database" / "schema.sql").string();
+        options.sqliteSeedPath = (baseDirectory / "database" / "seed.sql").string();
+        return options;
+    }
 
     std::string dayOfWeekToString(int dayOfWeek) {
         switch (dayOfWeek) {
@@ -600,9 +629,9 @@ void validateSeasonOutcome(Game& game, LeagueId leagueId, const LeagueRules& rul
     throw std::runtime_error("No played fixture found to validate duplicate resolution guard.");
 }
 
-int main() {
+int main(int argc, char** argv) {
     try {
-        Game game;
+        Game game(buildBootstrapOptions(argc, argv));
 
         const int simulationDays = 500;
         const int tickEvery = 50;
