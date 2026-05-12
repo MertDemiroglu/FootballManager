@@ -17,13 +17,14 @@ namespace {
         return cleanPath;
     }
 
-    void requireSaveSlotId(const QString& saveSlotId) {
-        if (saveSlotId.trimmed().isEmpty()) {
-            throw std::invalid_argument("save slot id cannot be empty");
+    bool hasWindowsProblematicCharacter(const QString& value) {
+        static const QString problematic = QStringLiteral("<>:\"|?*");
+        for (const QChar character : value) {
+            if (problematic.contains(character)) {
+                return true;
+            }
         }
-        if (saveSlotId.contains(QLatin1Char('/')) || saveSlotId.contains(QLatin1Char('\\'))) {
-            throw std::invalid_argument("save slot id cannot contain path separators");
-        }
+        return false;
     }
 }
 
@@ -36,12 +37,37 @@ namespace SaveSlotPaths {
         return QDir::cleanPath(path);
     }
 
-    QString savesRootDirectory() {
+    QString ensureSavesRootDirectory() {
         return requireDirectory(appDataRoot() + QStringLiteral("/saves"), "save root directory");
+    }
+
+    QString savesRootDirectoryPath() {
+        return QDir::cleanPath(appDataRoot() + QStringLiteral("/saves"));
     }
 
     QString defaultSaveSlotId() {
         return QStringLiteral("default");
+    }
+
+    bool isValidSaveSlotId(const QString& saveSlotId) {
+        const QString trimmed = saveSlotId.trimmed();
+        if (trimmed.isEmpty() || trimmed != saveSlotId) {
+            return false;
+        }
+        if (trimmed == QStringLiteral(".") || trimmed == QStringLiteral("..")) {
+            return false;
+        }
+        if (trimmed.contains(QLatin1Char('/')) || trimmed.contains(QLatin1Char('\\'))) {
+            return false;
+        }
+        return !hasWindowsProblematicCharacter(trimmed);
+    }
+
+    QString requireValidSaveSlotId(const QString& saveSlotId) {
+        if (!isValidSaveSlotId(saveSlotId)) {
+            throw std::invalid_argument("save slot id must be non-empty and cannot contain path separators or reserved filename characters");
+        }
+        return saveSlotId;
     }
 
     QString defaultSaveNameForSlot(const QString& saveSlotId) {
@@ -51,13 +77,22 @@ namespace SaveSlotPaths {
         return saveSlotId;
     }
 
-    QString saveSlotDirectory(const QString& saveSlotId) {
-        requireSaveSlotId(saveSlotId);
-        return requireDirectory(savesRootDirectory() + QStringLiteral("/") + saveSlotId, "save slot directory");
+    QString saveSlotDirectoryPath(const QString& saveSlotId) {
+        return QDir::cleanPath(savesRootDirectoryPath() + QStringLiteral("/") + requireValidSaveSlotId(saveSlotId));
     }
 
     QString saveDatabasePath(const QString& saveSlotId) {
-        return QDir::cleanPath(saveSlotDirectory(saveSlotId) + QStringLiteral("/game.db"));
+        return QDir::cleanPath(saveSlotDirectoryPath(saveSlotId) + QStringLiteral("/game.db"));
+    }
+
+    QString ensureSaveSlotDirectory(const QString& saveSlotId) {
+        return requireDirectory(
+            ensureSavesRootDirectory() + QStringLiteral("/") + requireValidSaveSlotId(saveSlotId),
+            "save slot directory");
+    }
+
+    QString ensureSaveDatabasePath(const QString& saveSlotId) {
+        return QDir::cleanPath(ensureSaveSlotDirectory(saveSlotId) + QStringLiteral("/game.db"));
     }
 
     GameBootstrapOptions createBootstrapOptionsForSaveSlot(
@@ -66,11 +101,16 @@ namespace SaveSlotPaths {
         GameBootstrapOptions options;
         options.mode = GameBootstrapMode::Sqlite;
         options.databaseOpenMode = openMode;
-        options.sqliteDbPath = saveDatabasePath(saveSlotId).toStdString();
-        options.sqliteSchemaPath = BootstrapPaths::schemaAssetPath().toStdString();
-        options.sqliteSeedPath = BootstrapPaths::seedAssetPath().toStdString();
-        options.saveSlotId = saveSlotId.toStdString();
-        options.saveName = defaultSaveNameForSlot(saveSlotId).toStdString();
+        if (openMode == DatabaseOpenMode::OpenExisting) {
+            options.sqliteDbPath = saveDatabasePath(saveSlotId).toStdString();
+        } else {
+            options.sqliteSchemaPath = BootstrapPaths::schemaAssetPath().toStdString();
+            options.sqliteSeedPath = BootstrapPaths::seedAssetPath().toStdString();
+            options.sqliteDbPath = ensureSaveDatabasePath(saveSlotId).toStdString();
+        }
+        const QString validSaveSlotId = requireValidSaveSlotId(saveSlotId);
+        options.saveSlotId = validSaveSlotId.toStdString();
+        options.saveName = defaultSaveNameForSlot(validSaveSlotId).toStdString();
         return options;
     }
 

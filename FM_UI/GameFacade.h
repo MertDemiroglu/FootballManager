@@ -78,6 +78,12 @@ public:
     Q_INVOKABLE bool startNewGame(int teamId, const QString& managerName);
     Q_INVOKABLE bool startNewGameForLeagueTeam(int leagueId, int teamId, const QString& managerName);
     Q_INVOKABLE bool hasStartedGame() const;
+    Q_INVOKABLE QVariantList listSaveSlots() const;
+    Q_INVOKABLE bool createNewGameSave(const QString& saveName, int leagueId, int teamId, const QString& managerName);
+    Q_INVOKABLE bool loadGameSave(const QString& saveSlotId);
+    Q_INVOKABLE bool continueLastSave();
+    Q_INVOKABLE bool deleteGameSave(const QString& saveSlotId);
+    Q_INVOKABLE QString getCurrentSaveSlotId() const;
 
     Q_INVOKABLE QString getCurrentDateText() const;
     Q_INVOKABLE QString getCurrentStateText() const;
@@ -169,6 +175,7 @@ private:
     TeamId selectedTeamId = 0;
     bool gameStarted = false;
     QString managerName;
+    QString currentSaveSlotId;
     QString lastError;
     std::optional<EditableLineup> editableLineup;
 

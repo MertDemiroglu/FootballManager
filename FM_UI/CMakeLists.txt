@@ -15,6 +15,9 @@ qt_add_executable(FM_UI
     BootstrapPaths.h
     SaveSlotPaths.cpp
     SaveSlotPaths.h
+    SaveSlotInfo.h
+    SaveSlotService.cpp
+    SaveSlotService.h
     GameFacade.cpp
     GameFacade.h
     StandingsTableModel.cpp
@@ -121,6 +124,9 @@ qt_add_executable(game_facade_smoke
     BootstrapPaths.h
     SaveSlotPaths.cpp
     SaveSlotPaths.h
+    SaveSlotInfo.h
+    SaveSlotService.cpp
+    SaveSlotService.h
     GameFacade.cpp
     GameFacade.h
     StandingsTableModel.cpp
