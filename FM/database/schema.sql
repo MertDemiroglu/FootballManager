@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS save_metadata (
     manager_name TEXT NOT NULL,
     managed_league_id INTEGER NOT NULL DEFAULT 0,
     managed_team_id INTEGER NOT NULL DEFAULT 0,
-    current_date TEXT NOT NULL,
+    "current_date" TEXT NOT NULL,
     created_at_utc TEXT NOT NULL,
     updated_at_utc TEXT NOT NULL,
     schema_version INTEGER NOT NULL DEFAULT 2,
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS save_metadata (
 
 CREATE TABLE IF NOT EXISTS game_state (
     id INTEGER PRIMARY KEY CHECK (id = 1),
-    current_date TEXT NOT NULL,
+    "current_date" TEXT NOT NULL,
     current_state INTEGER NOT NULL DEFAULT 0,
     updated_at_utc TEXT NOT NULL
 );

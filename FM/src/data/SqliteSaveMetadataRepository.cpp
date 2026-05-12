@@ -102,7 +102,7 @@ SqliteSaveMetadataRepository::SqliteSaveMetadataRepository(
         "manager_name TEXT NOT NULL,"
         "managed_league_id INTEGER NOT NULL DEFAULT 0,"
         "managed_team_id INTEGER NOT NULL DEFAULT 0,"
-        "current_date TEXT NOT NULL,"
+        "\"current_date\" TEXT NOT NULL,"
         "created_at_utc TEXT NOT NULL,"
         "updated_at_utc TEXT NOT NULL,"
         "schema_version INTEGER NOT NULL DEFAULT 2,"
@@ -127,7 +127,7 @@ bool SqliteSaveMetadataRepository::exists() const {
 SaveMetadata SqliteSaveMetadataRepository::load() const {
     SqliteStatement statement = database.prepare(
         "SELECT save_slot_id, save_name, manager_name, managed_league_id, managed_team_id, "
-        "current_date, created_at_utc, updated_at_utc, schema_version, world_version "
+        "\"current_date\", created_at_utc, updated_at_utc, schema_version, world_version "
         "FROM save_metadata WHERE id = ?");
     statement.bindInt(1, MetadataRowId);
     if (!statement.stepRow()) {
@@ -141,7 +141,7 @@ void SqliteSaveMetadataRepository::insertDefault(const SaveMetadata& metadata) c
     SqliteStatement statement = database.prepare(
         "INSERT OR IGNORE INTO save_metadata ("
         "id, save_slot_id, save_name, manager_name, managed_league_id, managed_team_id, "
-        "current_date, created_at_utc, updated_at_utc, schema_version, world_version"
+        "\"current_date\", created_at_utc, updated_at_utc, schema_version, world_version"
         ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     bindMetadata(statement, normalized);
     statement.stepDone();
@@ -152,7 +152,7 @@ void SqliteSaveMetadataRepository::upsert(const SaveMetadata& metadata) const {
     SqliteStatement statement = database.prepare(
         "INSERT INTO save_metadata ("
         "id, save_slot_id, save_name, manager_name, managed_league_id, managed_team_id, "
-        "current_date, created_at_utc, updated_at_utc, schema_version, world_version"
+        "\"current_date\", created_at_utc, updated_at_utc, schema_version, world_version"
         ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(id) DO UPDATE SET "
         "save_slot_id = excluded.save_slot_id, "
@@ -160,7 +160,7 @@ void SqliteSaveMetadataRepository::upsert(const SaveMetadata& metadata) const {
         "manager_name = excluded.manager_name, "
         "managed_league_id = excluded.managed_league_id, "
         "managed_team_id = excluded.managed_team_id, "
-        "current_date = excluded.current_date, "
+        "\"current_date\" = excluded.\"current_date\", "
         "created_at_utc = excluded.created_at_utc, "
         "updated_at_utc = excluded.updated_at_utc, "
         "schema_version = excluded.schema_version, "
@@ -170,7 +170,7 @@ void SqliteSaveMetadataRepository::upsert(const SaveMetadata& metadata) const {
 }
 
 void SqliteSaveMetadataRepository::updateCurrentDate(const std::string& currentDate) const {
-    SqliteStatement statement = database.prepare("UPDATE save_metadata SET current_date = ? WHERE id = ?");
+    SqliteStatement statement = database.prepare("UPDATE save_metadata SET \"current_date\" = ? WHERE id = ?");
     statement.bindText(1, currentDate);
     statement.bindInt(2, MetadataRowId);
     statement.stepDone();

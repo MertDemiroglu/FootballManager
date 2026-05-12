@@ -90,7 +90,7 @@ namespace {
         database.execute(
             "CREATE TABLE IF NOT EXISTS game_state ("
             "id INTEGER PRIMARY KEY CHECK (id = 1),"
-            "current_date TEXT NOT NULL,"
+            "\"current_date\" TEXT NOT NULL,"
             "current_state INTEGER NOT NULL DEFAULT 0,"
             "updated_at_utc TEXT NOT NULL"
             ");");
@@ -204,7 +204,7 @@ bool SqliteGameStateRepository::hasGameState() const {
         return false;
     }
 
-    SqliteStatement statement = database.prepare("SELECT current_date FROM game_state WHERE id = ?");
+    SqliteStatement statement = database.prepare("SELECT \"current_date\" FROM game_state WHERE id = ?");
     statement.bindInt(1, GameStateRowId);
     if (!statement.stepRow()) {
         return false;
@@ -219,7 +219,7 @@ bool SqliteGameStateRepository::hasGameState() const {
 }
 
 Date SqliteGameStateRepository::loadCurrentDate() const {
-    SqliteStatement statement = database.prepare("SELECT current_date FROM game_state WHERE id = ?");
+    SqliteStatement statement = database.prepare("SELECT \"current_date\" FROM game_state WHERE id = ?");
     statement.bindInt(1, GameStateRowId);
     if (!statement.stepRow()) {
         throw std::runtime_error("runtime game_state row does not exist");
@@ -333,7 +333,7 @@ std::vector<PersistedPlayerRuntimeState> SqliteGameStateRepository::loadPlayerRu
 
 void SqliteGameStateRepository::updateCurrentDate(const Date& currentDate) const {
     SqliteStatement statement = database.prepare(
-        "UPDATE game_state SET current_date = ?, updated_at_utc = ? WHERE id = ?");
+        "UPDATE game_state SET \"current_date\" = ?, updated_at_utc = ? WHERE id = ?");
     statement.bindText(1, dateToIsoString(currentDate));
     statement.bindText(2, currentUtcTimestamp());
     statement.bindInt(3, GameStateRowId);
@@ -360,7 +360,7 @@ void SqliteGameStateRepository::saveRuntimeState(
 
         {
             SqliteStatement statement = database.prepare(
-                "INSERT INTO game_state (id, current_date, current_state, updated_at_utc) "
+                "INSERT INTO game_state (id, \"current_date\", current_state, updated_at_utc) "
                 "VALUES (?, ?, ?, ?)");
             statement.bindInt(1, GameStateRowId);
             statement.bindText(2, dateToIsoString(currentDate));
