@@ -101,12 +101,10 @@ namespace SaveSlotPaths {
         GameBootstrapOptions options;
         options.mode = GameBootstrapMode::Sqlite;
         options.databaseOpenMode = openMode;
-        if (openMode == DatabaseOpenMode::OpenExisting) {
-            options.sqliteDbPath = saveDatabasePath(saveSlotId).toStdString();
-        } else {
+        options.sqliteDbPath = saveDatabasePath(saveSlotId).toStdString();
+        if (openMode != DatabaseOpenMode::OpenExisting) {
             options.sqliteSchemaPath = BootstrapPaths::schemaAssetPath().toStdString();
             options.sqliteSeedPath = BootstrapPaths::seedAssetPath().toStdString();
-            options.sqliteDbPath = ensureSaveDatabasePath(saveSlotId).toStdString();
         }
         const QString validSaveSlotId = requireValidSaveSlotId(saveSlotId);
         options.saveSlotId = validSaveSlotId.toStdString();

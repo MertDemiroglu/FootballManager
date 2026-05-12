@@ -5,6 +5,9 @@
 
 #include"fm/core/Game.h"
 #include"fm/core/LeagueContext.h"
+#include"fm/data/BootstrapDtos.h"
+#include"fm/data/SqliteBootstrapDatabaseInitializer.h"
+#include"fm/data/SqliteBootstrapRepository.h"
 #include"fm/roster/Team.h"
 #include"fm/roster/Footballer.h"
 #include"fm/roster/Formation.h"
@@ -40,8 +43,11 @@
 #include"EditableLineupRosterModel.h"
 
 #include<QDebug>
+#include<QTemporaryDir>
 
 #include<algorithm>
+#include<cctype>
+#include<cstdlib>
 #include<exception>
 #include<array>
 #include<unordered_map>
@@ -61,6 +67,78 @@ namespace {
 
     QString fromStd(const std::string& value) {
         return QString::fromStdString(value);
+    }
+
+    std::string trim(std::string value) {
+        const auto isNotSpace = [](unsigned char ch) {
+            return !std::isspace(ch);
+        };
+
+        while (!value.empty() && !isNotSpace(static_cast<unsigned char>(value.front()))) {
+            value.erase(value.begin());
+        }
+        while (!value.empty() && !isNotSpace(static_cast<unsigned char>(value.back()))) {
+            value.pop_back();
+        }
+        return value;
+    }
+
+    bool parseHexPair(const std::string& value, std::size_t offset, int& result) {
+        if (offset + 2 > value.size()) {
+            return false;
+        }
+
+        const std::string token = value.substr(offset, 2);
+        char* end = nullptr;
+        const long parsed = std::strtol(token.c_str(), &end, 16);
+        if (!end || *end != '\0' || parsed < 0 || parsed > 255) {
+            return false;
+        }
+
+        result = static_cast<int>(parsed);
+        return true;
+    }
+
+    QString readableTextColorForPrimary(const std::string& primaryColor) {
+        const std::string value = trim(primaryColor);
+        if (value.size() != 7 || value.front() != '#') {
+            return QStringLiteral("#f8fafc");
+        }
+
+        int red = 0;
+        int green = 0;
+        int blue = 0;
+        if (!parseHexPair(value, 1, red) || !parseHexPair(value, 3, green) || !parseHexPair(value, 5, blue)) {
+            return QStringLiteral("#f8fafc");
+        }
+
+        const int luminance = static_cast<int>((0.2126 * red) + (0.7152 * green) + (0.0722 * blue));
+        return luminance >= 110 ? QStringLiteral("#071016") : QStringLiteral("#f8fafc");
+    }
+
+    int seedPlayerPower(const PlayerSeedData& player) {
+        if (player.position == "Goalkeeper") {
+            return (player.s1 * 3 + player.s2 * 2 + player.s3 * 2 + player.s4 + player.s5) / 9;
+        }
+        if (player.position.find("Midfielder") != std::string::npos) {
+            return (player.s1 * 3 + player.s2 * 2 + player.s3 * 2 + player.s4 + player.s5 * 2) / 10;
+        }
+        if (player.position.find("Winger") != std::string::npos || player.position == "Striker") {
+            return (player.s1 * 3 + player.s2 * 2 + player.s3 * 2 + player.s4 + player.s5) / 9;
+        }
+        return (player.s1 * 3 + player.s2 * 2 + player.s3 * 2 + player.s4 + player.s5) / 9;
+    }
+
+    int seedTeamRating(const TeamSeedData& team) {
+        if (team.players.empty()) {
+            return 0;
+        }
+
+        int total = 0;
+        for (const PlayerSeedData& player : team.players) {
+            total += seedPlayerPower(player);
+        }
+        return total / static_cast<int>(team.players.size());
     }
 
     TeamVisualDto teamVisualForTeam(const Team* team) {
@@ -540,34 +618,26 @@ bool GameFacade::startNewGameInternal(LeagueId leagueId, TeamId teamId, const QS
         return false;
     }
 
-    Game* currentGame = ensureGame();
-    LeagueContext* selectedContext = currentGame ? currentGame->findLeagueContextById(leagueId) : nullptr;
-    if (!selectedContext) {
-        setLastError(QStringLiteral("Selected league could not be found."));
-        qWarning() << "[GameFacade::startNewGame] League id is not present in active game:" << leagueId;
-        publishGameStateChanged();
-        return false;
+    QString selectedTeamName;
+    const QVariantList teams = getTeamSelectionList();
+    for (const QVariant& value : teams) {
+        const QVariantMap team = value.toMap();
+        if (team.value(QStringLiteral("leagueId")).toInt() == static_cast<int>(leagueId)
+            && team.value(QStringLiteral("teamId")).toInt() == static_cast<int>(teamId)) {
+            selectedTeamName = team.value(QStringLiteral("teamName")).toString();
+            break;
+        }
     }
 
-    Team* teamInNewGame = selectedContext->getLeague().findTeamById(teamId);
-    if (!teamInNewGame) {
+    if (selectedTeamName.isEmpty()) {
         setLastError(QStringLiteral("Selected team could not be found in the selected league."));
         qWarning() << "[GameFacade::startNewGame] Team id" << teamId << "not found in league" << leagueId;
         publishGameStateChanged();
         return false;
     }
 
-    currentGame->setUserTeam(leagueId, teamInNewGame->getId());
-    currentGame->setSaveManagerName(trimmedManagerName.toStdString());
-    currentGame->pauseSimulation();
-    selectedLeagueId = leagueId;
-    selectedTeamId = teamInNewGame->getId();
-    managerName = trimmedManagerName;
-    gameStarted = true;
-    setLastError(QString());
-    qDebug() << "[GameFacade::startNewGame] Started new game with league" << selectedLeagueId << "team id" << selectedTeamId;
-    publishGameStateChanged();
-    return true;
+    const QString saveName = trimmedManagerName + QStringLiteral(" - ") + selectedTeamName;
+    return createNewGameSave(saveName, static_cast<int>(leagueId), static_cast<int>(teamId), trimmedManagerName);
 }
 
 void GameFacade::setLastError(const QString& errorMessage) {
@@ -592,24 +662,37 @@ QVariantList GameFacade::getTeamSelectionList() const {
         int squadSize = 0;
     };
 
+    QTemporaryDir temporaryDirectory;
+    if (!temporaryDirectory.isValid()) {
+        throw std::runtime_error("failed to create temporary database directory for team selection");
+    }
+
+    const QString previewDbPath = temporaryDirectory.filePath(QStringLiteral("team_selection_preview.db"));
+    SqliteBootstrapDatabaseInitializer::resetWithSeed(
+        previewDbPath.toStdString(),
+        BootstrapPaths::schemaAssetPath().toStdString(),
+        BootstrapPaths::seedAssetPath().toStdString());
+
+    const SqliteBootstrapRepository repository(previewDbPath.toStdString());
+    const std::vector<LeagueSeedData> leagues = repository.loadLeagues();
     std::vector<TeamSummary> summaries;
-    ensureGame()->forEachLeagueContext([&](const LeagueContext& context) {
-        const League& league = context.getLeague();
-        for (const auto& [teamId, team] : league.getTeams()) {
-            (void)teamId;
+    for (const LeagueSeedData& league : leagues) {
+        for (const TeamSeedData& team : league.teams) {
+            const std::string primaryColor = trim(team.primaryColor).empty() ? "#22c55e" : team.primaryColor;
+            const std::string secondaryColor = trim(team.secondaryColor).empty() ? "#0f172a" : team.secondaryColor;
             summaries.push_back(TeamSummary{
-                league.getId(),
-                team->getId(),
-                fromStd(team->getName()),
-                fromStd(league.getName()),
-                primaryColorForTeam(team.get()),
-                secondaryColorForTeam(team.get()),
-                badgeTextColorForTeam(team.get()),
-                team->calculateTeamRating(),
-                static_cast<int>(team->playerCount())
+                league.id,
+                team.id,
+                fromStd(team.name),
+                fromStd(league.name),
+                fromStd(primaryColor),
+                fromStd(secondaryColor),
+                readableTextColorForPrimary(primaryColor),
+                seedTeamRating(team),
+                static_cast<int>(team.players.size())
                 });
         }
-        });
+    }
     
 
     std::sort(summaries.begin(), summaries.end(), [](const TeamSummary& lhs, const TeamSummary& rhs) {
@@ -686,6 +769,11 @@ bool GameFacade::startNewGameForLeagueTeam(int leagueId, int teamId, const QStri
 
 bool GameFacade::hasStartedGame() const {
     return gameStarted;
+}
+
+bool GameFacade::hasContinueSave() const {
+    const SaveSlotService service;
+    return !service.lastSaveSlotId().isEmpty();
 }
 
 QVariantList GameFacade::listSaveSlots() const {

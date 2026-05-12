@@ -78,6 +78,7 @@ public:
     Q_INVOKABLE bool startNewGame(int teamId, const QString& managerName);
     Q_INVOKABLE bool startNewGameForLeagueTeam(int leagueId, int teamId, const QString& managerName);
     Q_INVOKABLE bool hasStartedGame() const;
+    Q_INVOKABLE bool hasContinueSave() const;
     Q_INVOKABLE QVariantList listSaveSlots() const;
     Q_INVOKABLE bool createNewGameSave(const QString& saveName, int leagueId, int teamId, const QString& managerName);
     Q_INVOKABLE bool loadGameSave(const QString& saveSlotId);
