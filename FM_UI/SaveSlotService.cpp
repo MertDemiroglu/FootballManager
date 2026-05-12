@@ -3,6 +3,7 @@
 #include"SaveSlotPaths.h"
 
 #include"fm/data/SaveMetadata.h"
+#include"fm/data/SqliteDatabase.h"
 #include"fm/data/SqliteSaveMetadataRepository.h"
 
 #include<QDateTime>
@@ -37,6 +38,67 @@ namespace {
         info.worldVersion = metadata.worldVersion;
         info.isValid = true;
         return info;
+    }
+
+    bool isUntouchedDefaultSave(const QString& folderSaveSlotId, const SaveSlotInfo& info) {
+        return folderSaveSlotId == SaveSlotPaths::defaultSaveSlotId()
+            && info.saveSlotId == SaveSlotPaths::defaultSaveSlotId()
+            && info.saveName == QStringLiteral("Default Save")
+            && info.managerName == QStringLiteral("Manager")
+            && info.managedLeagueId == 0
+            && info.managedTeamId == 0;
+    }
+
+    void resolveManagedClubNames(const QString& dbPath, SaveSlotInfo& info) {
+        if (info.managedLeagueId <= 0 || info.managedTeamId <= 0) {
+            return;
+        }
+
+        try {
+            SqliteDatabase database(dbPath.toStdString());
+            SqliteStatement statement = database.prepare(
+                "SELECT t.name, l.name "
+                "FROM teams t "
+                "JOIN leagues l ON l.id = t.league_id "
+                "WHERE t.id = ? AND t.league_id = ?");
+            statement.bindInt(1, info.managedTeamId);
+            statement.bindInt(2, info.managedLeagueId);
+            if (statement.stepRow()) {
+                info.managedTeamName = fromStd(statement.columnText(0));
+                info.managedLeagueName = fromStd(statement.columnText(1));
+            }
+        } catch (const std::exception& ex) {
+            qWarning() << "[SaveSlotService] Could not resolve managed club names for save"
+                       << info.saveSlotId << ":" << ex.what();
+        }
+    }
+
+    bool hasUserFacingSaveMetadata(const QString& saveSlotId) {
+        if (!SaveSlotPaths::isValidSaveSlotId(saveSlotId)) {
+            return false;
+        }
+
+        const QString dbPath = SaveSlotPaths::saveDatabasePath(saveSlotId);
+        if (!QFileInfo::exists(dbPath)) {
+            return false;
+        }
+
+        try {
+            SqliteSaveMetadataRepository repository(
+                dbPath.toStdString(),
+                SaveMetadataRepositoryMode::ReadExisting);
+            if (!repository.exists()) {
+                return false;
+            }
+            SaveSlotInfo info = toSaveSlotInfo(repository.load());
+            if (info.saveSlotId.isEmpty()) {
+                info.saveSlotId = saveSlotId;
+            }
+            return !isUntouchedDefaultSave(saveSlotId, info);
+        } catch (const std::exception& ex) {
+            qWarning() << "[SaveSlotService] Last save slot is not readable" << saveSlotId << ":" << ex.what();
+            return false;
+        }
     }
 
     QString sanitizedSlotBase(QString text) {
@@ -94,6 +156,11 @@ QList<SaveSlotInfo> SaveSlotService::listSaveSlots() const {
             if (info.saveSlotId.isEmpty()) {
                 info.saveSlotId = saveSlotId;
             }
+            if (isUntouchedDefaultSave(saveSlotId, info)) {
+                qWarning() << "[SaveSlotService] Skipping untouched default save slot:" << saveSlotId;
+                continue;
+            }
+            resolveManagedClubNames(dbPath, info);
             saveSlots.push_back(info);
         } catch (const std::exception& ex) {
             qWarning() << "[SaveSlotService] Skipping unreadable save slot" << saveSlotId << ":" << ex.what();
@@ -201,11 +268,10 @@ bool SaveSlotService::deleteSaveSlot(const QString& saveSlotId, QString* errorMe
 QString SaveSlotService::lastSaveSlotId() const {
     const QSettings settings;
     const QString storedSaveSlotId = settings.value(QString::fromLatin1(LastSaveSlotSettingsKey)).toString();
-    if (saveSlotExists(storedSaveSlotId)) {
+    if (hasUserFacingSaveMetadata(storedSaveSlotId)) {
         return storedSaveSlotId;
     }
-    const QString defaultSlotId = SaveSlotPaths::defaultSaveSlotId();
-    return saveSlotExists(defaultSlotId) ? defaultSlotId : QString();
+    return QString();
 }
 
 void SaveSlotService::rememberLastSaveSlot(const QString& saveSlotId) const {

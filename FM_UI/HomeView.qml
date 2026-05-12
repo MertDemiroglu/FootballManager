@@ -22,10 +22,11 @@ Item {
         if (saveSlot.managedTeamName) {
             return saveSlot.managedTeamName
         }
-        if (saveSlot.managedTeamId > 0) {
-            return "Managed club ID: " + saveSlot.managedTeamId
-        }
-        return "Managed club not set"
+        return "Managed club unavailable"
+    }
+
+    function saveCardTitle(saveSlot) {
+        return (saveSlot.managerName || "Manager") + " - " + root.managedClubText(saveSlot)
     }
 
     Component.onCompleted: refreshSaveSlots()
@@ -156,7 +157,7 @@ Item {
                                     spacing: 3
 
                                     Label {
-                                        text: modelData.saveName || "Unnamed Save"
+                                        text: root.saveCardTitle(modelData)
                                         font.pixelSize: 15
                                         font.bold: true
                                         color: "#17212f"
@@ -165,16 +166,15 @@ Item {
                                     }
 
                                     Label {
-                                        text: (modelData.managerName || "Manager")
-                                              + " - " + root.managedClubText(modelData)
+                                        text: "Game Date: " + (modelData.currentDate || "Unknown")
                                         color: "#526071"
                                         Layout.fillWidth: true
                                         elide: Text.ElideRight
                                     }
 
                                     Label {
-                                        text: (modelData.currentDate || "No date")
-                                              + " - Updated: " + (modelData.updatedAtUtc || "unknown")
+                                        text: "Created: " + (modelData.createdAtUtc || "unknown")
+                                              + " \u2022 Updated: " + (modelData.updatedAtUtc || "unknown")
                                         color: "#667085"
                                         font.pixelSize: 12
                                         Layout.fillWidth: true

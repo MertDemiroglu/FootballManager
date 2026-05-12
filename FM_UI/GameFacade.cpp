@@ -773,7 +773,8 @@ bool GameFacade::hasStartedGame() const {
 
 bool GameFacade::hasContinueSave() const {
     const SaveSlotService service;
-    return !service.lastSaveSlotId().isEmpty();
+    const QString saveSlotId = service.lastSaveSlotId();
+    return !saveSlotId.isEmpty() && service.saveSlotExists(saveSlotId);
 }
 
 QVariantList GameFacade::listSaveSlots() const {
@@ -880,6 +881,9 @@ bool GameFacade::loadGameSave(const QString& saveSlotId) {
         GameBootstrapOptions loadedBootstrapOptions = service.loadExistingSaveBootstrapOptions(trimmedSaveSlotId);
         auto loadedGame = std::make_unique<Game>(loadedBootstrapOptions);
         const SaveMetadata metadata = loadedGame->getSaveMetadata();
+        // TODO: Full game-state persistence/load must persist and restore Game
+        // date, fixtures/match results, standings/projections, player condition,
+        // form, morale, and other mutable world state.
 
         LeagueContext* selectedContext = loadedGame->findLeagueContextById(metadata.managedLeagueId);
         Team* selectedTeam = selectedContext
