@@ -62,6 +62,9 @@ private:
     void ensureSaveMetadata(const GameBootstrapOptions& bootstrapOptions);
     void updateManagedClubSaveMetadata();
     void updateCurrentDateSaveMetadata();
+    void restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions);
+    void persistRuntimeState();
+    void validateRuntimeDateConsistency(const char* context) const;
 
 	void temporaryForDebug_tryCreateWeeklyManagedTransferOffer();
 public:
@@ -121,6 +124,7 @@ public:
     void setSaveManagerName(const std::string& managerName);
 	LeagueId getManagedLeagueId() const;
 	TeamId getManagedTeamId() const;
+    void flushSaveState();
     SaveMetadata getSaveMetadata() const;
 
 	//tarih nesnesini verir non-const

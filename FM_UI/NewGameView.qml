@@ -42,6 +42,16 @@ Item {
         return managerNameField.text.trim()
     }
 
+    function generatedSaveName() {
+        if (root.trimmedManagerName().length > 0 && root.selectedTeamName.length > 0) {
+            return root.trimmedManagerName() + " - " + root.selectedTeamName
+        }
+        if (root.selectedTeamName.length > 0) {
+            return root.selectedTeamName + " Career"
+        }
+        return "New Save"
+    }
+
     Component.onCompleted: refreshData()
 
     Rectangle {
@@ -249,7 +259,8 @@ Item {
                                      && root.trimmedManagerName().length > 0
                                      && root.teamList.length > 0
                             onClicked: {
-                                var didStart = gameFacade.startNewGameForLeagueTeam(
+                                var didStart = gameFacade.createNewGameSave(
+                                            root.generatedSaveName(),
                                             root.selectedLeagueId,
                                             root.selectedTeamId,
                                             root.trimmedManagerName())

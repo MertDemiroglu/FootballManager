@@ -3,6 +3,8 @@
 #include"SaveSlotPaths.h"
 
 #include"fm/data/SaveMetadata.h"
+#include"fm/data/SqliteGameStateRepository.h"
+#include"fm/data/SqliteDatabase.h"
 #include"fm/data/SqliteSaveMetadataRepository.h"
 
 #include<QDateTime>
@@ -14,13 +16,82 @@
 
 #include<algorithm>
 #include<exception>
+#include<iomanip>
+#include<sstream>
 #include<stdexcept>
+#include<vector>
 
 namespace {
     constexpr const char* LastSaveSlotSettingsKey = "saveSlots/lastSaveSlotId";
 
     QString fromStd(const std::string& value) {
         return QString::fromStdString(value);
+    }
+
+    QString dateToIsoString(const Date& date) {
+        std::ostringstream output;
+        output << std::setw(4) << std::setfill('0') << date.getYear() << "-"
+            << std::setw(2) << std::setfill('0') << static_cast<int>(date.getMonth()) << "-"
+            << std::setw(2) << std::setfill('0') << date.getDay();
+        return QString::fromStdString(output.str());
+    }
+
+    bool sameDate(const Date& lhs, const Date& rhs) {
+        return lhs.getYear() == rhs.getYear()
+            && lhs.getMonth() == rhs.getMonth()
+            && lhs.getDay() == rhs.getDay();
+    }
+
+    bool dateIsBefore(const Date& lhs, const Date& rhs) {
+        return lhs < rhs;
+    }
+
+    bool runtimeStateLooksConsistent(
+        const Date& currentDate,
+        const std::vector<PersistedLeagueRuntimeState>& leagueStates,
+        const std::vector<PersistedFixtureState>& fixtures,
+        const std::vector<PersistedPlayerRuntimeState>& playerStates) {
+        if (leagueStates.empty() || fixtures.empty() || playerStates.empty()) {
+            return false;
+        }
+
+        for (const PersistedLeagueRuntimeState& state : leagueStates) {
+            if (state.leagueId == 0 || state.seasonYear < 0) {
+                return false;
+            }
+
+            const Date preseasonStart(state.seasonYear, Month::July, 1);
+            const Date nextPreseasonStart(state.seasonYear + 1, Month::July, 1);
+            if (dateIsBefore(currentDate, preseasonStart)) {
+                return false;
+            }
+            if (!dateIsBefore(currentDate, nextPreseasonStart) && !sameDate(currentDate, nextPreseasonStart)) {
+                return false;
+            }
+
+            bool sawFixtureForLeague = false;
+            for (const PersistedFixtureState& fixture : fixtures) {
+                if (fixture.leagueId != state.leagueId) {
+                    continue;
+                }
+                sawFixtureForLeague = true;
+                if (fixture.seasonYear != state.seasonYear
+                    || fixture.matchId == 0
+                    || fixture.matchweek <= 0
+                    || fixture.homeTeamId == 0
+                    || fixture.awayTeamId == 0
+                    || fixture.date.getYear() < state.seasonYear
+                    || fixture.date.getYear() > state.seasonYear + 1) {
+                    return false;
+                }
+            }
+
+            if (state.fixtureGenerated && !sawFixtureForLeague) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     SaveSlotInfo toSaveSlotInfo(const SaveMetadata& metadata) {
@@ -37,6 +108,82 @@ namespace {
         info.worldVersion = metadata.worldVersion;
         info.isValid = true;
         return info;
+    }
+
+    bool isUntouchedDefaultSave(const QString& folderSaveSlotId, const SaveSlotInfo& info) {
+        return folderSaveSlotId == SaveSlotPaths::defaultSaveSlotId()
+            && info.saveSlotId == SaveSlotPaths::defaultSaveSlotId()
+            && info.saveName == QStringLiteral("Default Save")
+            && info.managerName == QStringLiteral("Manager")
+            && info.managedLeagueId == 0
+            && info.managedTeamId == 0;
+    }
+
+    void resolveManagedClubNames(const QString& dbPath, SaveSlotInfo& info) {
+        if (info.managedLeagueId <= 0 || info.managedTeamId <= 0) {
+            return;
+        }
+
+        try {
+            SqliteDatabase database(dbPath.toStdString());
+            SqliteStatement statement = database.prepare(
+                "SELECT t.name, l.name "
+                "FROM teams t "
+                "JOIN leagues l ON l.id = t.league_id "
+                "WHERE t.id = ? AND t.league_id = ?");
+            statement.bindInt(1, info.managedTeamId);
+            statement.bindInt(2, info.managedLeagueId);
+            if (statement.stepRow()) {
+                info.managedTeamName = fromStd(statement.columnText(0));
+                info.managedLeagueName = fromStd(statement.columnText(1));
+            }
+        } catch (const std::exception& ex) {
+            qWarning() << "[SaveSlotService] Could not resolve managed club names for save"
+                       << info.saveSlotId << ":" << ex.what();
+        }
+    }
+
+    bool hasUserFacingSaveMetadata(const QString& saveSlotId) {
+        if (!SaveSlotPaths::isValidSaveSlotId(saveSlotId)) {
+            return false;
+        }
+
+        const QString dbPath = SaveSlotPaths::saveDatabasePath(saveSlotId);
+        if (!QFileInfo::exists(dbPath)) {
+            return false;
+        }
+
+        try {
+            SqliteSaveMetadataRepository repository(
+                dbPath.toStdString(),
+                SaveMetadataRepositoryMode::ReadExisting);
+            if (!repository.exists()) {
+                return false;
+            }
+            SaveSlotInfo info = toSaveSlotInfo(repository.load());
+            if (info.saveSlotId.isEmpty()) {
+                info.saveSlotId = saveSlotId;
+            }
+
+            SqliteGameStateRepository runtimeRepository(
+                dbPath.toStdString(),
+                GameStateRepositoryMode::ReadExisting);
+            if (!runtimeRepository.hasGameState()) {
+                return false;
+            }
+            const Date currentDate = runtimeRepository.loadCurrentDate();
+            const std::vector<PersistedLeagueRuntimeState> leagueStates = runtimeRepository.loadLeagueRuntimeStates();
+            const std::vector<PersistedFixtureState> fixtures = runtimeRepository.loadFixtures();
+            const std::vector<PersistedPlayerRuntimeState> playerStates = runtimeRepository.loadPlayerRuntimeStates();
+            if (!runtimeStateLooksConsistent(currentDate, leagueStates, fixtures, playerStates)) {
+                return false;
+            }
+
+            return !isUntouchedDefaultSave(saveSlotId, info);
+        } catch (const std::exception& ex) {
+            qWarning() << "[SaveSlotService] Last save slot is not readable" << saveSlotId << ":" << ex.what();
+            return false;
+        }
     }
 
     QString sanitizedSlotBase(QString text) {
@@ -94,6 +241,28 @@ QList<SaveSlotInfo> SaveSlotService::listSaveSlots() const {
             if (info.saveSlotId.isEmpty()) {
                 info.saveSlotId = saveSlotId;
             }
+            if (isUntouchedDefaultSave(saveSlotId, info)) {
+                qWarning() << "[SaveSlotService] Skipping untouched default save slot:" << saveSlotId;
+                continue;
+            }
+
+            SqliteGameStateRepository runtimeRepository(
+                dbPath.toStdString(),
+                GameStateRepositoryMode::ReadExisting);
+            if (!runtimeRepository.hasGameState()) {
+                qWarning() << "[SaveSlotService] Skipping save without runtime game_state:" << saveSlotId;
+                continue;
+            }
+            const Date currentDate = runtimeRepository.loadCurrentDate();
+            const std::vector<PersistedLeagueRuntimeState> leagueStates = runtimeRepository.loadLeagueRuntimeStates();
+            const std::vector<PersistedFixtureState> fixtures = runtimeRepository.loadFixtures();
+            const std::vector<PersistedPlayerRuntimeState> playerStates = runtimeRepository.loadPlayerRuntimeStates();
+            if (!runtimeStateLooksConsistent(currentDate, leagueStates, fixtures, playerStates)) {
+                qWarning() << "[SaveSlotService] Skipping inconsistent runtime save slot:" << saveSlotId;
+                continue;
+            }
+            info.currentDate = dateToIsoString(currentDate);
+            resolveManagedClubNames(dbPath, info);
             saveSlots.push_back(info);
         } catch (const std::exception& ex) {
             qWarning() << "[SaveSlotService] Skipping unreadable save slot" << saveSlotId << ":" << ex.what();
@@ -132,6 +301,9 @@ GameBootstrapOptions SaveSlotService::createNewSaveBootstrapOptions(
 GameBootstrapOptions SaveSlotService::loadExistingSaveBootstrapOptions(const QString& saveSlotId) const {
     if (!saveSlotExists(saveSlotId)) {
         throw std::invalid_argument("save slot database does not exist: " + saveSlotId.toStdString());
+    }
+    if (!hasUserFacingSaveMetadata(saveSlotId)) {
+        throw std::invalid_argument("save slot runtime state is missing or unreadable: " + saveSlotId.toStdString());
     }
     return SaveSlotPaths::createBootstrapOptionsForSaveSlot(saveSlotId, DatabaseOpenMode::OpenExisting);
 }
@@ -201,11 +373,10 @@ bool SaveSlotService::deleteSaveSlot(const QString& saveSlotId, QString* errorMe
 QString SaveSlotService::lastSaveSlotId() const {
     const QSettings settings;
     const QString storedSaveSlotId = settings.value(QString::fromLatin1(LastSaveSlotSettingsKey)).toString();
-    if (saveSlotExists(storedSaveSlotId)) {
+    if (hasUserFacingSaveMetadata(storedSaveSlotId)) {
         return storedSaveSlotId;
     }
-    const QString defaultSlotId = SaveSlotPaths::defaultSaveSlotId();
-    return saveSlotExists(defaultSlotId) ? defaultSlotId : QString();
+    return QString();
 }
 
 void SaveSlotService::rememberLastSaveSlot(const QString& saveSlotId) const {

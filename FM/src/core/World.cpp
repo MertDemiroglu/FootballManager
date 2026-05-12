@@ -81,6 +81,12 @@ MatchId World::allocateMatchId() {
     return nextMatchId++;
 }
 
+void World::ensureNextMatchIdAfter(MatchId matchId) {
+    if (matchId != 0 && nextMatchId <= matchId) {
+        nextMatchId = matchId + 1;
+    }
+}
+
 LeagueContext& World::getPrimaryLeagueContext() {
     if (!primaryLeagueId.has_value()) {
         throw std::logic_error("world has no primary league context");

@@ -1,10 +1,12 @@
 #include"fm/core/Game.h"
 
 #include"fm/roster/Team.h"
+#include"fm/roster/Footballer.h"
 
 #include"fm/competition/League.h"
 
 #include"fm/data/WorldBootstrapService.h"
+#include"fm/data/SqliteGameStateRepository.h"
 #include"fm/data/SqliteSaveMetadataRepository.h"
 #include"fm/interaction/PostMatchInteraction.h"
 
@@ -19,9 +21,15 @@
 #include<iomanip>
 #include<sstream>
 #include<stdexcept>
+#include<unordered_map>
+#include<unordered_set>
 #include<utility>
 
 namespace {
+    Date initialGameDate() {
+        return Date(2025, Month::July, 1);
+    }
+
     LeagueRules buildDefaultBootstrapLeagueRules() {
         return LeagueRules::makeSuperLig();
     }
@@ -36,6 +44,20 @@ namespace {
             << std::setw(2) << std::setfill('0') << static_cast<int>(date.getMonth()) << "-"
             << std::setw(2) << std::setfill('0') << date.getDay();
         return output.str();
+    }
+
+    bool sameDate(const Date& lhs, const Date& rhs) {
+        return lhs.getYear() == rhs.getYear()
+            && lhs.getMonth() == rhs.getMonth()
+            && lhs.getDay() == rhs.getDay();
+    }
+
+    bool dateIsBefore(const Date& lhs, const Date& rhs) {
+        return lhs < rhs;
+    }
+
+    bool dateIsOnOrAfter(const Date& lhs, const Date& rhs) {
+        return !dateIsBefore(lhs, rhs);
     }
 
     bool sqliteDatabaseFileExists(const std::string& dbPath) {
@@ -116,7 +138,7 @@ void Game::ensureSaveMetadata(const GameBootstrapOptions& bootstrapOptions) {
         defaultMetadata.managedLeagueId = user.getManagedLeagueId();
         defaultMetadata.managedTeamId = user.getManagedTeamId();
         defaultMetadata.currentDate = dateToIsoString(date);
-        defaultMetadata.schemaVersion = 1;
+        defaultMetadata.schemaVersion = 2;
         defaultMetadata.worldVersion = 1;
         repository.insertDefault(defaultMetadata);
     }
@@ -146,10 +168,268 @@ void Game::updateCurrentDateSaveMetadata() {
     saveMetadata = repository.load();
 }
 
+void Game::restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions) {
+    if (!saveMetadataEnabled) {
+        return;
+    }
+
+    SqliteGameStateRepository repository(bootstrapOptions.sqliteDbPath, GameStateRepositoryMode::ReadExisting);
+    if (!repository.hasGameState()) {
+        throw std::runtime_error("save slot is missing runtime game_state; clear incompatible development saves or start a new game");
+    }
+
+    date = repository.loadCurrentDate();
+
+    const std::vector<PersistedLeagueRuntimeState> leagueStates = repository.loadLeagueRuntimeStates();
+    const std::vector<PersistedFixtureState> fixtures = repository.loadFixtures();
+    const std::vector<MatchReport> reports = repository.loadMatchReports();
+    const std::vector<PersistedPlayerRuntimeState> playerStates = repository.loadPlayerRuntimeStates();
+
+    if (leagueStates.empty()) {
+        throw std::runtime_error("save slot is missing league runtime state");
+    }
+    if (fixtures.empty()) {
+        throw std::runtime_error("save slot is missing persisted fixtures");
+    }
+    if (playerStates.empty()) {
+        throw std::runtime_error("save slot is missing player runtime state");
+    }
+
+    std::unordered_map<LeagueId, PersistedLeagueRuntimeState> stateByLeague;
+    for (const PersistedLeagueRuntimeState& state : leagueStates) {
+        stateByLeague.emplace(state.leagueId, state);
+
+        LeagueContext* context = world.findLeagueContext(state.leagueId);
+        if (!context) {
+            throw std::runtime_error("save slot references unknown league runtime state");
+        }
+
+        League& league = context->getLeague();
+        LeagueRules& rules = context->getRules();
+        SeasonPlan& seasonPlan = context->getSeasonPlan();
+
+        context->setLastSeasonRolloverYear(state.lastSeasonRolloverYear);
+        league.resetForNewSeason(state.seasonYear);
+        league.initializeMatchdayTracking(rules.matchdaysPerSeason);
+        seasonPlan = SeasonPlan::build(state.seasonYear, rules);
+        league.setSeasonFixtureGenerated(false);
+    }
+
+    for (const PersistedFixtureState& fixture : fixtures) {
+        const auto stateIt = stateByLeague.find(fixture.leagueId);
+        if (stateIt == stateByLeague.end()) {
+            throw std::runtime_error("persisted fixture references league without runtime state");
+        }
+        if (fixture.seasonYear != stateIt->second.seasonYear) {
+            throw std::runtime_error("persisted fixture season year does not match league runtime state");
+        }
+
+        LeagueContext* context = world.findLeagueContext(fixture.leagueId);
+        if (!context) {
+            throw std::runtime_error("persisted fixture references unknown league");
+        }
+
+        League& league = context->getLeague();
+        league.addFixtureMatch(
+            fixture.matchId,
+            fixture.matchweek,
+            fixture.date,
+            fixture.homeTeamId,
+            fixture.awayTeamId);
+        world.ensureNextMatchIdAfter(fixture.matchId);
+    }
+
+    for (const PersistedLeagueRuntimeState& state : leagueStates) {
+        LeagueContext* context = world.findLeagueContext(state.leagueId);
+        if (!context) {
+            continue;
+        }
+
+        League& league = context->getLeague();
+        SeasonPlan& seasonPlan = context->getSeasonPlan();
+        if (state.fixtureGenerated && league.debugTotalFixtureMatches() > 0) {
+            seasonPlan.finalizeFromFixture(league, context->getRules());
+        }
+        league.setSeasonFixtureGenerated(state.fixtureGenerated);
+    }
+
+    std::unordered_set<MatchId> restoredReportIds;
+    for (const MatchReport& report : reports) {
+        LeagueContext* context = world.findLeagueContext(report.leagueId);
+        if (!context) {
+            throw std::runtime_error("persisted match report references unknown league");
+        }
+        context->getLeague().restoreMatchReport(report);
+        restoredReportIds.insert(report.matchId);
+        world.ensureNextMatchIdAfter(report.matchId);
+    }
+
+    for (const PersistedFixtureState& fixture : fixtures) {
+        if (!fixture.played || restoredReportIds.find(fixture.matchId) != restoredReportIds.end()) {
+            continue;
+        }
+
+        LeagueContext* context = world.findLeagueContext(fixture.leagueId);
+        if (!context) {
+            throw std::runtime_error("persisted fixture result references unknown league");
+        }
+        context->getLeague().restoreFixtureResult(
+            fixture.matchId,
+            fixture.date,
+            fixture.seasonYear,
+            fixture.homeTeamId,
+            fixture.awayTeamId,
+            fixture.homeGoals,
+            fixture.awayGoals,
+            fixture.matchweek);
+    }
+
+    for (const PersistedPlayerRuntimeState& state : playerStates) {
+        Footballer* player = nullptr;
+        world.forEachLeagueContext([&](LeagueContext& context) {
+            if (!player) {
+                player = context.getLeague().findPlayerById(state.playerId);
+            }
+        });
+        if (!player) {
+            throw std::runtime_error("player runtime state references unknown player");
+        }
+
+        PlayerConditionState& condition = player->getConditionState();
+        condition.setForm(state.form);
+        condition.setFitness(state.fitness);
+        condition.setMorale(state.morale);
+    }
+
+    SqliteSaveMetadataRepository metadataRepository(saveMetadataDbPath);
+    metadataRepository.updateCurrentDate(dateToIsoString(date));
+    saveMetadata = metadataRepository.load();
+    validateRuntimeDateConsistency("restore runtime state");
+}
+
+void Game::persistRuntimeState() {
+    if (!saveMetadataEnabled) {
+        return;
+    }
+
+    validateRuntimeDateConsistency("persist runtime state");
+
+    std::vector<PersistedLeagueRuntimeState> leagueStates;
+    std::vector<PersistedFixtureState> fixtures;
+    std::vector<MatchReport> reports;
+    std::vector<PersistedPlayerRuntimeState> playerStates;
+
+    world.forEachLeagueContext([&](const LeagueContext& context) {
+        const League& league = context.getLeague();
+        leagueStates.push_back(PersistedLeagueRuntimeState{
+            league.getId(),
+            league.getCurrentSeasonYear(),
+            league.isSeasonFixtureGenerated(),
+            context.getLastSeasonRolloverYear()
+        });
+
+        for (const auto& [fixtureDate, matches] : league.getFixture()) {
+            for (const FixtureMatch& match : matches) {
+                fixtures.push_back(PersistedFixtureState{
+                    match.matchId,
+                    league.getId(),
+                    league.getCurrentSeasonYear(),
+                    match.matchweek,
+                    fixtureDate,
+                    match.homeId,
+                    match.awayId,
+                    match.played,
+                    false,
+                    match.homeGoals,
+                    match.awayGoals
+                });
+            }
+        }
+
+        for (const MatchRecord& record : league.getCurrentSeasonHistory()) {
+            const MatchReport* report = league.findCurrentSeasonMatchReportById(record.matchId);
+            if (report) {
+                reports.push_back(*report);
+            }
+        }
+
+        for (const auto& [teamId, team] : league.getTeams()) {
+            (void)teamId;
+            if (!team) {
+                continue;
+            }
+            for (const auto& player : team->getPlayers()) {
+                if (!player) {
+                    continue;
+                }
+                const PlayerConditionState& condition = player->getConditionState();
+                playerStates.push_back(PersistedPlayerRuntimeState{
+                    player->getId(),
+                    condition.getForm(),
+                    condition.getFitness(),
+                    condition.getMorale()
+                });
+            }
+        }
+    });
+
+    // TODO: Transfer offer and roster mutation persistence needs dedicated runtime
+    // tables; this repository covers date, fixtures/results, standings rebuild data,
+    // match reports, and player condition for the current save/load gameplay scope.
+    SqliteGameStateRepository repository(saveMetadataDbPath);
+    repository.saveRuntimeState(date, static_cast<int>(state), leagueStates, fixtures, reports, playerStates);
+}
+
+void Game::validateRuntimeDateConsistency(const char* context) const {
+    world.forEachLeagueContext([&](const LeagueContext& leagueContext) {
+        const League& league = leagueContext.getLeague();
+        const LeagueRules& rules = leagueContext.getRules();
+        const SeasonPlan& seasonPlan = leagueContext.getSeasonPlan();
+        const int seasonYear = league.getCurrentSeasonYear();
+
+        if (seasonYear < 0) {
+            throw std::logic_error(std::string(context) + ": league runtime season year is not initialized");
+        }
+
+        const Date preseasonStart = rules.preseasonStart(seasonYear);
+        const Date nextPreseasonStart = rules.nextPreseasonStart(seasonYear);
+        if (dateIsBefore(date, preseasonStart)
+            || (dateIsOnOrAfter(date, nextPreseasonStart) && !sameDate(date, nextPreseasonStart))) {
+            throw std::logic_error(std::string(context) + ": game date is outside the league runtime season window");
+        }
+
+        if (league.isSeasonFixtureGenerated() && league.debugTotalFixtureMatches() == 0) {
+            throw std::logic_error(std::string(context) + ": fixture generation flag is set but no fixtures exist");
+        }
+
+        if (!league.isSeasonFixtureGenerated()) {
+            return;
+        }
+
+        if (!sameDate(seasonPlan.getPreseasonStart(), preseasonStart)) {
+            throw std::logic_error(std::string(context) + ": season plan is not aligned with league runtime season year");
+        }
+
+        for (const auto& [fixtureDate, matches] : league.getFixture()) {
+            if (fixtureDate.getYear() < seasonYear || fixtureDate.getYear() > seasonYear + 1) {
+                throw std::logic_error(std::string(context) + ": fixture date is outside the league runtime season year");
+            }
+            for (const FixtureMatch& match : matches) {
+                if (match.matchweek <= 0) {
+                    throw std::logic_error(std::string(context) + ": fixture has invalid matchweek");
+                }
+                if (!league.hasTeam(match.homeId) || !league.hasTeam(match.awayId)) {
+                    throw std::logic_error(std::string(context) + ": fixture references unknown team");
+                }
+            }
+        }
+    });
+}
+
 Game::~Game() = default;
 
 Game::Game(const GameBootstrapOptions& bootstrapOptions)
-    : date(2025, Month::July, 1),
+    : date(initialGameDate()),
     world(),
     state(GameState::PreSeason),
     eventsQueue(),
@@ -166,10 +446,22 @@ Game::Game(const GameBootstrapOptions& bootstrapOptions)
     const LeagueRules rules = buildDefaultBootstrapLeagueRules();
     const SeasonPlan seasonPlan = buildDefaultBootstrapSeasonPlan(rules);
 
+    bool loadedRuntimeState = false;
+
     switch (bootstrapOptions.mode) {
     case GameBootstrapMode::Sqlite:
         bootstrapWorldFromSqlite(world, bootstrapOptions, rules, seasonPlan);
         ensureSaveMetadata(bootstrapOptions);
+        if (bootstrapOptions.databaseOpenMode == DatabaseOpenMode::OpenExisting) {
+            restoreRuntimeState(bootstrapOptions);
+            loadedRuntimeState = true;
+        } else if (bootstrapOptions.databaseOpenMode == DatabaseOpenMode::CreateFromSeedIfMissing) {
+            SqliteGameStateRepository runtimeRepository(bootstrapOptions.sqliteDbPath, GameStateRepositoryMode::ReadExisting);
+            if (runtimeRepository.hasGameState()) {
+                restoreRuntimeState(bootstrapOptions);
+                loadedRuntimeState = true;
+            }
+        }
         break;
     default:
         throw std::invalid_argument("unsupported game bootstrap mode");
@@ -224,6 +516,11 @@ Game::Game(const GameBootstrapOptions& bootstrapOptions)
     updateState();         
     seasonStartChecks();
     updateTransferWindow(); 
+    if (!loadedRuntimeState) {
+        updateState();
+        updateCurrentDateSaveMetadata();
+        persistRuntimeState();
+    }
 }
 
 void Game::updateState() {
@@ -329,6 +626,7 @@ void Game::updateDaily() {
                 std::move(homeSheet),
                 std::move(awaySheet)));
             refreshTimePauseState();
+            persistRuntimeState();
             return;
         }
 
@@ -337,9 +635,11 @@ void Game::updateDaily() {
             throw std::logic_error("play command references unknown league context");
         }
         context->getPlayMatchCommandHandler().handle(context->getLeague(), command);
+        persistRuntimeState();
 
         refreshTimePauseState();
         if (timePaused) {
+            persistRuntimeState();
             return;
         }
     }
@@ -392,6 +692,7 @@ void Game::updateDaily() {
             conditionService.applyDailyRecovery(context.getLeague());
             });
         updateCurrentDateSaveMetadata();
+        persistRuntimeState();
     }
     world.getTransferOfferService().expirePendingOffers(date);//gecici cozum 2. kere expire kontrolu
 }
@@ -674,6 +975,8 @@ bool Game::playPendingPreMatch() {
     pendingPreMatchAwaySheet.reset();
     interactionManager.resolveActiveInteraction();
     refreshTimePauseState();
+    updateCurrentDateSaveMetadata();
+    persistRuntimeState();
     return true;
 }
 
@@ -876,6 +1179,11 @@ LeagueId Game::getManagedLeagueId() const {
 
 TeamId Game::getManagedTeamId() const {
     return user.getManagedTeamId();
+}
+
+void Game::flushSaveState() {
+    updateCurrentDateSaveMetadata();
+    persistRuntimeState();
 }
 
 SaveMetadata Game::getSaveMetadata() const {

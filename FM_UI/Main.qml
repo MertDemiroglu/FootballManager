@@ -279,6 +279,18 @@ ApplicationWindow {
                 gameFacade.clearLastError()
                 root.navigateTo(root.routes.teamSelection)
             }
+            onContinueRequested: {
+                gameFacade.clearLastError()
+                if (gameFacade.continueLastSave()) {
+                    root.navigateTo(root.routes.dashboard)
+                }
+            }
+            onLoadGameRequested: function(saveSlotId) {
+                gameFacade.clearLastError()
+                if (gameFacade.loadGameSave(saveSlotId)) {
+                    root.navigateTo(root.routes.dashboard)
+                }
+            }
             onQuitRequested: Qt.quit()
         }
     }

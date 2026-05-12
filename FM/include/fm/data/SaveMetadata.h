@@ -16,6 +16,6 @@ struct SaveMetadata {
     std::string currentDate;
     std::string createdAtUtc;
     std::string updatedAtUtc;
-    int schemaVersion = 1;
+    int schemaVersion = 2;
     int worldVersion = 1;
 };
