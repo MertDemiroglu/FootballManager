@@ -57,6 +57,8 @@ public:
     std::vector<MatchReport> loadMatchReports() const;
     std::vector<PersistedPlayerRuntimeState> loadPlayerRuntimeStates() const;
 
+    void updateCurrentDate(const Date& currentDate) const;
+
     void saveRuntimeState(
         const Date& currentDate,
         int currentState,

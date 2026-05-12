@@ -97,7 +97,7 @@ namespace {
         return &league.getFixture().begin()->first;
     }
 
-    void validateNewSaveInitialState(const Game& game, const GameBootstrapOptions& options) {
+    void validateNewSaveInitialState(Game& game, const GameBootstrapOptions& options) {
         const Date expectedInitialDate = initialGameDate();
         const std::string expectedInitialDateText = dateToIsoString(expectedInitialDate);
 
@@ -109,9 +109,21 @@ namespace {
         if (!runtimeRepository.hasGameState()) {
             throw std::runtime_error("new save did not create runtime game_state");
         }
-        const Date persistedDate = runtimeRepository.loadCurrentDate();
+        Date persistedDate = runtimeRepository.loadCurrentDate();
         if (!sameDate(persistedDate, expectedInitialDate)) {
-            throw std::runtime_error("new save persisted a game_state date different from the initial game date");
+            qWarning() << "[GameFacade::createNewGameSave] Repairing new save game_state.current_date"
+                       << "expected=" << QString::fromStdString(expectedInitialDateText)
+                       << "actual=" << QString::fromStdString(dateToIsoString(persistedDate));
+            game.flushSaveState();
+            runtimeRepository.updateCurrentDate(expectedInitialDate);
+            persistedDate = runtimeRepository.loadCurrentDate();
+        }
+        if (!sameDate(persistedDate, expectedInitialDate)) {
+            throw std::runtime_error(
+                "new save persisted a game_state date different from the initial game date: expected "
+                + expectedInitialDateText
+                + " but got "
+                + dateToIsoString(persistedDate));
         }
 
         const std::vector<PersistedLeagueRuntimeState> leagueStates = runtimeRepository.loadLeagueRuntimeStates();
