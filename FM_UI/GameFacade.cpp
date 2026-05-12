@@ -1,6 +1,7 @@
 #include"GameFacade.h"
 
 #include"BootstrapPaths.h"
+#include"SaveSlotService.h"
 
 #include"fm/core/Game.h"
 #include"fm/core/LeagueContext.h"
@@ -73,6 +74,24 @@ namespace {
         map.insert(QStringLiteral("primaryColor"), fromStd(team.primaryColor));
         map.insert(QStringLiteral("secondaryColor"), fromStd(team.secondaryColor));
         map.insert(QStringLiteral("textColor"), fromStd(team.textColor));
+        return map;
+    }
+
+    QVariantMap toVariantMap(const SaveSlotInfo& info) {
+        QVariantMap map;
+        map.insert(QStringLiteral("saveSlotId"), info.saveSlotId);
+        map.insert(QStringLiteral("saveName"), info.saveName);
+        map.insert(QStringLiteral("managerName"), info.managerName);
+        map.insert(QStringLiteral("managedLeagueId"), info.managedLeagueId);
+        map.insert(QStringLiteral("managedTeamId"), info.managedTeamId);
+        map.insert(QStringLiteral("managedTeamName"), info.managedTeamName);
+        map.insert(QStringLiteral("managedLeagueName"), info.managedLeagueName);
+        map.insert(QStringLiteral("currentDate"), info.currentDate);
+        map.insert(QStringLiteral("createdAtUtc"), info.createdAtUtc);
+        map.insert(QStringLiteral("updatedAtUtc"), info.updatedAtUtc);
+        map.insert(QStringLiteral("schemaVersion"), info.schemaVersion);
+        map.insert(QStringLiteral("worldVersion"), info.worldVersion);
+        map.insert(QStringLiteral("isValid"), info.isValid);
         return map;
     }
 
@@ -378,6 +397,7 @@ GameFacade::GameFacade(const GameBootstrapOptions& bootstrapOptions, QObject* pa
       editableLineupStateObject(this),
       editableLineupSlotsModel(this),
       editableLineupRosterModel(this) {
+    currentSaveSlotId = fromStd(this->bootstrapOptions.saveSlotId);
 }
 
 GameFacade::~GameFacade() {}
@@ -666,6 +686,186 @@ bool GameFacade::startNewGameForLeagueTeam(int leagueId, int teamId, const QStri
 
 bool GameFacade::hasStartedGame() const {
     return gameStarted;
+}
+
+QVariantList GameFacade::listSaveSlots() const {
+    QVariantList result;
+    const SaveSlotService service;
+    const QList<SaveSlotInfo> saveSlots = service.listSaveSlots();
+    result.reserve(saveSlots.size());
+    for (const SaveSlotInfo& saveSlot : saveSlots) {
+        result.push_back(toVariantMap(saveSlot));
+    }
+    return result;
+}
+
+bool GameFacade::createNewGameSave(
+    const QString& saveName,
+    int leagueId,
+    int teamId,
+    const QString& newManagerName) {
+    const QString trimmedSaveName = saveName.trimmed();
+    const QString trimmedManagerName = newManagerName.trimmed();
+    if (trimmedSaveName.isEmpty()) {
+        setLastError(QStringLiteral("Please enter a save name."));
+        publishGameStateChanged();
+        return false;
+    }
+    if (trimmedManagerName.isEmpty()) {
+        setLastError(QStringLiteral("Please enter a manager name."));
+        publishGameStateChanged();
+        return false;
+    }
+    if (leagueId <= 0 || teamId <= 0) {
+        setLastError(QStringLiteral("Please choose a valid league and team."));
+        publishGameStateChanged();
+        return false;
+    }
+
+    QString createdSaveSlotId;
+    try {
+        const SaveSlotService service;
+        createdSaveSlotId = service.createUniqueSaveSlotId(trimmedSaveName);
+        GameBootstrapOptions newBootstrapOptions = service.createNewSaveBootstrapOptions(createdSaveSlotId, trimmedSaveName);
+        auto newGame = std::make_unique<Game>(newBootstrapOptions);
+
+        LeagueContext* selectedContext = newGame->findLeagueContextById(static_cast<LeagueId>(leagueId));
+        if (!selectedContext) {
+            QString deleteError;
+            service.deleteSaveSlot(createdSaveSlotId, &deleteError);
+            setLastError(QStringLiteral("Selected league could not be found."));
+            publishGameStateChanged();
+            return false;
+        }
+        Team* selectedTeam = selectedContext->getLeague().findTeamById(static_cast<TeamId>(teamId));
+        if (!selectedTeam) {
+            QString deleteError;
+            service.deleteSaveSlot(createdSaveSlotId, &deleteError);
+            setLastError(QStringLiteral("Selected team could not be found in the selected league."));
+            publishGameStateChanged();
+            return false;
+        }
+
+        newGame->setUserTeam(static_cast<LeagueId>(leagueId), selectedTeam->getId());
+        newGame->setSaveManagerName(trimmedManagerName.toStdString());
+        newGame->pauseSimulation();
+
+        bootstrapOptions = std::move(newBootstrapOptions);
+        game = std::move(newGame);
+        selectedLeagueId = static_cast<LeagueId>(leagueId);
+        selectedTeamId = selectedTeam->getId();
+        managerName = trimmedManagerName;
+        currentSaveSlotId = createdSaveSlotId;
+        gameStarted = true;
+        const QString committedSaveSlotId = createdSaveSlotId;
+        createdSaveSlotId.clear();
+        service.rememberLastSaveSlot(committedSaveSlotId);
+        clearEditableLineupData();
+        setLastError(QString());
+        publishGameStateChanged();
+        return true;
+    } catch (const std::exception& ex) {
+        qWarning() << "[GameFacade::createNewGameSave] Exception:" << ex.what();
+        if (!createdSaveSlotId.isEmpty()) {
+            QString deleteError;
+            SaveSlotService{}.deleteSaveSlot(createdSaveSlotId, &deleteError);
+        }
+        setLastError(QStringLiteral("Failed to create a new save."));
+        publishGameStateChanged();
+        return false;
+    } catch (...) {
+        qWarning() << "[GameFacade::createNewGameSave] Unknown exception";
+        if (!createdSaveSlotId.isEmpty()) {
+            QString deleteError;
+            SaveSlotService{}.deleteSaveSlot(createdSaveSlotId, &deleteError);
+        }
+        setLastError(QStringLiteral("Failed to create a new save."));
+        publishGameStateChanged();
+        return false;
+    }
+}
+
+bool GameFacade::loadGameSave(const QString& saveSlotId) {
+    const QString trimmedSaveSlotId = saveSlotId.trimmed();
+    try {
+        const SaveSlotService service;
+        GameBootstrapOptions loadedBootstrapOptions = service.loadExistingSaveBootstrapOptions(trimmedSaveSlotId);
+        auto loadedGame = std::make_unique<Game>(loadedBootstrapOptions);
+        const SaveMetadata metadata = loadedGame->getSaveMetadata();
+
+        LeagueContext* selectedContext = loadedGame->findLeagueContextById(metadata.managedLeagueId);
+        Team* selectedTeam = selectedContext
+            ? selectedContext->getLeague().findTeamById(metadata.managedTeamId)
+            : nullptr;
+        if (!selectedContext || !selectedTeam) {
+            setLastError(QStringLiteral("Save metadata points to a managed club that no longer exists."));
+            publishGameStateChanged();
+            return false;
+        }
+
+        loadedGame->setUserTeam(metadata.managedLeagueId, metadata.managedTeamId);
+        loadedGame->setSaveManagerName(metadata.managerName);
+        loadedGame->pauseSimulation();
+
+        bootstrapOptions = std::move(loadedBootstrapOptions);
+        game = std::move(loadedGame);
+        selectedLeagueId = metadata.managedLeagueId;
+        selectedTeamId = metadata.managedTeamId;
+        managerName = fromStd(metadata.managerName);
+        currentSaveSlotId = trimmedSaveSlotId;
+        gameStarted = true;
+        service.rememberLastSaveSlot(trimmedSaveSlotId);
+        clearEditableLineupData();
+        setLastError(QString());
+        publishGameStateChanged();
+        return true;
+    } catch (const std::exception& ex) {
+        qWarning() << "[GameFacade::loadGameSave] Exception:" << ex.what();
+        setLastError(QStringLiteral("Failed to load save."));
+        publishGameStateChanged();
+        return false;
+    } catch (...) {
+        qWarning() << "[GameFacade::loadGameSave] Unknown exception";
+        setLastError(QStringLiteral("Failed to load save."));
+        publishGameStateChanged();
+        return false;
+    }
+}
+
+bool GameFacade::continueLastSave() {
+    const SaveSlotService service;
+    const QString saveSlotId = service.lastSaveSlotId();
+    if (saveSlotId.isEmpty()) {
+        setLastError(QStringLiteral("No save is available to continue."));
+        publishGameStateChanged();
+        return false;
+    }
+    return loadGameSave(saveSlotId);
+}
+
+bool GameFacade::deleteGameSave(const QString& saveSlotId) {
+    const QString trimmedSaveSlotId = saveSlotId.trimmed();
+    if (game && trimmedSaveSlotId == currentSaveSlotId) {
+        setLastError(QStringLiteral("Cannot delete the currently loaded save."));
+        publishGameStateChanged();
+        return false;
+    }
+
+    const SaveSlotService service;
+    QString errorMessage;
+    if (!service.deleteSaveSlot(trimmedSaveSlotId, &errorMessage)) {
+        setLastError(errorMessage.isEmpty() ? QStringLiteral("Failed to delete save.") : errorMessage);
+        publishGameStateChanged();
+        return false;
+    }
+
+    setLastError(QString());
+    publishGameStateChanged();
+    return true;
+}
+
+QString GameFacade::getCurrentSaveSlotId() const {
+    return currentSaveSlotId;
 }
 
 QString GameFacade::getCurrentDateText() const {
