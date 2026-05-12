@@ -6,6 +6,7 @@
 #include"fm/core/Game.h"
 #include"fm/core/LeagueContext.h"
 #include"fm/data/BootstrapDtos.h"
+#include"fm/data/SqliteGameStateRepository.h"
 #include"fm/data/SqliteBootstrapDatabaseInitializer.h"
 #include"fm/data/SqliteBootstrapRepository.h"
 #include"fm/roster/Team.h"
@@ -50,8 +51,10 @@
 #include<cstdlib>
 #include<exception>
 #include<array>
+#include<iomanip>
 #include<unordered_map>
 #include<optional>
+#include<sstream>
 #include<string>
 #include<vector>
 #include<utility>
@@ -67,6 +70,119 @@ namespace {
 
     QString fromStd(const std::string& value) {
         return QString::fromStdString(value);
+    }
+
+    Date initialGameDate() {
+        return Date(2025, Month::July, 1);
+    }
+
+    std::string dateToIsoString(const Date& date) {
+        std::ostringstream output;
+        output << std::setw(4) << std::setfill('0') << date.getYear() << "-"
+            << std::setw(2) << std::setfill('0') << static_cast<int>(date.getMonth()) << "-"
+            << std::setw(2) << std::setfill('0') << date.getDay();
+        return output.str();
+    }
+
+    bool sameDate(const Date& lhs, const Date& rhs) {
+        return lhs.getYear() == rhs.getYear()
+            && lhs.getMonth() == rhs.getMonth()
+            && lhs.getDay() == rhs.getDay();
+    }
+
+    const Date* firstFixtureDate(const League& league) {
+        if (league.getFixture().empty()) {
+            return nullptr;
+        }
+        return &league.getFixture().begin()->first;
+    }
+
+    void validateNewSaveInitialState(const Game& game, const GameBootstrapOptions& options) {
+        const Date expectedInitialDate = initialGameDate();
+        const std::string expectedInitialDateText = dateToIsoString(expectedInitialDate);
+
+        if (!sameDate(game.getDate(), expectedInitialDate)) {
+            throw std::runtime_error("new save did not start on the configured initial game date");
+        }
+
+        SqliteGameStateRepository runtimeRepository(options.sqliteDbPath, GameStateRepositoryMode::ReadExisting);
+        if (!runtimeRepository.hasGameState()) {
+            throw std::runtime_error("new save did not create runtime game_state");
+        }
+        const Date persistedDate = runtimeRepository.loadCurrentDate();
+        if (!sameDate(persistedDate, expectedInitialDate)) {
+            throw std::runtime_error("new save persisted a game_state date different from the initial game date");
+        }
+
+        const std::vector<PersistedLeagueRuntimeState> leagueStates = runtimeRepository.loadLeagueRuntimeStates();
+        const std::vector<PersistedFixtureState> fixtures = runtimeRepository.loadFixtures();
+        if (leagueStates.empty()) {
+            throw std::runtime_error("new save did not persist league runtime state");
+        }
+        if (fixtures.empty()) {
+            throw std::runtime_error("new save did not persist fixtures");
+        }
+        for (const PersistedLeagueRuntimeState& state : leagueStates) {
+            if (state.seasonYear != expectedInitialDate.getYear()) {
+                throw std::runtime_error("new save persisted a league season year different from the initial game date");
+            }
+        }
+        bool sawInitialSeasonFixture = false;
+        for (const PersistedFixtureState& fixture : fixtures) {
+            if (fixture.seasonYear != expectedInitialDate.getYear()
+                || fixture.date.getYear() != expectedInitialDate.getYear()
+                || fixture.date.getMonth() != Month::August) {
+                continue;
+            }
+            sawInitialSeasonFixture = true;
+            break;
+        }
+        if (!sawInitialSeasonFixture) {
+            throw std::runtime_error("new save did not persist an August fixture in the initial season");
+        }
+
+        const SaveMetadata metadata = game.getSaveMetadata();
+        if (metadata.currentDate != expectedInitialDateText) {
+            throw std::runtime_error("new save metadata current date does not match the initial game date");
+        }
+
+        bool sawLeague = false;
+        game.forEachLeagueContext([&](const LeagueContext& context) {
+            sawLeague = true;
+            const League& league = context.getLeague();
+            if (league.getCurrentSeasonYear() != expectedInitialDate.getYear()) {
+                throw std::runtime_error("new save league season year does not match the initial game date");
+            }
+            if (!league.isSeasonFixtureGenerated() || league.debugTotalFixtureMatches() == 0) {
+                throw std::runtime_error("new save did not generate initial season fixtures");
+            }
+
+            const Date* firstDate = firstFixtureDate(league);
+            if (!firstDate || firstDate->getYear() != expectedInitialDate.getYear() || firstDate->getMonth() != Month::August) {
+                throw std::runtime_error("new save first fixture is not in August of the initial season");
+            }
+        });
+
+        if (!sawLeague) {
+            throw std::runtime_error("new save has no league contexts");
+        }
+    }
+
+    void validateLoadedSaveDateSource(const Game& game, const GameBootstrapOptions& options) {
+        SqliteGameStateRepository runtimeRepository(options.sqliteDbPath, GameStateRepositoryMode::ReadExisting);
+        if (!runtimeRepository.hasGameState()) {
+            throw std::runtime_error("loaded save is missing runtime game_state");
+        }
+
+        const Date persistedDate = runtimeRepository.loadCurrentDate();
+        if (!sameDate(game.getDate(), persistedDate)) {
+            throw std::runtime_error("loaded save game date does not match game_state.current_date");
+        }
+
+        const SaveMetadata metadata = game.getSaveMetadata();
+        if (metadata.currentDate != dateToIsoString(persistedDate)) {
+            throw std::runtime_error("loaded save metadata current date does not mirror game_state.current_date");
+        }
     }
 
     std::string trim(std::string value) {
@@ -838,6 +954,8 @@ bool GameFacade::createNewGameSave(
         newGame->setUserTeam(static_cast<LeagueId>(leagueId), selectedTeam->getId());
         newGame->setSaveManagerName(trimmedManagerName.toStdString());
         newGame->pauseSimulation();
+        newGame->flushSaveState();
+        validateNewSaveInitialState(*newGame, newBootstrapOptions);
 
         bootstrapOptions = std::move(newBootstrapOptions);
         game = std::move(newGame);
@@ -859,7 +977,7 @@ bool GameFacade::createNewGameSave(
             QString deleteError;
             SaveSlotService{}.deleteSaveSlot(createdSaveSlotId, &deleteError);
         }
-        setLastError(QStringLiteral("Failed to create a new save."));
+        setLastError(QStringLiteral("Failed to create a valid new save: %1").arg(QString::fromLocal8Bit(ex.what())));
         publishGameStateChanged();
         return false;
     } catch (...) {
@@ -881,6 +999,7 @@ bool GameFacade::loadGameSave(const QString& saveSlotId) {
         GameBootstrapOptions loadedBootstrapOptions = service.loadExistingSaveBootstrapOptions(trimmedSaveSlotId);
         auto loadedGame = std::make_unique<Game>(loadedBootstrapOptions);
         const SaveMetadata metadata = loadedGame->getSaveMetadata();
+        validateLoadedSaveDateSource(*loadedGame, loadedBootstrapOptions);
         // TODO: Transfer offers and editable lineup drafts need their own runtime
         // persistence phase; date, fixtures/results, standings, and player condition
         // are restored by the core runtime state repository.

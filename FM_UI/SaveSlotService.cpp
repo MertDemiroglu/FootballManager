@@ -36,6 +36,64 @@ namespace {
         return QString::fromStdString(output.str());
     }
 
+    bool sameDate(const Date& lhs, const Date& rhs) {
+        return lhs.getYear() == rhs.getYear()
+            && lhs.getMonth() == rhs.getMonth()
+            && lhs.getDay() == rhs.getDay();
+    }
+
+    bool dateIsBefore(const Date& lhs, const Date& rhs) {
+        return lhs < rhs;
+    }
+
+    bool runtimeStateLooksConsistent(
+        const Date& currentDate,
+        const std::vector<PersistedLeagueRuntimeState>& leagueStates,
+        const std::vector<PersistedFixtureState>& fixtures,
+        const std::vector<PersistedPlayerRuntimeState>& playerStates) {
+        if (leagueStates.empty() || fixtures.empty() || playerStates.empty()) {
+            return false;
+        }
+
+        for (const PersistedLeagueRuntimeState& state : leagueStates) {
+            if (state.leagueId == 0 || state.seasonYear < 0) {
+                return false;
+            }
+
+            const Date preseasonStart(state.seasonYear, Month::July, 1);
+            const Date nextPreseasonStart(state.seasonYear + 1, Month::July, 1);
+            if (dateIsBefore(currentDate, preseasonStart)) {
+                return false;
+            }
+            if (!dateIsBefore(currentDate, nextPreseasonStart) && !sameDate(currentDate, nextPreseasonStart)) {
+                return false;
+            }
+
+            bool sawFixtureForLeague = false;
+            for (const PersistedFixtureState& fixture : fixtures) {
+                if (fixture.leagueId != state.leagueId) {
+                    continue;
+                }
+                sawFixtureForLeague = true;
+                if (fixture.seasonYear != state.seasonYear
+                    || fixture.matchId == 0
+                    || fixture.matchweek <= 0
+                    || fixture.homeTeamId == 0
+                    || fixture.awayTeamId == 0
+                    || fixture.date.getYear() < state.seasonYear
+                    || fixture.date.getYear() > state.seasonYear + 1) {
+                    return false;
+                }
+            }
+
+            if (state.fixtureGenerated && !sawFixtureForLeague) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     SaveSlotInfo toSaveSlotInfo(const SaveMetadata& metadata) {
         SaveSlotInfo info;
         info.saveSlotId = fromStd(metadata.saveSlotId);
@@ -113,10 +171,11 @@ namespace {
             if (!runtimeRepository.hasGameState()) {
                 return false;
             }
+            const Date currentDate = runtimeRepository.loadCurrentDate();
             const std::vector<PersistedLeagueRuntimeState> leagueStates = runtimeRepository.loadLeagueRuntimeStates();
             const std::vector<PersistedFixtureState> fixtures = runtimeRepository.loadFixtures();
             const std::vector<PersistedPlayerRuntimeState> playerStates = runtimeRepository.loadPlayerRuntimeStates();
-            if (leagueStates.empty() || fixtures.empty() || playerStates.empty()) {
+            if (!runtimeStateLooksConsistent(currentDate, leagueStates, fixtures, playerStates)) {
                 return false;
             }
 
@@ -194,14 +253,15 @@ QList<SaveSlotInfo> SaveSlotService::listSaveSlots() const {
                 qWarning() << "[SaveSlotService] Skipping save without runtime game_state:" << saveSlotId;
                 continue;
             }
+            const Date currentDate = runtimeRepository.loadCurrentDate();
             const std::vector<PersistedLeagueRuntimeState> leagueStates = runtimeRepository.loadLeagueRuntimeStates();
             const std::vector<PersistedFixtureState> fixtures = runtimeRepository.loadFixtures();
             const std::vector<PersistedPlayerRuntimeState> playerStates = runtimeRepository.loadPlayerRuntimeStates();
-            if (leagueStates.empty() || fixtures.empty() || playerStates.empty()) {
-                qWarning() << "[SaveSlotService] Skipping incomplete runtime save slot:" << saveSlotId;
+            if (!runtimeStateLooksConsistent(currentDate, leagueStates, fixtures, playerStates)) {
+                qWarning() << "[SaveSlotService] Skipping inconsistent runtime save slot:" << saveSlotId;
                 continue;
             }
-            info.currentDate = dateToIsoString(runtimeRepository.loadCurrentDate());
+            info.currentDate = dateToIsoString(currentDate);
             resolveManagedClubNames(dbPath, info);
             saveSlots.push_back(info);
         } catch (const std::exception& ex) {

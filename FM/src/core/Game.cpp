@@ -26,6 +26,10 @@
 #include<utility>
 
 namespace {
+    Date initialGameDate() {
+        return Date(2025, Month::July, 1);
+    }
+
     LeagueRules buildDefaultBootstrapLeagueRules() {
         return LeagueRules::makeSuperLig();
     }
@@ -40,6 +44,20 @@ namespace {
             << std::setw(2) << std::setfill('0') << static_cast<int>(date.getMonth()) << "-"
             << std::setw(2) << std::setfill('0') << date.getDay();
         return output.str();
+    }
+
+    bool sameDate(const Date& lhs, const Date& rhs) {
+        return lhs.getYear() == rhs.getYear()
+            && lhs.getMonth() == rhs.getMonth()
+            && lhs.getDay() == rhs.getDay();
+    }
+
+    bool dateIsBefore(const Date& lhs, const Date& rhs) {
+        return lhs < rhs;
+    }
+
+    bool dateIsOnOrAfter(const Date& lhs, const Date& rhs) {
+        return !dateIsBefore(lhs, rhs);
     }
 
     bool sqliteDatabaseFileExists(const std::string& dbPath) {
@@ -286,12 +304,15 @@ void Game::restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions) {
     SqliteSaveMetadataRepository metadataRepository(saveMetadataDbPath);
     metadataRepository.updateCurrentDate(dateToIsoString(date));
     saveMetadata = metadataRepository.load();
+    validateRuntimeDateConsistency("restore runtime state");
 }
 
 void Game::persistRuntimeState() {
     if (!saveMetadataEnabled) {
         return;
     }
+
+    validateRuntimeDateConsistency("persist runtime state");
 
     std::vector<PersistedLeagueRuntimeState> leagueStates;
     std::vector<PersistedFixtureState> fixtures;
@@ -359,10 +380,56 @@ void Game::persistRuntimeState() {
     repository.saveRuntimeState(date, static_cast<int>(state), leagueStates, fixtures, reports, playerStates);
 }
 
+void Game::validateRuntimeDateConsistency(const char* context) const {
+    world.forEachLeagueContext([&](const LeagueContext& leagueContext) {
+        const League& league = leagueContext.getLeague();
+        const LeagueRules& rules = leagueContext.getRules();
+        const SeasonPlan& seasonPlan = leagueContext.getSeasonPlan();
+        const int seasonYear = league.getCurrentSeasonYear();
+
+        if (seasonYear < 0) {
+            throw std::logic_error(std::string(context) + ": league runtime season year is not initialized");
+        }
+
+        const Date preseasonStart = rules.preseasonStart(seasonYear);
+        const Date nextPreseasonStart = rules.nextPreseasonStart(seasonYear);
+        if (dateIsBefore(date, preseasonStart)
+            || (dateIsOnOrAfter(date, nextPreseasonStart) && !sameDate(date, nextPreseasonStart))) {
+            throw std::logic_error(std::string(context) + ": game date is outside the league runtime season window");
+        }
+
+        if (league.isSeasonFixtureGenerated() && league.debugTotalFixtureMatches() == 0) {
+            throw std::logic_error(std::string(context) + ": fixture generation flag is set but no fixtures exist");
+        }
+
+        if (!league.isSeasonFixtureGenerated()) {
+            return;
+        }
+
+        if (!sameDate(seasonPlan.getPreseasonStart(), preseasonStart)) {
+            throw std::logic_error(std::string(context) + ": season plan is not aligned with league runtime season year");
+        }
+
+        for (const auto& [fixtureDate, matches] : league.getFixture()) {
+            if (fixtureDate.getYear() < seasonYear || fixtureDate.getYear() > seasonYear + 1) {
+                throw std::logic_error(std::string(context) + ": fixture date is outside the league runtime season year");
+            }
+            for (const FixtureMatch& match : matches) {
+                if (match.matchweek <= 0) {
+                    throw std::logic_error(std::string(context) + ": fixture has invalid matchweek");
+                }
+                if (!league.hasTeam(match.homeId) || !league.hasTeam(match.awayId)) {
+                    throw std::logic_error(std::string(context) + ": fixture references unknown team");
+                }
+            }
+        }
+    });
+}
+
 Game::~Game() = default;
 
 Game::Game(const GameBootstrapOptions& bootstrapOptions)
-    : date(2025, Month::July, 1),
+    : date(initialGameDate()),
     world(),
     state(GameState::PreSeason),
     eventsQueue(),
@@ -1112,6 +1179,11 @@ LeagueId Game::getManagedLeagueId() const {
 
 TeamId Game::getManagedTeamId() const {
     return user.getManagedTeamId();
+}
+
+void Game::flushSaveState() {
+    updateCurrentDateSaveMetadata();
+    persistRuntimeState();
 }
 
 SaveMetadata Game::getSaveMetadata() const {
