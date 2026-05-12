@@ -161,6 +161,7 @@ private:
 
 	void appendCurrentSeasonMatchRecord(const MatchRecord& record);
 	void storeCurrentSeasonMatchReport(const MatchReport& report);
+	void applyMatchReportInternal(const MatchReport& report, bool requireEventEnqueued);
 
 	//Bu 6 fonksiyon tek bir rollover fonksiyonundan cagirilacak disari acilmayacak
 	void archiveCompletedSeasonHistory(int seasonYear);
@@ -237,6 +238,8 @@ public:
 	void updateStandingsForMatch(TeamId homeId, TeamId awayId, const MatchResult& result);
 	void updateTeamSeasonStatsForMatch(TeamId homeId, TeamId awayId, const MatchResult& result);
 	void applyMatchReport(const MatchReport& report);
+	void restoreMatchReport(const MatchReport& report);
+	void restoreFixtureResult(MatchId matchId, const Date& date, int seasonYear, TeamId homeId, TeamId awayId, int homeGoals, int awayGoals, int matchweek);
 	std::vector<StandingsEntry> getSortedStandings() const;
 	const std::unordered_map<TeamId, StandingsEntry>& getStandings() const;
 	//-----------------------------------------------------------------------------------------------

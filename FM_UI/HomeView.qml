@@ -29,6 +29,33 @@ Item {
         return (saveSlot.managerName || "Manager") + " - " + root.managedClubText(saveSlot)
     }
 
+    function formattedGameDate(saveSlot) {
+        var value = saveSlot.currentDate || ""
+        if (!value) {
+            return "Unknown"
+        }
+        var parts = value.split("-")
+        if (parts.length !== 3) {
+            return value
+        }
+        var parsed = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
+        if (isNaN(parsed.getTime())) {
+            return value
+        }
+        return Qt.formatDate(parsed, "MMMM d, yyyy")
+    }
+
+    function formattedTimestamp(value) {
+        if (!value) {
+            return "unknown"
+        }
+        var parsed = new Date(value)
+        if (isNaN(parsed.getTime())) {
+            return value
+        }
+        return Qt.formatDateTime(parsed, "d MMM yyyy HH:mm")
+    }
+
     Component.onCompleted: refreshSaveSlots()
 
     Rectangle {
@@ -166,15 +193,15 @@ Item {
                                     }
 
                                     Label {
-                                        text: "Game Date: " + (modelData.currentDate || "Unknown")
+                                        text: "Game Date: " + root.formattedGameDate(modelData)
                                         color: "#526071"
                                         Layout.fillWidth: true
                                         elide: Text.ElideRight
                                     }
 
                                     Label {
-                                        text: "Created: " + (modelData.createdAtUtc || "unknown")
-                                              + " \u2022 Updated: " + (modelData.updatedAtUtc || "unknown")
+                                        text: "Created: " + root.formattedTimestamp(modelData.createdAtUtc)
+                                              + " \u2022 Updated: " + root.formattedTimestamp(modelData.updatedAtUtc)
                                         color: "#667085"
                                         font.pixelSize: 12
                                         Layout.fillWidth: true

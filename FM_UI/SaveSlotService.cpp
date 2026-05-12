@@ -3,6 +3,7 @@
 #include"SaveSlotPaths.h"
 
 #include"fm/data/SaveMetadata.h"
+#include"fm/data/SqliteGameStateRepository.h"
 #include"fm/data/SqliteDatabase.h"
 #include"fm/data/SqliteSaveMetadataRepository.h"
 
@@ -15,13 +16,24 @@
 
 #include<algorithm>
 #include<exception>
+#include<iomanip>
+#include<sstream>
 #include<stdexcept>
+#include<vector>
 
 namespace {
     constexpr const char* LastSaveSlotSettingsKey = "saveSlots/lastSaveSlotId";
 
     QString fromStd(const std::string& value) {
         return QString::fromStdString(value);
+    }
+
+    QString dateToIsoString(const Date& date) {
+        std::ostringstream output;
+        output << std::setw(4) << std::setfill('0') << date.getYear() << "-"
+            << std::setw(2) << std::setfill('0') << static_cast<int>(date.getMonth()) << "-"
+            << std::setw(2) << std::setfill('0') << date.getDay();
+        return QString::fromStdString(output.str());
     }
 
     SaveSlotInfo toSaveSlotInfo(const SaveMetadata& metadata) {
@@ -94,6 +106,20 @@ namespace {
             if (info.saveSlotId.isEmpty()) {
                 info.saveSlotId = saveSlotId;
             }
+
+            SqliteGameStateRepository runtimeRepository(
+                dbPath.toStdString(),
+                GameStateRepositoryMode::ReadExisting);
+            if (!runtimeRepository.hasGameState()) {
+                return false;
+            }
+            const std::vector<PersistedLeagueRuntimeState> leagueStates = runtimeRepository.loadLeagueRuntimeStates();
+            const std::vector<PersistedFixtureState> fixtures = runtimeRepository.loadFixtures();
+            const std::vector<PersistedPlayerRuntimeState> playerStates = runtimeRepository.loadPlayerRuntimeStates();
+            if (leagueStates.empty() || fixtures.empty() || playerStates.empty()) {
+                return false;
+            }
+
             return !isUntouchedDefaultSave(saveSlotId, info);
         } catch (const std::exception& ex) {
             qWarning() << "[SaveSlotService] Last save slot is not readable" << saveSlotId << ":" << ex.what();
@@ -160,6 +186,22 @@ QList<SaveSlotInfo> SaveSlotService::listSaveSlots() const {
                 qWarning() << "[SaveSlotService] Skipping untouched default save slot:" << saveSlotId;
                 continue;
             }
+
+            SqliteGameStateRepository runtimeRepository(
+                dbPath.toStdString(),
+                GameStateRepositoryMode::ReadExisting);
+            if (!runtimeRepository.hasGameState()) {
+                qWarning() << "[SaveSlotService] Skipping save without runtime game_state:" << saveSlotId;
+                continue;
+            }
+            const std::vector<PersistedLeagueRuntimeState> leagueStates = runtimeRepository.loadLeagueRuntimeStates();
+            const std::vector<PersistedFixtureState> fixtures = runtimeRepository.loadFixtures();
+            const std::vector<PersistedPlayerRuntimeState> playerStates = runtimeRepository.loadPlayerRuntimeStates();
+            if (leagueStates.empty() || fixtures.empty() || playerStates.empty()) {
+                qWarning() << "[SaveSlotService] Skipping incomplete runtime save slot:" << saveSlotId;
+                continue;
+            }
+            info.currentDate = dateToIsoString(runtimeRepository.loadCurrentDate());
             resolveManagedClubNames(dbPath, info);
             saveSlots.push_back(info);
         } catch (const std::exception& ex) {
@@ -199,6 +241,9 @@ GameBootstrapOptions SaveSlotService::createNewSaveBootstrapOptions(
 GameBootstrapOptions SaveSlotService::loadExistingSaveBootstrapOptions(const QString& saveSlotId) const {
     if (!saveSlotExists(saveSlotId)) {
         throw std::invalid_argument("save slot database does not exist: " + saveSlotId.toStdString());
+    }
+    if (!hasUserFacingSaveMetadata(saveSlotId)) {
+        throw std::invalid_argument("save slot runtime state is missing or unreadable: " + saveSlotId.toStdString());
     }
     return SaveSlotPaths::createBootstrapOptionsForSaveSlot(saveSlotId, DatabaseOpenMode::OpenExisting);
 }

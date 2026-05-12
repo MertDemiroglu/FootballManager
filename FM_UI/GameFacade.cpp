@@ -881,9 +881,9 @@ bool GameFacade::loadGameSave(const QString& saveSlotId) {
         GameBootstrapOptions loadedBootstrapOptions = service.loadExistingSaveBootstrapOptions(trimmedSaveSlotId);
         auto loadedGame = std::make_unique<Game>(loadedBootstrapOptions);
         const SaveMetadata metadata = loadedGame->getSaveMetadata();
-        // TODO: Full game-state persistence/load must persist and restore Game
-        // date, fixtures/match results, standings/projections, player condition,
-        // form, morale, and other mutable world state.
+        // TODO: Transfer offers and editable lineup drafts need their own runtime
+        // persistence phase; date, fixtures/results, standings, and player condition
+        // are restored by the core runtime state repository.
 
         LeagueContext* selectedContext = loadedGame->findLeagueContextById(metadata.managedLeagueId);
         Team* selectedTeam = selectedContext

@@ -46,6 +46,7 @@ public:
 	const TransferOfferService& getTransferOfferService() const;
 
 	MatchId allocateMatchId();
+	void ensureNextMatchIdAfter(MatchId matchId);
 
 	bool hasPrimaryLeagueContext() const;
 

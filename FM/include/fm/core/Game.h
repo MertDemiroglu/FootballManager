@@ -62,6 +62,8 @@ private:
     void ensureSaveMetadata(const GameBootstrapOptions& bootstrapOptions);
     void updateManagedClubSaveMetadata();
     void updateCurrentDateSaveMetadata();
+    void restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions);
+    void persistRuntimeState();
 
 	void temporaryForDebug_tryCreateWeeklyManagedTransferOffer();
 public:
