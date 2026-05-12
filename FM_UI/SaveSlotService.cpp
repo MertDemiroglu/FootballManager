@@ -83,7 +83,9 @@ QList<SaveSlotInfo> SaveSlotService::listSaveSlots() const {
         }
 
         try {
-            SqliteSaveMetadataRepository repository(dbPath.toStdString());
+            SqliteSaveMetadataRepository repository(
+                dbPath.toStdString(),
+                SaveMetadataRepositoryMode::ReadExisting);
             if (!repository.exists()) {
                 qWarning() << "[SaveSlotService] Skipping save without metadata:" << saveSlotId;
                 continue;

@@ -6,12 +6,19 @@
 
 #include <string>
 
+enum class SaveMetadataRepositoryMode {
+    EnsureSchema,
+    ReadExisting
+};
+
 class SqliteSaveMetadataRepository {
 private:
     SqliteDatabase database;
 
 public:
-    explicit SqliteSaveMetadataRepository(const std::string& databasePath);
+    explicit SqliteSaveMetadataRepository(
+        const std::string& databasePath,
+        SaveMetadataRepositoryMode mode = SaveMetadataRepositoryMode::EnsureSchema);
 
     bool exists() const;
     SaveMetadata load() const;

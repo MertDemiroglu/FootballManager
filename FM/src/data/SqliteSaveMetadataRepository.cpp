@@ -75,10 +75,25 @@ namespace {
         metadata.worldVersion = statement.columnInt(9);
         return metadata;
     }
+
+    bool saveMetadataTableExists(const SqliteDatabase& database) {
+        SqliteStatement statement = database.prepare(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'save_metadata'");
+        if (!statement.stepRow()) {
+            return false;
+        }
+        return statement.columnInt(0) > 0;
+    }
 }
 
-SqliteSaveMetadataRepository::SqliteSaveMetadataRepository(const std::string& databasePath)
+SqliteSaveMetadataRepository::SqliteSaveMetadataRepository(
+    const std::string& databasePath,
+    SaveMetadataRepositoryMode mode)
     : database(databasePath) {
+    if (mode == SaveMetadataRepositoryMode::ReadExisting) {
+        return;
+    }
+
     database.execute(
         "CREATE TABLE IF NOT EXISTS save_metadata ("
         "id INTEGER PRIMARY KEY CHECK (id = 1),"
@@ -97,6 +112,10 @@ SqliteSaveMetadataRepository::SqliteSaveMetadataRepository(const std::string& da
 }
 
 bool SqliteSaveMetadataRepository::exists() const {
+    if (!saveMetadataTableExists(database)) {
+        return false;
+    }
+
     SqliteStatement statement = database.prepare("SELECT COUNT(*) FROM save_metadata WHERE id = ?");
     statement.bindInt(1, MetadataRowId);
     if (!statement.stepRow()) {
