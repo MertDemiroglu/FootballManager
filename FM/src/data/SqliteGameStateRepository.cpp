@@ -331,15 +331,6 @@ std::vector<PersistedPlayerRuntimeState> SqliteGameStateRepository::loadPlayerRu
     return playerStates;
 }
 
-void SqliteGameStateRepository::updateCurrentDate(const Date& currentDate) const {
-    SqliteStatement statement = database.prepare(
-        "UPDATE game_state SET \"current_date\" = ?, updated_at_utc = ? WHERE id = ?");
-    statement.bindText(1, dateToIsoString(currentDate));
-    statement.bindText(2, currentUtcTimestamp());
-    statement.bindInt(3, GameStateRowId);
-    statement.stepDone();
-}
-
 void SqliteGameStateRepository::saveRuntimeState(
     const Date& currentDate,
     int currentState,

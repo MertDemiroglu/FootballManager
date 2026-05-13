@@ -1,7 +1,5 @@
 #include"BootstrapPaths.h"
 
-#include"SaveSlotPaths.h"
-
 #include<QCoreApplication>
 #include<QDir>
 #include<QFileInfo>
@@ -36,7 +34,4 @@ namespace BootstrapPaths {
             "SQLite seed asset");
     }
 
-    GameBootstrapOptions createGameBootstrapOptions() {
-        return SaveSlotPaths::createDefaultSaveBootstrapOptions();
-    }
 }

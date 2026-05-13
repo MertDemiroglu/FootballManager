@@ -19,6 +19,4 @@ namespace SaveSlotPaths {
     GameBootstrapOptions createBootstrapOptionsForSaveSlot(
         const QString& saveSlotId,
         DatabaseOpenMode openMode);
-
-    GameBootstrapOptions createDefaultSaveBootstrapOptions();
 }

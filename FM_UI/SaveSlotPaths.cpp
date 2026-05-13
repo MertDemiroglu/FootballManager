@@ -111,10 +111,4 @@ namespace SaveSlotPaths {
         options.saveName = defaultSaveNameForSlot(validSaveSlotId).toStdString();
         return options;
     }
-
-    GameBootstrapOptions createDefaultSaveBootstrapOptions() {
-        return createBootstrapOptionsForSaveSlot(
-            defaultSaveSlotId(),
-            DatabaseOpenMode::CreateFromSeedIfMissing);
-    }
 }
