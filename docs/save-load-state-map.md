@@ -122,10 +122,13 @@ TODO: validation currently uses core Super Lig assumptions for season windows. W
 
 ### Selected lineup / tactical setup
 
-- Why it matters: users expect chosen formations and player assignments to survive reloads.
-- Current risk: selected tactical edits may need to be rebuilt or lost after load unless they are already part of active match reports.
+- Why it matters: users expect the selected match squad to survive reloads. `TeamSheet` now means starting XI, up to 10 substitutes, and `TacticalSetup`.
+- Current shape: tactical setup supports only mentality and tempo, defaulting to Balanced and Normal for every team.
+- Current risk: selected squad/tactical edits may need to be rebuilt or lost after load unless they are already part of active match reports.
 - Suggested priority: high, first backend phase after this roadmap.
-- Storage direction: `team_lineup_state` and lineup slot assignment tables keyed by `league_id`/`team_id`.
+- Storage direction: `team_lineup_state`, lineup slot assignment tables, substitute tables, and tactical setup columns keyed by `league_id`/`team_id`.
+- Next persistence PR: persist selected match squad and tactical setup to SQL/runtime save.
+- Match engine note: tactical setup is inert today; the future match engine rewrite should consume `TacticalSetup`.
 
 ### Pending/active blocking interactions
 

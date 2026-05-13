@@ -37,8 +37,16 @@ FormationId EditableLineup::getFormationId() const {
     return formationId;
 }
 
+TacticalSetup EditableLineup::getTacticalSetup() const {
+    return tacticalSetup;
+}
+
 const std::vector<EditableLineupSlot>& EditableLineup::getSlots() const {
     return lineupSlots;
+}
+
+const std::vector<PlayerId>& EditableLineup::getSubstitutePlayerIds() const {
+    return substitutePlayerIds;
 }
 
 std::optional<PlayerId> EditableLineup::getAssignedPlayerIdForSlot(std::size_t slotIndex) const {
@@ -99,6 +107,7 @@ bool EditableLineup::assignPlayerToSlot(PlayerId playerId, std::size_t slotIndex
     // old slot before writing the target slot. If occupied, the target's
     // previous player is replaced and becomes unassigned.
     unassignPlayer(playerId);
+    removeSubstitutePlayer(playerId);
     lineupSlots[slotIndex].assignedPlayerId = playerId;
     return true;
 }
@@ -165,6 +174,29 @@ bool EditableLineup::unassignPlayer(PlayerId playerId) {
     return true;
 }
 
+void EditableLineup::setSubstitutePlayerIds(std::vector<PlayerId> playerIds) {
+    substitutePlayerIds.clear();
+    substitutePlayerIds.reserve(std::min<std::size_t>(playerIds.size(), kMaxSubstituteCount));
+
+    for (PlayerId playerId : playerIds) {
+        if (substitutePlayerIds.size() >= kMaxSubstituteCount) {
+            break;
+        }
+        if (playerId == 0 || !isPlayerInRoster(playerId) || isPlayerAssigned(playerId)) {
+            continue;
+        }
+        if (std::find(substitutePlayerIds.begin(), substitutePlayerIds.end(), playerId) != substitutePlayerIds.end()) {
+            continue;
+        }
+
+        substitutePlayerIds.push_back(playerId);
+    }
+}
+
+void EditableLineup::setTacticalSetup(TacticalSetup newTacticalSetup) {
+    tacticalSetup = newTacticalSetup;
+}
+
 void EditableLineup::applyTeamSheet(const TeamSheet& teamSheet) {
     for (EditableLineupSlot& slot : lineupSlots) {
         slot.assignedPlayerId = 0;
@@ -199,6 +231,9 @@ void EditableLineup::applyTeamSheet(const TeamSheet& teamSheet) {
         targetSlotIt->assignedPlayerId = assignment.playerId;
         appliedPlayerIds.push_back(assignment.playerId);
     }
+
+    tacticalSetup = teamSheet.tacticalSetup;
+    setSubstitutePlayerIds(teamSheet.substitutePlayerIds);
 }
 
 TeamSheet EditableLineup::exportAsTeamSheet() const {
@@ -206,6 +241,7 @@ TeamSheet EditableLineup::exportAsTeamSheet() const {
     teamSheet.teamId = teamId;
     teamSheet.coachId = coachId;
     teamSheet.formation = formationId;
+    teamSheet.tacticalSetup = tacticalSetup;
 
     for (const EditableLineupSlot& slot : lineupSlots) {
         if (slot.assignedPlayerId == 0) {
@@ -216,6 +252,7 @@ TeamSheet EditableLineup::exportAsTeamSheet() const {
         teamSheet.startingPlayerIds.push_back(slot.assignedPlayerId);
     }
 
+    teamSheet.substitutePlayerIds = substitutePlayerIds;
     return teamSheet;
 }
 
@@ -231,6 +268,7 @@ std::optional<TeamSheet> EditableLineup::toTeamSheetIfComplete() const {
     teamSheet.teamId = teamId;
     teamSheet.coachId = coachId;
     teamSheet.formation = formationId;
+    teamSheet.tacticalSetup = tacticalSetup;
     teamSheet.startingAssignments.reserve(lineupSlots.size());
     teamSheet.startingPlayerIds.reserve(lineupSlots.size());
 
@@ -249,6 +287,23 @@ std::optional<TeamSheet> EditableLineup::toTeamSheetIfComplete() const {
 
         teamSheet.startingAssignments.push_back(TeamSheetSlotAssignment{ slot.slotRole, slot.assignedPlayerId });
         teamSheet.startingPlayerIds.push_back(slot.assignedPlayerId);
+    }
+
+    teamSheet.substitutePlayerIds.reserve(substitutePlayerIds.size());
+    for (PlayerId playerId : substitutePlayerIds) {
+        if (playerId == 0 || !isPlayerInRoster(playerId) || assignedPlayerIds.find(playerId) != assignedPlayerIds.end()) {
+            return std::nullopt;
+        }
+        if (std::find(teamSheet.substitutePlayerIds.begin(), teamSheet.substitutePlayerIds.end(), playerId)
+            != teamSheet.substitutePlayerIds.end()) {
+            return std::nullopt;
+        }
+
+        teamSheet.substitutePlayerIds.push_back(playerId);
+    }
+
+    if (teamSheet.substitutePlayerIds.size() > kMaxSubstituteCount) {
+        return std::nullopt;
     }
 
     if (teamSheet.startingAssignments.size() != lineupSlots.size()
@@ -286,4 +341,10 @@ void EditableLineup::cacheRosterPlayerIds(const Team& team) {
 
 bool EditableLineup::isPlayerInRoster(PlayerId playerId) const {
     return std::binary_search(rosterPlayerIds.begin(), rosterPlayerIds.end(), playerId);
+}
+
+void EditableLineup::removeSubstitutePlayer(PlayerId playerId) {
+    substitutePlayerIds.erase(
+        std::remove(substitutePlayerIds.begin(), substitutePlayerIds.end(), playerId),
+        substitutePlayerIds.end());
 }

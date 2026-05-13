@@ -4,10 +4,13 @@ This roadmap keeps future save/load work scoped. Each phase should preserve the 
 
 ## 1. Selected Lineup and Tactic Persistence
 
-- Purpose: persist selected formations, slot assignments, and managed team tactical setup across reloads.
+- Purpose: persist selected match squad state across reloads: formation, starting XI slot assignments, substitutes, and tactical setup.
 - Depends on: current save slot and runtime game-state foundation.
+- Current domain shape: `TeamSheet` represents starting XI + substitutes + `TacticalSetup`; tactical setup currently supports mentality and tempo only.
 - Likely affected areas: `EditableLineup`, `TeamSheet`, `Game`, `GameFacade`, new lineup runtime repository/tables.
 - Why first: active pre-match and match play depend on stable lineup state.
+- Match engine note: mentality and tempo do not affect simulation yet; the future match engine rewrite should consume `TacticalSetup`.
+- PR 2 target: persist selected match squad and tactical setup to SQL/runtime save.
 - Do not mix in: transfer persistence, UI redesign, or completed season archives.
 
 ## 2. Transfer Offer Persistence

@@ -29,6 +29,8 @@ namespace {
         FormationSlotRole::Striker
     };
 
+    // TODO: support tactical variants such as 4-3-3 with AM, 3-5-2 with 3 CM
+    // or double DM, plus 4-2-3-1 and 3-4-2-1 once variant formations exist.
     const std::vector<FormationSlotRole> kFourThreeThreeTemplate {
         FormationSlotRole::Goalkeeper,
         FormationSlotRole::LeftBack,
@@ -37,7 +39,7 @@ namespace {
         FormationSlotRole::RightBack,
         FormationSlotRole::DefensiveMidfielder,
         FormationSlotRole::CentralMidfielder,
-        FormationSlotRole::AttackingMidfielder,
+        FormationSlotRole::CentralMidfielder,
         FormationSlotRole::LeftWinger,
         FormationSlotRole::Striker,
         FormationSlotRole::RightWinger
@@ -51,7 +53,7 @@ namespace {
         FormationSlotRole::LeftWingBack,
         FormationSlotRole::DefensiveMidfielder,
         FormationSlotRole::CentralMidfielder,
-        FormationSlotRole::AttackingMidfielder,
+        FormationSlotRole::CentralMidfielder,
         FormationSlotRole::RightWingBack,
         FormationSlotRole::Striker,
         FormationSlotRole::Striker

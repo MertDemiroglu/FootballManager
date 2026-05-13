@@ -28,7 +28,9 @@ public:
     TeamId getTeamId() const;
     CoachId getCoachId() const;
     FormationId getFormationId() const;
+    TacticalSetup getTacticalSetup() const;
     const std::vector<EditableLineupSlot>& getSlots() const;
+    const std::vector<PlayerId>& getSubstitutePlayerIds() const;
 
     std::optional<PlayerId> getAssignedPlayerIdForSlot(std::size_t slotIndex) const;
     bool isPlayerAssigned(PlayerId playerId) const;
@@ -41,6 +43,8 @@ public:
     bool swapSlots(std::size_t firstSlotIndex, std::size_t secondSlotIndex);
     bool clearSlot(std::size_t slotIndex);
     bool unassignPlayer(PlayerId playerId);
+    void setSubstitutePlayerIds(std::vector<PlayerId> playerIds);
+    void setTacticalSetup(TacticalSetup newTacticalSetup);
     void applyTeamSheet(const TeamSheet& teamSheet);
 
     TeamSheet exportAsTeamSheet() const;
@@ -50,10 +54,13 @@ private:
     TeamId teamId = 0;
     CoachId coachId = 0;
     FormationId formationId = FormationId::FourFourTwo;
+    TacticalSetup tacticalSetup;
     std::vector<EditableLineupSlot> lineupSlots;
+    std::vector<PlayerId> substitutePlayerIds;
     std::vector<PlayerId> rosterPlayerIds;
 
     void buildSlotsFromFormation(FormationId formationId);
     void cacheRosterPlayerIds(const Team& team);
     bool isPlayerInRoster(PlayerId playerId) const;
+    void removeSubstitutePlayer(PlayerId playerId);
 };
