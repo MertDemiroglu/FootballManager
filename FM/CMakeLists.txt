@@ -40,6 +40,7 @@ add_library(fm_core STATIC
     src/roster/PlayerPositionBucket.cpp
     src/roster/Midfielder.cpp
     src/data/RosterLoader.cpp
+    src/data/RuntimeSaveValidator.cpp
     src/data/SqliteDatabase.cpp
     src/data/SqliteBootstrapRepository.cpp
     src/data/SqliteBootstrapDatabaseInitializer.cpp

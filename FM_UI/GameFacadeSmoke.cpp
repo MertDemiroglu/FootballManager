@@ -1,6 +1,7 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <QString>
+#include <QTemporaryDir>
 #include <QVariantList>
 #include <QVariantMap>
 
@@ -14,7 +15,6 @@
 #include "GameFacade.h"
 #include "BootstrapPaths.h"
 #include "InteractionStateObject.h"
-#include "SaveSlotPaths.h"
 #include "fm/core/Game.h"
 #include "fm/core/LeagueContext.h"
 #include "fm/match/EditableLineup.h"
@@ -93,10 +93,27 @@ namespace {
             "exported TeamSheet should contain 11 slot assignments");
     }
 
+    GameBootstrapOptions createTemporaryBootstrapOptions(
+        QTemporaryDir& temporaryDirectory,
+        const QString& saveSlotId) {
+        expect(temporaryDirectory.isValid(), "temporary save directory should be available");
+
+        GameBootstrapOptions options;
+        options.mode = GameBootstrapMode::Sqlite;
+        options.databaseOpenMode = DatabaseOpenMode::ResetFromSeed;
+        options.sqliteDbPath = temporaryDirectory.filePath(saveSlotId + QStringLiteral(".db")).toStdString();
+        options.sqliteSchemaPath = BootstrapPaths::schemaAssetPath().toStdString();
+        options.sqliteSeedPath = BootstrapPaths::seedAssetPath().toStdString();
+        options.saveSlotId = saveSlotId.toStdString();
+        options.saveName = QStringLiteral("Smoke Save").toStdString();
+        return options;
+    }
+
     void expectSaveMetadataLifecycle() {
-        GameBootstrapOptions options = SaveSlotPaths::createBootstrapOptionsForSaveSlot(
-            QStringLiteral("smoke_metadata"),
-            DatabaseOpenMode::ResetFromSeed);
+        QTemporaryDir temporaryDirectory;
+        GameBootstrapOptions options = createTemporaryBootstrapOptions(
+            temporaryDirectory,
+            QStringLiteral("smoke_metadata"));
         Game game(options);
 
         LeagueId leagueId = 0;
@@ -143,7 +160,10 @@ int main(int argc, char* argv[]) {
         expectEditableLineupTeamSheetExport();
         expectSaveMetadataLifecycle();
         {
-            Game gameWithoutPreMatch(BootstrapPaths::createGameBootstrapOptions());
+            QTemporaryDir temporaryDirectory;
+            Game gameWithoutPreMatch(createTemporaryBootstrapOptions(
+                temporaryDirectory,
+                QStringLiteral("smoke_without_prematch")));
             TeamSheet sheet;
             sheet.teamId = 1;
             expect(!gameWithoutPreMatch.replacePendingPreMatchTeamSheetForTeam(1, sheet),

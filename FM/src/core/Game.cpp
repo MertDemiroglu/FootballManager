@@ -230,6 +230,11 @@ void Game::restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions) {
         }
 
         League& league = context->getLeague();
+        // event_enqueued is intentionally not restored yet because active
+        // blocking interactions are not persisted in this phase. Reloading a
+        // pre-match pause should allow the scheduler to enqueue that match
+        // again instead of leaving it permanently skipped. Revisit this when
+        // active interaction persistence is added.
         league.addFixtureMatch(
             fixture.matchId,
             fixture.matchweek,
@@ -339,6 +344,9 @@ void Game::persistRuntimeState() {
                     match.homeId,
                     match.awayId,
                     match.played,
+                    // event_enqueued is a transient scheduler guard, not an
+                    // authoritative save value until active blocking
+                    // interactions are persisted.
                     false,
                     match.homeGoals,
                     match.awayGoals
