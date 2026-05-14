@@ -33,7 +33,4 @@ struct LeagueRules {
 
     int matchSpacingDays = 7;
     std::vector<int> matchdayDistributionOffsets;
-
-    static Date secondSaturdayOfAugust(int year);
-    static LeagueRules makeSuperLig();
 };

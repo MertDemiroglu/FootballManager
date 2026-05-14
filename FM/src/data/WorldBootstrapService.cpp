@@ -3,12 +3,14 @@
 #include "fm/core/World.h"
 #include "fm/data/SqliteBootstrapDatabaseInitializer.h"
 #include "fm/data/SqliteBootstrapRepository.h"
+#include "fm/data/SqliteLeagueRulesRepository.h"
 #include "fm/data/WorldBootstrapLoader.h"
 
-void WorldBootstrapService::loadIntoWorldFromSqlite(World& world, const std::string& dbPath, const LeagueRules& rules, const SeasonPlan& seasonPlan) {
+void WorldBootstrapService::loadIntoWorldFromSqlite(World& world, const std::string& dbPath, int initialSeasonYear) {
     SqliteBootstrapRepository repository(dbPath);
-    WorldBootstrapLoader loader(repository);
-    loader.load(world, rules, seasonPlan);
+    SqliteLeagueRulesRepository rulesRepository(dbPath);
+    WorldBootstrapLoader loader(repository, rulesRepository);
+    loader.load(world, initialSeasonYear);
 }
 
 void WorldBootstrapService::initializeAndLoadIntoWorldFromSqlite(
@@ -16,10 +18,9 @@ void WorldBootstrapService::initializeAndLoadIntoWorldFromSqlite(
     const std::string& dbPath,
     const std::string& schemaSqlPath,
     const std::string& seedSqlPath,
-    const LeagueRules& rules,
-    const SeasonPlan& seasonPlan) {
+    int initialSeasonYear) {
     SqliteBootstrapDatabaseInitializer::initializeWithSeed(dbPath, schemaSqlPath, seedSqlPath);
-    loadIntoWorldFromSqlite(world, dbPath, rules, seasonPlan);
+    loadIntoWorldFromSqlite(world, dbPath, initialSeasonYear);
 }
 
 void WorldBootstrapService::resetAndLoadIntoWorldFromSqlite(
@@ -27,8 +28,7 @@ void WorldBootstrapService::resetAndLoadIntoWorldFromSqlite(
     const std::string& dbPath,
     const std::string& schemaSqlPath,
     const std::string& seedSqlPath,
-    const LeagueRules& rules,
-    const SeasonPlan& seasonPlan) {
+    int initialSeasonYear) {
     SqliteBootstrapDatabaseInitializer::resetWithSeed(dbPath, schemaSqlPath, seedSqlPath);
-    loadIntoWorldFromSqlite(world, dbPath, rules, seasonPlan);
+    loadIntoWorldFromSqlite(world, dbPath, initialSeasonYear);
 }

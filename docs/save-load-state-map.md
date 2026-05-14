@@ -66,6 +66,32 @@ Stores per-league runtime season information: league id, season year, fixture-ge
 - Authority: authoritative per-league season runtime state.
 - Multi-league implication: every league context must have its own row. Future leagues must not infer state from the managed league.
 
+### `league_rules`
+
+Stores SQL-backed league/season configuration per league: stable league code/name, team count, matchday counts, preseason boundaries, kickoff rule parameters, winter break settings, and match spacing.
+
+- Writer: bootstrap schema/seed data for the current seed world.
+- Reader: `SqliteLeagueRulesRepository`, called by world bootstrap and `RuntimeSaveValidator`.
+- Saved when: seeded/bootstrap data is initialized. This is configuration data, not mutable runtime progress.
+- Authority: authoritative league season/rules data. Core consumes this data through `LeagueRules`; it should not own Super Lig-specific constants.
+- Multi-league implication: every future league needs its own `league_rules` row.
+
+### `league_transfer_windows`
+
+Stores transfer-window date rules per league/window code. The current seed has `summer` and `winter` windows for Super Lig.
+
+- Reader: `SqliteLeagueRulesRepository`, which converts SQL month/day/year-offset rules into `LeagueRules` transfer-window functions.
+- Authority: authoritative league transfer-window configuration. Transfer offer persistence is still future work.
+- Multi-league implication: rows are keyed by `league_id` and `window_code`.
+
+### `league_matchday_distribution_offsets`
+
+Stores deterministic fixture date distribution offsets per league.
+
+- Reader: `SqliteLeagueRulesRepository`, then fixture generation through `LeagueRules`.
+- Authority: authoritative matchday distribution data.
+- Multi-league implication: rows are keyed by `league_id` and ordered by zero-based `offset_index`.
+
 ### `runtime_fixtures`
 
 Stores generated fixtures and played/unplayed result state: match id, league id, season year, matchweek, match date, teams, played flag, transient `event_enqueued`, and goals.
@@ -162,10 +188,9 @@ Stores selected substitute player ids in deterministic bench order. Substitute o
 - Runtime team sheet formation, slot roles, starter ids, substitutes, and tactical stable codes are valid.
 - Runtime team sheets have no duplicate starters, duplicate substitutes, or starter/substitute overlap.
 - Runtime team sheets do not exceed 10 substitutes.
-- Current game date is within the current temporary Super Lig season-window assumptions.
+- Current game date is within the SQL-loaded league season window for each league runtime row.
+- Fixture dates fit their SQL-loaded league kickoff/season window.
 - Metadata current date mirrors `game_state."current_date"` when metadata is provided.
-
-TODO: validation currently uses core Super Lig assumptions for season windows. When LeagueRules move to SQL/multi-league data, validation should read league-specific rules instead of assuming July 1 preseason boundaries.
 
 ## Not Yet Persisted / Later Phases
 
@@ -233,12 +258,10 @@ TODO: validation currently uses core Super Lig assumptions for season windows. W
 - Suggested priority: after current-season mutable state is stable.
 - Storage direction: season archive tables for standings, fixtures, reports, and awards.
 
-### LeagueRules/data-driven rules
+### LeagueRules/data-driven rules follow-up
 
-- Why it matters: multi-league saves need league-specific season windows, matchday rules, transfer windows, and fixture logic.
-- Current risk: validation and scheduling assume current core Super Lig rules.
-- Suggested priority: before adding multiple real leagues.
-- Storage direction: SQL-backed league rule tables and versioned rule loaders.
+- Current state: LeagueRules / SeasonConfig is SQL-backed through `league_rules`, `league_transfer_windows`, and `league_matchday_distribution_offsets`.
+- Remaining work: add more league rows/rules when multi-league content expands, and eventually replace the transitional lambda fields inside `LeagueRules` with fully value-based rule configs.
 
 ### Runtime ID counters
 

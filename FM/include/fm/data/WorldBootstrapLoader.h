@@ -1,17 +1,16 @@
 #pragma once
 
-#include "fm/competition/LeagueRules.h"
-#include "fm/competition/SeasonPlan.h"
-
 class World;
 class SqliteBootstrapRepository;
+class SqliteLeagueRulesRepository;
 
 class WorldBootstrapLoader {
 private:
     SqliteBootstrapRepository& repository;
+    SqliteLeagueRulesRepository& rulesRepository;
 
 public:
-    explicit WorldBootstrapLoader(SqliteBootstrapRepository& repository);
+    WorldBootstrapLoader(SqliteBootstrapRepository& repository, SqliteLeagueRulesRepository& rulesRepository);
 
-    void load(World& world, const LeagueRules& rules, const SeasonPlan& seasonPlan) const;
+    void load(World& world, int initialSeasonYear) const;
 };

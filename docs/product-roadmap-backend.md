@@ -5,7 +5,7 @@ This roadmap keeps future save/load work scoped. Each phase should preserve the 
 ## 0. State Ownership / Legacy Audit
 
 - Purpose: keep ownership boundaries explicit after save/load and selected match squad persistence.
-- Status: current audit phase.
+- Status: implemented.
 - Verified shape: `Game` is an orchestrator; `Team` owns selected/current `TeamSheet`; `HeadCoach` owns `TacticalPreferences`; `SaveMetadata` remains save-card display/cache state only; QML remains presentation-only.
 - Do not mix in: feature-sized persistence, schema migrations, match engine behavior, or UI redesign.
 
@@ -26,9 +26,11 @@ This roadmap keeps future save/load work scoped. Each phase should preserve the 
 ## 2. LeagueRules / SeasonConfig SQL Migration
 
 - Purpose: make season windows, kickoff dates, matchday counts, transfer windows, and fixture rules data-driven per league.
-- Depends on: runtime validation and current Super Lig assumptions being well documented.
-- Likely affected areas: `LeagueRules`, `SeasonPlan`, bootstrap repositories, schema/seed data, `RuntimeSaveValidator`.
-- Why next: validation and scheduling still carry explicit temporary Super Lig / July 1 assumptions, and moving rules into data is the next feature-sized ownership cleanup.
+- Depends on: runtime validation and state ownership boundaries.
+- Status: implemented for the current Super Lig seed.
+- Implemented shape: `league_rules`, `league_transfer_windows`, and `league_matchday_distribution_offsets` hold league-specific rule data. `SqliteLeagueRulesRepository` loads that data into core `LeagueRules` for bootstrap, `SeasonPlan`, fixture generation, and runtime validation.
+- Current seed scope: Super Lig only. Future multi-league work should add more league rows/rules rather than hardcoding new constants in core.
+- Remaining cleanup: `LeagueRules` still exposes function fields as a transitional API; it should eventually become fully value-config based.
 - Do not mix in: transfer/interaction implementation or save UI redesign.
 
 ## 3. Transfer Offer Persistence

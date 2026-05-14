@@ -1,6 +1,7 @@
 #include "fm/data/RuntimeSaveValidator.h"
 
 #include "fm/data/SqliteGameStateRepository.h"
+#include "fm/data/SqliteLeagueRulesRepository.h"
 
 #include <cstdint>
 #include <exception>
@@ -54,6 +55,7 @@ namespace {
         const std::vector<PersistedFixtureState>& fixtures,
         const std::vector<PersistedTeamSheetState>& teamSheetStates,
         const std::vector<PersistedPlayerRuntimeState>& playerStates,
+        const std::unordered_map<LeagueId, LeagueRules>& rulesByLeague,
         const SaveMetadata* metadata) {
         if (leagueStates.empty()) {
             return invalid("save slot is missing league runtime state");
@@ -75,11 +77,14 @@ namespace {
                 return invalid("league runtime state has an invalid season year");
             }
 
-            // TODO: This uses the current core Super Lig assumptions. When
-            // LeagueRules move to SQL/multi-league data, validation should read
-            // each league's own preseason window instead of assuming July 1.
-            const Date preseasonStart(state.seasonYear, Month::July, 1);
-            const Date nextPreseasonStart(state.seasonYear + 1, Month::July, 1);
+            const auto rulesIt = rulesByLeague.find(state.leagueId);
+            if (rulesIt == rulesByLeague.end()) {
+                return invalid("league runtime state has no SQL league rules");
+            }
+
+            const LeagueRules& rules = rulesIt->second;
+            const Date preseasonStart = rules.preseasonStart(state.seasonYear);
+            const Date nextPreseasonStart = rules.nextPreseasonStart(state.seasonYear);
             if (dateIsBefore(currentDate, preseasonStart)
                 || (dateIsOnOrAfter(currentDate, nextPreseasonStart) && !sameDate(currentDate, nextPreseasonStart))) {
                 return invalid("game_state current date is outside the league runtime season window");
@@ -171,6 +176,15 @@ namespace {
             if (fixture.date.getYear() < fixture.seasonYear || fixture.date.getYear() > fixture.seasonYear + 1) {
                 return invalid("runtime fixture date is outside its season year");
             }
+            const auto rulesIt = rulesByLeague.find(fixture.leagueId);
+            if (rulesIt == rulesByLeague.end()) {
+                return invalid("runtime fixture references a league without SQL league rules");
+            }
+            const Date kickoffDate = rulesIt->second.kickoffDate(fixture.seasonYear);
+            const Date nextPreseasonStart = rulesIt->second.nextPreseasonStart(fixture.seasonYear);
+            if (dateIsBefore(fixture.date, kickoffDate) || !dateIsBefore(fixture.date, nextPreseasonStart)) {
+                return invalid("runtime fixture date is outside its league season fixture window");
+            }
             sawFixtureByLeague[fixture.leagueId] = true;
         }
 
@@ -198,7 +212,9 @@ SaveValidationResult RuntimeSaveValidator::validateExistingSave(
         const std::vector<PersistedFixtureState> fixtures = runtimeRepository.loadFixtures();
         const std::vector<PersistedTeamSheetState> teamSheetStates = runtimeRepository.loadTeamSheetStates();
         const std::vector<PersistedPlayerRuntimeState> playerStates = runtimeRepository.loadPlayerRuntimeStates();
-        return validateRuntimeState(currentDate, leagueStates, fixtures, teamSheetStates, playerStates, metadata);
+        SqliteLeagueRulesRepository rulesRepository(databasePath);
+        const std::unordered_map<LeagueId, LeagueRules> rulesByLeague = rulesRepository.loadAllLeagueRules();
+        return validateRuntimeState(currentDate, leagueStates, fixtures, teamSheetStates, playerStates, rulesByLeague, metadata);
     } catch (const std::exception& ex) {
         return invalid(ex.what());
     } catch (...) {
@@ -225,6 +241,8 @@ SaveValidationResult RuntimeSaveValidator::validateNewSave(
 
     try {
         SqliteGameStateRepository runtimeRepository(databasePath, GameStateRepositoryMode::ReadExisting);
+        SqliteLeagueRulesRepository rulesRepository(databasePath);
+        const std::unordered_map<LeagueId, LeagueRules> rulesByLeague = rulesRepository.loadAllLeagueRules();
         const std::vector<PersistedLeagueRuntimeState> leagueStates = runtimeRepository.loadLeagueRuntimeStates();
         const std::vector<PersistedFixtureState> fixtures = runtimeRepository.loadFixtures();
 
@@ -236,15 +254,21 @@ SaveValidationResult RuntimeSaveValidator::validateNewSave(
 
         bool sawInitialSeasonFixture = false;
         for (const PersistedFixtureState& fixture : fixtures) {
+            const auto rulesIt = rulesByLeague.find(fixture.leagueId);
+            if (rulesIt == rulesByLeague.end()) {
+                return invalid("new save fixture references a league without SQL league rules");
+            }
+            const Date kickoffDate = rulesIt->second.kickoffDate(fixture.seasonYear);
+            const Date nextPreseasonStart = rulesIt->second.nextPreseasonStart(fixture.seasonYear);
             if (fixture.seasonYear == expectedInitialDate.getYear()
-                && fixture.date.getYear() == expectedInitialDate.getYear()
-                && fixture.date.getMonth() == Month::August) {
+                && !dateIsBefore(fixture.date, kickoffDate)
+                && dateIsBefore(fixture.date, nextPreseasonStart)) {
                 sawInitialSeasonFixture = true;
                 break;
             }
         }
         if (!sawInitialSeasonFixture) {
-            return invalid("new save did not persist an August fixture in the initial season");
+            return invalid("new save did not persist an initial-season fixture inside the SQL league kickoff window");
         }
     } catch (const std::exception& ex) {
         return invalid(ex.what());

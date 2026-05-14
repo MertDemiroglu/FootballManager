@@ -289,7 +289,7 @@ namespace {
             "player_id INTEGER NOT NULL,"
             "PRIMARY KEY (league_id, team_id, substitute_order)"
             ");");
-        database.execute("PRAGMA user_version = 2;");
+        database.execute("PRAGMA user_version = 3;");
     }
 
     MatchReport readReportRow(SqliteStatement& statement) {
