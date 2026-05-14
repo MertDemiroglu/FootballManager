@@ -1,0 +1,12 @@
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+charset = utf-8
+
+[*.{cpp,h,hpp,qml,cmake,sql,md,json,txt}]
+end_of_line = lf
+
+[CMakeLists.txt]
+end_of_line = lf
