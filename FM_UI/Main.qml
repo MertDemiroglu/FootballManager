@@ -6,6 +6,7 @@ import FM_UI
 ApplicationWindow {
     id: root
     visible: true
+    visibility: Window.FullScreen
     width: 1200
     height: 900
     minimumWidth: 900
