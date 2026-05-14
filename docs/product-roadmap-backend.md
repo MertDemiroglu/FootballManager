@@ -2,6 +2,13 @@
 
 This roadmap keeps future save/load work scoped. Each phase should preserve the full-world/all-leagues save model and avoid pushing runtime validation or persistence ownership into QML/UI code.
 
+## 0. State Ownership / Legacy Audit
+
+- Purpose: keep ownership boundaries explicit after save/load and selected match squad persistence.
+- Status: current audit phase.
+- Verified shape: `Game` is an orchestrator; `Team` owns selected/current `TeamSheet`; `HeadCoach` owns `TacticalPreferences`; `SaveMetadata` remains save-card display/cache state only; QML remains presentation-only.
+- Do not mix in: feature-sized persistence, schema migrations, match engine behavior, or UI redesign.
+
 ## 1. Selected Lineup and Tactic Persistence
 
 - Purpose: persist selected match squad state across reloads: formation, starting XI slot assignments, substitutes, and tactical setup.
@@ -16,7 +23,15 @@ This roadmap keeps future save/load work scoped. Each phase should preserve the 
 - Active interaction note: pending pre-match sheets are match-specific frozen snapshots and should move into `PreMatchInteraction` / active interaction persistence later.
 - Do not mix in: transfer persistence, UI redesign, or completed season archives.
 
-## 2. Transfer Offer Persistence
+## 2. LeagueRules / SeasonConfig SQL Migration
+
+- Purpose: make season windows, kickoff dates, matchday counts, transfer windows, and fixture rules data-driven per league.
+- Depends on: runtime validation and current Super Lig assumptions being well documented.
+- Likely affected areas: `LeagueRules`, `SeasonPlan`, bootstrap repositories, schema/seed data, `RuntimeSaveValidator`.
+- Why next: validation and scheduling still carry explicit temporary Super Lig / July 1 assumptions, and moving rules into data is the next feature-sized ownership cleanup.
+- Do not mix in: transfer/interaction implementation or save UI redesign.
+
+## 3. Transfer Offer Persistence
 
 - Purpose: persist pending offers, expiry dates, buyer/seller clubs, player ids, fees, and statuses.
 - Depends on: stable runtime save DB and clear active interaction boundaries.
@@ -24,7 +39,7 @@ This roadmap keeps future save/load work scoped. Each phase should preserve the 
 - Why here: transfer offers are mutable gameplay state that can exist across many days.
 - Do not mix in: roster mutation application beyond what is required to represent offer state.
 
-## 3. Roster Mutation Persistence
+## 4. Roster Mutation Persistence
 
 - Purpose: persist player-team membership, contract updates, finance effects, and roster changes after transfers or season events.
 - Depends on: transfer decisions/status persistence.
@@ -32,21 +47,13 @@ This roadmap keeps future save/load work scoped. Each phase should preserve the 
 - Why after offers: roster changes are consequences of transfer decisions and should not be persisted without a durable decision model.
 - Do not mix in: save UI polish or league rules migration.
 
-## 4. Active Interaction Persistence
+## 5. Active Interaction Persistence
 
 - Purpose: restore exact blocking states after closing during pre-match, post-match, transfer decision, or other modal flows.
 - Depends on: lineup persistence for pre-match and transfer persistence for transfer decisions.
 - Likely affected areas: `InteractionManager`, interaction DTOs, `Game`, `GameFacade`, active interaction payload tables.
 - Why after core mutable state: interactions reference domain objects that must already be persisted.
 - Do not mix in: broad QML redesign. Restore behavior first, polish later.
-
-## 5. LeagueRules SQL/Data Migration
-
-- Purpose: make season windows, kickoff dates, matchday counts, transfer windows, and fixture rules data-driven per league.
-- Depends on: runtime validation and current Super Lig assumptions being well documented.
-- Likely affected areas: `LeagueRules`, `SeasonPlan`, bootstrap repositories, schema/seed data, `RuntimeSaveValidator`.
-- Why before multi-league expansion: validation and scheduling must stop assuming a single hardcoded league calendar.
-- Do not mix in: transfer/interaction implementation or save UI redesign.
 
 ## 6. Completed Season Archive/History
 

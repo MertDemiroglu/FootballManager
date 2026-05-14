@@ -20,6 +20,20 @@ This document locks the current save/load ownership model after the save-slot wo
 - `GameFacade` starts without an active game and creates/loads a `Game` only after explicit New Game, Continue, or Load Game actions.
 - `SaveSlotService` lists folders and metadata in the app layer, but delegates runtime validation to `RuntimeSaveValidator` in core/data.
 
+## State Ownership Rules
+
+- `Game` orchestrates simulation flow. It owns the in-memory date, user/manager selection, the world instance, interaction manager, scheduler/queue wiring, and temporary pending interaction snapshots. It must not own team-specific runtime state such as a global selected-team-sheet registry.
+- `World` owns league contexts and cross-league services.
+- `LeagueContext` owns league-scoped orchestration state such as rules, season plan, rollover guard state, and match command handling.
+- `League` owns competition runtime state: teams, fixtures, standings/projections, current season history, and match reports.
+- `Team` owns roster membership, player index, colors, budgets, coach relation, and the current/default selected `TeamSheet`.
+- `HeadCoach` owns `TacticalPreferences`: preferred formation, mentality, and tempo. These are defaults/identity, not a concrete match squad.
+- `TeamSheet` owns the selected/current match squad: formation, starting assignments, substitutes, and active `TacticalSetup`.
+- `PreMatchInteraction` should own match-specific frozen team sheets once active interaction persistence exists. Until then, `Game` may hold pending pre-match home/away snapshots as temporary orchestration state only.
+- `SaveMetadata` is display/cache state for save cards and identity. It must not drive gameplay or hold mutable world state.
+- Runtime DB tables are the source of persisted game runtime state. `game_state`, league runtime rows, fixtures, match reports, player runtime state, and team-sheet tables restore the playable world.
+- QML is presentation only. It may hold transient UI selection/highlight state, but gameplay source of truth must come from `GameFacade`/core models and mutations must write back through backend methods.
+
 ## Persisted State
 
 ### `save_metadata`
