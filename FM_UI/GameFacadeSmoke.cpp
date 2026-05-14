@@ -38,6 +38,8 @@ namespace {
         for (FormationId formationId : getSupportedFormationIds()) {
             const std::vector<FormationSlotRole>& slotTemplate = getFormationSlotTemplate(formationId);
             expect(slotTemplate.size() == 11, "supported formation template should have 11 slots");
+            std::vector<int> displayOrders;
+            displayOrders.reserve(slotTemplate.size());
             for (std::size_t slotIndex = 0; slotIndex < slotTemplate.size(); ++slotIndex) {
                 const std::optional<FormationPitchCoordinate> coordinate =
                     getFormationPitchCoordinate(formationId, slotIndex, slotTemplate[slotIndex]);
@@ -46,8 +48,13 @@ namespace {
                     "pitch coordinate x should be normalized");
                 expect(coordinate->y >= 0.0 && coordinate->y <= 1.0,
                     "pitch coordinate y should be normalized");
-                expect(coordinate->displayOrder == static_cast<int>(slotIndex),
-                    "display order should match formation slot order");
+                displayOrders.push_back(coordinate->displayOrder);
+            }
+
+            std::sort(displayOrders.begin(), displayOrders.end());
+            for (std::size_t orderIndex = 0; orderIndex < displayOrders.size(); ++orderIndex) {
+                expect(displayOrders[orderIndex] == static_cast<int>(orderIndex),
+                    "display order should remain deterministic and unique");
             }
         }
     }

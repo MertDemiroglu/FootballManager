@@ -26,9 +26,13 @@ Item {
     property int selectedPlayerId: 0
     property string actionStatusText: ""
     property var supportedFormations: []
+    property var supportedMentalities: []
+    property var supportedTempos: []
     property bool isSyncingFormationSelection: false
     property string selectedMentality: "Balanced"
+    property string selectedMentalityCode: "balanced"
     property string selectedTempo: "Normal"
+    property string selectedTempoCode: "normal"
 
     readonly property color panelColor: "#0f1a24"
     readonly property color borderColor: "#263847"
@@ -40,6 +44,12 @@ Item {
     function refreshSupportedFormations() {
         supportedFormations = gameFacade ? gameFacade.getEditableLineupSupportedFormations() : []
         syncFormationSelection()
+    }
+
+    function refreshTacticalOptions() {
+        supportedMentalities = gameFacade ? gameFacade.getEditableLineupSupportedMentalities() : []
+        supportedTempos = gameFacade ? gameFacade.getEditableLineupSupportedTempos() : []
+        syncTacticalSetup()
     }
 
     function formationIndexFor(formationId) {
@@ -57,6 +67,20 @@ Item {
         isSyncingFormationSelection = true
         formationSelector.currentIndex = formationIndexFor(lineupState.formation)
         isSyncingFormationSelection = false
+    }
+
+    function syncTacticalSetup() {
+        if (!gameFacade)
+            return
+
+        const tacticalSetup = gameFacade.getEditableLineupTacticalSetup()
+        if (!tacticalSetup)
+            return
+
+        selectedMentalityCode = tacticalSetup.mentalityCode || "balanced"
+        selectedMentality = tacticalSetup.mentalityText || "Balanced"
+        selectedTempoCode = tacticalSetup.tempoCode || "normal"
+        selectedTempo = tacticalSetup.tempoText || "Normal"
     }
 
     function changeFormationFromSelector(index) {
@@ -308,12 +332,16 @@ Item {
             && (lineupState.slotCount || 0) > 0
     }
 
-    Component.onCompleted: refreshSupportedFormations()
+    Component.onCompleted: {
+        refreshSupportedFormations()
+        refreshTacticalOptions()
+    }
 
     Connections {
         target: lineupState
         function onChanged() {
             root.syncFormationSelection()
+            root.syncTacticalSetup()
         }
     }
 
@@ -574,24 +602,37 @@ Item {
                                 spacing: 0
 
                                 Repeater {
-                                    model: [ "Defensive", "Balanced", "Attacking" ]
+                                    model: root.supportedMentalities.length > 0
+                                        ? root.supportedMentalities
+                                        : [ { stableCode: "defensive", displayText: "Defensive" },
+                                            { stableCode: "balanced", displayText: "Balanced" },
+                                            { stableCode: "attacking", displayText: "Attacking" } ]
                                     delegate: Button {
-                                        required property string modelData
-                                        text: modelData
+                                        required property var modelData
+                                        text: modelData.displayText || ""
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 38
-                                        onClicked: root.selectedMentality = modelData
+                                        onClicked: {
+                                            const code = modelData.stableCode || ""
+                                            const ok = gameFacade ? gameFacade.setEditableLineupMentality(code) : false
+                                            if (ok) {
+                                                root.selectedMentalityCode = code
+                                                root.selectedMentality = modelData.displayText || root.selectedMentality
+                                            } else {
+                                                root.actionStatusText = "Mentality change failed."
+                                            }
+                                        }
                                         contentItem: Label {
                                             text: parent.text
-                                            color: root.selectedMentality === parent.text ? "#f7fbff" : "#c7d1db"
+                                            color: root.selectedMentalityCode === parent.modelData.stableCode ? "#f7fbff" : "#c7d1db"
                                             font.pixelSize: 13
                                             horizontalAlignment: Text.AlignHCenter
                                             verticalAlignment: Text.AlignVCenter
                                         }
                                         background: Rectangle {
                                             radius: 0
-                                            color: root.selectedMentality === parent.text ? "#105e34" : "#111c28"
-                                            border.color: root.selectedMentality === parent.text ? "#2fb565" : "#33485a"
+                                            color: root.selectedMentalityCode === parent.modelData.stableCode ? "#105e34" : "#111c28"
+                                            border.color: root.selectedMentalityCode === parent.modelData.stableCode ? "#2fb565" : "#33485a"
                                         }
                                     }
                                 }
@@ -613,24 +654,37 @@ Item {
                                 spacing: 0
 
                                 Repeater {
-                                    model: [ "Low", "Normal", "High" ]
+                                    model: root.supportedTempos.length > 0
+                                        ? root.supportedTempos
+                                        : [ { stableCode: "low", displayText: "Low" },
+                                            { stableCode: "normal", displayText: "Normal" },
+                                            { stableCode: "high", displayText: "High" } ]
                                     delegate: Button {
-                                        required property string modelData
-                                        text: modelData
+                                        required property var modelData
+                                        text: modelData.displayText || ""
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 38
-                                        onClicked: root.selectedTempo = modelData
+                                        onClicked: {
+                                            const code = modelData.stableCode || ""
+                                            const ok = gameFacade ? gameFacade.setEditableLineupTempo(code) : false
+                                            if (ok) {
+                                                root.selectedTempoCode = code
+                                                root.selectedTempo = modelData.displayText || root.selectedTempo
+                                            } else {
+                                                root.actionStatusText = "Tempo change failed."
+                                            }
+                                        }
                                         contentItem: Label {
                                             text: parent.text
-                                            color: root.selectedTempo === parent.text ? "#f7fbff" : "#c7d1db"
+                                            color: root.selectedTempoCode === parent.modelData.stableCode ? "#f7fbff" : "#c7d1db"
                                             font.pixelSize: 13
                                             horizontalAlignment: Text.AlignHCenter
                                             verticalAlignment: Text.AlignVCenter
                                         }
                                         background: Rectangle {
                                             radius: 0
-                                            color: root.selectedTempo === parent.text ? "#105e34" : "#111c28"
-                                            border.color: root.selectedTempo === parent.text ? "#2fb565" : "#33485a"
+                                            color: root.selectedTempoCode === parent.modelData.stableCode ? "#105e34" : "#111c28"
+                                            border.color: root.selectedTempoCode === parent.modelData.stableCode ? "#2fb565" : "#33485a"
                                         }
                                     }
                                 }

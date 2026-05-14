@@ -1,11 +1,15 @@
 #pragma once
 
+#include"fm/match/TacticalSetup.h"
 #include"fm/roster/Formation.h"
 #include"fm/common/Types.h"
 
+#include<cstddef>
 #include<vector>
 
 class Team;
+
+constexpr std::size_t kMaxSubstituteCount = 10;
 
 struct TeamSheetSlotAssignment {
     FormationSlotRole slotRole = FormationSlotRole::Unknown;
@@ -18,6 +22,8 @@ struct TeamSheet {
     FormationId formation = FormationId::FourFourTwo;
     std::vector<TeamSheetSlotAssignment> startingAssignments;
     std::vector<PlayerId> startingPlayerIds;
+    std::vector<PlayerId> substitutePlayerIds;
+    TacticalSetup tacticalSetup;
 };
 
 void validateTeamSheet(const TeamSheet& teamSheet);

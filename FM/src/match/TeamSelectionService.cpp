@@ -10,6 +10,7 @@
 #include<cmath>
 #include<limits>
 #include<numeric>
+#include<unordered_set>
 #include<vector>
 
 namespace {
@@ -74,6 +75,24 @@ struct FormationRolePlan {
     FormationRolePlan() {
         roleToEntryIndex.fill(-1);
     }
+};
+
+enum class SubstituteBucket {
+    Goalkeeper,
+    CenterBack,
+    FullBack,
+    WingBack,
+    CentralMidfielder,
+    LeftMidfielder,
+    RightMidfielder,
+    Winger,
+    Striker
+};
+
+struct SubstituteCandidate {
+    const Footballer* player = nullptr;
+    PlayerId playerId = 0;
+    double overallScore = 0.0;
 };
 
 bool isNearlyEqual(double lhs, double rhs) {
@@ -195,6 +214,12 @@ double calculateConditionAwarePowerForSlot(const Footballer& player, FormationSl
 
 double calculateConditionAwarePowerWithoutRoleFit(const Footballer& player) {
     return static_cast<double>(player.totalPower()) * calculateConditionMultiplier(player);
+}
+
+TacticalSetup defaultTacticalSetupForTeam(const Team& team) {
+    (void)team;
+    // TODO: derive from Coach tactical profile when Coach has tactical fields.
+    return TacticalSetup{};
 }
 
 std::vector<TeamSheetSlotAssignment> buildOrderedAssignmentsFromTemplate(FormationId formation,
@@ -412,6 +437,255 @@ NaturalPositionIndex buildNaturalPositionIndex(const Team& team) {
     }
 
     return index;
+}
+
+int bucketFitTier(SubstituteBucket bucket, PlayerPosition position) {
+    switch (bucket) {
+    case SubstituteBucket::Goalkeeper:
+        return position == PlayerPosition::Goalkeeper ? 0 : -1;
+
+    case SubstituteBucket::CenterBack:
+        if (position == PlayerPosition::CenterBack) return 0;
+        if (position == PlayerPosition::DefensiveMidfielder) return 2;
+        return -1;
+
+    case SubstituteBucket::FullBack:
+        if (position == PlayerPosition::LeftBack || position == PlayerPosition::RightBack) return 0;
+        return -1;
+
+    case SubstituteBucket::WingBack:
+        if (position == PlayerPosition::LeftBack || position == PlayerPosition::RightBack) return 1;
+        if (position == PlayerPosition::LeftMidfielder || position == PlayerPosition::RightMidfielder) return 2;
+        return -1;
+
+    case SubstituteBucket::CentralMidfielder:
+        if (position == PlayerPosition::CentralMidfielder) return 0;
+        if (position == PlayerPosition::DefensiveMidfielder) return 1;
+        if (position == PlayerPosition::AttackingMidfielder) return 2;
+        return -1;
+
+    case SubstituteBucket::LeftMidfielder:
+        if (position == PlayerPosition::LeftMidfielder) return 0;
+        if (position == PlayerPosition::LeftWinger) return 1;
+        if (position == PlayerPosition::LeftBack) return 2;
+        return -1;
+
+    case SubstituteBucket::RightMidfielder:
+        if (position == PlayerPosition::RightMidfielder) return 0;
+        if (position == PlayerPosition::RightWinger) return 1;
+        if (position == PlayerPosition::RightBack) return 2;
+        return -1;
+
+    case SubstituteBucket::Winger:
+        if (position == PlayerPosition::LeftWinger || position == PlayerPosition::RightWinger) return 0;
+        if (position == PlayerPosition::LeftMidfielder || position == PlayerPosition::RightMidfielder) return 1;
+        if (position == PlayerPosition::AttackingMidfielder) return 2;
+        return -1;
+
+    case SubstituteBucket::Striker:
+        if (position == PlayerPosition::Striker) return 0;
+        if (position == PlayerPosition::AttackingMidfielder) return 2;
+        return -1;
+    }
+
+    return -1;
+}
+
+double bucketScore(const Footballer& player, SubstituteBucket bucket) {
+    switch (bucket) {
+    case SubstituteBucket::Goalkeeper:
+        return calculateConditionAwarePowerForSlot(player, FormationSlotRole::Goalkeeper);
+    case SubstituteBucket::CenterBack:
+        return calculateConditionAwarePowerForSlot(player, FormationSlotRole::CenterBack);
+    case SubstituteBucket::FullBack:
+        return std::max(calculateConditionAwarePowerForSlot(player, FormationSlotRole::LeftBack),
+                        calculateConditionAwarePowerForSlot(player, FormationSlotRole::RightBack));
+    case SubstituteBucket::WingBack:
+        return std::max(calculateConditionAwarePowerForSlot(player, FormationSlotRole::LeftWingBack),
+                        calculateConditionAwarePowerForSlot(player, FormationSlotRole::RightWingBack));
+    case SubstituteBucket::CentralMidfielder:
+        return calculateConditionAwarePowerForSlot(player, FormationSlotRole::CentralMidfielder);
+    case SubstituteBucket::LeftMidfielder:
+        return calculateConditionAwarePowerForSlot(player, FormationSlotRole::LeftMidfielder);
+    case SubstituteBucket::RightMidfielder:
+        return calculateConditionAwarePowerForSlot(player, FormationSlotRole::RightMidfielder);
+    case SubstituteBucket::Winger:
+        return std::max(calculateConditionAwarePowerForSlot(player, FormationSlotRole::LeftWinger),
+                        calculateConditionAwarePowerForSlot(player, FormationSlotRole::RightWinger));
+    case SubstituteBucket::Striker:
+        return calculateConditionAwarePowerForSlot(player, FormationSlotRole::Striker);
+    }
+
+    return calculateConditionAwarePowerWithoutRoleFit(player);
+}
+
+bool isSelectedSubstitute(PlayerId playerId, const std::vector<PlayerId>& selectedSubstitutes) {
+    return std::find(selectedSubstitutes.begin(), selectedSubstitutes.end(), playerId) != selectedSubstitutes.end();
+}
+
+std::vector<SubstituteCandidate> buildSubstituteCandidates(const Team& team,
+                                                           const std::vector<PlayerId>& starterIds) {
+    std::unordered_set<PlayerId> starterIdSet;
+    starterIdSet.reserve(starterIds.size());
+    for (PlayerId starterId : starterIds) {
+        starterIdSet.insert(starterId);
+    }
+
+    std::vector<SubstituteCandidate> candidates;
+    candidates.reserve(team.getPlayers().size());
+    for (const auto& player : team.getPlayers()) {
+        if (!player || starterIdSet.find(player->getId()) != starterIdSet.end()) {
+            continue;
+        }
+
+        candidates.push_back(SubstituteCandidate{
+            player.get(),
+            player->getId(),
+            calculateConditionAwarePowerWithoutRoleFit(*player)
+        });
+    }
+
+    std::sort(candidates.begin(), candidates.end(), [](const SubstituteCandidate& lhs, const SubstituteCandidate& rhs) {
+        if (!isNearlyEqual(lhs.overallScore, rhs.overallScore)) {
+            return lhs.overallScore > rhs.overallScore;
+        }
+        return lhs.playerId < rhs.playerId;
+    });
+
+    return candidates;
+}
+
+bool hasCandidateForBucket(const std::vector<SubstituteCandidate>& candidates,
+                           const std::vector<PlayerId>& selectedSubstitutes,
+                           SubstituteBucket bucket) {
+    return std::any_of(candidates.begin(), candidates.end(), [&](const SubstituteCandidate& candidate) {
+        return !isSelectedSubstitute(candidate.playerId, selectedSubstitutes)
+            && bucketFitTier(bucket, candidate.player->getPlayerPosition()) >= 0;
+    });
+}
+
+bool tryAddSubstituteForBucket(const std::vector<SubstituteCandidate>& candidates,
+                               SubstituteBucket bucket,
+                               std::vector<PlayerId>& selectedSubstitutes,
+                               std::size_t targetSubstituteCount) {
+    if (selectedSubstitutes.size() >= targetSubstituteCount) {
+        return false;
+    }
+
+    const SubstituteCandidate* bestCandidate = nullptr;
+    for (int tier = 0; tier <= 2 && !bestCandidate; ++tier) {
+        for (const SubstituteCandidate& candidate : candidates) {
+            if (isSelectedSubstitute(candidate.playerId, selectedSubstitutes)) {
+                continue;
+            }
+            if (bucketFitTier(bucket, candidate.player->getPlayerPosition()) != tier) {
+                continue;
+            }
+
+            if (!bestCandidate) {
+                bestCandidate = &candidate;
+                continue;
+            }
+
+            const double lhsScore = bucketScore(*candidate.player, bucket);
+            const double rhsScore = bucketScore(*bestCandidate->player, bucket);
+            if (!isNearlyEqual(lhsScore, rhsScore)) {
+                if (lhsScore > rhsScore) {
+                    bestCandidate = &candidate;
+                }
+                continue;
+            }
+
+            if (candidate.playerId < bestCandidate->playerId) {
+                bestCandidate = &candidate;
+            }
+        }
+    }
+
+    if (!bestCandidate) {
+        return false;
+    }
+
+    selectedSubstitutes.push_back(bestCandidate->playerId);
+    return true;
+}
+
+void fillWithBestRemainingSubstitutes(const std::vector<SubstituteCandidate>& candidates,
+                                      std::vector<PlayerId>& selectedSubstitutes,
+                                      std::size_t targetSubstituteCount) {
+    for (const SubstituteCandidate& candidate : candidates) {
+        if (selectedSubstitutes.size() >= targetSubstituteCount) {
+            return;
+        }
+        if (isSelectedSubstitute(candidate.playerId, selectedSubstitutes)) {
+            continue;
+        }
+
+        selectedSubstitutes.push_back(candidate.playerId);
+    }
+}
+
+std::vector<PlayerId> buildSubstitutePlayerIds(const Team& team,
+                                               FormationId formationId,
+                                               const std::vector<PlayerId>& starterIds) {
+    const std::vector<SubstituteCandidate> candidates = buildSubstituteCandidates(team, starterIds);
+    const std::size_t targetSubstituteCount = std::min<std::size_t>(kMaxSubstituteCount, candidates.size());
+
+    std::vector<PlayerId> selectedSubstitutes;
+    selectedSubstitutes.reserve(targetSubstituteCount);
+
+    const auto addBucket = [&](SubstituteBucket bucket) {
+        (void)tryAddSubstituteForBucket(candidates, bucket, selectedSubstitutes, targetSubstituteCount);
+    };
+    const auto addBackFourDefender = [&]() {
+        if (hasCandidateForBucket(candidates, selectedSubstitutes, SubstituteBucket::FullBack)) {
+            addBucket(SubstituteBucket::FullBack);
+        } else {
+            addBucket(SubstituteBucket::CenterBack);
+        }
+    };
+
+    addBucket(SubstituteBucket::Goalkeeper);
+    addBucket(SubstituteBucket::Goalkeeper);
+
+    switch (formationId) {
+    case FormationId::ThreeFiveTwo:
+        addBucket(SubstituteBucket::CenterBack);
+        addBucket(SubstituteBucket::CenterBack);
+        addBucket(SubstituteBucket::CentralMidfielder);
+        addBucket(SubstituteBucket::CentralMidfielder);
+        addBucket(SubstituteBucket::WingBack);
+        addBucket(SubstituteBucket::WingBack);
+        addBucket(SubstituteBucket::Striker);
+        addBucket(SubstituteBucket::Striker);
+        break;
+
+    case FormationId::FourThreeThree:
+        addBackFourDefender();
+        addBackFourDefender();
+        addBucket(SubstituteBucket::CenterBack);
+        addBucket(SubstituteBucket::CentralMidfielder);
+        addBucket(SubstituteBucket::CentralMidfielder);
+        addBucket(SubstituteBucket::Winger);
+        addBucket(SubstituteBucket::Winger);
+        addBucket(SubstituteBucket::Striker);
+        break;
+
+    case FormationId::FourFourTwo:
+    default:
+        addBackFourDefender();
+        addBackFourDefender();
+        addBucket(SubstituteBucket::CenterBack);
+        addBucket(SubstituteBucket::LeftMidfielder);
+        addBucket(SubstituteBucket::RightMidfielder);
+        addBucket(SubstituteBucket::CentralMidfielder);
+        addBucket(SubstituteBucket::Striker);
+        addBucket(SubstituteBucket::Striker);
+        break;
+    }
+
+    fillWithBestRemainingSubstitutes(candidates, selectedSubstitutes, targetSubstituteCount);
+    return selectedSubstitutes;
 }
 
 void appendBucketSources(FormationSlotRole slotRole, RoleFitTier tier, std::vector<PlayerPosition>& outSources) {
@@ -908,7 +1182,14 @@ TeamSheet TeamSelectionService::buildTeamSheet(const Team& team, FormationId for
         starterIds.push_back(assignment.playerId);
     }
 
-    TeamSheet teamSheet{ team.getId(), team.getHeadCoach().getId(), candidate.formation, candidate.orderedAssignments, starterIds };
+    TeamSheet teamSheet;
+    teamSheet.teamId = team.getId();
+    teamSheet.coachId = team.getHeadCoach().getId();
+    teamSheet.formation = candidate.formation;
+    teamSheet.startingAssignments = candidate.orderedAssignments;
+    teamSheet.startingPlayerIds = starterIds;
+    teamSheet.substitutePlayerIds = buildSubstitutePlayerIds(team, candidate.formation, starterIds);
+    teamSheet.tacticalSetup = defaultTacticalSetupForTeam(team);
     validateTeamSheetForTeam(teamSheet, team);
     return teamSheet;
 }

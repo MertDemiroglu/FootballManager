@@ -141,7 +141,12 @@ public:
     Q_INVOKABLE QVariantList getCurrentTeamPlayers() const;
     Q_INVOKABLE bool ensureEditableLineupReady();
     Q_INVOKABLE QVariantList getEditableLineupSupportedFormations() const;
+    Q_INVOKABLE QVariantList getEditableLineupSupportedMentalities() const;
+    Q_INVOKABLE QVariantList getEditableLineupSupportedTempos() const;
+    Q_INVOKABLE QVariantMap getEditableLineupTacticalSetup() const;
     Q_INVOKABLE bool changeEditableLineupFormation(int formationId);
+    Q_INVOKABLE bool setEditableLineupMentality(const QString& stableCode);
+    Q_INVOKABLE bool setEditableLineupTempo(const QString& stableCode);
     Q_INVOKABLE bool autoSelectEditableLineup();
     Q_INVOKABLE bool assignEditableLineupPlayerToSlot(int playerId, int slotIndex);
     Q_INVOKABLE bool swapEditableLineupSlots(int firstSlotIndex, int secondSlotIndex);

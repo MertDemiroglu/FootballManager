@@ -1699,6 +1699,54 @@ QVariantList GameFacade::getEditableLineupSupportedFormations() const {
     return formations;
 }
 
+QVariantList GameFacade::getEditableLineupSupportedMentalities() const {
+    QVariantList mentalities;
+    const std::array<TeamMentality, 3> supportedMentalities{
+        TeamMentality::Defensive,
+        TeamMentality::Balanced,
+        TeamMentality::Attacking
+    };
+
+    for (TeamMentality mentality : supportedMentalities) {
+        QVariantMap item;
+        item.insert(QStringLiteral("stableCode"), fromStd(std::string(toStableCode(mentality))));
+        item.insert(QStringLiteral("displayText"), fromStd(std::string(toDisplayText(mentality))));
+        mentalities.push_back(item);
+    }
+
+    return mentalities;
+}
+
+QVariantList GameFacade::getEditableLineupSupportedTempos() const {
+    QVariantList tempos;
+    const std::array<TeamTempo, 3> supportedTempos{
+        TeamTempo::Low,
+        TeamTempo::Normal,
+        TeamTempo::High
+    };
+
+    for (TeamTempo tempo : supportedTempos) {
+        QVariantMap item;
+        item.insert(QStringLiteral("stableCode"), fromStd(std::string(toStableCode(tempo))));
+        item.insert(QStringLiteral("displayText"), fromStd(std::string(toDisplayText(tempo))));
+        tempos.push_back(item);
+    }
+
+    return tempos;
+}
+
+QVariantMap GameFacade::getEditableLineupTacticalSetup() const {
+    QVariantMap tacticalSetupMap;
+    const EditableLineup* lineup = resolveEditableLineup();
+    const TacticalSetup tacticalSetup = lineup ? lineup->getTacticalSetup() : TacticalSetup{};
+
+    tacticalSetupMap.insert(QStringLiteral("mentalityCode"), fromStd(std::string(toStableCode(tacticalSetup.mentality))));
+    tacticalSetupMap.insert(QStringLiteral("mentalityText"), fromStd(std::string(toDisplayText(tacticalSetup.mentality))));
+    tacticalSetupMap.insert(QStringLiteral("tempoCode"), fromStd(std::string(toStableCode(tacticalSetup.tempo))));
+    tacticalSetupMap.insert(QStringLiteral("tempoText"), fromStd(std::string(toDisplayText(tacticalSetup.tempo))));
+    return tacticalSetupMap;
+}
+
 bool GameFacade::changeEditableLineupFormation(int formationId) {
     if (!gameStarted || formationId < 0) {
         return false;
@@ -1723,6 +1771,52 @@ bool GameFacade::changeEditableLineupFormation(int formationId) {
     }
 
     refreshEditableLineupViews();
+    emit gameStateChanged();
+    return true;
+}
+
+bool GameFacade::setEditableLineupMentality(const QString& stableCode) {
+    EditableLineup* lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup && !ensureEditableLineupReady()) {
+        return false;
+    }
+    lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup) {
+        return false;
+    }
+
+    const std::optional<TeamMentality> mentality = teamMentalityFromStableCode(stableCode.toStdString());
+    if (!mentality.has_value()) {
+        return false;
+    }
+
+    TacticalSetup tacticalSetup = lineup->getTacticalSetup();
+    tacticalSetup.mentality = *mentality;
+    lineup->setTacticalSetup(tacticalSetup);
+    syncEditableLineupDisplayToActivePreMatch();
+    emit gameStateChanged();
+    return true;
+}
+
+bool GameFacade::setEditableLineupTempo(const QString& stableCode) {
+    EditableLineup* lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup && !ensureEditableLineupReady()) {
+        return false;
+    }
+    lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup) {
+        return false;
+    }
+
+    const std::optional<TeamTempo> tempo = teamTempoFromStableCode(stableCode.toStdString());
+    if (!tempo.has_value()) {
+        return false;
+    }
+
+    TacticalSetup tacticalSetup = lineup->getTacticalSetup();
+    tacticalSetup.tempo = *tempo;
+    lineup->setTacticalSetup(tacticalSetup);
+    syncEditableLineupDisplayToActivePreMatch();
     emit gameStateChanged();
     return true;
 }
@@ -2743,6 +2837,7 @@ void GameFacade::syncEditableLineupDisplayToActivePreMatch() {
     displaySheet.teamId = managedTeamId;
     displaySheet.coachId = editableLineup->getCoachId();
     displaySheet.formation = editableLineup->getFormationId();
+    displaySheet.tacticalSetup = editableLineup->getTacticalSetup();
     displaySheet.startingAssignments.reserve(editableLineup->getSlots().size());
     displaySheet.startingPlayerIds.reserve(editableLineup->getSlots().size());
 
@@ -2753,6 +2848,7 @@ void GameFacade::syncEditableLineupDisplayToActivePreMatch() {
         }
     }
 
+    displaySheet.substitutePlayerIds = editableLineup->getSubstitutePlayerIds();
     displaySheet.teamId = managedTeamId;
     currentGame->replaceActivePreMatchDisplayTeamSheetForTeam(managedTeamId, displaySheet);
 }
