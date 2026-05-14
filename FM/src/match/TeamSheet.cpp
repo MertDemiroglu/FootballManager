@@ -47,9 +47,22 @@ void validateTeamSheet(const TeamSheet& teamSheet) {
         }
 
         starterIds.reserve(teamSheet.startingAssignments.size());
+        std::unordered_set<std::size_t> seenSlotIndices;
+        seenSlotIndices.reserve(teamSheet.startingAssignments.size());
+        const std::vector<FormationSlotRole>& slotTemplate = getFormationSlotTemplate(teamSheet.formation);
 
         for (std::size_t i = 0; i < teamSheet.startingAssignments.size(); ++i) {
             const TeamSheetSlotAssignment& assignment = teamSheet.startingAssignments[i];
+
+            if (assignment.slotIndex >= slotTemplate.size()) {
+                throw std::invalid_argument("teamsheet assignment contains invalid slot index");
+            }
+            if (slotTemplate[assignment.slotIndex] != assignment.slotRole) {
+                throw std::invalid_argument("teamsheet assignment slot role does not match formation template");
+            }
+            if (!seenSlotIndices.insert(assignment.slotIndex).second) {
+                throw std::invalid_argument("teamsheet cannot contain duplicate slot assignments");
+            }
 
             if (!isSlotRoleSupported(assignment.slotRole)) {
                 throw std::invalid_argument("teamsheet contains unsupported slot role");

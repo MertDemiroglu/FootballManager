@@ -12,6 +12,7 @@ Item {
     readonly property var lineupState: gameFacade.editableLineupState
     readonly property var slotsModel: gameFacade.editableLineupSlotsModel
     readonly property var rosterModel: gameFacade.editableLineupRosterModel
+    readonly property var substitutesModel: gameFacade.editableLineupSubstitutesModel
     readonly property bool hasValidLineupData: lineupState
         && lineupState.hasLineup
         && slotsModel
@@ -727,6 +728,7 @@ Item {
                 Layout.preferredWidth: 2
                 slotsModel: root.slotsModel
                 rosterModel: root.rosterModel
+                substitutesModel: root.substitutesModel
                 selectedSlotIndex: root.selectedSlotIndex
                 selectedSourceSlotIndex: root.selectedSourceSlotIndex
                 selectedPlayerId: root.selectedPlayerId

@@ -6,6 +6,7 @@ ColumnLayout {
     id: root
 
     property var slotsModel: null
+    property var substitutesModel: null
     property int selectedSlotIndex: -1
     property int selectedSourceSlotIndex: -1
     property int metricColumnWidth: 58
@@ -70,10 +71,10 @@ ColumnLayout {
 
         Item { Layout.fillWidth: true }
 
-        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Overall"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; visible: root.lineupPanelMode === "StartingXI" }
-        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Form"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; visible: root.lineupPanelMode === "StartingXI" }
-        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Fitness"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; visible: root.lineupPanelMode === "StartingXI" }
-        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Moral"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; visible: root.lineupPanelMode === "StartingXI" }
+        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Overall"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Form"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Fitness"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+        Label { Layout.preferredWidth: root.metricColumnWidth; text: "Moral"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
     }
 
     ColumnLayout {
@@ -105,17 +106,28 @@ ColumnLayout {
 
     Rectangle {
         Layout.fillWidth: true
-        Layout.preferredHeight: 120
+        Layout.preferredHeight: Math.max(120, Math.min(10, substituteList.count) * 44 + 12)
         radius: 8
         visible: root.lineupPanelMode === "Substitutes"
         color: "#0b1520"
         border.color: "#1f3040"
+        clip: true
 
-        Label {
-            anchors.centerIn: parent
-            text: "Substitutes selection coming soon"
-            font.pixelSize: 13
-            color: "#91a4b6"
+        ListView {
+            id: substituteList
+            anchors.fill: parent
+            anchors.margins: 6
+            model: root.substitutesModel && root.substitutesModel.rows ? root.substitutesModel.rows : []
+            spacing: 2
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+
+            delegate: LineupRosterRow {
+                width: ListView.view ? ListView.view.width - 4 : 0
+                selectedPlayerId: 0
+                rowData: modelData
+                metricColumnWidth: root.metricColumnWidth
+            }
         }
     }
 }
