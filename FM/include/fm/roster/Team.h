@@ -5,10 +5,12 @@
 #include"fm/common/Types.h"
 #include"fm/roster/Contract.h"
 #include"fm/roster/HeadCoach.h"
+#include"fm/match/TeamSheet.h"
 
 #include<vector>
 #include<string>
 #include<memory>
+#include<optional>
 #include<ostream>
 #include<algorithm>
 #include<iostream>
@@ -26,6 +28,7 @@ private:
 	std::vector<std::unique_ptr<Footballer>> players;
 	std::unordered_map<PlayerId, Footballer*> playerIndexById;
 	HeadCoach headCoach;
+    std::optional<TeamSheet> selectedTeamSheet;
 
 	void rebuildPlayerIndexById();
 
@@ -83,6 +86,12 @@ public:
 	const HeadCoach& getHeadCoach() const;
 	HeadCoach& getHeadCoach();
 	void setHeadCoach(HeadCoach newHeadCoach);
+
+    bool hasSelectedTeamSheet() const;
+    const TeamSheet* getSelectedTeamSheet() const;
+    TeamSheet* getSelectedTeamSheet();
+    void setSelectedTeamSheet(TeamSheet teamSheet);
+    void clearSelectedTeamSheet();
 
 	//Kontrati biten oyunculari bir vektore koyup verir
 	std::vector<std::unique_ptr<Footballer>>collectExpiredContracts();

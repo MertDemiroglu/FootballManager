@@ -307,7 +307,6 @@ void Game::restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions) {
         condition.setMorale(state.morale);
     }
 
-    selectedTeamSheetsByLeague.clear();
     for (PersistedTeamSheetState state : teamSheetStates) {
         LeagueContext* context = world.findLeagueContext(state.leagueId);
         if (!context) {
@@ -321,9 +320,8 @@ void Game::restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions) {
 
         state.teamSheet.coachId = team->getHeadCoach().getId();
         validateTeamSheetForTeam(state.teamSheet, *team);
-        selectedTeamSheetsByLeague[state.leagueId][state.teamSheet.teamId] = std::move(state.teamSheet);
+        team->setSelectedTeamSheet(std::move(state.teamSheet));
     }
-    materializeSelectedTeamSheetsForAllTeams();
 
     SqliteSaveMetadataRepository metadataRepository(saveMetadataDbPath);
     metadataRepository.updateCurrentDate(dateToIsoString(date));
@@ -343,8 +341,6 @@ void Game::persistRuntimeState() {
     std::vector<MatchReport> reports;
     std::vector<PersistedTeamSheetState> teamSheetStates;
     std::vector<PersistedPlayerRuntimeState> playerStates;
-
-    materializeSelectedTeamSheetsForAllTeams();
 
     world.forEachLeagueContext([&](const LeagueContext& context) {
         const League& league = context.getLeague();
@@ -388,12 +384,8 @@ void Game::persistRuntimeState() {
             if (!team) {
                 continue;
             }
-            const auto leagueSheetsIt = selectedTeamSheetsByLeague.find(league.getId());
-            if (leagueSheetsIt != selectedTeamSheetsByLeague.end()) {
-                const auto sheetIt = leagueSheetsIt->second.find(team->getId());
-                if (sheetIt != leagueSheetsIt->second.end()) {
-                    teamSheetStates.push_back(PersistedTeamSheetState{ league.getId(), sheetIt->second });
-                }
+            if (const TeamSheet* selectedTeamSheet = team->getSelectedTeamSheet()) {
+                teamSheetStates.push_back(PersistedTeamSheetState{ league.getId(), *selectedTeamSheet });
             }
             for (const auto& player : team->getPlayers()) {
                 if (!player) {
@@ -463,47 +455,44 @@ void Game::validateRuntimeDateConsistency(const char* context) const {
     });
 }
 
-TeamSheet Game::buildDefaultTeamSheetForTeam(const Team& team) const {
+TeamSheet Game::createTeamSheetForTeam(const Team& team) const {
     TeamSelectionService selectionService;
-    TeamSheet teamSheet = selectionService.buildTeamSheet(team);
+    const TacticalPreferences& preferences = team.getHeadCoach().getTacticalPreferences();
+    const FormationId formation = isFormationSupported(preferences.preferredFormation)
+        ? preferences.preferredFormation
+        : getSupportedFormationIds().front();
+
+    TeamSheet teamSheet = selectionService.buildTeamSheet(team, formation);
+    teamSheet.tacticalSetup.mentality = preferences.preferredMentality;
+    teamSheet.tacticalSetup.tempo = preferences.preferredTempo;
     validateTeamSheetForTeam(teamSheet, team);
     return teamSheet;
 }
 
-TeamSheet& Game::materializeSelectedTeamSheetForTeam(LeagueId leagueId, TeamId teamId) {
+TeamSheet& Game::ensureTeamSheetForTeam(LeagueId leagueId, TeamId teamId) {
     LeagueContext* context = world.findLeagueContext(leagueId);
     if (!context) {
-        throw std::runtime_error("cannot materialize selected team sheet for unknown league");
+        throw std::runtime_error("cannot ensure selected team sheet for unknown league");
     }
 
     Team* team = context->getLeague().findTeamById(teamId);
     if (!team) {
-        throw std::runtime_error("cannot materialize selected team sheet for unknown team");
+        throw std::runtime_error("cannot ensure selected team sheet for unknown team");
     }
 
-    auto& leagueSheets = selectedTeamSheetsByLeague[leagueId];
-    auto sheetIt = leagueSheets.find(teamId);
-    if (sheetIt == leagueSheets.end()) {
-        auto [insertedIt, _] = leagueSheets.emplace(teamId, buildDefaultTeamSheetForTeam(*team));
-        (void)_;
-        return insertedIt->second;
+    if (TeamSheet* selectedTeamSheet = team->getSelectedTeamSheet()) {
+        selectedTeamSheet->teamId = teamId;
+        selectedTeamSheet->coachId = team->getHeadCoach().getId();
+        validateTeamSheetForTeam(*selectedTeamSheet, *team);
+        return *selectedTeamSheet;
     }
 
-    sheetIt->second.teamId = teamId;
-    sheetIt->second.coachId = team->getHeadCoach().getId();
-    validateTeamSheetForTeam(sheetIt->second, *team);
-    return sheetIt->second;
-}
-
-void Game::materializeSelectedTeamSheetsForAllTeams() {
-    world.forEachLeagueContext([&](LeagueContext& context) {
-        const LeagueId leagueId = context.getLeague().getId();
-        for (const auto& [teamId, team] : context.getLeague().getTeams()) {
-            if (team) {
-                materializeSelectedTeamSheetForTeam(leagueId, teamId);
-            }
-        }
-    });
+    team->setSelectedTeamSheet(createTeamSheetForTeam(*team));
+    TeamSheet* selectedTeamSheet = team->getSelectedTeamSheet();
+    if (!selectedTeamSheet) {
+        throw std::logic_error("failed to store selected team sheet on team");
+    }
+    return *selectedTeamSheet;
 }
 
 TeamSheet Game::resolveCompleteTeamSheetForTeam(LeagueId leagueId, TeamId teamId) {
@@ -517,7 +506,7 @@ TeamSheet Game::resolveCompleteTeamSheetForTeam(LeagueId leagueId, TeamId teamId
         throw std::runtime_error("cannot resolve team sheet for unknown team");
     }
 
-    TeamSheet& selectedSheet = materializeSelectedTeamSheetForTeam(leagueId, teamId);
+    TeamSheet& selectedSheet = ensureTeamSheetForTeam(leagueId, teamId);
     const std::size_t expectedStarterCount = getFormationSlotTemplate(selectedSheet.formation).size();
     const bool hasCompleteStarters =
         selectedSheet.startingAssignments.size() == expectedStarterCount
@@ -527,11 +516,15 @@ TeamSheet Game::resolveCompleteTeamSheetForTeam(LeagueId leagueId, TeamId teamId
     }
 
     TeamSelectionService selectionService;
+    // TODO: Managed team invalid/incomplete sheets should later produce a
+    // "lineup requires attention" interaction instead of being reconciled here.
+    // TODO: AI matchday sheets should later reconcile availability, condition,
+    // injuries, suspensions, transfers, and coach tactical profile.
     TeamSheet generatedSheet = selectionService.buildTeamSheet(*team, selectedSheet.formation);
     generatedSheet.tacticalSetup = selectedSheet.tacticalSetup;
     validateTeamSheetForTeam(generatedSheet, *team);
-    selectedTeamSheetsByLeague[leagueId][teamId] = generatedSheet;
-    return generatedSheet;
+    team->setSelectedTeamSheet(generatedSheet);
+    return *team->getSelectedTeamSheet();
 }
 
 Game::~Game() = default;
@@ -1090,20 +1083,25 @@ bool Game::playPendingPreMatch() {
 }
 
 std::optional<TeamSheet> Game::getSelectedTeamSheetForTeam(LeagueId leagueId, TeamId teamId) const {
-    const auto leagueSheetsIt = selectedTeamSheetsByLeague.find(leagueId);
-    if (leagueSheetsIt == selectedTeamSheetsByLeague.end()) {
+    const LeagueContext* context = world.findLeagueContext(leagueId);
+    if (!context) {
         return std::nullopt;
     }
 
-    const auto sheetIt = leagueSheetsIt->second.find(teamId);
-    if (sheetIt == leagueSheetsIt->second.end()) {
+    const Team* team = context->getLeague().findTeamById(teamId);
+    if (!team) {
         return std::nullopt;
     }
 
-    return sheetIt->second;
+    const TeamSheet* selectedTeamSheet = team->getSelectedTeamSheet();
+    if (!selectedTeamSheet) {
+        return std::nullopt;
+    }
+
+    return *selectedTeamSheet;
 }
 
-bool Game::replaceSelectedTeamSheetForTeam(LeagueId leagueId, TeamId teamId, const TeamSheet& teamSheet) {
+bool Game::updateSelectedTeamSheetForTeam(LeagueId leagueId, TeamId teamId, const TeamSheet& teamSheet) {
     if (leagueId == 0 || teamId == 0 || teamSheet.teamId != teamId) {
         return false;
     }
@@ -1122,12 +1120,12 @@ bool Game::replaceSelectedTeamSheetForTeam(LeagueId leagueId, TeamId teamId, con
     selectedSheet.coachId = team->getHeadCoach().getId();
     try {
         validateTeamSheetForTeam(selectedSheet, *team);
+        team->setSelectedTeamSheet(std::move(selectedSheet));
     }
     catch (...) {
         return false;
     }
 
-    selectedTeamSheetsByLeague[leagueId][teamId] = std::move(selectedSheet);
     return true;
 }
 
@@ -1161,7 +1159,7 @@ bool Game::replacePendingPreMatchTeamSheetForTeam(TeamId teamId, const TeamSheet
         pendingPreMatchAwaySheet = teamSheet;
     }
 
-    (void)replaceSelectedTeamSheetForTeam(command.leagueId, teamId, teamSheet);
+    (void)updateSelectedTeamSheetForTeam(command.leagueId, teamId, teamSheet);
 
     return true;
 }

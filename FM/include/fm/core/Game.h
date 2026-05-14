@@ -3,7 +3,6 @@
 #include<string>
 #include<functional>
 #include<optional>
-#include<unordered_map>
 #include<vector>
 
 #include"fm/core/GameBootstrapOptions.h"
@@ -46,10 +45,11 @@ private:
     bool saveMetadataEnabled = false;
     std::string saveMetadataDbPath;
     SaveMetadata saveMetadata;
+    // TODO: these are match-specific frozen interaction snapshots. Long term
+    // they belong to PreMatchInteraction / active interaction persistence, not Team.
     std::optional<PlayMatchCommand> pendingPreMatchCommand;
     std::optional<TeamSheet> pendingPreMatchHomeSheet;
     std::optional<TeamSheet> pendingPreMatchAwaySheet;
-    std::unordered_map<LeagueId, std::unordered_map<TeamId, TeamSheet>> selectedTeamSheetsByLeague;
 
 	//debug icin---------------------------------------------------------
 	int lastDebugOfferYear = -1;
@@ -67,9 +67,8 @@ private:
     void restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions);
     void persistRuntimeState();
     void validateRuntimeDateConsistency(const char* context) const;
-    TeamSheet buildDefaultTeamSheetForTeam(const Team& team) const;
-    TeamSheet& materializeSelectedTeamSheetForTeam(LeagueId leagueId, TeamId teamId);
-    void materializeSelectedTeamSheetsForAllTeams();
+    TeamSheet createTeamSheetForTeam(const Team& team) const;
+    TeamSheet& ensureTeamSheetForTeam(LeagueId leagueId, TeamId teamId);
     TeamSheet resolveCompleteTeamSheetForTeam(LeagueId leagueId, TeamId teamId);
 
 	void temporaryForDebug_tryCreateWeeklyManagedTransferOffer();
@@ -119,7 +118,7 @@ public:
 	bool resolveActiveInteraction();
 	bool playPendingPreMatch();
     std::optional<TeamSheet> getSelectedTeamSheetForTeam(LeagueId leagueId, TeamId teamId) const;
-    bool replaceSelectedTeamSheetForTeam(LeagueId leagueId, TeamId teamId, const TeamSheet& teamSheet);
+    bool updateSelectedTeamSheetForTeam(LeagueId leagueId, TeamId teamId, const TeamSheet& teamSheet);
 	bool replacePendingPreMatchTeamSheetForTeam(TeamId teamId, const TeamSheet& teamSheet);
 	bool replaceActivePreMatchDisplayTeamSheetForTeam(TeamId teamId, const TeamSheet& teamSheet);
 

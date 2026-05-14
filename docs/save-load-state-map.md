@@ -110,8 +110,9 @@ Stores selected match squad headers per league/team: formation, mentality, and t
 - Writer: `Game::persistRuntimeState`.
 - Reader/restorer: `SqliteGameStateRepository::loadTeamSheetStates`, then `Game::restoreRuntimeState`.
 - Saved when: runtime state is persisted, including lineup editor changes and auto-select updates.
-- Authority: authoritative selected `TeamSheet` header. `save_metadata` must not store lineup or tactical state.
+- Authority: `Team` owns the current/default selected `TeamSheet`. `Game` only orchestrates create/update/ensure/resolve flow and persistence snapshots. `save_metadata` must not store lineup or tactical state.
 - Multi-league implication: rows are keyed by `league_id`/`team_id`; this is full-world state, not managed-team-only state.
+- Tactical identity note: `HeadCoach` owns `TacticalPreferences`, which are coach/team defaults. `TacticalSetup` is the active match-squad setup persisted in `TeamSheet`.
 - Match engine note: tactical setup currently supports mentality and tempo only. It persists, but does not affect simulation yet; the future match engine rewrite should consume `TacticalSetup`.
 
 ### `runtime_team_sheet_starters`
@@ -166,7 +167,8 @@ TODO: validation currently uses core Super Lig assumptions for season windows. W
 - Why it matters: pre-match uses generated team sheets and lineup edits before playing a match.
 - Current risk: closing during pre-match can lose the exact pending pre-match UI state.
 - Suggested priority: high, coupled with active interaction persistence.
-- Storage direction: active interaction payload plus selected team sheets.
+- Storage direction: active interaction payload plus match-specific frozen team-sheet snapshots.
+- Ownership note: `Team.selectedTeamSheet` is the current/default team-owned squad state. Pending pre-match home/away sheets are frozen snapshots for one interaction and should move into `PreMatchInteraction` / active interaction persistence later.
 
 ### Post-match interaction/report screen state
 

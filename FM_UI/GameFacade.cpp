@@ -2858,7 +2858,7 @@ bool GameFacade::syncEditableLineupToSelectedTeamSheet(bool requireComplete) {
         teamSheet = editableLineup->exportAsTeamSheet();
     }
 
-    if (!currentGame->replaceSelectedTeamSheetForTeam(selectedLeagueId, selectedTeamId, teamSheet)) {
+    if (!currentGame->updateSelectedTeamSheetForTeam(selectedLeagueId, selectedTeamId, teamSheet)) {
         return false;
     }
 
