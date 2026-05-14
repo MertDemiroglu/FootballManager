@@ -4,9 +4,11 @@
 #include <cstdint>
 #include <ctime>
 #include <iomanip>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -74,6 +76,103 @@ namespace {
             }
         }
         return ids;
+    }
+
+    std::string toStableCode(FormationId formation) {
+        switch (formation) {
+        case FormationId::FourFourTwo:
+            return "4-4-2";
+        case FormationId::FourThreeThree:
+            return "4-3-3";
+        case FormationId::ThreeFiveTwo:
+            return "3-5-2";
+        }
+
+        throw std::runtime_error("cannot persist unsupported formation");
+    }
+
+    std::optional<FormationId> formationFromStableCode(const std::string& stableCode) {
+        if (stableCode == "4-4-2") {
+            return FormationId::FourFourTwo;
+        }
+        if (stableCode == "4-3-3") {
+            return FormationId::FourThreeThree;
+        }
+        if (stableCode == "3-5-2") {
+            return FormationId::ThreeFiveTwo;
+        }
+        return std::nullopt;
+    }
+
+    std::string toStableCode(FormationSlotRole role) {
+        switch (role) {
+        case FormationSlotRole::Goalkeeper:
+            return "gk";
+        case FormationSlotRole::CenterBack:
+            return "cb";
+        case FormationSlotRole::LeftBack:
+            return "lb";
+        case FormationSlotRole::RightBack:
+            return "rb";
+        case FormationSlotRole::LeftWingBack:
+            return "lwb";
+        case FormationSlotRole::RightWingBack:
+            return "rwb";
+        case FormationSlotRole::DefensiveMidfielder:
+            return "dm";
+        case FormationSlotRole::CentralMidfielder:
+            return "cm";
+        case FormationSlotRole::AttackingMidfielder:
+            return "am";
+        case FormationSlotRole::LeftMidfielder:
+            return "lm";
+        case FormationSlotRole::RightMidfielder:
+            return "rm";
+        case FormationSlotRole::LeftWinger:
+            return "lw";
+        case FormationSlotRole::RightWinger:
+            return "rw";
+        case FormationSlotRole::Striker:
+            return "st";
+        case FormationSlotRole::Unknown:
+            break;
+        }
+
+        throw std::runtime_error("cannot persist unsupported slot role");
+    }
+
+    std::optional<FormationSlotRole> slotRoleFromStableCode(const std::string& stableCode) {
+        if (stableCode == "gk") return FormationSlotRole::Goalkeeper;
+        if (stableCode == "cb") return FormationSlotRole::CenterBack;
+        if (stableCode == "lb") return FormationSlotRole::LeftBack;
+        if (stableCode == "rb") return FormationSlotRole::RightBack;
+        if (stableCode == "lwb") return FormationSlotRole::LeftWingBack;
+        if (stableCode == "rwb") return FormationSlotRole::RightWingBack;
+        if (stableCode == "dm") return FormationSlotRole::DefensiveMidfielder;
+        if (stableCode == "cm") return FormationSlotRole::CentralMidfielder;
+        if (stableCode == "am") return FormationSlotRole::AttackingMidfielder;
+        if (stableCode == "lm") return FormationSlotRole::LeftMidfielder;
+        if (stableCode == "rm") return FormationSlotRole::RightMidfielder;
+        if (stableCode == "lw") return FormationSlotRole::LeftWinger;
+        if (stableCode == "rw") return FormationSlotRole::RightWinger;
+        if (stableCode == "st") return FormationSlotRole::Striker;
+        return std::nullopt;
+    }
+
+    TeamMentality parseMentalityOrThrow(const std::string& stableCode) {
+        std::optional<TeamMentality> mentality = teamMentalityFromStableCode(stableCode);
+        if (!mentality.has_value()) {
+            throw std::runtime_error("runtime team sheet has invalid mentality stable code: " + stableCode);
+        }
+        return *mentality;
+    }
+
+    TeamTempo parseTempoOrThrow(const std::string& stableCode) {
+        std::optional<TeamTempo> tempo = teamTempoFromStableCode(stableCode);
+        if (!tempo.has_value()) {
+            throw std::runtime_error("runtime team sheet has invalid tempo stable code: " + stableCode);
+        }
+        return *tempo;
     }
 
     bool tableExists(const SqliteDatabase& database, const std::string& tableName) {
@@ -163,6 +262,32 @@ namespace {
             "form INTEGER NOT NULL,"
             "fitness INTEGER NOT NULL,"
             "morale INTEGER NOT NULL"
+            ");");
+        database.execute(
+            "CREATE TABLE IF NOT EXISTS runtime_team_sheets ("
+            "league_id INTEGER NOT NULL,"
+            "team_id INTEGER NOT NULL,"
+            "formation TEXT NOT NULL,"
+            "mentality TEXT NOT NULL,"
+            "tempo TEXT NOT NULL,"
+            "PRIMARY KEY (league_id, team_id)"
+            ");");
+        database.execute(
+            "CREATE TABLE IF NOT EXISTS runtime_team_sheet_starters ("
+            "league_id INTEGER NOT NULL,"
+            "team_id INTEGER NOT NULL,"
+            "slot_index INTEGER NOT NULL,"
+            "slot_role TEXT NOT NULL,"
+            "player_id INTEGER NOT NULL,"
+            "PRIMARY KEY (league_id, team_id, slot_index)"
+            ");");
+        database.execute(
+            "CREATE TABLE IF NOT EXISTS runtime_team_sheet_substitutes ("
+            "league_id INTEGER NOT NULL,"
+            "team_id INTEGER NOT NULL,"
+            "substitute_order INTEGER NOT NULL,"
+            "player_id INTEGER NOT NULL,"
+            "PRIMARY KEY (league_id, team_id, substitute_order)"
             ");");
         database.execute("PRAGMA user_version = 2;");
     }
@@ -316,6 +441,104 @@ std::vector<MatchReport> SqliteGameStateRepository::loadMatchReports() const {
     return reports;
 }
 
+std::vector<PersistedTeamSheetState> SqliteGameStateRepository::loadTeamSheetStates() const {
+    std::vector<PersistedTeamSheetState> states;
+    if (!tableExists(database, "runtime_team_sheets")) {
+        return states;
+    }
+
+    {
+        SqliteStatement statement = database.prepare(
+            "SELECT league_id, team_id, formation, mentality, tempo "
+            "FROM runtime_team_sheets ORDER BY league_id, team_id");
+        while (statement.stepRow()) {
+            const LeagueId leagueId = static_cast<LeagueId>(statement.columnInt(0));
+            const TeamId teamId = static_cast<TeamId>(statement.columnInt(1));
+            const std::string formationCode = statement.columnText(2);
+            const std::optional<FormationId> formation = formationFromStableCode(formationCode);
+            if (!formation.has_value()) {
+                throw std::runtime_error("runtime team sheet has invalid formation stable code: " + formationCode);
+            }
+
+            PersistedTeamSheetState state;
+            state.leagueId = leagueId;
+            state.teamSheet.teamId = teamId;
+            state.teamSheet.formation = *formation;
+            state.teamSheet.tacticalSetup.mentality = parseMentalityOrThrow(statement.columnText(3));
+            state.teamSheet.tacticalSetup.tempo = parseTempoOrThrow(statement.columnText(4));
+            states.push_back(std::move(state));
+        }
+    }
+
+    const auto findState = [&states](LeagueId leagueId, TeamId teamId) -> PersistedTeamSheetState* {
+        for (PersistedTeamSheetState& state : states) {
+            if (state.leagueId == leagueId && state.teamSheet.teamId == teamId) {
+                return &state;
+            }
+        }
+        return nullptr;
+    };
+
+    if (tableExists(database, "runtime_team_sheet_starters")) {
+        SqliteStatement statement = database.prepare(
+            "SELECT league_id, team_id, slot_index, slot_role, player_id "
+            "FROM runtime_team_sheet_starters ORDER BY league_id, team_id, slot_index");
+        while (statement.stepRow()) {
+            const LeagueId leagueId = static_cast<LeagueId>(statement.columnInt(0));
+            const TeamId teamId = static_cast<TeamId>(statement.columnInt(1));
+            PersistedTeamSheetState* state = findState(leagueId, teamId);
+            if (!state) {
+                throw std::runtime_error("runtime team sheet starter references missing team sheet header");
+            }
+
+            const int slotIndex = statement.columnInt(2);
+            const std::string slotRoleCode = statement.columnText(3);
+            const std::optional<FormationSlotRole> slotRole = slotRoleFromStableCode(slotRoleCode);
+            if (!slotRole.has_value()) {
+                throw std::runtime_error("runtime team sheet starter has invalid slot role stable code: " + slotRoleCode);
+            }
+
+            const std::vector<FormationSlotRole>& slotTemplate = getFormationSlotTemplate(state->teamSheet.formation);
+            if (slotIndex < 0 || static_cast<std::size_t>(slotIndex) >= slotTemplate.size()) {
+                throw std::runtime_error("runtime team sheet starter has invalid slot index");
+            }
+            if (slotTemplate[static_cast<std::size_t>(slotIndex)] != *slotRole) {
+                throw std::runtime_error("runtime team sheet starter slot role does not match formation template");
+            }
+
+            const PlayerId playerId = static_cast<PlayerId>(statement.columnInt(4));
+            state->teamSheet.startingAssignments.push_back(TeamSheetSlotAssignment{
+                static_cast<std::size_t>(slotIndex),
+                *slotRole,
+                playerId
+            });
+            state->teamSheet.startingPlayerIds.push_back(playerId);
+        }
+    }
+
+    if (tableExists(database, "runtime_team_sheet_substitutes")) {
+        SqliteStatement statement = database.prepare(
+            "SELECT league_id, team_id, substitute_order, player_id "
+            "FROM runtime_team_sheet_substitutes ORDER BY league_id, team_id, substitute_order");
+        while (statement.stepRow()) {
+            const LeagueId leagueId = static_cast<LeagueId>(statement.columnInt(0));
+            const TeamId teamId = static_cast<TeamId>(statement.columnInt(1));
+            PersistedTeamSheetState* state = findState(leagueId, teamId);
+            if (!state) {
+                throw std::runtime_error("runtime team sheet substitute references missing team sheet header");
+            }
+            const int substituteOrder = statement.columnInt(2);
+            if (substituteOrder < 0 || substituteOrder >= static_cast<int>(kMaxSubstituteCount)) {
+                throw std::runtime_error("runtime team sheet substitute has invalid substitute order");
+            }
+
+            state->teamSheet.substitutePlayerIds.push_back(static_cast<PlayerId>(statement.columnInt(3)));
+        }
+    }
+
+    return states;
+}
+
 std::vector<PersistedPlayerRuntimeState> SqliteGameStateRepository::loadPlayerRuntimeStates() const {
     std::vector<PersistedPlayerRuntimeState> playerStates;
     SqliteStatement statement = database.prepare(
@@ -337,6 +560,7 @@ void SqliteGameStateRepository::saveRuntimeState(
     const std::vector<PersistedLeagueRuntimeState>& leagueStates,
     const std::vector<PersistedFixtureState>& fixtures,
     const std::vector<MatchReport>& reports,
+    const std::vector<PersistedTeamSheetState>& teamSheetStates,
     const std::vector<PersistedPlayerRuntimeState>& playerStates) const {
     database.execute("BEGIN TRANSACTION;");
 
@@ -345,6 +569,9 @@ void SqliteGameStateRepository::saveRuntimeState(
         database.execute("DELETE FROM runtime_match_player_reports;");
         database.execute("DELETE FROM runtime_match_reports;");
         database.execute("DELETE FROM runtime_fixtures;");
+        database.execute("DELETE FROM runtime_team_sheet_substitutes;");
+        database.execute("DELETE FROM runtime_team_sheet_starters;");
+        database.execute("DELETE FROM runtime_team_sheets;");
         database.execute("DELETE FROM league_runtime_state;");
         database.execute("DELETE FROM player_runtime_state;");
         database.execute("DELETE FROM game_state;");
@@ -447,6 +674,44 @@ void SqliteGameStateRepository::saveRuntimeState(
                 eventStatement.bindInt(6, static_cast<int>(event.primaryPlayerId));
                 eventStatement.bindInt(7, static_cast<int>(event.secondaryPlayerId));
                 eventStatement.stepDone();
+            }
+        }
+
+        for (const PersistedTeamSheetState& state : teamSheetStates) {
+            SqliteStatement statement = database.prepare(
+                "INSERT INTO runtime_team_sheets ("
+                "league_id, team_id, formation, mentality, tempo"
+                ") VALUES (?, ?, ?, ?, ?)");
+            statement.bindInt(1, static_cast<int>(state.leagueId));
+            statement.bindInt(2, static_cast<int>(state.teamSheet.teamId));
+            statement.bindText(3, toStableCode(state.teamSheet.formation));
+            statement.bindText(4, std::string(toStableCode(state.teamSheet.tacticalSetup.mentality)));
+            statement.bindText(5, std::string(toStableCode(state.teamSheet.tacticalSetup.tempo)));
+            statement.stepDone();
+
+            for (const TeamSheetSlotAssignment& assignment : state.teamSheet.startingAssignments) {
+                SqliteStatement starterStatement = database.prepare(
+                    "INSERT INTO runtime_team_sheet_starters ("
+                    "league_id, team_id, slot_index, slot_role, player_id"
+                    ") VALUES (?, ?, ?, ?, ?)");
+                starterStatement.bindInt(1, static_cast<int>(state.leagueId));
+                starterStatement.bindInt(2, static_cast<int>(state.teamSheet.teamId));
+                starterStatement.bindInt(3, static_cast<int>(assignment.slotIndex));
+                starterStatement.bindText(4, toStableCode(assignment.slotRole));
+                starterStatement.bindInt(5, static_cast<int>(assignment.playerId));
+                starterStatement.stepDone();
+            }
+
+            for (std::size_t substituteIndex = 0; substituteIndex < state.teamSheet.substitutePlayerIds.size(); ++substituteIndex) {
+                SqliteStatement substituteStatement = database.prepare(
+                    "INSERT INTO runtime_team_sheet_substitutes ("
+                    "league_id, team_id, substitute_order, player_id"
+                    ") VALUES (?, ?, ?, ?)");
+                substituteStatement.bindInt(1, static_cast<int>(state.leagueId));
+                substituteStatement.bindInt(2, static_cast<int>(state.teamSheet.teamId));
+                substituteStatement.bindInt(3, static_cast<int>(substituteIndex));
+                substituteStatement.bindInt(4, static_cast<int>(state.teamSheet.substitutePlayerIds[substituteIndex]));
+                substituteStatement.stepDone();
             }
         }
 

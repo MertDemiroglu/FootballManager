@@ -97,6 +97,30 @@ void Team::setHeadCoach(HeadCoach newHeadCoach) {
     headCoach = std::move(newHeadCoach);
 }
 
+bool Team::hasSelectedTeamSheet() const {
+    return selectedTeamSheet.has_value();
+}
+
+const TeamSheet* Team::getSelectedTeamSheet() const {
+    return selectedTeamSheet.has_value() ? &*selectedTeamSheet : nullptr;
+}
+
+TeamSheet* Team::getSelectedTeamSheet() {
+    return selectedTeamSheet.has_value() ? &*selectedTeamSheet : nullptr;
+}
+
+void Team::setSelectedTeamSheet(TeamSheet teamSheet) {
+    if (teamSheet.teamId != id) {
+        throw std::invalid_argument("selected teamsheet team id does not match team");
+    }
+
+    selectedTeamSheet = std::move(teamSheet);
+}
+
+void Team::clearSelectedTeamSheet() {
+    selectedTeamSheet.reset();
+}
+
 size_t Team::playerCount() const {
     return players.size();
 }

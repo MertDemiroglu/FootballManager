@@ -1131,6 +1131,10 @@ EditableLineupRosterModel* GameFacade::getEditableLineupRosterModel() const {
     return const_cast<EditableLineupRosterModel*>(&editableLineupRosterModel);
 }
 
+EditableLineupRosterModel* GameFacade::getEditableLineupSubstitutesModel() const {
+    return const_cast<EditableLineupRosterModel*>(&editableLineupSubstitutesModel);
+}
+
 QVariantMap GameFacade::getDashboard() const {
     QVariantMap dashboard;
     dashboard.insert(QStringLiteral("currentDateText"), getCurrentDateText());
@@ -1770,6 +1774,9 @@ bool GameFacade::changeEditableLineupFormation(int formationId) {
         return false;
     }
 
+    if (!syncEditableLineupToSelectedTeamSheet(false)) {
+        return false;
+    }
     refreshEditableLineupViews();
     emit gameStateChanged();
     return true;
@@ -1793,6 +1800,9 @@ bool GameFacade::setEditableLineupMentality(const QString& stableCode) {
     TacticalSetup tacticalSetup = lineup->getTacticalSetup();
     tacticalSetup.mentality = *mentality;
     lineup->setTacticalSetup(tacticalSetup);
+    if (!syncEditableLineupToSelectedTeamSheet(false)) {
+        return false;
+    }
     syncEditableLineupDisplayToActivePreMatch();
     emit gameStateChanged();
     return true;
@@ -1816,6 +1826,9 @@ bool GameFacade::setEditableLineupTempo(const QString& stableCode) {
     TacticalSetup tacticalSetup = lineup->getTacticalSetup();
     tacticalSetup.tempo = *tempo;
     lineup->setTacticalSetup(tacticalSetup);
+    if (!syncEditableLineupToSelectedTeamSheet(false)) {
+        return false;
+    }
     syncEditableLineupDisplayToActivePreMatch();
     emit gameStateChanged();
     return true;
@@ -1843,7 +1856,8 @@ bool GameFacade::autoSelectEditableLineup() {
 
     try {
         const TeamSelectionService teamSelectionService;
-        const TeamSheet teamSheet = teamSelectionService.buildTeamSheet(*team, lineup->getFormationId());
+        TeamSheet teamSheet = teamSelectionService.buildTeamSheet(*team, lineup->getFormationId());
+        teamSheet.tacticalSetup = lineup->getTacticalSetup();
         lineup->applyTeamSheet(teamSheet);
     }
     catch (const std::exception& ex) {
@@ -1855,6 +1869,9 @@ bool GameFacade::autoSelectEditableLineup() {
         return false;
     }
 
+    if (!syncEditableLineupToSelectedTeamSheet(true)) {
+        return false;
+    }
     refreshEditableLineupViews();
     emit gameStateChanged();
     return true;
@@ -1878,6 +1895,9 @@ bool GameFacade::assignEditableLineupPlayerToSlot(int playerId, int slotIndex) {
         return false;
     }
 
+    if (!syncEditableLineupToSelectedTeamSheet(false)) {
+        return false;
+    }
     refreshEditableLineupViews();
     emit gameStateChanged();
     return true;
@@ -1902,6 +1922,9 @@ bool GameFacade::swapEditableLineupSlots(int firstSlotIndex, int secondSlotIndex
         return false;
     }
 
+    if (!syncEditableLineupToSelectedTeamSheet(false)) {
+        return false;
+    }
     refreshEditableLineupViews();
     emit gameStateChanged();
     return true;
@@ -1925,6 +1948,9 @@ bool GameFacade::clearEditableLineupSlot(int slotIndex) {
         return false;
     }
 
+    if (!syncEditableLineupToSelectedTeamSheet(false)) {
+        return false;
+    }
     refreshEditableLineupViews();
     emit gameStateChanged();
     return true;
@@ -1948,6 +1974,9 @@ bool GameFacade::unassignEditableLineupPlayer(int playerId) {
         return false;
     }
 
+    if (!syncEditableLineupToSelectedTeamSheet(false)) {
+        return false;
+    }
     refreshEditableLineupViews();
     emit gameStateChanged();
     return true;
@@ -1993,6 +2022,7 @@ bool GameFacade::applyEditableLineupToActivePreMatch() {
         return false;
     }
 
+    currentGame->flushSaveState();
     setLastError(QString());
     publishGameStateChanged();
     return true;
@@ -2577,7 +2607,12 @@ void GameFacade::refreshEditableLineup() {
         return;
     }
 
-    const FormationId preferredFormation = team->getHeadCoach().getPreferredFormation();
+    const Game* currentGame = game.get();
+    const std::optional<TeamSheet> selectedTeamSheet =
+        currentGame ? currentGame->getSelectedTeamSheetForTeam(selectedLeagueId, selectedTeamId) : std::nullopt;
+    const FormationId preferredFormation = selectedTeamSheet.has_value()
+        ? selectedTeamSheet->formation
+        : team->getHeadCoach().getPreferredFormation();
     const bool hasLineupForSelectedTeam = editableLineup.has_value()
         && editableLineup->getTeamId() == selectedTeamId;
     const FormationId activeFormation = hasLineupForSelectedTeam
@@ -2591,6 +2626,12 @@ void GameFacade::refreshEditableLineup() {
         || static_cast<int>(editableLineup->getSlots().size()) != expectedSlotCount;
     if (needsBuild) {
         editableLineup = EditableLineup(*team, preferredFormation);
+    }
+    if (editableLineup.has_value() && selectedTeamSheet.has_value()) {
+        if (editableLineup->getFormationId() != selectedTeamSheet->formation) {
+            editableLineup = EditableLineup(*team, selectedTeamSheet->formation);
+        }
+        editableLineup->applyTeamSheet(*selectedTeamSheet);
     }
 
     refreshEditableLineupViews();
@@ -2615,11 +2656,13 @@ void GameFacade::clearEditableLineupData() {
     editableLineupStateObject.clear();
     editableLineupSlotsModel.clear();
     editableLineupRosterModel.clear();
+    editableLineupSubstitutesModel.clear();
 }
 
 void GameFacade::refreshEditableLineupViews() {
     refreshEditableLineupSlotsModel();
     refreshEditableLineupRosterModel();
+    refreshEditableLineupSubstitutesModel();
     refreshEditableLineupStateObject();
 }
 
@@ -2757,6 +2800,72 @@ void GameFacade::refreshEditableLineupRosterModel() {
     editableLineupRosterModel.setRows(std::move(rows));
 }
 
+void GameFacade::refreshEditableLineupSubstitutesModel() {
+    const League* league = resolveLeague(selectedLeagueId);
+    const EditableLineup* lineup = resolveEditableLineup();
+    const Team* team = (league && lineup) ? league->findTeamById(lineup->getTeamId()) : nullptr;
+    if (!lineup || !team) {
+        editableLineupSubstitutesModel.clear();
+        return;
+    }
+
+    QVector<EditableLineupRosterModel::Row> rows;
+    rows.reserve(static_cast<qsizetype>(lineup->getSubstitutePlayerIds().size()));
+    for (PlayerId playerId : lineup->getSubstitutePlayerIds()) {
+        const Footballer* playerPtr = team->findPlayerById(playerId);
+        if (!playerPtr) {
+            continue;
+        }
+
+        const Footballer& player = *playerPtr;
+        const PlayerConditionState& condition = player.getConditionState();
+
+        EditableLineupRosterModel::Row row;
+        row.playerId = static_cast<int>(player.getId());
+        row.name = fromStd(player.getName());
+        row.positionShort = formatPositionShortCode(player);
+        row.overall = player.totalPower();
+        row.overallSummary = QStringLiteral("OVR %1").arg(player.totalPower());
+        row.form = condition.getForm();
+        row.fitness = condition.getFitness();
+        row.morale = condition.getMorale();
+        row.isAssigned = false;
+        row.assignedSlotIndex = -1;
+        rows.push_back(row);
+    }
+
+    editableLineupSubstitutesModel.setRows(std::move(rows));
+}
+
+bool GameFacade::syncEditableLineupToSelectedTeamSheet(bool requireComplete) {
+    if (!gameStarted || !editableLineup.has_value() || selectedLeagueId == 0 || selectedTeamId == 0) {
+        return false;
+    }
+
+    Game* currentGame = ensureGame();
+    if (!currentGame) {
+        return false;
+    }
+
+    TeamSheet teamSheet;
+    if (requireComplete) {
+        const std::optional<TeamSheet> completeTeamSheet = editableLineup->toTeamSheetIfComplete();
+        if (!completeTeamSheet.has_value()) {
+            return false;
+        }
+        teamSheet = *completeTeamSheet;
+    } else {
+        teamSheet = editableLineup->exportAsTeamSheet();
+    }
+
+    if (!currentGame->updateSelectedTeamSheetForTeam(selectedLeagueId, selectedTeamId, teamSheet)) {
+        return false;
+    }
+
+    currentGame->flushSaveState();
+    return true;
+}
+
 const EditableLineup* GameFacade::resolveEditableLineup() const {
     GameFacade* self = const_cast<GameFacade*>(this);
     if (!self->editableLineup.has_value()) {
@@ -2842,7 +2951,7 @@ void GameFacade::syncEditableLineupDisplayToActivePreMatch() {
     displaySheet.startingPlayerIds.reserve(editableLineup->getSlots().size());
 
     for (const EditableLineupSlot& slot : editableLineup->getSlots()) {
-        displaySheet.startingAssignments.push_back(TeamSheetSlotAssignment{ slot.slotRole, slot.assignedPlayerId });
+        displaySheet.startingAssignments.push_back(TeamSheetSlotAssignment{ slot.slotIndex, slot.slotRole, slot.assignedPlayerId });
         if (slot.assignedPlayerId != 0) {
             displaySheet.startingPlayerIds.push_back(slot.assignedPlayerId);
         }

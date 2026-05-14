@@ -2,10 +2,12 @@
 
 #include "fm/data/SqliteGameStateRepository.h"
 
+#include <cstdint>
 #include <exception>
 #include <iomanip>
 #include <sstream>
 #include <string>
+#include <unordered_set>
 #include <unordered_map>
 #include <vector>
 
@@ -50,6 +52,7 @@ namespace {
         const Date& currentDate,
         const std::vector<PersistedLeagueRuntimeState>& leagueStates,
         const std::vector<PersistedFixtureState>& fixtures,
+        const std::vector<PersistedTeamSheetState>& teamSheetStates,
         const std::vector<PersistedPlayerRuntimeState>& playerStates,
         const SaveMetadata* metadata) {
         if (leagueStates.empty()) {
@@ -83,6 +86,68 @@ namespace {
             }
 
             stateByLeague.emplace(state.leagueId, state);
+        }
+
+        std::unordered_set<std::int64_t> seenTeamsWithSheets;
+        for (const PersistedTeamSheetState& state : teamSheetStates) {
+            if (stateByLeague.find(state.leagueId) == stateByLeague.end()) {
+                return invalid("runtime team sheet references a league without runtime state");
+            }
+            if (state.teamSheet.teamId == 0) {
+                return invalid("runtime team sheet has an invalid team id");
+            }
+            if (!isFormationSupported(state.teamSheet.formation)) {
+                return invalid("runtime team sheet has an invalid formation");
+            }
+
+            const std::int64_t compoundTeamKey = (static_cast<std::int64_t>(state.leagueId) << 32)
+                ^ static_cast<std::int64_t>(state.teamSheet.teamId);
+            if (!seenTeamsWithSheets.insert(compoundTeamKey).second) {
+                return invalid("runtime team sheet has a duplicate league/team row");
+            }
+
+            if (state.teamSheet.substitutePlayerIds.size() > kMaxSubstituteCount) {
+                return invalid("runtime team sheet has too many substitutes");
+            }
+
+            const std::vector<FormationSlotRole>& slotTemplate = getFormationSlotTemplate(state.teamSheet.formation);
+            if (state.teamSheet.startingAssignments.size() > slotTemplate.size()) {
+                return invalid("runtime team sheet has too many starter assignments");
+            }
+            if (state.teamSheet.startingAssignments.size() != state.teamSheet.startingPlayerIds.size()) {
+                return invalid("runtime team sheet starter ids do not match assignment count");
+            }
+
+            std::unordered_set<PlayerId> starterIds;
+            for (std::size_t i = 0; i < state.teamSheet.startingAssignments.size(); ++i) {
+                const TeamSheetSlotAssignment& assignment = state.teamSheet.startingAssignments[i];
+                if (assignment.playerId == 0) {
+                    return invalid("runtime team sheet starter has an invalid player id");
+                }
+                if (state.teamSheet.startingPlayerIds[i] != assignment.playerId) {
+                    return invalid("runtime team sheet starter order does not match assignment ids");
+                }
+                if (assignment.slotIndex >= slotTemplate.size()
+                    || slotTemplate[assignment.slotIndex] != assignment.slotRole) {
+                    return invalid("runtime team sheet starter slot role does not match formation template");
+                }
+                if (!starterIds.insert(assignment.playerId).second) {
+                    return invalid("runtime team sheet has duplicate starter player ids");
+                }
+            }
+
+            std::unordered_set<PlayerId> substituteIds;
+            for (PlayerId playerId : state.teamSheet.substitutePlayerIds) {
+                if (playerId == 0) {
+                    return invalid("runtime team sheet substitute has an invalid player id");
+                }
+                if (starterIds.find(playerId) != starterIds.end()) {
+                    return invalid("runtime team sheet has starter/substitute overlap");
+                }
+                if (!substituteIds.insert(playerId).second) {
+                    return invalid("runtime team sheet has duplicate substitute player ids");
+                }
+            }
         }
 
         std::unordered_map<LeagueId, bool> sawFixtureByLeague;
@@ -131,8 +196,9 @@ SaveValidationResult RuntimeSaveValidator::validateExistingSave(
         const Date currentDate = runtimeRepository.loadCurrentDate();
         const std::vector<PersistedLeagueRuntimeState> leagueStates = runtimeRepository.loadLeagueRuntimeStates();
         const std::vector<PersistedFixtureState> fixtures = runtimeRepository.loadFixtures();
+        const std::vector<PersistedTeamSheetState> teamSheetStates = runtimeRepository.loadTeamSheetStates();
         const std::vector<PersistedPlayerRuntimeState> playerStates = runtimeRepository.loadPlayerRuntimeStates();
-        return validateRuntimeState(currentDate, leagueStates, fixtures, playerStates, metadata);
+        return validateRuntimeState(currentDate, leagueStates, fixtures, teamSheetStates, playerStates, metadata);
     } catch (const std::exception& ex) {
         return invalid(ex.what());
     } catch (...) {

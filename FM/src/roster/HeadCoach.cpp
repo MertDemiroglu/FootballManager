@@ -28,7 +28,7 @@ HeadCoach::HeadCoach(const std::string& name, FormationId preferredFormation)
 }
 
 HeadCoach::HeadCoach(CoachId id, const std::string& name, FormationId preferredFormation)
-    : id(id), name(name), preferredFormation(preferredFormation) {
+    : id(id), name(name), tacticalPreferences{} {
     if (id == 0) {
         throw std::invalid_argument("coach id cannot be zero");
     }
@@ -40,6 +40,12 @@ HeadCoach::HeadCoach(CoachId id, const std::string& name, FormationId preferredF
     if (!isFormationSupported(preferredFormation)) {
         throw std::invalid_argument("preferred formation is not supported");
     }
+
+    // TODO: Coach tactical profile should later come from SQL/coach data and
+    // include tactical tendencies beyond formation, mentality, and tempo.
+    tacticalPreferences.preferredFormation = preferredFormation;
+    tacticalPreferences.preferredMentality = TeamMentality::Balanced;
+    tacticalPreferences.preferredTempo = TeamTempo::Normal;
 
     reserveCoachId(id);
 }
@@ -53,7 +59,19 @@ const std::string& HeadCoach::getName() const {
 }
 
 FormationId HeadCoach::getPreferredFormation() const {
-    return preferredFormation;
+    return tacticalPreferences.preferredFormation;
+}
+
+TeamMentality HeadCoach::getPreferredMentality() const {
+    return tacticalPreferences.preferredMentality;
+}
+
+TeamTempo HeadCoach::getPreferredTempo() const {
+    return tacticalPreferences.preferredTempo;
+}
+
+const TacticalPreferences& HeadCoach::getTacticalPreferences() const {
+    return tacticalPreferences;
 }
 
 void HeadCoach::setPreferredFormation(FormationId formationId) {
@@ -61,5 +79,13 @@ void HeadCoach::setPreferredFormation(FormationId formationId) {
         throw std::invalid_argument("preferred formation is not supported");
     }
 
-    preferredFormation = formationId;
+    tacticalPreferences.preferredFormation = formationId;
+}
+
+void HeadCoach::setTacticalPreferences(TacticalPreferences preferences) {
+    if (!isFormationSupported(preferences.preferredFormation)) {
+        throw std::invalid_argument("preferred formation is not supported");
+    }
+
+    tacticalPreferences = preferences;
 }

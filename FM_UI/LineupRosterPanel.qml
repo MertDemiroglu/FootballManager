@@ -7,6 +7,7 @@ ColumnLayout {
 
     property var slotsModel: null
     property var rosterModel: null
+    property var substitutesModel: null
     property int selectedSlotIndex: -1
     property int selectedSourceSlotIndex: -1
     property int selectedPlayerId: 0
@@ -68,6 +69,7 @@ ColumnLayout {
             anchors.fill: parent
             anchors.margins: 14
             slotsModel: root.slotsModel
+            substitutesModel: root.substitutesModel
             selectedSlotIndex: root.selectedSlotIndex
             selectedSourceSlotIndex: root.selectedSourceSlotIndex
             metricColumnWidth: root.metricColumnWidth

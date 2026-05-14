@@ -22,18 +22,36 @@ Do not run generated smoke executables when the local antivirus warning is still
 16. Advance to the first match.
 17. Enter pre-match.
 18. Edit lineup if applicable.
-19. Play the match.
-20. Continue to dashboard.
-21. Close the app.
-22. Reopen and load/continue the save.
-23. Confirm the fixture remains played.
-24. Confirm the result remains visible.
-25. Confirm standings, recent form, and upcoming matches remain consistent.
-26. Confirm player fitness/form/morale survive load.
-27. Confirm the Load Game card displays manager-team and the in-game date.
-28. Confirm no real-world date appears as Game Date unless the simulation actually reaches that date.
-29. Confirm `created_at_utc` and `updated_at_utc` are shown only as real-world save-card timestamps.
-30. Confirm git status remains clean after the manual app run, except for intentionally ignored runtime files.
+19. Open Lineup Editor.
+20. Pick 4-4-2 and Auto Select.
+21. Change mentality to Defensive.
+22. Change tempo to High.
+23. Confirm Starting XI is assigned 11/11.
+24. Confirm the Substitutes tab shows up to 10 real players.
+25. Close the app.
+26. Reopen and load/continue the save.
+27. Open Lineup Editor.
+28. Confirm formation, Starting XI, substitutes, mentality, and tempo were restored.
+29. Change to 4-3-3 and Auto Select.
+30. Confirm the pitch still shows DM behind two CMs.
+31. Confirm substitutes regenerated without starter/substitute overlap.
+32. Close the app.
+33. Reopen and load/continue the save.
+34. Confirm 4-3-3, starters, substitutes, mentality, and tempo were restored.
+35. Go to match day and enter pre-match.
+36. Confirm pre-match shows the selected lineup rather than a freshly generated lineup.
+37. Play the match.
+38. Continue to dashboard.
+39. Close the app.
+40. Reopen and load/continue the save.
+41. Confirm the fixture remains played.
+42. Confirm the result remains visible.
+43. Confirm standings, recent form, and upcoming matches remain consistent.
+44. Confirm player fitness/form/morale survive load.
+45. Confirm the Load Game card displays manager-team and the in-game date.
+46. Confirm no real-world date appears as Game Date unless the simulation actually reaches that date.
+47. Confirm `created_at_utc` and `updated_at_utc` are shown only as real-world save-card timestamps.
+48. Confirm git status remains clean after the manual app run, except for intentionally ignored runtime files.
 
 ## Known Not-Yet-Supported Scenarios
 
@@ -42,6 +60,7 @@ Do not run generated smoke executables when the local antivirus warning is still
 - Closing while a transfer decision is open may not restore the exact transfer decision screen yet.
 - Transfer offer persistence is future work.
 - Accepted/rejected transfer decisions and roster mutations need dedicated persistence.
-- Selected tactic/lineup persistence needs a dedicated phase if not already covered by a future lineup-state table.
+- Tactical setup is persisted but does not affect match simulation yet.
+- Coach-driven tactical identity is future work.
 - Completed season archives/history are future work.
 - LeagueRules are still core-code driven and should move to data/SQL before broad multi-league expansion.

@@ -103,6 +103,38 @@ Stores mutable player condition state: form, fitness, and morale.
 - Authority: authoritative persisted condition override over seed player data.
 - Multi-league implication: player condition is saved for all players in all loaded league contexts.
 
+### `runtime_team_sheets`
+
+Stores selected match squad headers per league/team: formation, mentality, and tempo.
+
+- Writer: `Game::persistRuntimeState`.
+- Reader/restorer: `SqliteGameStateRepository::loadTeamSheetStates`, then `Game::restoreRuntimeState`.
+- Saved when: runtime state is persisted, including lineup editor changes and auto-select updates.
+- Authority: `Team` owns the current/default selected `TeamSheet`. `Game` only orchestrates create/update/ensure/resolve flow and persistence snapshots. `save_metadata` must not store lineup or tactical state.
+- Multi-league implication: rows are keyed by `league_id`/`team_id`; this is full-world state, not managed-team-only state.
+- Tactical identity note: `HeadCoach` owns `TacticalPreferences`, which are coach/team defaults. `TacticalSetup` is the active match-squad setup persisted in `TeamSheet`.
+- Match engine note: tactical setup currently supports mentality and tempo only. It persists, but does not affect simulation yet; the future match engine rewrite should consume `TacticalSetup`.
+
+### `runtime_team_sheet_starters`
+
+Stores selected starting XI slot assignments: slot index, slot role, and player id.
+
+- Writer: `SqliteGameStateRepository::saveRuntimeState`.
+- Reader/restorer: `SqliteGameStateRepository::loadTeamSheetStates`.
+- Saved when: selected team sheets are persisted.
+- Authority: authoritative selected starting XI for pre-match and lineup editor restore.
+- Multi-league implication: starter rows are attached to `runtime_team_sheets` by `league_id`/`team_id`.
+
+### `runtime_team_sheet_substitutes`
+
+Stores selected substitute player ids in deterministic bench order. Substitute order is zero-based and capped at 10 in code.
+
+- Writer: `SqliteGameStateRepository::saveRuntimeState`.
+- Reader/restorer: `SqliteGameStateRepository::loadTeamSheetStates`.
+- Saved when: selected team sheets are persisted.
+- Authority: authoritative selected bench for lineup editor restore.
+- Multi-league implication: substitute rows are attached to `runtime_team_sheets` by `league_id`/`team_id`.
+
 ## Validation Ownership
 
 `RuntimeSaveValidator` owns runtime save validation in the core/data layer. It checks:
@@ -113,6 +145,9 @@ Stores mutable player condition state: form, fitness, and morale.
 - `player_runtime_state` exists.
 - Fixture league and season match league runtime state.
 - Fixture ids, matchweeks, and team ids are valid.
+- Runtime team sheet formation, slot roles, starter ids, substitutes, and tactical stable codes are valid.
+- Runtime team sheets have no duplicate starters, duplicate substitutes, or starter/substitute overlap.
+- Runtime team sheets do not exceed 10 substitutes.
 - Current game date is within the current temporary Super Lig season-window assumptions.
 - Metadata current date mirrors `game_state."current_date"` when metadata is provided.
 
@@ -120,21 +155,11 @@ TODO: validation currently uses core Super Lig assumptions for season windows. W
 
 ## Not Yet Persisted / Later Phases
 
-### Selected lineup / tactical setup
-
-- Why it matters: users expect the selected match squad to survive reloads. `TeamSheet` now means starting XI, up to 10 substitutes, and `TacticalSetup`.
-- Current shape: tactical setup supports only mentality and tempo, defaulting to Balanced and Normal for every team.
-- Current risk: selected squad/tactical edits may need to be rebuilt or lost after load unless they are already part of active match reports.
-- Suggested priority: high, first backend phase after this roadmap.
-- Storage direction: `team_lineup_state`, lineup slot assignment tables, substitute tables, and tactical setup columns keyed by `league_id`/`team_id`.
-- Next persistence PR: persist selected match squad and tactical setup to SQL/runtime save.
-- Match engine note: tactical setup is inert today; the future match engine rewrite should consume `TacticalSetup`.
-
 ### Pending/active blocking interactions
 
 - Why it matters: closing during pre-match, post-match, or transfer decisions should restore the exact blocking state.
 - Current risk: reload may resume at dashboard/world state rather than the exact interaction screen.
-- Suggested priority: high after lineup persistence.
+- Suggested priority: high after selected match squad persistence.
 - Storage direction: interaction table with kind, league/team/match/offer ids, and payload version.
 
 ### Pre-match interaction state
@@ -142,7 +167,8 @@ TODO: validation currently uses core Super Lig assumptions for season windows. W
 - Why it matters: pre-match uses generated team sheets and lineup edits before playing a match.
 - Current risk: closing during pre-match can lose the exact pending pre-match UI state.
 - Suggested priority: high, coupled with active interaction persistence.
-- Storage direction: active interaction payload plus selected team sheets.
+- Storage direction: active interaction payload plus match-specific frozen team-sheet snapshots.
+- Ownership note: `Team.selectedTeamSheet` is the current/default team-owned squad state. Pending pre-match home/away sheets are frozen snapshots for one interaction and should move into `PreMatchInteraction` / active interaction persistence later.
 
 ### Post-match interaction/report screen state
 

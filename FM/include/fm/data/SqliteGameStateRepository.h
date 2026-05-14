@@ -4,6 +4,7 @@
 #include "fm/common/Types.h"
 #include "fm/data/SqliteDatabase.h"
 #include "fm/match/MatchReport.h"
+#include "fm/match/TeamSheet.h"
 
 #include <string>
 #include <vector>
@@ -41,6 +42,11 @@ struct PersistedPlayerRuntimeState {
     int morale = 50;
 };
 
+struct PersistedTeamSheetState {
+    LeagueId leagueId = 0;
+    TeamSheet teamSheet;
+};
+
 class SqliteGameStateRepository {
 private:
     SqliteDatabase database;
@@ -55,6 +61,7 @@ public:
     std::vector<PersistedLeagueRuntimeState> loadLeagueRuntimeStates() const;
     std::vector<PersistedFixtureState> loadFixtures() const;
     std::vector<MatchReport> loadMatchReports() const;
+    std::vector<PersistedTeamSheetState> loadTeamSheetStates() const;
     std::vector<PersistedPlayerRuntimeState> loadPlayerRuntimeStates() const;
 
     void saveRuntimeState(
@@ -63,5 +70,6 @@ public:
         const std::vector<PersistedLeagueRuntimeState>& leagueStates,
         const std::vector<PersistedFixtureState>& fixtures,
         const std::vector<MatchReport>& reports,
+        const std::vector<PersistedTeamSheetState>& teamSheetStates,
         const std::vector<PersistedPlayerRuntimeState>& playerStates) const;
 };

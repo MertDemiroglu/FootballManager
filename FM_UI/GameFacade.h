@@ -68,6 +68,7 @@ class GameFacade : public QObject {
     Q_PROPERTY(EditableLineupStateObject* editableLineupState READ getEditableLineupState CONSTANT)
     Q_PROPERTY(EditableLineupSlotsModel* editableLineupSlotsModel READ getEditableLineupSlotsModel CONSTANT)
     Q_PROPERTY(EditableLineupRosterModel* editableLineupRosterModel READ getEditableLineupRosterModel CONSTANT)
+    Q_PROPERTY(EditableLineupRosterModel* editableLineupSubstitutesModel READ getEditableLineupSubstitutesModel CONSTANT)
 
 public:
     explicit GameFacade(QObject* parent = nullptr);
@@ -133,6 +134,7 @@ public:
     EditableLineupStateObject* getEditableLineupState() const;
     EditableLineupSlotsModel* getEditableLineupSlotsModel() const;
     EditableLineupRosterModel* getEditableLineupRosterModel() const;
+    EditableLineupRosterModel* getEditableLineupSubstitutesModel() const;
 
     Q_INVOKABLE QVariantList getStandingsTable() const;
     Q_INVOKABLE QVariantMap getCurrentTeamSeasonStats() const;
@@ -177,6 +179,7 @@ private:
     EditableLineupStateObject editableLineupStateObject;
     EditableLineupSlotsModel editableLineupSlotsModel;
     EditableLineupRosterModel editableLineupRosterModel;
+    EditableLineupRosterModel editableLineupSubstitutesModel;
     LeagueId selectedLeagueId = 0;
     TeamId selectedTeamId = 0;
     bool gameStarted = false;
@@ -213,6 +216,8 @@ private:
     void refreshEditableLineupStateObject();
     void refreshEditableLineupSlotsModel();
     void refreshEditableLineupRosterModel();
+    void refreshEditableLineupSubstitutesModel();
+    bool syncEditableLineupToSelectedTeamSheet(bool requireComplete);
     int getSelectedTeamPlayerCount() const;
     int getExpectedEditableLineupSlotCount() const;
     const EditableLineup* resolveEditableLineup() const;

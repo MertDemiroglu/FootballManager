@@ -12,6 +12,7 @@ class Team;
 constexpr std::size_t kMaxSubstituteCount = 10;
 
 struct TeamSheetSlotAssignment {
+    std::size_t slotIndex = 0;
     FormationSlotRole slotRole = FormationSlotRole::Unknown;
     PlayerId playerId = 0;
 };

@@ -217,9 +217,11 @@ double calculateConditionAwarePowerWithoutRoleFit(const Footballer& player) {
 }
 
 TacticalSetup defaultTacticalSetupForTeam(const Team& team) {
-    (void)team;
-    // TODO: derive from Coach tactical profile when Coach has tactical fields.
-    return TacticalSetup{};
+    const TacticalPreferences& preferences = team.getHeadCoach().getTacticalPreferences();
+    return TacticalSetup{
+        preferences.preferredMentality,
+        preferences.preferredTempo
+    };
 }
 
 std::vector<TeamSheetSlotAssignment> buildOrderedAssignmentsFromTemplate(FormationId formation,
@@ -235,7 +237,7 @@ std::vector<TeamSheetSlotAssignment> buildOrderedAssignmentsFromTemplate(Formati
             continue;
         }
 
-        orderedAssignments.push_back(TeamSheetSlotAssignment{ slotTemplate[i], playerId });
+        orderedAssignments.push_back(TeamSheetSlotAssignment{ i, slotTemplate[i], playerId });
     }
 
     return orderedAssignments;

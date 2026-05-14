@@ -103,6 +103,38 @@ CREATE TABLE IF NOT EXISTS player_runtime_state (
     FOREIGN KEY (player_id) REFERENCES players(id)
 );
 
+CREATE TABLE IF NOT EXISTS runtime_team_sheets (
+    league_id INTEGER NOT NULL,
+    team_id INTEGER NOT NULL,
+    formation TEXT NOT NULL,
+    mentality TEXT NOT NULL,
+    tempo TEXT NOT NULL,
+    PRIMARY KEY (league_id, team_id),
+    FOREIGN KEY (league_id) REFERENCES leagues(id),
+    FOREIGN KEY (team_id) REFERENCES teams(id)
+);
+
+CREATE TABLE IF NOT EXISTS runtime_team_sheet_starters (
+    league_id INTEGER NOT NULL,
+    team_id INTEGER NOT NULL,
+    slot_index INTEGER NOT NULL,
+    slot_role TEXT NOT NULL,
+    player_id INTEGER NOT NULL,
+    PRIMARY KEY (league_id, team_id, slot_index),
+    FOREIGN KEY (league_id, team_id) REFERENCES runtime_team_sheets(league_id, team_id),
+    FOREIGN KEY (player_id) REFERENCES players(id)
+);
+
+CREATE TABLE IF NOT EXISTS runtime_team_sheet_substitutes (
+    league_id INTEGER NOT NULL,
+    team_id INTEGER NOT NULL,
+    substitute_order INTEGER NOT NULL,
+    player_id INTEGER NOT NULL,
+    PRIMARY KEY (league_id, team_id, substitute_order),
+    FOREIGN KEY (league_id, team_id) REFERENCES runtime_team_sheets(league_id, team_id),
+    FOREIGN KEY (player_id) REFERENCES players(id)
+);
+
 CREATE TABLE IF NOT EXISTS leagues (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL

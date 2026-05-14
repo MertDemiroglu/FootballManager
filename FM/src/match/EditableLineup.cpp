@@ -220,15 +220,16 @@ void EditableLineup::applyTeamSheet(const TeamSheet& teamSheet) {
             continue;
         }
 
-        auto targetSlotIt = std::find_if(lineupSlots.begin(), lineupSlots.end(), [&](const EditableLineupSlot& slot) {
-            return slot.slotRole == assignment.slotRole && slot.assignedPlayerId == 0;
-        });
-
-        if (targetSlotIt == lineupSlots.end()) {
+        if (assignment.slotIndex >= lineupSlots.size()) {
             continue;
         }
 
-        targetSlotIt->assignedPlayerId = assignment.playerId;
+        EditableLineupSlot& targetSlot = lineupSlots[assignment.slotIndex];
+        if (targetSlot.slotRole != assignment.slotRole || targetSlot.assignedPlayerId != 0) {
+            continue;
+        }
+
+        targetSlot.assignedPlayerId = assignment.playerId;
         appliedPlayerIds.push_back(assignment.playerId);
     }
 
@@ -248,7 +249,7 @@ TeamSheet EditableLineup::exportAsTeamSheet() const {
             continue;
         }
 
-        teamSheet.startingAssignments.push_back(TeamSheetSlotAssignment{ slot.slotRole, slot.assignedPlayerId });
+        teamSheet.startingAssignments.push_back(TeamSheetSlotAssignment{ slot.slotIndex, slot.slotRole, slot.assignedPlayerId });
         teamSheet.startingPlayerIds.push_back(slot.assignedPlayerId);
     }
 
@@ -285,7 +286,7 @@ std::optional<TeamSheet> EditableLineup::toTeamSheetIfComplete() const {
             return std::nullopt;
         }
 
-        teamSheet.startingAssignments.push_back(TeamSheetSlotAssignment{ slot.slotRole, slot.assignedPlayerId });
+        teamSheet.startingAssignments.push_back(TeamSheetSlotAssignment{ slot.slotIndex, slot.slotRole, slot.assignedPlayerId });
         teamSheet.startingPlayerIds.push_back(slot.assignedPlayerId);
     }
 

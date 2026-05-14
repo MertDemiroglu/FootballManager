@@ -45,7 +45,9 @@ private:
     bool saveMetadataEnabled = false;
     std::string saveMetadataDbPath;
     SaveMetadata saveMetadata;
-	std::optional<PlayMatchCommand> pendingPreMatchCommand;
+    // TODO: these are match-specific frozen interaction snapshots. Long term
+    // they belong to PreMatchInteraction / active interaction persistence, not Team.
+    std::optional<PlayMatchCommand> pendingPreMatchCommand;
     std::optional<TeamSheet> pendingPreMatchHomeSheet;
     std::optional<TeamSheet> pendingPreMatchAwaySheet;
 
@@ -65,6 +67,9 @@ private:
     void restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions);
     void persistRuntimeState();
     void validateRuntimeDateConsistency(const char* context) const;
+    TeamSheet createTeamSheetForTeam(const Team& team) const;
+    TeamSheet& ensureTeamSheetForTeam(LeagueId leagueId, TeamId teamId);
+    TeamSheet resolveCompleteTeamSheetForTeam(LeagueId leagueId, TeamId teamId);
 
 	void temporaryForDebug_tryCreateWeeklyManagedTransferOffer();
 public:
@@ -112,6 +117,8 @@ public:
 	const TransferOfferDecisionInteraction* getActiveTransferOfferDecisionInteraction() const;
 	bool resolveActiveInteraction();
 	bool playPendingPreMatch();
+    std::optional<TeamSheet> getSelectedTeamSheetForTeam(LeagueId leagueId, TeamId teamId) const;
+    bool updateSelectedTeamSheetForTeam(LeagueId leagueId, TeamId teamId, const TeamSheet& teamSheet);
 	bool replacePendingPreMatchTeamSheetForTeam(TeamId teamId, const TeamSheet& teamSheet);
 	bool replaceActivePreMatchDisplayTeamSheetForTeam(TeamId teamId, const TeamSheet& teamSheet);
 
