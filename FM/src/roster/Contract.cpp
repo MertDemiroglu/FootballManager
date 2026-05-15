@@ -6,6 +6,10 @@ Money Contract::getWage() const {
 	return wage;
 }
 
+int Contract::getYearsRemaining() const {
+	return yearsRemaining;
+}
+
 void Contract::advanceYear() {
 	--yearsRemaining;
 }

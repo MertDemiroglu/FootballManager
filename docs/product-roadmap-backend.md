@@ -47,14 +47,17 @@ This roadmap keeps future save/load work scoped. Each phase should preserve the 
 
 - Purpose: persist player-team membership, contract updates, finance effects, and roster changes after transfers or season events.
 - Depends on: transfer offer status/resolution persistence.
-- Likely affected areas: `Team`, `Footballer`, contract model, transfer services, runtime roster/contract/finance tables.
+- Status: implemented for team-owned roster moves, team budget snapshots, and player contract snapshots.
+- Implemented shape: `runtime_team_finances` stores full-world team budgets; `runtime_player_roster_state` stores player ownership, contract wage/years, and current season year. Restore moves players through `Team::releasePlayer` / `Team::addPlayer`, updates `player.teamId`, restores contracts, and reconciles selected team sheets after roster restore.
+- Affected areas: `Game`, `SqliteGameStateRepository`, `RuntimeSaveValidator`, `TransferRoom`, `Team`/`Footballer` contract access.
 - Why next: accepted offers currently mutate rosters in memory, but long-term roster and budget effects need their own runtime source of truth rather than replaying accepted offers on load.
-- Do not mix in: save UI polish or league rules migration.
+- Not covered: active interaction persistence, completed transfer history UI, deeper finance ledgers, contract renewal UI, negotiation/counter offers, free-agent UI, or match engine changes.
 
 ## 5. Active Interaction Persistence
 
 - Purpose: restore exact blocking states after closing during pre-match, post-match, transfer decision, or other modal flows.
 - Depends on: lineup persistence for pre-match and durable mutable transfer/roster state for transfer decisions.
+- Status: next recommended phase unless a new backend blocker appears.
 - Likely affected areas: `InteractionManager`, interaction DTOs, `Game`, `GameFacade`, active interaction payload tables.
 - Why after core mutable state: interactions reference domain objects that must already be persisted.
 - Do not mix in: broad QML redesign. Restore behavior first, polish later.

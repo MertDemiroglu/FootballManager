@@ -1,5 +1,7 @@
 #include "fm/data/RuntimeSaveValidator.h"
 
+#include "fm/data/BootstrapDtos.h"
+#include "fm/data/SqliteBootstrapRepository.h"
 #include "fm/data/SqliteGameStateRepository.h"
 #include "fm/data/SqliteLeagueRulesRepository.h"
 
@@ -49,13 +51,21 @@ namespace {
         return !dateIsBefore(lhs, rhs);
     }
 
+    std::int64_t compoundTeamKey(LeagueId leagueId, TeamId teamId) {
+        return (static_cast<std::int64_t>(leagueId) << 32)
+            ^ static_cast<std::int64_t>(teamId);
+    }
+
     SaveValidationResult validateRuntimeState(
         const Date& currentDate,
         const std::vector<PersistedLeagueRuntimeState>& leagueStates,
         const std::vector<PersistedFixtureState>& fixtures,
         const std::vector<PersistedTeamSheetState>& teamSheetStates,
         const std::vector<PersistedPlayerRuntimeState>& playerStates,
+        const std::vector<PersistedTeamFinanceState>& teamFinanceStates,
+        const std::vector<PersistedPlayerRosterState>& playerRosterStates,
         const std::vector<PersistedTransferOfferState>& transferOfferStates,
+        const std::vector<LeagueSeedData>& seedLeagues,
         const std::unordered_map<LeagueId, LeagueRules>& rulesByLeague,
         const SaveMetadata* metadata) {
         if (leagueStates.empty()) {
@@ -63,6 +73,12 @@ namespace {
         }
         if (playerStates.empty()) {
             return invalid("save slot is missing player runtime state");
+        }
+        if (teamFinanceStates.empty()) {
+            return invalid("save slot is missing runtime team finance state");
+        }
+        if (playerRosterStates.empty()) {
+            return invalid("save slot is missing runtime player roster state");
         }
 
         if (metadata && metadata->currentDate != dateToIsoString(currentDate)) {
@@ -94,6 +110,77 @@ namespace {
             stateByLeague.emplace(state.leagueId, state);
         }
 
+        std::unordered_set<std::int64_t> knownTeams;
+        std::unordered_set<PlayerId> knownPlayers;
+        for (const LeagueSeedData& league : seedLeagues) {
+            for (const TeamSeedData& team : league.teams) {
+                knownTeams.insert(compoundTeamKey(league.id, team.id));
+                for (const PlayerSeedData& player : team.players) {
+                    knownPlayers.insert(player.id);
+                }
+            }
+        }
+
+        std::unordered_set<std::int64_t> seenFinanceRows;
+        for (const PersistedTeamFinanceState& finance : teamFinanceStates) {
+            if (stateByLeague.find(finance.leagueId) == stateByLeague.end()) {
+                return invalid("runtime team finance references a league without runtime state");
+            }
+            if (finance.teamId == 0) {
+                return invalid("runtime team finance has an invalid team id");
+            }
+            if (knownTeams.find(compoundTeamKey(finance.leagueId, finance.teamId)) == knownTeams.end()) {
+                return invalid("runtime team finance references unknown team");
+            }
+            if (!seenFinanceRows.insert(compoundTeamKey(finance.leagueId, finance.teamId)).second) {
+                return invalid("runtime team finance has a duplicate league/team row");
+            }
+            if (finance.totalBudget < 0 || finance.transferBudget < 0 || finance.wageBudget < 0) {
+                return invalid("runtime team finance has a negative budget");
+            }
+        }
+
+        std::unordered_map<PlayerId, std::int64_t> rosterTeamByPlayer;
+        for (const PersistedPlayerRosterState& roster : playerRosterStates) {
+            if (roster.playerId == 0) {
+                return invalid("runtime player roster state has an invalid player id");
+            }
+            if (knownPlayers.find(roster.playerId) == knownPlayers.end()) {
+                return invalid("runtime player roster state references unknown player");
+            }
+            if (stateByLeague.find(roster.leagueId) == stateByLeague.end()) {
+                return invalid("runtime player roster state references a league without runtime state");
+            }
+            if (roster.teamId == 0) {
+                return invalid("runtime player roster state has an invalid team id");
+            }
+            const std::int64_t rosterTeamKey = compoundTeamKey(roster.leagueId, roster.teamId);
+            if (knownTeams.find(rosterTeamKey) == knownTeams.end()) {
+                return invalid("runtime player roster state references unknown team");
+            }
+            if (roster.wage.has_value() != roster.contractYears.has_value()) {
+                return invalid("runtime player roster state has partial contract snapshot");
+            }
+            if (roster.wage.has_value() && *roster.wage < 0) {
+                return invalid("runtime player roster state has negative wage");
+            }
+            if (roster.contractYears.has_value() && *roster.contractYears <= 0) {
+                return invalid("runtime player roster state has invalid contract years");
+            }
+            if (roster.currentSeasonYear < 0) {
+                return invalid("runtime player roster state has invalid current season year");
+            }
+            if (!rosterTeamByPlayer.emplace(roster.playerId, rosterTeamKey).second) {
+                return invalid("runtime player roster state has duplicate player id");
+            }
+        }
+
+        for (const PersistedPlayerRuntimeState& playerState : playerStates) {
+            if (rosterTeamByPlayer.find(playerState.playerId) == rosterTeamByPlayer.end()) {
+                return invalid("player runtime state is missing matching player roster state");
+            }
+        }
+
         std::unordered_set<std::int64_t> seenTeamsWithSheets;
         for (const PersistedTeamSheetState& state : teamSheetStates) {
             if (stateByLeague.find(state.leagueId) == stateByLeague.end()) {
@@ -106,9 +193,8 @@ namespace {
                 return invalid("runtime team sheet has an invalid formation");
             }
 
-            const std::int64_t compoundTeamKey = (static_cast<std::int64_t>(state.leagueId) << 32)
-                ^ static_cast<std::int64_t>(state.teamSheet.teamId);
-            if (!seenTeamsWithSheets.insert(compoundTeamKey).second) {
+            const std::int64_t sheetTeamKey = compoundTeamKey(state.leagueId, state.teamSheet.teamId);
+            if (!seenTeamsWithSheets.insert(sheetTeamKey).second) {
                 return invalid("runtime team sheet has a duplicate league/team row");
             }
 
@@ -140,6 +226,10 @@ namespace {
                 if (!starterIds.insert(assignment.playerId).second) {
                     return invalid("runtime team sheet has duplicate starter player ids");
                 }
+                const auto rosterIt = rosterTeamByPlayer.find(assignment.playerId);
+                if (rosterIt == rosterTeamByPlayer.end() || rosterIt->second != sheetTeamKey) {
+                    return invalid("runtime team sheet references a starter outside its team roster");
+                }
             }
 
             std::unordered_set<PlayerId> substituteIds;
@@ -152,6 +242,10 @@ namespace {
                 }
                 if (!substituteIds.insert(playerId).second) {
                     return invalid("runtime team sheet has duplicate substitute player ids");
+                }
+                const auto rosterIt = rosterTeamByPlayer.find(playerId);
+                if (rosterIt == rosterTeamByPlayer.end() || rosterIt->second != sheetTeamKey) {
+                    return invalid("runtime team sheet references a substitute outside its team roster");
                 }
             }
         }
@@ -275,10 +369,25 @@ SaveValidationResult RuntimeSaveValidator::validateExistingSave(
         const std::vector<PersistedFixtureState> fixtures = runtimeRepository.loadFixtures();
         const std::vector<PersistedTeamSheetState> teamSheetStates = runtimeRepository.loadTeamSheetStates();
         const std::vector<PersistedPlayerRuntimeState> playerStates = runtimeRepository.loadPlayerRuntimeStates();
+        const std::vector<PersistedTeamFinanceState> teamFinanceStates = runtimeRepository.loadTeamFinanceStates();
+        const std::vector<PersistedPlayerRosterState> playerRosterStates = runtimeRepository.loadPlayerRosterStates();
         const std::vector<PersistedTransferOfferState> transferOfferStates = runtimeRepository.loadTransferOfferStates();
+        SqliteBootstrapRepository bootstrapRepository(databasePath);
+        const std::vector<LeagueSeedData> seedLeagues = bootstrapRepository.loadLeagues();
         SqliteLeagueRulesRepository rulesRepository(databasePath);
         const std::unordered_map<LeagueId, LeagueRules> rulesByLeague = rulesRepository.loadAllLeagueRules();
-        return validateRuntimeState(currentDate, leagueStates, fixtures, teamSheetStates, playerStates, transferOfferStates, rulesByLeague, metadata);
+        return validateRuntimeState(
+            currentDate,
+            leagueStates,
+            fixtures,
+            teamSheetStates,
+            playerStates,
+            teamFinanceStates,
+            playerRosterStates,
+            transferOfferStates,
+            seedLeagues,
+            rulesByLeague,
+            metadata);
     } catch (const std::exception& ex) {
         return invalid(ex.what());
     } catch (...) {

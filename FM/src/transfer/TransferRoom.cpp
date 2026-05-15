@@ -52,24 +52,30 @@ bool TransferRoom::transferPlayer(LeagueId fromLeagueId, TeamId fromTeamId, Leag
 	if (!buyer->canAffordTransfer(fee)) {
 		return false;
 	}
+	if (buyer->findPlayerById(playerId)) {
+		return false;
+	}
 
 	Footballer* player = seller->findPlayerById(playerId);
 	if (!player) {
 		return false;
 	}
 
-	if (!negotiateContract(buyer, player)) {
+	constexpr Money negotiatedWage = Money(1000);
+	constexpr int negotiatedYears = 3;
+	if (!buyer->canAffordWage(negotiatedWage)) {
 		return false;
 	}
-
-	buyer->spend(fee);
-	seller->earn(fee);
 
 	auto soldPlayer = seller->releasePlayer(playerId);
 	if (!soldPlayer) {
 		return false;
 	}
 
+	buyer->spend(fee);
+	seller->earn(fee);
+	soldPlayer->setTeam(buyer->getId());
+	soldPlayer->signContract(negotiatedWage, negotiatedYears);
 	buyer->addPlayer(std::move(soldPlayer));
 
 	Footballer* transferredPlayer = buyer->findPlayerById(playerId);

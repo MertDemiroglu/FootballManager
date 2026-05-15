@@ -63,24 +63,38 @@ Do not run generated smoke executables when the local antivirus warning is still
 57. Advance days until an offer expires.
 58. Close and load/continue again.
 59. Confirm the expired offer does not reappear as pending.
-60. Confirm accepted offers do not reappear as pending after reload. Roster/budget effects are a future persistence phase.
-61. Confirm date/fixture/team-sheet/player-condition persistence still works.
-62. Confirm no transfer offer state is stored in `save_metadata`.
-63. Confirm `runtime_transfer_offers` contains full-world seller/buyer league/team ids, not managed-team-only rows.
-64. Confirm RuntimeSaveValidator accepts the valid save.
-65. Confirm the Load Game card displays manager-team and the in-game date.
-66. Confirm no real-world date appears as Game Date unless the simulation actually reaches that date.
-67. Confirm `created_at_utc` and `updated_at_utc` are shown only as real-world save-card timestamps.
-68. Confirm no Transfer Room UI redesign occurred.
-69. Confirm git status remains clean after the manual app run, except for intentionally ignored runtime files.
+60. Create or load a pending transfer offer and accept it.
+61. Confirm in the current session that the player is removed from the seller team.
+62. Confirm the player appears in the buyer team.
+63. Confirm buyer budget is reduced and seller budget is increased according to current backend budget behavior.
+64. Confirm the accepted offer no longer appears as pending.
+65. Close the app.
+66. Reopen and load/continue the save.
+67. Confirm the player is still on the buyer team.
+68. Confirm the player is not on the seller team.
+69. Confirm the player's `teamId` matches the buyer team.
+70. Confirm buyer/seller budgets remain changed.
+71. Confirm the accepted offer does not reappear as pending.
+72. Open Lineup Editor for the seller if possible and confirm the transferred-away player is not in starters/substitutes.
+73. Open Lineup Editor for the buyer if possible and confirm the transferred-in player can be selected.
+74. Create/reject/decide-later another offer and verify transfer offer persistence still works.
+75. Confirm date/fixture/result/team-sheet/player-condition persistence still works.
+76. Confirm no transfer offer, roster ownership, or budget state is stored in `save_metadata`.
+77. Confirm `runtime_transfer_offers`, `runtime_team_finances`, and `runtime_player_roster_state` contain full-world league/team ids, not managed-team-only rows.
+78. Confirm RuntimeSaveValidator accepts the valid save.
+79. Confirm the Load Game card displays manager-team and the in-game date.
+80. Confirm no real-world date appears as Game Date unless the simulation actually reaches that date.
+81. Confirm `created_at_utc` and `updated_at_utc` are shown only as real-world save-card timestamps.
+82. Confirm no Transfer Room UI redesign occurred.
+83. Confirm git status remains clean after the manual app run, except for intentionally ignored runtime files.
 
 ## Known Not-Yet-Supported Scenarios
 
 - Closing while an active pre-match interaction is open may not restore the exact pre-match screen yet.
 - Closing while a post-match report screen is open may not restore the exact post-match screen yet.
 - Closing while a transfer decision is open may not restore the exact transfer decision screen yet.
-- Transfer offer state is persisted, but active transfer decision interaction persistence is future work.
-- Accepted offer roster/budget effects need dedicated Roster Mutation Persistence and finance persistence.
+- Transfer offer state and accepted offer roster/budget effects are persisted, but active transfer decision interaction persistence is future work.
+- Deeper finance ledgers, contract renewal UI, negotiation/counter offers, and completed transfer history UI are future work.
 - Tactical setup is persisted but does not affect match simulation yet.
 - Coach-driven tactical identity is future work.
 - Completed season archives/history are future work.

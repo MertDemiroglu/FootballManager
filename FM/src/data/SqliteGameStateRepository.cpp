@@ -309,7 +309,30 @@ namespace {
             "FOREIGN KEY (buyer_team_id) REFERENCES teams(id),"
             "FOREIGN KEY (player_id) REFERENCES players(id)"
             ");");
-        database.execute("PRAGMA user_version = 4;");
+        database.execute(
+            "CREATE TABLE IF NOT EXISTS runtime_team_finances ("
+            "league_id INTEGER NOT NULL,"
+            "team_id INTEGER NOT NULL,"
+            "total_budget INTEGER NOT NULL,"
+            "transfer_budget INTEGER NOT NULL,"
+            "wage_budget INTEGER NOT NULL,"
+            "PRIMARY KEY (league_id, team_id),"
+            "FOREIGN KEY (league_id) REFERENCES leagues(id),"
+            "FOREIGN KEY (team_id) REFERENCES teams(id)"
+            ");");
+        database.execute(
+            "CREATE TABLE IF NOT EXISTS runtime_player_roster_state ("
+            "player_id INTEGER PRIMARY KEY,"
+            "league_id INTEGER NOT NULL,"
+            "team_id INTEGER NOT NULL,"
+            "wage INTEGER,"
+            "contract_years INTEGER,"
+            "current_season_year INTEGER,"
+            "FOREIGN KEY (league_id) REFERENCES leagues(id),"
+            "FOREIGN KEY (team_id) REFERENCES teams(id),"
+            "FOREIGN KEY (player_id) REFERENCES players(id)"
+            ");");
+        database.execute("PRAGMA user_version = 5;");
     }
 
     PersistedTransferOfferState readTransferOfferRow(SqliteStatement& statement) {
@@ -613,6 +636,53 @@ std::vector<PersistedPlayerRuntimeState> SqliteGameStateRepository::loadPlayerRu
     return playerStates;
 }
 
+std::vector<PersistedTeamFinanceState> SqliteGameStateRepository::loadTeamFinanceStates() const {
+    std::vector<PersistedTeamFinanceState> states;
+    if (!tableExists(database, "runtime_team_finances")) {
+        return states;
+    }
+
+    SqliteStatement statement = database.prepare(
+        "SELECT league_id, team_id, total_budget, transfer_budget, wage_budget "
+        "FROM runtime_team_finances ORDER BY league_id, team_id");
+    while (statement.stepRow()) {
+        PersistedTeamFinanceState state;
+        state.leagueId = static_cast<LeagueId>(statement.columnInt(0));
+        state.teamId = static_cast<TeamId>(statement.columnInt(1));
+        state.totalBudget = static_cast<Money>(statement.columnInt64(2));
+        state.transferBudget = static_cast<Money>(statement.columnInt64(3));
+        state.wageBudget = static_cast<Money>(statement.columnInt64(4));
+        states.push_back(state);
+    }
+    return states;
+}
+
+std::vector<PersistedPlayerRosterState> SqliteGameStateRepository::loadPlayerRosterStates() const {
+    std::vector<PersistedPlayerRosterState> states;
+    if (!tableExists(database, "runtime_player_roster_state")) {
+        return states;
+    }
+
+    SqliteStatement statement = database.prepare(
+        "SELECT player_id, league_id, team_id, wage, contract_years, current_season_year "
+        "FROM runtime_player_roster_state ORDER BY player_id");
+    while (statement.stepRow()) {
+        PersistedPlayerRosterState state;
+        state.playerId = static_cast<PlayerId>(statement.columnInt(0));
+        state.leagueId = static_cast<LeagueId>(statement.columnInt(1));
+        state.teamId = static_cast<TeamId>(statement.columnInt(2));
+        if (!statement.columnIsNull(3)) {
+            state.wage = static_cast<Money>(statement.columnInt64(3));
+        }
+        if (!statement.columnIsNull(4)) {
+            state.contractYears = statement.columnInt(4);
+        }
+        state.currentSeasonYear = statement.columnIsNull(5) ? -1 : statement.columnInt(5);
+        states.push_back(state);
+    }
+    return states;
+}
+
 std::vector<PersistedTransferOfferState> SqliteGameStateRepository::loadTransferOfferStates() const {
     std::vector<PersistedTransferOfferState> transferOffers;
     if (!tableExists(database, "runtime_transfer_offers")) {
@@ -638,6 +708,8 @@ void SqliteGameStateRepository::saveRuntimeState(
     const std::vector<MatchReport>& reports,
     const std::vector<PersistedTeamSheetState>& teamSheetStates,
     const std::vector<PersistedPlayerRuntimeState>& playerStates,
+    const std::vector<PersistedTeamFinanceState>& teamFinances,
+    const std::vector<PersistedPlayerRosterState>& playerRosterStates,
     const std::vector<PersistedTransferOfferState>& transferOffers) const {
     database.execute("BEGIN TRANSACTION;");
 
@@ -650,6 +722,8 @@ void SqliteGameStateRepository::saveRuntimeState(
         database.execute("DELETE FROM runtime_team_sheet_starters;");
         database.execute("DELETE FROM runtime_team_sheets;");
         database.execute("DELETE FROM runtime_transfer_offers;");
+        database.execute("DELETE FROM runtime_player_roster_state;");
+        database.execute("DELETE FROM runtime_team_finances;");
         database.execute("DELETE FROM league_runtime_state;");
         database.execute("DELETE FROM player_runtime_state;");
         database.execute("DELETE FROM game_state;");
@@ -800,6 +874,48 @@ void SqliteGameStateRepository::saveRuntimeState(
             statement.bindInt(2, state.form);
             statement.bindInt(3, state.fitness);
             statement.bindInt(4, state.morale);
+            statement.stepDone();
+        }
+
+        for (const PersistedTeamFinanceState& state : teamFinances) {
+            SqliteStatement statement = database.prepare(
+                "INSERT INTO runtime_team_finances ("
+                "league_id, team_id, total_budget, transfer_budget, wage_budget"
+                ") VALUES (?, ?, ?, ?, ?)");
+            statement.bindInt(1, static_cast<int>(state.leagueId));
+            statement.bindInt(2, static_cast<int>(state.teamId));
+            statement.bindInt64(3, static_cast<std::int64_t>(state.totalBudget));
+            statement.bindInt64(4, static_cast<std::int64_t>(state.transferBudget));
+            statement.bindInt64(5, static_cast<std::int64_t>(state.wageBudget));
+            statement.stepDone();
+        }
+
+        for (const PersistedPlayerRosterState& state : playerRosterStates) {
+            SqliteStatement statement = database.prepare(
+                "INSERT INTO runtime_player_roster_state ("
+                "player_id, league_id, team_id, wage, contract_years, current_season_year"
+                ") VALUES (?, ?, ?, ?, ?, ?)");
+            statement.bindInt(1, static_cast<int>(state.playerId));
+            statement.bindInt(2, static_cast<int>(state.leagueId));
+            statement.bindInt(3, static_cast<int>(state.teamId));
+            if (state.wage.has_value()) {
+                statement.bindInt64(4, static_cast<std::int64_t>(*state.wage));
+            }
+            else {
+                statement.bindNull(4);
+            }
+            if (state.contractYears.has_value()) {
+                statement.bindInt(5, *state.contractYears);
+            }
+            else {
+                statement.bindNull(5);
+            }
+            if (state.currentSeasonYear >= 0) {
+                statement.bindInt(6, state.currentSeasonYear);
+            }
+            else {
+                statement.bindNull(6);
+            }
             statement.stepDone();
         }
 
