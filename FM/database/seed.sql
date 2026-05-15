@@ -1,10 +1,81 @@
 DELETE FROM players;
 DELETE FROM teams;
 DELETE FROM coaches;
+DELETE FROM league_matchday_distribution_offsets;
+DELETE FROM league_transfer_windows;
+DELETE FROM league_rules;
 DELETE FROM leagues;
 
 INSERT INTO leagues (id, name) VALUES
 (1, 'Super Lig');
+
+INSERT OR IGNORE INTO league_rules (
+    league_id,
+    league_code,
+    league_name,
+    team_count,
+    matchdays_per_season,
+    first_half_rounds,
+    preseason_start_month,
+    preseason_start_day,
+    next_preseason_year_offset,
+    next_preseason_start_month,
+    next_preseason_start_day,
+    kickoff_rule,
+    kickoff_month,
+    kickoff_day,
+    kickoff_weekday,
+    kickoff_week_of_month,
+    winter_break_enabled,
+    winter_break_length_days,
+    winter_break_after_round_index,
+    match_spacing_days
+) VALUES (
+    1,
+    'TR_SUPER_LIG',
+    'Super Lig',
+    18,
+    34,
+    17,
+    7,
+    1,
+    1,
+    7,
+    1,
+    'nth_weekday_of_month',
+    8,
+    NULL,
+    6,
+    2,
+    1,
+    28,
+    17,
+    7
+);
+
+INSERT OR IGNORE INTO league_transfer_windows (
+    league_id,
+    window_code,
+    start_year_offset,
+    start_month,
+    start_day,
+    end_year_offset,
+    end_month,
+    end_day
+) VALUES
+(1, 'summer', 0, 7, 1, 0, 9, 1),
+(1, 'winter', 1, 1, 1, 1, 2, 1);
+
+INSERT OR IGNORE INTO league_matchday_distribution_offsets (league_id, offset_index, offset_days) VALUES
+(1, 0, 0),
+(1, 1, 0),
+(1, 2, 1),
+(1, 3, 1),
+(1, 4, 1),
+(1, 5, 1),
+(1, 6, 2),
+(1, 7, 2),
+(1, 8, 2);
 
 INSERT INTO coaches (id, name, preferred_formation) VALUES
 (101, 'Galatasaray Coach', 0),

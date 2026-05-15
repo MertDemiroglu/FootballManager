@@ -45,6 +45,7 @@ add_library(fm_core STATIC
     src/data/SqliteBootstrapRepository.cpp
     src/data/SqliteBootstrapDatabaseInitializer.cpp
     src/data/SqliteGameStateRepository.cpp
+    src/data/SqliteLeagueRulesRepository.cpp
     src/data/SqliteSaveMetadataRepository.cpp
     src/data/WorldBootstrapLoader.cpp
     src/data/WorldBootstrapService.cpp

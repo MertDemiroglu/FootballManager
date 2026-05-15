@@ -1,5 +1,5 @@
 PRAGMA foreign_keys = ON;
-PRAGMA user_version = 2;
+PRAGMA user_version = 3;
 
 CREATE TABLE IF NOT EXISTS save_metadata (
     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS save_metadata (
     "current_date" TEXT NOT NULL,
     created_at_utc TEXT NOT NULL,
     updated_at_utc TEXT NOT NULL,
-    schema_version INTEGER NOT NULL DEFAULT 2,
+    schema_version INTEGER NOT NULL DEFAULT 3,
     world_version INTEGER NOT NULL DEFAULT 1
 );
 
@@ -138,6 +138,51 @@ CREATE TABLE IF NOT EXISTS runtime_team_sheet_substitutes (
 CREATE TABLE IF NOT EXISTS leagues (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS league_rules (
+    league_id INTEGER PRIMARY KEY,
+    league_code TEXT NOT NULL,
+    league_name TEXT NOT NULL,
+    team_count INTEGER NOT NULL,
+    matchdays_per_season INTEGER NOT NULL,
+    first_half_rounds INTEGER NOT NULL,
+    preseason_start_month INTEGER NOT NULL,
+    preseason_start_day INTEGER NOT NULL,
+    next_preseason_year_offset INTEGER NOT NULL,
+    next_preseason_start_month INTEGER NOT NULL,
+    next_preseason_start_day INTEGER NOT NULL,
+    kickoff_rule TEXT NOT NULL,
+    kickoff_month INTEGER NOT NULL,
+    kickoff_day INTEGER,
+    kickoff_weekday INTEGER,
+    kickoff_week_of_month INTEGER,
+    winter_break_enabled INTEGER NOT NULL,
+    winter_break_length_days INTEGER NOT NULL,
+    winter_break_after_round_index INTEGER NOT NULL,
+    match_spacing_days INTEGER NOT NULL,
+    FOREIGN KEY (league_id) REFERENCES leagues(id)
+);
+
+CREATE TABLE IF NOT EXISTS league_transfer_windows (
+    league_id INTEGER NOT NULL,
+    window_code TEXT NOT NULL,
+    start_year_offset INTEGER NOT NULL,
+    start_month INTEGER NOT NULL,
+    start_day INTEGER NOT NULL,
+    end_year_offset INTEGER NOT NULL,
+    end_month INTEGER NOT NULL,
+    end_day INTEGER NOT NULL,
+    PRIMARY KEY (league_id, window_code),
+    FOREIGN KEY (league_id) REFERENCES leagues(id)
+);
+
+CREATE TABLE IF NOT EXISTS league_matchday_distribution_offsets (
+    league_id INTEGER NOT NULL,
+    offset_index INTEGER NOT NULL,
+    offset_days INTEGER NOT NULL,
+    PRIMARY KEY (league_id, offset_index),
+    FOREIGN KEY (league_id) REFERENCES leagues(id)
 );
 
 CREATE TABLE IF NOT EXISTS coaches (

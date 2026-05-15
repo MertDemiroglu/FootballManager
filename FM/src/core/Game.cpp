@@ -30,14 +30,6 @@ namespace {
         return Date(2025, Month::July, 1);
     }
 
-    LeagueRules buildDefaultBootstrapLeagueRules() {
-        return LeagueRules::makeSuperLig();
-    }
-
-    SeasonPlan buildDefaultBootstrapSeasonPlan(const LeagueRules& rules) {
-        return SeasonPlan::build(2025, rules);
-    }
-
     std::string dateToIsoString(const Date& date) {
         std::ostringstream output;
         output << std::setw(4) << std::setfill('0') << date.getYear() << "-"
@@ -78,7 +70,7 @@ namespace {
         }
     }
 
-    void bootstrapWorldFromSqlite(World& world, const GameBootstrapOptions& bootstrapOptions, const LeagueRules& rules, const SeasonPlan& seasonPlan) {
+    void bootstrapWorldFromSqlite(World& world, const GameBootstrapOptions& bootstrapOptions, int initialSeasonYear) {
         if (bootstrapOptions.sqliteDbPath.empty()) {
             throw std::invalid_argument("sqlite db path cannot be empty");
         }
@@ -88,11 +80,11 @@ namespace {
             if (!sqliteDatabaseFileExists(bootstrapOptions.sqliteDbPath)) {
                 throw std::invalid_argument("sqlite db path does not exist for OpenExisting mode: " + bootstrapOptions.sqliteDbPath);
             }
-            WorldBootstrapService::loadIntoWorldFromSqlite(world, bootstrapOptions.sqliteDbPath, rules, seasonPlan);
+            WorldBootstrapService::loadIntoWorldFromSqlite(world, bootstrapOptions.sqliteDbPath, initialSeasonYear);
             return;
         case DatabaseOpenMode::CreateFromSeedIfMissing:
             if (sqliteDatabaseFileExists(bootstrapOptions.sqliteDbPath)) {
-                WorldBootstrapService::loadIntoWorldFromSqlite(world, bootstrapOptions.sqliteDbPath, rules, seasonPlan);
+                WorldBootstrapService::loadIntoWorldFromSqlite(world, bootstrapOptions.sqliteDbPath, initialSeasonYear);
                 return;
             }
             requireSqliteSeedAssets(bootstrapOptions, "when creating missing sqlite database from seed");
@@ -101,8 +93,7 @@ namespace {
                 bootstrapOptions.sqliteDbPath,
                 bootstrapOptions.sqliteSchemaPath,
                 bootstrapOptions.sqliteSeedPath,
-                rules,
-                seasonPlan);
+                initialSeasonYear);
             return;
         case DatabaseOpenMode::ResetFromSeed:
             requireSqliteSeedAssets(bootstrapOptions, "when resetting sqlite database from seed");
@@ -111,8 +102,7 @@ namespace {
                 bootstrapOptions.sqliteDbPath,
                 bootstrapOptions.sqliteSchemaPath,
                 bootstrapOptions.sqliteSeedPath,
-                rules,
-                seasonPlan);
+                initialSeasonYear);
             return;
         }
 
@@ -138,7 +128,7 @@ void Game::ensureSaveMetadata(const GameBootstrapOptions& bootstrapOptions) {
         defaultMetadata.managedLeagueId = user.getManagedLeagueId();
         defaultMetadata.managedTeamId = user.getManagedTeamId();
         defaultMetadata.currentDate = dateToIsoString(date);
-        defaultMetadata.schemaVersion = 2;
+        defaultMetadata.schemaVersion = 3;
         defaultMetadata.worldVersion = 1;
         repository.insertDefault(defaultMetadata);
     }
@@ -544,14 +534,11 @@ Game::Game(const GameBootstrapOptions& bootstrapOptions)
     pendingPreMatchCommand(std::nullopt),
     pendingPreMatchHomeSheet(std::nullopt),
     pendingPreMatchAwaySheet(std::nullopt) {
-    const LeagueRules rules = buildDefaultBootstrapLeagueRules();
-    const SeasonPlan seasonPlan = buildDefaultBootstrapSeasonPlan(rules);
-
     bool loadedRuntimeState = false;
 
     switch (bootstrapOptions.mode) {
     case GameBootstrapMode::Sqlite:
-        bootstrapWorldFromSqlite(world, bootstrapOptions, rules, seasonPlan);
+        bootstrapWorldFromSqlite(world, bootstrapOptions, initialGameDate().getYear());
         ensureSaveMetadata(bootstrapOptions);
         if (bootstrapOptions.databaseOpenMode == DatabaseOpenMode::OpenExisting) {
             restoreRuntimeState(bootstrapOptions);

@@ -2,7 +2,9 @@
 
 #include "fm/core/World.h"
 #include "fm/competition/League.h"
+#include "fm/competition/SeasonPlan.h"
 #include "fm/data/SqliteBootstrapRepository.h"
+#include "fm/data/SqliteLeagueRulesRepository.h"
 #include "fm/roster/FootballerFactory.h"
 #include "fm/roster/HeadCoach.h"
 #include "fm/roster/Team.h"
@@ -11,15 +13,18 @@
 #include <stdexcept>
 #include <string>
 
-WorldBootstrapLoader::WorldBootstrapLoader(SqliteBootstrapRepository& repository)
-    : repository(repository) {
+WorldBootstrapLoader::WorldBootstrapLoader(SqliteBootstrapRepository& repository, SqliteLeagueRulesRepository& rulesRepository)
+    : repository(repository),
+    rulesRepository(rulesRepository) {
 }
 
-void WorldBootstrapLoader::load(World& world, const LeagueRules& rules, const SeasonPlan& seasonPlan) const {
+void WorldBootstrapLoader::load(World& world, int initialSeasonYear) const {
     const std::vector<LeagueSeedData> leagues = repository.loadLeagues();
 
     for (const LeagueSeedData& leagueSeed : leagues) {
         League league(leagueSeed.name, leagueSeed.id);
+        const LeagueRules rules = rulesRepository.loadLeagueRules(leagueSeed.id);
+        const SeasonPlan seasonPlan = SeasonPlan::build(initialSeasonYear, rules);
 
         for (const TeamSeedData& teamSeed : leagueSeed.teams) {
             auto team = std::make_unique<Team>(teamSeed.id, teamSeed.name);
