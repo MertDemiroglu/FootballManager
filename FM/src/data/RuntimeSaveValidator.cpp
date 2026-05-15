@@ -55,6 +55,7 @@ namespace {
         const std::vector<PersistedFixtureState>& fixtures,
         const std::vector<PersistedTeamSheetState>& teamSheetStates,
         const std::vector<PersistedPlayerRuntimeState>& playerStates,
+        const std::vector<PersistedTransferOfferState>& transferOfferStates,
         const std::unordered_map<LeagueId, LeagueRules>& rulesByLeague,
         const SaveMetadata* metadata) {
         if (leagueStates.empty()) {
@@ -194,6 +195,68 @@ namespace {
             }
         }
 
+        std::unordered_set<OfferId> seenOfferIds;
+        std::unordered_set<std::string> pendingOfferKeys;
+        for (const PersistedTransferOfferState& offer : transferOfferStates) {
+            if (offer.offerId == 0) {
+                return invalid("runtime transfer offer has an invalid offer id");
+            }
+            if (!seenOfferIds.insert(offer.offerId).second) {
+                return invalid("runtime transfer offer has a duplicate offer id");
+            }
+            if (offer.lastValidDate < offer.createdAt) {
+                return invalid("runtime transfer offer created_at is after last_valid_date");
+            }
+            if (offer.fee <= 0) {
+                return invalid("runtime transfer offer has an invalid fee");
+            }
+            if (stateByLeague.find(offer.sellerLeagueId) == stateByLeague.end()
+                || rulesByLeague.find(offer.sellerLeagueId) == rulesByLeague.end()) {
+                return invalid("runtime transfer offer seller league is not in runtime league state");
+            }
+            if (stateByLeague.find(offer.buyerLeagueId) == stateByLeague.end()
+                || rulesByLeague.find(offer.buyerLeagueId) == rulesByLeague.end()) {
+                return invalid("runtime transfer offer buyer league is not in runtime league state");
+            }
+            if (offer.sellerTeamId == 0 || offer.buyerTeamId == 0) {
+                return invalid("runtime transfer offer has an invalid team id");
+            }
+            if (offer.playerId == 0) {
+                return invalid("runtime transfer offer has an invalid player id");
+            }
+            if (offer.sellerLeagueId == offer.buyerLeagueId && offer.sellerTeamId == offer.buyerTeamId) {
+                return invalid("runtime transfer offer seller and buyer are the same team");
+            }
+            if (offer.status == TransferOfferStatus::Pending) {
+                if (offer.resolution.has_value()) {
+                    return invalid("pending runtime transfer offer has a resolution");
+                }
+                if (offer.lastValidDate < currentDate) {
+                    return invalid("pending runtime transfer offer is past last_valid_date");
+                }
+
+                std::ostringstream pendingKey;
+                pendingKey << offer.sellerLeagueId << ":"
+                    << offer.sellerTeamId << ":"
+                    << offer.buyerLeagueId << ":"
+                    << offer.buyerTeamId << ":"
+                    << offer.playerId;
+                if (!pendingOfferKeys.insert(pendingKey.str()).second) {
+                    return invalid("runtime transfer offer has duplicate pending seller/buyer/player row");
+                }
+            }
+            else if (offer.status == TransferOfferStatus::Resolved) {
+                if (!offer.resolution.has_value()) {
+                    return invalid("resolved runtime transfer offer is missing resolution");
+                }
+            }
+            else {
+                return invalid("runtime transfer offer has an unsupported status");
+            }
+            // TODO: Validate pending player ownership against the seller team once
+            // runtime validation owns a canonical team/player lookup snapshot.
+        }
+
         return valid(currentDate);
     }
 }
@@ -212,9 +275,10 @@ SaveValidationResult RuntimeSaveValidator::validateExistingSave(
         const std::vector<PersistedFixtureState> fixtures = runtimeRepository.loadFixtures();
         const std::vector<PersistedTeamSheetState> teamSheetStates = runtimeRepository.loadTeamSheetStates();
         const std::vector<PersistedPlayerRuntimeState> playerStates = runtimeRepository.loadPlayerRuntimeStates();
+        const std::vector<PersistedTransferOfferState> transferOfferStates = runtimeRepository.loadTransferOfferStates();
         SqliteLeagueRulesRepository rulesRepository(databasePath);
         const std::unordered_map<LeagueId, LeagueRules> rulesByLeague = rulesRepository.loadAllLeagueRules();
-        return validateRuntimeState(currentDate, leagueStates, fixtures, teamSheetStates, playerStates, rulesByLeague, metadata);
+        return validateRuntimeState(currentDate, leagueStates, fixtures, teamSheetStates, playerStates, transferOfferStates, rulesByLeague, metadata);
     } catch (const std::exception& ex) {
         return invalid(ex.what());
     } catch (...) {

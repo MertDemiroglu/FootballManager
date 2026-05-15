@@ -49,19 +49,38 @@ Do not run generated smoke executables when the local antivirus warning is still
 43. Confirm the result remains visible.
 44. Confirm standings, recent form, and upcoming matches remain consistent.
 45. Confirm player fitness/form/morale survive load.
-46. Confirm RuntimeSaveValidator accepts the valid save.
-47. Confirm the Load Game card displays manager-team and the in-game date.
-48. Confirm no real-world date appears as Game Date unless the simulation actually reaches that date.
-49. Confirm `created_at_utc` and `updated_at_utc` are shown only as real-world save-card timestamps.
-50. Confirm git status remains clean after the manual app run, except for intentionally ignored runtime files.
+46. Ensure Transfer Room opens during a transfer window.
+47. Create or generate a pending transfer offer if the current debug flow supports it.
+48. Confirm the pending offer appears in Transfer Room/UI.
+49. Close the app.
+50. Reopen and load/continue the save.
+51. Confirm the same pending offer still appears.
+52. Reject the offer.
+53. Close and load/continue again.
+54. Confirm the rejected offer does not reappear as pending.
+55. Create another offer after reload.
+56. Confirm the new offer id does not collide with previous ids.
+57. Advance days until an offer expires.
+58. Close and load/continue again.
+59. Confirm the expired offer does not reappear as pending.
+60. Confirm accepted offers do not reappear as pending after reload. Roster/budget effects are a future persistence phase.
+61. Confirm date/fixture/team-sheet/player-condition persistence still works.
+62. Confirm no transfer offer state is stored in `save_metadata`.
+63. Confirm `runtime_transfer_offers` contains full-world seller/buyer league/team ids, not managed-team-only rows.
+64. Confirm RuntimeSaveValidator accepts the valid save.
+65. Confirm the Load Game card displays manager-team and the in-game date.
+66. Confirm no real-world date appears as Game Date unless the simulation actually reaches that date.
+67. Confirm `created_at_utc` and `updated_at_utc` are shown only as real-world save-card timestamps.
+68. Confirm no Transfer Room UI redesign occurred.
+69. Confirm git status remains clean after the manual app run, except for intentionally ignored runtime files.
 
 ## Known Not-Yet-Supported Scenarios
 
 - Closing while an active pre-match interaction is open may not restore the exact pre-match screen yet.
 - Closing while a post-match report screen is open may not restore the exact post-match screen yet.
 - Closing while a transfer decision is open may not restore the exact transfer decision screen yet.
-- Transfer offer persistence is future work.
-- Accepted/rejected transfer decisions and roster mutations need dedicated persistence.
+- Transfer offer state is persisted, but active transfer decision interaction persistence is future work.
+- Accepted offer roster/budget effects need dedicated Roster Mutation Persistence and finance persistence.
 - Tactical setup is persisted but does not affect match simulation yet.
 - Coach-driven tactical identity is future work.
 - Completed season archives/history are future work.

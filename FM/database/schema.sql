@@ -1,5 +1,5 @@
 PRAGMA foreign_keys = ON;
-PRAGMA user_version = 3;
+PRAGMA user_version = 4;
 
 CREATE TABLE IF NOT EXISTS save_metadata (
     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS save_metadata (
     "current_date" TEXT NOT NULL,
     created_at_utc TEXT NOT NULL,
     updated_at_utc TEXT NOT NULL,
-    schema_version INTEGER NOT NULL DEFAULT 3,
+    schema_version INTEGER NOT NULL DEFAULT 4,
     world_version INTEGER NOT NULL DEFAULT 1
 );
 
@@ -132,6 +132,26 @@ CREATE TABLE IF NOT EXISTS runtime_team_sheet_substitutes (
     player_id INTEGER NOT NULL,
     PRIMARY KEY (league_id, team_id, substitute_order),
     FOREIGN KEY (league_id, team_id) REFERENCES runtime_team_sheets(league_id, team_id),
+    FOREIGN KEY (player_id) REFERENCES players(id)
+);
+
+CREATE TABLE IF NOT EXISTS runtime_transfer_offers (
+    offer_id INTEGER PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    last_valid_date TEXT NOT NULL,
+    expiry_policy TEXT NOT NULL,
+    seller_league_id INTEGER NOT NULL,
+    seller_team_id INTEGER NOT NULL,
+    buyer_league_id INTEGER NOT NULL,
+    buyer_team_id INTEGER NOT NULL,
+    player_id INTEGER NOT NULL,
+    fee INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    resolution TEXT,
+    FOREIGN KEY (seller_league_id) REFERENCES leagues(id),
+    FOREIGN KEY (buyer_league_id) REFERENCES leagues(id),
+    FOREIGN KEY (seller_team_id) REFERENCES teams(id),
+    FOREIGN KEY (buyer_team_id) REFERENCES teams(id),
     FOREIGN KEY (player_id) REFERENCES players(id)
 );
 

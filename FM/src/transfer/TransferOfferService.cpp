@@ -12,6 +12,7 @@
 #include"fm/events/TransferOfferResolvedEvent.h"
 #include"fm/transfer/TransferRoom.h"
 #include"fm/core/World.h"
+#include<stdexcept>
 
 TransferOfferService::TransferOfferService() = default;
 
@@ -175,6 +176,7 @@ OfferId TransferOfferService::createOffer(const Date& createdAt, LeagueId seller
     offer.playerId = playerId;
     offer.fee = fee;
     offer.status = TransferOfferStatus::Pending;
+    offer.resolution = std::nullopt;
     offersById.emplace(createdOfferId, offer);
 
     world->getDomainEventPublisher().publish(TransferOfferCreatedEvent{
@@ -281,10 +283,63 @@ int TransferOfferService::expirePendingOffers(const Date& currentDate) {
 
         const TransferOfferResolution invalidityResolution = resolvePendingOfferInvalidity(offer, currentDate);
         offer.status = TransferOfferStatus::Resolved;
+        offer.resolution = invalidityResolution;
         world->getDomainEventPublisher().publish(TransferOfferResolvedEvent{ offer.id, invalidityResolution, offer.sellerLeagueId, offer.sellerTeamId, offer.buyerLeagueId, offer.buyerTeamId, offer.playerId, offer.fee });
     }
 
     return static_cast<int>(expiredOfferIds.size());
+}
+
+std::vector<TransferOffer> TransferOfferService::exportOffers() const {
+    std::vector<TransferOffer> offers;
+    offers.reserve(offersById.size());
+    for (const auto& [offerId, offer] : offersById) {
+        (void)offerId;
+        offers.push_back(offer);
+    }
+    std::sort(offers.begin(), offers.end(), [](const TransferOffer& lhs, const TransferOffer& rhs) {
+        return lhs.id < rhs.id;
+    });
+    return offers;
+}
+
+void TransferOfferService::restoreOffers(std::vector<TransferOffer> offers) {
+    std::unordered_map<OfferId, TransferOffer> restoredOffers;
+    restoredOffers.reserve(offers.size());
+
+    OfferId highestOfferId = 0;
+    for (TransferOffer& offer : offers) {
+        if (offer.id == 0) {
+            throw std::invalid_argument("cannot restore transfer offer with id 0");
+        }
+        if (offer.status == TransferOfferStatus::Pending && offer.resolution.has_value()) {
+            throw std::invalid_argument("cannot restore pending transfer offer with a resolution");
+        }
+        if (offer.status == TransferOfferStatus::Resolved && !offer.resolution.has_value()) {
+            throw std::invalid_argument("cannot restore resolved transfer offer without a resolution");
+        }
+
+        highestOfferId = std::max(highestOfferId, offer.id);
+        const OfferId offerId = offer.id;
+        if (!restoredOffers.emplace(offerId, std::move(offer)).second) {
+            throw std::invalid_argument("cannot restore duplicate transfer offer id");
+        }
+    }
+
+    offersById = std::move(restoredOffers);
+    nextOfferId = highestOfferId + 1;
+    if (nextOfferId == 0) {
+        throw std::overflow_error("restored transfer offer id counter overflowed");
+    }
+}
+
+OfferId TransferOfferService::getNextOfferId() const {
+    return nextOfferId;
+}
+
+void TransferOfferService::clearOffers() {
+    offersById.clear();
+    nextOfferId = 1;
 }
 
 bool TransferOfferService::acceptOffer(OfferId offerId) {
@@ -316,6 +371,7 @@ bool TransferOfferService::acceptOffer(OfferId offerId, const Date& transferDate
     const bool deadlineValid = !(offer.lastValidDate < transferDate);
     if (!deadlineValid || !sellerWindowOpen || !buyerWindowOpen) {
         offer.status = TransferOfferStatus::Resolved;
+        offer.resolution = invalidityResolution;
         world->getDomainEventPublisher().publish(TransferOfferResolvedEvent{ offer.id, invalidityResolution, offer.sellerLeagueId, offer.sellerTeamId, offer.buyerLeagueId, offer.buyerTeamId, offer.playerId, offer.fee });
         return false;
     }
@@ -333,6 +389,7 @@ bool TransferOfferService::acceptOffer(OfferId offerId, const Date& transferDate
     }
 
     offer.status = TransferOfferStatus::Resolved;
+    offer.resolution = TransferOfferResolution::Accepted;
 
     world->getDomainEventPublisher().publish(TransferOfferResolvedEvent{
         offer.id,
@@ -373,6 +430,7 @@ bool TransferOfferService::rejectOffer(OfferId offerId) {
     }
 
     offer.status = TransferOfferStatus::Resolved;
+    offer.resolution = TransferOfferResolution::Rejected;
 
     world->getDomainEventPublisher().publish(TransferOfferResolvedEvent{
         offer.id,

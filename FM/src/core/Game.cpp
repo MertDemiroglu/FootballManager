@@ -61,6 +61,40 @@ namespace {
         return exists;
     }
 
+    PersistedTransferOfferState toPersistedTransferOfferState(const TransferOffer& offer) {
+        PersistedTransferOfferState state;
+        state.offerId = offer.id;
+        state.createdAt = offer.createdAt;
+        state.lastValidDate = offer.lastValidDate;
+        state.expiryPolicy = offer.expiryPolicy;
+        state.sellerLeagueId = offer.sellerLeagueId;
+        state.sellerTeamId = offer.sellerTeamId;
+        state.buyerLeagueId = offer.buyerLeagueId;
+        state.buyerTeamId = offer.buyerTeamId;
+        state.playerId = offer.playerId;
+        state.fee = offer.fee;
+        state.status = offer.status;
+        state.resolution = offer.resolution;
+        return state;
+    }
+
+    TransferOffer toTransferOffer(const PersistedTransferOfferState& state) {
+        TransferOffer offer;
+        offer.id = state.offerId;
+        offer.createdAt = state.createdAt;
+        offer.lastValidDate = state.lastValidDate;
+        offer.expiryPolicy = state.expiryPolicy;
+        offer.sellerLeagueId = state.sellerLeagueId;
+        offer.sellerTeamId = state.sellerTeamId;
+        offer.buyerLeagueId = state.buyerLeagueId;
+        offer.buyerTeamId = state.buyerTeamId;
+        offer.playerId = state.playerId;
+        offer.fee = state.fee;
+        offer.status = state.status;
+        offer.resolution = state.resolution;
+        return offer;
+    }
+
     void requireSqliteSeedAssets(const GameBootstrapOptions& bootstrapOptions, const std::string& context) {
         if (bootstrapOptions.sqliteSchemaPath.empty()) {
             throw std::invalid_argument("sqlite schema path cannot be empty " + context);
@@ -128,7 +162,7 @@ void Game::ensureSaveMetadata(const GameBootstrapOptions& bootstrapOptions) {
         defaultMetadata.managedLeagueId = user.getManagedLeagueId();
         defaultMetadata.managedTeamId = user.getManagedTeamId();
         defaultMetadata.currentDate = dateToIsoString(date);
-        defaultMetadata.schemaVersion = 3;
+        defaultMetadata.schemaVersion = 4;
         defaultMetadata.worldVersion = 1;
         repository.insertDefault(defaultMetadata);
     }
@@ -175,6 +209,7 @@ void Game::restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions) {
     const std::vector<MatchReport> reports = repository.loadMatchReports();
     const std::vector<PersistedTeamSheetState> teamSheetStates = repository.loadTeamSheetStates();
     const std::vector<PersistedPlayerRuntimeState> playerStates = repository.loadPlayerRuntimeStates();
+    const std::vector<PersistedTransferOfferState> transferOfferStates = repository.loadTransferOfferStates();
 
     if (leagueStates.empty()) {
         throw std::runtime_error("save slot is missing league runtime state");
@@ -313,6 +348,15 @@ void Game::restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions) {
         team->setSelectedTeamSheet(std::move(state.teamSheet));
     }
 
+    std::vector<TransferOffer> transferOffers;
+    transferOffers.reserve(transferOfferStates.size());
+    for (const PersistedTransferOfferState& state : transferOfferStates) {
+        transferOffers.push_back(toTransferOffer(state));
+    }
+    // Restoring resolved transfer offers only restores their persisted state.
+    // Accepted transfer roster/budget effects require Roster Mutation Persistence.
+    world.getTransferOfferService().restoreOffers(std::move(transferOffers));
+
     SqliteSaveMetadataRepository metadataRepository(saveMetadataDbPath);
     metadataRepository.updateCurrentDate(dateToIsoString(date));
     saveMetadata = metadataRepository.load();
@@ -331,6 +375,7 @@ void Game::persistRuntimeState() {
     std::vector<MatchReport> reports;
     std::vector<PersistedTeamSheetState> teamSheetStates;
     std::vector<PersistedPlayerRuntimeState> playerStates;
+    std::vector<PersistedTransferOfferState> transferOffers;
 
     world.forEachLeagueContext([&](const LeagueContext& context) {
         const League& league = context.getLeague();
@@ -392,11 +437,13 @@ void Game::persistRuntimeState() {
         }
     });
 
-    // TODO: Transfer offer and roster mutation persistence needs dedicated runtime
-    // tables; this repository covers date, fixtures/results, standings rebuild data,
-    // match reports, and player condition for the current save/load gameplay scope.
+    for (const TransferOffer& offer : world.getTransferOfferService().exportOffers()) {
+        transferOffers.push_back(toPersistedTransferOfferState(offer));
+    }
+
+    // TODO: Accepted transfer roster/budget effects require Roster Mutation Persistence.
     SqliteGameStateRepository repository(saveMetadataDbPath);
-    repository.saveRuntimeState(date, static_cast<int>(state), leagueStates, fixtures, reports, teamSheetStates, playerStates);
+    repository.saveRuntimeState(date, static_cast<int>(state), leagueStates, fixtures, reports, teamSheetStates, playerStates, transferOffers);
 }
 
 void Game::validateRuntimeDateConsistency(const char* context) const {
@@ -604,6 +651,9 @@ Game::Game(const GameBootstrapOptions& bootstrapOptions)
     updateState();         
     seasonStartChecks();
     updateTransferWindow(); 
+    if (loadedRuntimeState && world.getTransferOfferService().expirePendingOffers(date) > 0) {
+        persistRuntimeState();
+    }
     if (!loadedRuntimeState) {
         updateState();
         updateCurrentDateSaveMetadata();
@@ -663,7 +713,10 @@ void Game::updateState() {
 void Game::updateDaily() {
     refreshTimePauseState();
 
-    world.getTransferOfferService().expirePendingOffers(date);
+    updateTransferWindow();
+    if (world.getTransferOfferService().expirePendingOffers(date) > 0) {
+        persistRuntimeState();
+    }
 
     if (timePaused) {
         processBlockingEvent();
@@ -783,7 +836,10 @@ void Game::updateDaily() {
         updateCurrentDateSaveMetadata();
         persistRuntimeState();
     }
-    world.getTransferOfferService().expirePendingOffers(date);//gecici cozum 2. kere expire kontrolu
+    updateTransferWindow();
+    if (world.getTransferOfferService().expirePendingOffers(date) > 0) {
+        persistRuntimeState();
+    }
 }
 
 void Game::handleSeasonalEvents() {
@@ -917,6 +973,7 @@ void Game::temporaryForDebug_tryCreateWeeklyManagedTransferOffer() {
 
         lastDebugOfferYear = currentYear;
         lastDebugOfferMonth = currentMonth;
+        persistRuntimeState();
         return;
     }
 }
@@ -1197,7 +1254,9 @@ bool Game::acceptTransferOffer(OfferId offerId) {
         return false;
     }
 
-    if (!world.getTransferOfferService().acceptOffer(offerId, date)) {
+    const bool accepted = world.getTransferOfferService().acceptOffer(offerId, date);
+    persistRuntimeState();
+    if (!accepted) {
         return false;
     }
 
@@ -1234,6 +1293,7 @@ bool Game::rejectTransferOffer(OfferId offerId) {
     if (!world.getTransferOfferService().rejectOffer(offerId)) {
         return false;
     }
+    persistRuntimeState();
 
     const TransferOfferDecisionInteraction* interaction = getActiveTransferOfferDecisionInteraction();
     if (interaction && interaction->getOfferId() == offerId) {

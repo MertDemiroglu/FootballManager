@@ -289,7 +289,66 @@ namespace {
             "player_id INTEGER NOT NULL,"
             "PRIMARY KEY (league_id, team_id, substitute_order)"
             ");");
-        database.execute("PRAGMA user_version = 3;");
+        database.execute(
+            "CREATE TABLE IF NOT EXISTS runtime_transfer_offers ("
+            "offer_id INTEGER PRIMARY KEY,"
+            "created_at TEXT NOT NULL,"
+            "last_valid_date TEXT NOT NULL,"
+            "expiry_policy TEXT NOT NULL,"
+            "seller_league_id INTEGER NOT NULL,"
+            "seller_team_id INTEGER NOT NULL,"
+            "buyer_league_id INTEGER NOT NULL,"
+            "buyer_team_id INTEGER NOT NULL,"
+            "player_id INTEGER NOT NULL,"
+            "fee INTEGER NOT NULL,"
+            "status TEXT NOT NULL,"
+            "resolution TEXT,"
+            "FOREIGN KEY (seller_league_id) REFERENCES leagues(id),"
+            "FOREIGN KEY (buyer_league_id) REFERENCES leagues(id),"
+            "FOREIGN KEY (seller_team_id) REFERENCES teams(id),"
+            "FOREIGN KEY (buyer_team_id) REFERENCES teams(id),"
+            "FOREIGN KEY (player_id) REFERENCES players(id)"
+            ");");
+        database.execute("PRAGMA user_version = 4;");
+    }
+
+    PersistedTransferOfferState readTransferOfferRow(SqliteStatement& statement) {
+        PersistedTransferOfferState state;
+        state.offerId = static_cast<OfferId>(statement.columnInt64(0));
+        state.createdAt = parseDate(statement.columnText(1));
+        state.lastValidDate = parseDate(statement.columnText(2));
+
+        const std::string expiryPolicyCode = statement.columnText(3);
+        const std::optional<TransferOfferExpiryPolicy> expiryPolicy = transferOfferExpiryPolicyFromStableCode(expiryPolicyCode);
+        if (!expiryPolicy.has_value()) {
+            throw std::runtime_error("runtime transfer offer has invalid expiry policy stable code: " + expiryPolicyCode);
+        }
+        state.expiryPolicy = *expiryPolicy;
+
+        state.sellerLeagueId = static_cast<LeagueId>(statement.columnInt(4));
+        state.sellerTeamId = static_cast<TeamId>(statement.columnInt(5));
+        state.buyerLeagueId = static_cast<LeagueId>(statement.columnInt(6));
+        state.buyerTeamId = static_cast<TeamId>(statement.columnInt(7));
+        state.playerId = static_cast<PlayerId>(statement.columnInt(8));
+        state.fee = statement.columnInt(9);
+
+        const std::string statusCode = statement.columnText(10);
+        const std::optional<TransferOfferStatus> status = transferOfferStatusFromStableCode(statusCode);
+        if (!status.has_value()) {
+            throw std::runtime_error("runtime transfer offer has invalid status stable code: " + statusCode);
+        }
+        state.status = *status;
+
+        if (!statement.columnIsNull(11)) {
+            const std::string resolutionCode = statement.columnText(11);
+            const std::optional<TransferOfferResolution> resolution = transferOfferResolutionFromStableCode(resolutionCode);
+            if (!resolution.has_value()) {
+                throw std::runtime_error("runtime transfer offer has invalid resolution stable code: " + resolutionCode);
+            }
+            state.resolution = *resolution;
+        }
+
+        return state;
     }
 
     MatchReport readReportRow(SqliteStatement& statement) {
@@ -554,6 +613,23 @@ std::vector<PersistedPlayerRuntimeState> SqliteGameStateRepository::loadPlayerRu
     return playerStates;
 }
 
+std::vector<PersistedTransferOfferState> SqliteGameStateRepository::loadTransferOfferStates() const {
+    std::vector<PersistedTransferOfferState> transferOffers;
+    if (!tableExists(database, "runtime_transfer_offers")) {
+        return transferOffers;
+    }
+
+    SqliteStatement statement = database.prepare(
+        "SELECT offer_id, created_at, last_valid_date, expiry_policy, "
+        "seller_league_id, seller_team_id, buyer_league_id, buyer_team_id, "
+        "player_id, fee, status, resolution "
+        "FROM runtime_transfer_offers ORDER BY offer_id");
+    while (statement.stepRow()) {
+        transferOffers.push_back(readTransferOfferRow(statement));
+    }
+    return transferOffers;
+}
+
 void SqliteGameStateRepository::saveRuntimeState(
     const Date& currentDate,
     int currentState,
@@ -561,7 +637,8 @@ void SqliteGameStateRepository::saveRuntimeState(
     const std::vector<PersistedFixtureState>& fixtures,
     const std::vector<MatchReport>& reports,
     const std::vector<PersistedTeamSheetState>& teamSheetStates,
-    const std::vector<PersistedPlayerRuntimeState>& playerStates) const {
+    const std::vector<PersistedPlayerRuntimeState>& playerStates,
+    const std::vector<PersistedTransferOfferState>& transferOffers) const {
     database.execute("BEGIN TRANSACTION;");
 
     try {
@@ -572,6 +649,7 @@ void SqliteGameStateRepository::saveRuntimeState(
         database.execute("DELETE FROM runtime_team_sheet_substitutes;");
         database.execute("DELETE FROM runtime_team_sheet_starters;");
         database.execute("DELETE FROM runtime_team_sheets;");
+        database.execute("DELETE FROM runtime_transfer_offers;");
         database.execute("DELETE FROM league_runtime_state;");
         database.execute("DELETE FROM player_runtime_state;");
         database.execute("DELETE FROM game_state;");
@@ -722,6 +800,33 @@ void SqliteGameStateRepository::saveRuntimeState(
             statement.bindInt(2, state.form);
             statement.bindInt(3, state.fitness);
             statement.bindInt(4, state.morale);
+            statement.stepDone();
+        }
+
+        for (const PersistedTransferOfferState& state : transferOffers) {
+            SqliteStatement statement = database.prepare(
+                "INSERT INTO runtime_transfer_offers ("
+                "offer_id, created_at, last_valid_date, expiry_policy, "
+                "seller_league_id, seller_team_id, buyer_league_id, buyer_team_id, "
+                "player_id, fee, status, resolution"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            statement.bindInt64(1, static_cast<std::int64_t>(state.offerId));
+            statement.bindText(2, dateToIsoString(state.createdAt));
+            statement.bindText(3, dateToIsoString(state.lastValidDate));
+            statement.bindText(4, toStableCode(state.expiryPolicy));
+            statement.bindInt(5, static_cast<int>(state.sellerLeagueId));
+            statement.bindInt(6, static_cast<int>(state.sellerTeamId));
+            statement.bindInt(7, static_cast<int>(state.buyerLeagueId));
+            statement.bindInt(8, static_cast<int>(state.buyerTeamId));
+            statement.bindInt(9, static_cast<int>(state.playerId));
+            statement.bindInt(10, state.fee);
+            statement.bindText(11, toStableCode(state.status));
+            if (state.resolution.has_value()) {
+                statement.bindText(12, toStableCode(*state.resolution));
+            }
+            else {
+                statement.bindNull(12);
+            }
             statement.stepDone();
         }
 

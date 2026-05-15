@@ -33,6 +33,10 @@ public:
 	bool hasPendingOfferForSellerPlayer(LeagueId sellerLeagueId, TeamId sellerTeamId, PlayerId playerId) const;
 	std::vector<const TransferOffer*> getPendingOffersForSellerTeam(LeagueId sellerLeagueId, TeamId sellerTeamId) const;
 	int expirePendingOffers(const Date& currentDate);
+	std::vector<TransferOffer> exportOffers() const;
+	void restoreOffers(std::vector<TransferOffer> offers);
+	OfferId getNextOfferId() const;
+	void clearOffers();
 
 	bool acceptOffer(OfferId offerId);
 	bool acceptOffer(OfferId offerId, const Date& transferDate);

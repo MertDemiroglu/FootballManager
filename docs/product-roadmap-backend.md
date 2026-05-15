@@ -37,22 +37,24 @@ This roadmap keeps future save/load work scoped. Each phase should preserve the 
 
 - Purpose: persist pending offers, expiry dates, buyer/seller clubs, player ids, fees, and statuses.
 - Depends on: stable runtime save DB and clear active interaction boundaries.
-- Likely affected areas: `TransferOfferService`, `TransferRoom`, `Game`, new transfer runtime tables.
+- Status: implemented for offer state.
+- Implemented shape: `runtime_transfer_offers` stores full-world offer rows with stable expiry/status/resolution codes. `TransferOfferService` exports/restores offers and recovers `nextOfferId` from max persisted offer id + 1.
+- Affected areas: `TransferOfferService`, `SqliteGameStateRepository`, `RuntimeSaveValidator`, and `Game` persistence flush paths.
 - Why here: transfer offers are mutable gameplay state that can exist across many days.
-- Do not mix in: roster mutation application beyond what is required to represent offer state.
+- Not covered: roster mutation persistence, budget/finance persistence, active transfer decision interaction persistence, negotiation/counter offers, and completed transfer history UI.
 
 ## 4. Roster Mutation Persistence
 
 - Purpose: persist player-team membership, contract updates, finance effects, and roster changes after transfers or season events.
-- Depends on: transfer decisions/status persistence.
+- Depends on: transfer offer status/resolution persistence.
 - Likely affected areas: `Team`, `Footballer`, contract model, transfer services, runtime roster/contract/finance tables.
-- Why after offers: roster changes are consequences of transfer decisions and should not be persisted without a durable decision model.
+- Why next: accepted offers currently mutate rosters in memory, but long-term roster and budget effects need their own runtime source of truth rather than replaying accepted offers on load.
 - Do not mix in: save UI polish or league rules migration.
 
 ## 5. Active Interaction Persistence
 
 - Purpose: restore exact blocking states after closing during pre-match, post-match, transfer decision, or other modal flows.
-- Depends on: lineup persistence for pre-match and transfer persistence for transfer decisions.
+- Depends on: lineup persistence for pre-match and durable mutable transfer/roster state for transfer decisions.
 - Likely affected areas: `InteractionManager`, interaction DTOs, `Game`, `GameFacade`, active interaction payload tables.
 - Why after core mutable state: interactions reference domain objects that must already be persisted.
 - Do not mix in: broad QML redesign. Restore behavior first, polish later.
