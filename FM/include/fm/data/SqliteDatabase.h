@@ -52,6 +52,7 @@ public:
     void bindInt(int index, int value);
     void bindInt64(int index, std::int64_t value);
     void bindText(int index, const std::string& value);
+    void bindNull(int index);
 
     bool stepRow();
     void stepDone();
@@ -60,4 +61,5 @@ public:
     int columnInt(int column) const;
     std::int64_t columnInt64(int column) const;
     std::string columnText(int column) const;
+    bool columnIsNull(int column) const;
 };

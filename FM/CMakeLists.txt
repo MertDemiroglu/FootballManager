@@ -55,6 +55,7 @@ add_library(fm_core STATIC
     src/match/TeamSelectionService.cpp
     src/match/TeamSheet.cpp
     src/interaction/TransferOfferDecisionInteraction.cpp
+    src/transfer/TransferOffer.cpp
     src/transfer/TransferOfferService.cpp
     src/transfer/TransferRoom.cpp
     src/core/User.cpp

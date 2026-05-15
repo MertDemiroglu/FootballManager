@@ -146,6 +146,13 @@ void SqliteStatement::bindText(int index, const std::string& value) {
     }
 }
 
+void SqliteStatement::bindNull(int index) {
+    const int rc = sqlite3_bind_null(handle(), index);
+    if (rc != SQLITE_OK) {
+        throw std::runtime_error(makeStatementError(handle(), "failed to bind null at index " + std::to_string(index)));
+    }
+}
+
 bool SqliteStatement::stepRow() {
     const int rc = sqlite3_step(handle());
     if (rc == SQLITE_ROW) {
@@ -192,4 +199,8 @@ std::string SqliteStatement::columnText(int column) const {
     }
 
     return reinterpret_cast<const char*>(text);
+}
+
+bool SqliteStatement::columnIsNull(int column) const {
+    return sqlite3_column_type(handle(), column) == SQLITE_NULL;
 }

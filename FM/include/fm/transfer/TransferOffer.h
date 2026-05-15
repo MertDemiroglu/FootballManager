@@ -3,6 +3,9 @@
 #include"fm/common/Types.h"
 #include"fm/common/Date.h"
 
+#include<optional>
+#include<string>
+
 enum class TransferOfferStatus {
 	Pending,
 	Resolved
@@ -32,4 +35,14 @@ struct TransferOffer {
 	PlayerId playerId = 0;
 	Money fee = 0;
 	TransferOfferStatus status = TransferOfferStatus::Pending;
+	std::optional<TransferOfferResolution> resolution = std::nullopt;
 };
+
+std::string toStableCode(TransferOfferStatus status);
+std::optional<TransferOfferStatus> transferOfferStatusFromStableCode(const std::string& stableCode);
+
+std::string toStableCode(TransferOfferResolution resolution);
+std::optional<TransferOfferResolution> transferOfferResolutionFromStableCode(const std::string& stableCode);
+
+std::string toStableCode(TransferOfferExpiryPolicy expiryPolicy);
+std::optional<TransferOfferExpiryPolicy> transferOfferExpiryPolicyFromStableCode(const std::string& stableCode);

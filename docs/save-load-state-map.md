@@ -81,7 +81,7 @@ Stores SQL-backed league/season configuration per league: stable league code/nam
 Stores transfer-window date rules per league/window code. The current seed has `summer` and `winter` windows for Super Lig.
 
 - Reader: `SqliteLeagueRulesRepository`, which converts SQL month/day/year-offset rules into `LeagueRules` transfer-window functions.
-- Authority: authoritative league transfer-window configuration. Transfer offer persistence is still future work.
+- Authority: authoritative league transfer-window configuration used by transfer offer expiry/update logic.
 - Multi-league implication: rows are keyed by `league_id` and `window_code`.
 
 ### `league_matchday_distribution_offsets`
@@ -175,6 +175,19 @@ Stores selected substitute player ids in deterministic bench order. Substitute o
 - Authority: authoritative selected bench for lineup editor restore.
 - Multi-league implication: substitute rows are attached to `runtime_team_sheets` by `league_id`/`team_id`.
 
+### `runtime_transfer_offers`
+
+Stores transfer offer runtime state: offer id, created date, last valid date, expiry policy, seller/buyer league and team ids, player id, fee, status, and optional resolution.
+
+- Writer: `SqliteGameStateRepository::saveRuntimeState`, using `TransferOfferService::exportOffers`.
+- Reader/restorer: `SqliteGameStateRepository::loadTransferOfferStates`, then `TransferOfferService::restoreOffers`.
+- Saved when: runtime state is persisted, including offer creation, accept/reject paths, and offer expiry paths invoked through `Game`.
+- Authority: authoritative persisted transfer offer state. Pending offers survive load; accepted/rejected/expired offers restore as resolved and do not reappear as pending.
+- Stable codes: expiry policy uses `fourteen_day_limit` / `window_close_limit`; status uses `pending` / `resolved`; resolution uses `accepted`, `rejected`, `expired_by_deadline`, or `expired_by_window_close`.
+- ID recovery: restore replaces the in-memory offer map and sets `nextOfferId` to max persisted offer id + 1, so new offers created after load do not collide.
+- Multi-league implication: seller and buyer league/team ids are persisted for every offer. The table is full-world state and is not scoped to the managed team.
+- Scope note: accepted offer status/resolution persists, but roster and budget side effects still require Roster Mutation Persistence. Active transfer decision UI state still requires Active Interaction Persistence.
+
 ## Validation Ownership
 
 `RuntimeSaveValidator` owns runtime save validation in the core/data layer. It checks:
@@ -188,6 +201,7 @@ Stores selected substitute player ids in deterministic bench order. Substitute o
 - Runtime team sheet formation, slot roles, starter ids, substitutes, and tactical stable codes are valid.
 - Runtime team sheets have no duplicate starters, duplicate substitutes, or starter/substitute overlap.
 - Runtime team sheets do not exceed 10 substitutes.
+- Runtime transfer offer ids, dates, fees, seller/buyer ids, player ids, stable codes, pending/resolved resolution rules, duplicate pending seller/buyer/player rows, and pending last-valid dates are valid.
 - Current game date is within the SQL-loaded league season window for each league runtime row.
 - Fixture dates fit their SQL-loaded league kickoff/season window.
 - Metadata current date mirrors `game_state."current_date"` when metadata is provided.
@@ -216,19 +230,13 @@ Stores selected substitute player ids in deterministic bench order. Substitute o
 - Suggested priority: medium.
 - Storage direction: active interaction payload referencing persisted match report id.
 
-### Transfer offers
-
-- Why it matters: pending offers are mutable gameplay state.
-- Current risk: generated offers and decisions can be lost across reloads.
-- Suggested priority: high after active interaction basics.
-- Storage direction: transfer offer runtime table with status, buyer/seller ids, player id, fee, dates, and expiry policy.
-
 ### Transfer decisions
 
 - Why it matters: accepted/rejected decisions mutate roster and finances.
-- Current risk: decisions may not replay or persist reliably without offer and roster mutation persistence.
-- Suggested priority: after transfer offer persistence.
-- Storage direction: transfer decision/status columns and transaction records.
+- Current state: transfer offer status/resolution is persisted so accepted/rejected/expired offers do not reappear as pending.
+- Current risk: accepted roster/budget side effects still do not survive load until roster and finance mutation persistence exists.
+- Suggested priority: after transfer offer state persistence.
+- Storage direction: roster membership, contract, and finance transaction records rather than replaying resolved offers on restore.
 
 ### Roster mutations
 
@@ -266,6 +274,7 @@ Stores selected substitute player ids in deterministic bench order. Substitute o
 ### Runtime ID counters
 
 - Why it matters: match ids, offer ids, and other generated identifiers must not collide after load.
-- Current risk: counters must be advanced from persisted ids; any missing counter can cause duplicate ids.
+- Current state: transfer offer ids recover from max persisted offer id + 1; match ids are advanced from restored fixtures/reports.
+- Current risk: any future runtime id counter must be advanced from persisted ids or stored explicitly.
 - Suggested priority: as each runtime entity type is persisted.
 - Storage direction: runtime counters table or deterministic max-id recovery per entity table.
