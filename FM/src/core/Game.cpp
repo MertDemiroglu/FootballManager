@@ -69,6 +69,11 @@ namespace {
         Footballer* player = nullptr;
     };
 
+    enum class TeamSheetReconcilePolicy {
+        PreserveManualGaps,
+        AutoFill
+    };
+
     std::optional<PlayerLocation> findPlayerLocationById(World& world, PlayerId playerId) {
         if (playerId == 0) {
             return std::nullopt;
@@ -173,19 +178,75 @@ namespace {
         }
     }
 
-    TeamSheet reconcileTeamSheetForTeam(const TeamSheet& persistedSheet, const Team& team) {
-        try {
-            TeamSheet validSheet = persistedSheet;
-            validSheet.coachId = team.getHeadCoach().getId();
-            validateTeamSheetForTeam(validSheet, team);
-            return validSheet;
+    FormationId resolveTeamSheetFormationForReconcile(const TeamSheet& sheet, const Team& team) {
+        if (isFormationSupported(sheet.formation)) {
+            return sheet.formation;
         }
-        catch (...) {
+        const TacticalPreferences& preferences = team.getHeadCoach().getTacticalPreferences();
+        if (isFormationSupported(preferences.preferredFormation)) {
+            return preferences.preferredFormation;
+        }
+        return getSupportedFormationIds().front();
+    }
+
+    TeamSheet sanitizeTeamSheetForTeamPreservingGaps(const TeamSheet& sheet, const Team& team) {
+        std::unordered_set<PlayerId> rosterPlayerIds;
+        for (const auto& player : team.getPlayers()) {
+            if (!player || player->getId() == 0) {
+                continue;
+            }
+            rosterPlayerIds.insert(player->getId());
         }
 
+        TeamSheet sanitizedSheet;
+        sanitizedSheet.teamId = team.getId();
+        sanitizedSheet.coachId = team.getHeadCoach().getId();
+        sanitizedSheet.formation = resolveTeamSheetFormationForReconcile(sheet, team);
+        sanitizedSheet.tacticalSetup = sheet.tacticalSetup;
+
+        std::unordered_set<PlayerId> usedPlayerIds;
+        const std::vector<FormationSlotRole>& slotTemplate = getFormationSlotTemplate(sanitizedSheet.formation);
+        for (const TeamSheetSlotAssignment& assignment : sheet.startingAssignments) {
+            if (assignment.slotIndex >= slotTemplate.size()) {
+                continue;
+            }
+            if (slotTemplate[assignment.slotIndex] != assignment.slotRole) {
+                continue;
+            }
+            if (assignment.playerId == 0 || rosterPlayerIds.find(assignment.playerId) == rosterPlayerIds.end()) {
+                continue;
+            }
+            if (!usedPlayerIds.insert(assignment.playerId).second) {
+                continue;
+            }
+
+            sanitizedSheet.startingAssignments.push_back(assignment);
+            sanitizedSheet.startingPlayerIds.push_back(assignment.playerId);
+        }
+
+        for (PlayerId playerId : sheet.substitutePlayerIds) {
+            if (playerId == 0 || rosterPlayerIds.find(playerId) == rosterPlayerIds.end()) {
+                continue;
+            }
+            if (!usedPlayerIds.insert(playerId).second) {
+                continue;
+            }
+            if (sanitizedSheet.substitutePlayerIds.size() >= kMaxSubstituteCount) {
+                break;
+            }
+            sanitizedSheet.substitutePlayerIds.push_back(playerId);
+        }
+
+        validateTeamSheetForTeam(sanitizedSheet, team);
+        return sanitizedSheet;
+    }
+
+    TeamSheet reconcileTeamSheetForTeamAutoFill(const TeamSheet& sheet, const Team& team) {
+        TeamSheet reconciledSheet = sanitizeTeamSheetForTeamPreservingGaps(sheet, team);
+
         TeamSelectionService selectionService;
-        TeamSheet generatedSheet = selectionService.buildTeamSheet(team, persistedSheet.formation);
-        generatedSheet.tacticalSetup = persistedSheet.tacticalSetup;
+        TeamSheet generatedSheet = selectionService.buildTeamSheet(team, reconciledSheet.formation);
+        generatedSheet.tacticalSetup = reconciledSheet.tacticalSetup;
         generatedSheet.coachId = team.getHeadCoach().getId();
 
         std::unordered_set<PlayerId> rosterPlayerIds;
@@ -199,73 +260,56 @@ namespace {
         }
 
         std::unordered_set<PlayerId> usedPlayerIds;
-        std::vector<TeamSheetSlotAssignment> reconciledAssignments;
-        std::vector<PlayerId> reconciledStarters;
+        for (const TeamSheetSlotAssignment& assignment : reconciledSheet.startingAssignments) {
+            usedPlayerIds.insert(assignment.playerId);
+        }
+        for (PlayerId playerId : reconciledSheet.substitutePlayerIds) {
+            usedPlayerIds.insert(playerId);
+        }
+
+        const auto slotFilled = [&](std::size_t slotIndex) {
+            for (const TeamSheetSlotAssignment& assignment : reconciledSheet.startingAssignments) {
+                if (assignment.slotIndex == slotIndex) {
+                    return true;
+                }
+            }
+            return false;
+        };
 
         const auto appendStarter = [&](const TeamSheetSlotAssignment& assignment) {
             if (assignment.playerId == 0 || rosterPlayerIds.find(assignment.playerId) == rosterPlayerIds.end()) {
                 return false;
             }
+            if (slotFilled(assignment.slotIndex)) {
+                return false;
+            }
             if (!usedPlayerIds.insert(assignment.playerId).second) {
                 return false;
             }
-            reconciledAssignments.push_back(assignment);
-            reconciledStarters.push_back(assignment.playerId);
+            reconciledSheet.startingAssignments.push_back(assignment);
+            reconciledSheet.startingPlayerIds.push_back(assignment.playerId);
             return true;
         };
 
-        const std::vector<FormationSlotRole>& slotTemplate = getFormationSlotTemplate(generatedSheet.formation);
-        for (const TeamSheetSlotAssignment& persistedAssignment : persistedSheet.startingAssignments) {
-            if (persistedAssignment.slotIndex >= slotTemplate.size()) {
-                continue;
-            }
-            if (slotTemplate[persistedAssignment.slotIndex] != persistedAssignment.slotRole) {
-                continue;
-            }
-            (void)appendStarter(persistedAssignment);
-        }
-
         for (const TeamSheetSlotAssignment& generatedAssignment : generatedSheet.startingAssignments) {
-            bool slotAlreadyFilled = false;
-            for (const TeamSheetSlotAssignment& existing : reconciledAssignments) {
-                if (existing.slotIndex == generatedAssignment.slotIndex) {
-                    slotAlreadyFilled = true;
-                    break;
-                }
-            }
-            if (!slotAlreadyFilled) {
-                (void)appendStarter(generatedAssignment);
-            }
+            (void)appendStarter(generatedAssignment);
         }
 
         for (const PlayerId playerId : rosterOrder) {
-            if (reconciledAssignments.size() >= generatedSheet.startingAssignments.size()) {
+            if (reconciledSheet.startingAssignments.size() >= generatedSheet.startingAssignments.size()) {
                 break;
             }
             if (usedPlayerIds.find(playerId) != usedPlayerIds.end()) {
                 continue;
             }
-            const TeamSheetSlotAssignment* templateAssignment = nullptr;
             for (const TeamSheetSlotAssignment& generatedAssignment : generatedSheet.startingAssignments) {
-                bool slotAlreadyFilled = false;
-                for (const TeamSheetSlotAssignment& existing : reconciledAssignments) {
-                    if (existing.slotIndex == generatedAssignment.slotIndex) {
-                        slotAlreadyFilled = true;
-                        break;
-                    }
-                }
-                if (!slotAlreadyFilled) {
-                    templateAssignment = &generatedAssignment;
+                if (!slotFilled(generatedAssignment.slotIndex)) {
+                    (void)appendStarter(TeamSheetSlotAssignment{ generatedAssignment.slotIndex, generatedAssignment.slotRole, playerId });
                     break;
                 }
             }
-            if (!templateAssignment) {
-                break;
-            }
-            (void)appendStarter(TeamSheetSlotAssignment{ templateAssignment->slotIndex, templateAssignment->slotRole, playerId });
         }
 
-        std::vector<PlayerId> reconciledSubstitutes;
         const auto appendSubstitute = [&](PlayerId playerId) {
             if (playerId == 0 || rosterPlayerIds.find(playerId) == rosterPlayerIds.end()) {
                 return false;
@@ -273,37 +317,36 @@ namespace {
             if (usedPlayerIds.find(playerId) != usedPlayerIds.end()) {
                 return false;
             }
-            if (reconciledSubstitutes.size() >= kMaxSubstituteCount) {
+            if (reconciledSheet.substitutePlayerIds.size() >= kMaxSubstituteCount) {
                 return false;
             }
             usedPlayerIds.insert(playerId);
-            reconciledSubstitutes.push_back(playerId);
+            reconciledSheet.substitutePlayerIds.push_back(playerId);
             return true;
         };
 
-        for (PlayerId playerId : persistedSheet.substitutePlayerIds) {
-            (void)appendSubstitute(playerId);
-        }
         for (PlayerId playerId : generatedSheet.substitutePlayerIds) {
             (void)appendSubstitute(playerId);
         }
         for (PlayerId playerId : rosterOrder) {
-            if (reconciledSubstitutes.size() >= kMaxSubstituteCount) {
+            if (reconciledSheet.substitutePlayerIds.size() >= kMaxSubstituteCount) {
                 break;
             }
             (void)appendSubstitute(playerId);
         }
 
-        TeamSheet reconciledSheet;
-        reconciledSheet.teamId = team.getId();
-        reconciledSheet.coachId = team.getHeadCoach().getId();
-        reconciledSheet.formation = generatedSheet.formation;
-        reconciledSheet.startingAssignments = std::move(reconciledAssignments);
-        reconciledSheet.startingPlayerIds = std::move(reconciledStarters);
-        reconciledSheet.substitutePlayerIds = std::move(reconciledSubstitutes);
-        reconciledSheet.tacticalSetup = persistedSheet.tacticalSetup;
         validateTeamSheetForTeam(reconciledSheet, team);
         return reconciledSheet;
+    }
+
+    TeamSheet reconcileTeamSheetForTeam(
+        const TeamSheet& sheet,
+        const Team& team,
+        TeamSheetReconcilePolicy policy) {
+        if (policy == TeamSheetReconcilePolicy::PreserveManualGaps) {
+            return sanitizeTeamSheetForTeamPreservingGaps(sheet, team);
+        }
+        return reconcileTeamSheetForTeamAutoFill(sheet, team);
     }
 
     PersistedTransferOfferState toPersistedTransferOfferState(const TransferOffer& offer) {
@@ -599,9 +642,15 @@ void Game::restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions) {
             throw std::runtime_error("runtime team sheet references unknown team");
         }
 
-        TeamSheet reconciledSheet = reconcileTeamSheetForTeam(state.teamSheet, *team);
-        // TODO: Managed-team invalid sheets should become a "lineup requires attention"
-        // interaction instead of silent load-time repair once active interactions persist.
+        const bool isManagedTeamSheet =
+            state.leagueId == user.getManagedLeagueId()
+            && state.teamSheet.teamId == user.getManagedTeamId();
+        const TeamSheetReconcilePolicy policy = isManagedTeamSheet
+            ? TeamSheetReconcilePolicy::PreserveManualGaps
+            : TeamSheetReconcilePolicy::AutoFill;
+        TeamSheet reconciledSheet = reconcileTeamSheetForTeam(state.teamSheet, *team, policy);
+        // TODO: Managed-team incomplete sheets should become a "lineup requires attention"
+        // interaction before kickoff once active interactions persist.
         team->setSelectedTeamSheet(std::move(reconciledSheet));
     }
 
@@ -837,9 +886,17 @@ TeamSheet Game::resolveCompleteTeamSheetForTeam(LeagueId leagueId, TeamId teamId
         return selectedSheet;
     }
 
+    const bool isManagedTeam =
+        leagueId == user.getManagedLeagueId()
+        && teamId == user.getManagedTeamId();
+    if (isManagedTeam) {
+        // TODO: Managed-team incomplete lineups should block kickoff with a
+        // "lineup requires attention" interaction instead of falling through
+        // to play-match validation.
+        return selectedSheet;
+    }
+
     TeamSelectionService selectionService;
-    // TODO: Managed team invalid/incomplete sheets should later produce a
-    // "lineup requires attention" interaction instead of being reconciled here.
     // TODO: AI matchday sheets should later reconcile availability, condition,
     // injuries, suspensions, transfers, and coach tactical profile.
     TeamSheet generatedSheet = selectionService.buildTeamSheet(*team, selectedSheet.formation);
@@ -849,7 +906,7 @@ TeamSheet Game::resolveCompleteTeamSheetForTeam(LeagueId leagueId, TeamId teamId
     return *team->getSelectedTeamSheet();
 }
 
-void Game::reconcileSelectedTeamSheetForTeam(LeagueId leagueId, TeamId teamId) {
+void Game::reconcileSelectedTeamSheetForTeam(LeagueId leagueId, TeamId teamId, bool preserveManualGaps) {
     LeagueContext* context = world.findLeagueContext(leagueId);
     if (!context) {
         return;
@@ -865,7 +922,10 @@ void Game::reconcileSelectedTeamSheetForTeam(LeagueId leagueId, TeamId teamId) {
         return;
     }
 
-    TeamSheet reconciledSheet = reconcileTeamSheetForTeam(*selectedTeamSheet, *team);
+    const TeamSheetReconcilePolicy policy = preserveManualGaps
+        ? TeamSheetReconcilePolicy::PreserveManualGaps
+        : TeamSheetReconcilePolicy::AutoFill;
+    TeamSheet reconciledSheet = reconcileTeamSheetForTeam(*selectedTeamSheet, *team, policy);
     team->setSelectedTeamSheet(std::move(reconciledSheet));
 }
 
@@ -1565,8 +1625,17 @@ bool Game::acceptTransferOffer(OfferId offerId) {
         return false;
     }
 
-    reconcileSelectedTeamSheetForTeam(offer->sellerLeagueId, offer->sellerTeamId);
-    reconcileSelectedTeamSheetForTeam(offer->buyerLeagueId, offer->buyerTeamId);
+    const auto isManagedAffectedTeam = [&](LeagueId leagueId, TeamId teamId) {
+        return leagueId == managedLeagueId && teamId == managedTeamId;
+    };
+    reconcileSelectedTeamSheetForTeam(
+        offer->sellerLeagueId,
+        offer->sellerTeamId,
+        isManagedAffectedTeam(offer->sellerLeagueId, offer->sellerTeamId));
+    reconcileSelectedTeamSheetForTeam(
+        offer->buyerLeagueId,
+        offer->buyerTeamId,
+        isManagedAffectedTeam(offer->buyerLeagueId, offer->buyerTeamId));
     persistRuntimeState();
 
     const TransferOfferDecisionInteraction* interaction = getActiveTransferOfferDecisionInteraction();
