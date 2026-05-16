@@ -51,17 +51,25 @@ Use this as a practical manual test checklist for current checkpoint-based save/
 10. Confirm the pitch still shows DM behind two CMs and substitutes have no starter/substitute overlap.
 11. Close, reopen, and confirm the 4-3-3 lineup/tactics are restored.
 
-## Match Result Persistence
+## Match Lifecycle / Result Persistence
 
-1. Advance to the first match.
-2. Confirm fixtures still appear in August 2025 from SQL-loaded league rules.
-3. Enter pre-match and confirm it uses the selected lineup rather than a freshly generated lineup.
-4. Play the match.
-5. Continue to Dashboard.
-6. Close and reopen the app.
-7. Load/continue the save.
-8. Confirm the fixture remains played.
-9. Confirm the result, standings, recent form, upcoming matches, and player fitness/form/morale remain consistent.
+1. Create New Game.
+2. Advance to the first match day.
+3. Confirm pre-match appears.
+4. If checkpoint behavior is relevant, close/reopen before playing.
+5. Load/continue and confirm the same match can still be reached/played.
+6. Enter pre-match and confirm it uses the selected lineup rather than a freshly generated lineup.
+7. Play the match.
+8. Confirm the fixture is marked played.
+9. Confirm the result is visible.
+10. Confirm standings updated once.
+11. Confirm recent form updated.
+12. Confirm post-match/report data appears.
+13. Close and reopen the app.
+14. Load/continue the save.
+15. Confirm fixture/result/report/standings/recent form remain consistent.
+16. Advance additional days and confirm the same match is not replayed.
+17. Confirm no skipped fixture was caused by stale `event_enqueued`.
 
 ## Transfer Offer Persistence
 

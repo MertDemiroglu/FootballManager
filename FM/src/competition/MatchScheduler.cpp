@@ -30,6 +30,9 @@ void MatchScheduler::update(World& world, const Date& currentDate, EventQueue& q
 
             queue.pushCommand(PlayMatchCommand{ match->matchId, league.getId(), league.getCurrentSeasonYear(), currentDate, home->getId(), away->getId(), match->matchweek });
             generatedMatchEvents++;
+            // Guard against enqueueing the same in-memory fixture twice during
+            // one scheduler pass. Save/load intentionally resets this flag so
+            // a pre-match reload can reach the same safe checkpoint again.
             match->eventEnqueued = true;
 
         }

@@ -42,6 +42,17 @@ This document locks the current save/load ownership model after the save-slot wo
 - Runtime roster ownership and team finance snapshots are the source of truth for accepted transfer effects after load. Resolved transfer offers are restored as offer state/history only; they are not replayed as commands.
 - QML is presentation only. It may hold transient UI selection/highlight state, but gameplay source of truth must come from `GameFacade`/core models and mutations must write back through backend methods.
 
+## Match Lifecycle Checkpoint Flow
+
+- `Game` orchestrates match-day progression. `MatchScheduler` scans all league contexts for fixtures on the current game date and emits league-scoped `PlayMatchCommand`s.
+- Managed-team fixtures create a pre-match interaction through core state exposed by `GameFacade`; QML does not own the match source of truth.
+- `Game::playPendingPreMatch` and AI/non-managed matchday processing both delegate application to `PlayMatchCommandHandler`.
+- `League::applyMatchReport` is the authoritative completion path. It marks the fixture played, writes the result, clears `eventEnqueued`, updates standings/projections, appends current-season history, updates team/player stats, and stores the current-season report together.
+- `MatchPlayedEvent` is published after the match report is applied. It is not a second match-application path.
+- On restore, fixtures are loaded first, then current-season reports are restored through `League::restoreMatchReport`. This rebuilds standings/recent form from the restored played-match state. If an older checkpoint has played goals without a report, `Game::restoreRuntimeState` falls back to `League::restoreFixtureResult` so the result still affects standings/history once.
+- Match completion requests a runtime save and `Game` flushes it at a safe checkpoint. Manual Save and scheduled autosave still overwrite the same current save slot.
+- Completed season archives, active interaction exact restore, and tactical effects in simulation remain future work.
+
 ## Persisted State
 
 ### `save_metadata`
@@ -120,7 +131,7 @@ Stores generated fixtures and played/unplayed result state: match id, league id,
 - Saved when: fixtures are generated, matches are queued/played, or runtime state is flushed.
 - Authority: authoritative fixture schedule and played-result state, except `event_enqueued`.
 - Multi-league implication: fixtures are stored for all leagues using `league_id`.
-- Note: `event_enqueued` exists in the schema/DTO but is intentionally non-authoritative until active blocking interaction persistence exists. It is currently reset on save/load so a reload from a pre-match pause cannot permanently skip the match.
+- Note: `event_enqueued` exists in the schema/DTO but is intentionally non-authoritative until active blocking interaction persistence exists. It is an in-memory duplicate-enqueue guard for scheduler passes and is currently reset on save/load so a reload from a pre-match pause cannot permanently skip the match.
 
 ### `runtime_match_reports`
 
@@ -131,6 +142,7 @@ Stores match report header data for played matches: match id, league id, season 
 - Saved when: played match reports exist and runtime state is persisted.
 - Authority: authoritative played match report summary for current visible save/load scope.
 - Multi-league implication: reports include `league_id` and must be restored into the correct league context.
+- Consistency rule: when present, a report must match a played fixture by match id, league id, teams, date, matchweek, and goals.
 
 ### `runtime_match_player_reports`
 
@@ -151,6 +163,7 @@ Stores ordered match events for reports: match id, event index, minute, kind, te
 - Saved when: match reports with event timelines are persisted.
 - Authority: authoritative persisted match event timeline for played matches.
 - Multi-league implication: events are attached through match reports and league-specific match ids.
+- Ordering: events are saved with `event_index` and restored in that deterministic order.
 
 ### `player_runtime_state`
 
@@ -240,7 +253,10 @@ Stores transfer offer runtime state: offer id, created date, last valid date, ex
 - `runtime_fixtures` are present when fixture generation says they should be.
 - `player_runtime_state` exists.
 - Fixture league and season match league runtime state.
-- Fixture ids, matchweeks, and team ids are valid.
+- Fixture ids, matchweeks, team ids, played flags, result goals, and duplicate ids are valid.
+- Match reports, when present, reference known leagues/teams/fixtures and match the played fixture result.
+- Match player report rows reference known players and one of the two match teams, with structurally valid stat values.
+- Match event rows reference known teams/players, valid event kinds, and deterministic persisted ordering.
 - Runtime team sheet formation, slot roles, starter ids, substitutes, and tactical stable codes are valid.
 - Runtime team sheets have no duplicate starters, duplicate substitutes, or starter/substitute overlap.
 - Runtime team sheets do not exceed 10 substitutes.
@@ -252,6 +268,8 @@ Stores transfer offer runtime state: offer id, created date, last valid date, ex
 - Current game date is within the SQL-loaded league season window for each league runtime row.
 - Fixture dates fit their SQL-loaded league kickoff/season window.
 - Metadata current date mirrors `game_state."current_date"` when metadata is provided.
+
+Validation intentionally tolerates played fixtures without a detailed report for older checkpoint compatibility. Restore applies those rows through `League::restoreFixtureResult`; new match completions should normally have a matching `runtime_match_reports` row.
 
 ## Not Yet Persisted / Later Phases
 
