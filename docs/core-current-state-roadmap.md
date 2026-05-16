@@ -20,6 +20,7 @@ This living document describes the current core/backend shape and the next backe
 - `SaveMetadata` as display/cache state only.
 - LeagueRules SQL-backed for the current Super Lig seed.
 - Fixtures, results, and match reports persistence.
+- Match lifecycle is owned by core: scheduler creates league-scoped commands, `PlayMatchCommandHandler` applies reports, and `League` updates fixture/result/standings/history together.
 - Player condition persistence.
 - `TeamSheet`, tactics, and substitutes persistence.
 - Transfer offer persistence.
@@ -40,6 +41,20 @@ This living document describes the current core/backend shape and the next backe
 - Current save format is a full runtime snapshot.
 - Dirty/incremental saves are a future optimization if multi-league snapshot cost becomes high.
 
+## Current Match Lifecycle
+
+- `Game::updateDaily` is the orchestrator. It asks `MatchScheduler` to scan every `LeagueContext` for fixtures on the current game date.
+- `MatchScheduler` emits league-scoped `PlayMatchCommand`s and sets fixture `eventEnqueued` only as an in-memory duplicate-enqueue guard.
+- Managed-team matches become pre-match interactions through `Game`; QML only presents the interaction exposed by `GameFacade`.
+- `Game::playPendingPreMatch` resolves the pending pre-match interaction and delegates match application to `PlayMatchCommandHandler`.
+- AI/non-managed matches are applied through the same `PlayMatchCommandHandler` path during the safe daily update flow.
+- `PlayMatchCommandHandler` validates the command against the fixture and builds one `MatchReport`.
+- `League::applyMatchReport` is the authoritative completion point: it marks the fixture played, clears `eventEnqueued`, stores goals, updates standings, appends current-season history, updates team/player stats, and stores the current-season report.
+- `MatchPlayedEvent` is published after the report is applied. The current standings/recent form shown in Dashboard come from `League` state rebuilt from played fixtures/reports on restore.
+- Match completion requests a runtime save and `Game` flushes it at a safe checkpoint, so one matchday/update flow can coalesce important save requests instead of writing a full snapshot for every sub-step.
+- Runtime restore rebuilds current standings/history by restoring reports first and falling back to persisted fixture results only when an older checkpoint has a played fixture without a detailed report.
+- `event_enqueued` is non-authoritative persisted state until active interaction persistence exists. Save/load resets/ignores it so reloading before playing a pre-match cannot permanently skip the fixture.
+
 ## Known Not-Yet-Supported Core Scenarios
 
 - Active interaction exact restore.
@@ -57,7 +72,7 @@ This living document describes the current core/backend shape and the next backe
 
 ## Near-Term Core Roadmap
 
-1. Match Lifecycle / Standings / History Audit
+1. Match Lifecycle / Standings / History Audit (active/in progress)
 2. Free Agent Persistence
 3. Automated regression tests when stable enough
 4. Multi-league expansion preparation

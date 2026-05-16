@@ -56,6 +56,16 @@ namespace {
             ^ static_cast<std::int64_t>(teamId);
     }
 
+    bool isKnownMatchEventKind(MatchEventKind kind) {
+        switch (kind) {
+        case MatchEventKind::Goal:
+        case MatchEventKind::YellowCard:
+        case MatchEventKind::RedCard:
+            return true;
+        }
+        return false;
+    }
+
     struct RuntimeRosterLocation {
         LeagueId leagueId = 0;
         TeamId teamId = 0;
@@ -95,6 +105,7 @@ namespace {
         const Date& currentDate,
         const std::vector<PersistedLeagueRuntimeState>& leagueStates,
         const std::vector<PersistedFixtureState>& fixtures,
+        const std::vector<MatchReport>& reports,
         const std::vector<PersistedTeamSheetState>& teamSheetStates,
         const std::vector<PersistedPlayerRuntimeState>& playerStates,
         const std::vector<PersistedTeamFinanceState>& teamFinanceStates,
@@ -307,6 +318,7 @@ namespace {
         }
 
         std::unordered_map<LeagueId, bool> sawFixtureByLeague;
+        std::unordered_map<MatchId, const PersistedFixtureState*> fixtureById;
         for (const PersistedFixtureState& fixture : fixtures) {
             const auto stateIt = stateByLeague.find(fixture.leagueId);
             if (stateIt == stateByLeague.end()) {
@@ -324,6 +336,24 @@ namespace {
             if (fixture.homeTeamId == 0 || fixture.awayTeamId == 0) {
                 return invalid("runtime fixture has an invalid team id");
             }
+            if (fixture.homeTeamId == fixture.awayTeamId) {
+                return invalid("runtime fixture has the same home and away team");
+            }
+            if (knownTeams.find(compoundTeamKey(fixture.leagueId, fixture.homeTeamId)) == knownTeams.end()
+                || knownTeams.find(compoundTeamKey(fixture.leagueId, fixture.awayTeamId)) == knownTeams.end()) {
+                return invalid("runtime fixture references unknown team");
+            }
+            if (fixture.played) {
+                if (fixture.eventEnqueued) {
+                    return invalid("runtime fixture is both played and event_enqueued");
+                }
+                if (fixture.homeGoals < 0 || fixture.awayGoals < 0) {
+                    return invalid("played runtime fixture is missing result goals");
+                }
+            }
+            else if (fixture.homeGoals != -1 || fixture.awayGoals != -1) {
+                return invalid("unplayed runtime fixture has result goals");
+            }
             if (fixture.date.getYear() < fixture.seasonYear || fixture.date.getYear() > fixture.seasonYear + 1) {
                 return invalid("runtime fixture date is outside its season year");
             }
@@ -336,12 +366,115 @@ namespace {
             if (dateIsBefore(fixture.date, kickoffDate) || !dateIsBefore(fixture.date, nextPreseasonStart)) {
                 return invalid("runtime fixture date is outside its league season fixture window");
             }
+            if (!fixtureById.emplace(fixture.matchId, &fixture).second) {
+                return invalid("runtime fixture has duplicate match id");
+            }
             sawFixtureByLeague[fixture.leagueId] = true;
         }
 
         for (const PersistedLeagueRuntimeState& state : leagueStates) {
             if (state.fixtureGenerated && !sawFixtureByLeague[state.leagueId]) {
                 return invalid("league runtime state says fixtures are generated but no fixtures were persisted");
+            }
+        }
+
+        std::unordered_set<MatchId> seenReportIds;
+        for (const MatchReport& report : reports) {
+            if (report.matchId == 0) {
+                return invalid("runtime match report has an invalid match id");
+            }
+            if (!seenReportIds.insert(report.matchId).second) {
+                return invalid("runtime match report has duplicate match id");
+            }
+            if (stateByLeague.find(report.leagueId) == stateByLeague.end()) {
+                return invalid("runtime match report references a league without runtime state");
+            }
+            if (report.homeId == 0 || report.awayId == 0 || report.homeId == report.awayId) {
+                return invalid("runtime match report has invalid team ids");
+            }
+            if (knownTeams.find(compoundTeamKey(report.leagueId, report.homeId)) == knownTeams.end()
+                || knownTeams.find(compoundTeamKey(report.leagueId, report.awayId)) == knownTeams.end()) {
+                return invalid("runtime match report references unknown team");
+            }
+            if (report.matchweek <= 0) {
+                return invalid("runtime match report has an invalid matchweek");
+            }
+            if (report.homeGoals < 0 || report.awayGoals < 0) {
+                return invalid("runtime match report has negative goals");
+            }
+
+            const auto fixtureIt = fixtureById.find(report.matchId);
+            if (fixtureIt == fixtureById.end()) {
+                return invalid("runtime match report has no matching fixture");
+            }
+            const PersistedFixtureState& fixture = *fixtureIt->second;
+            if (!fixture.played) {
+                return invalid("runtime match report references an unplayed fixture");
+            }
+            if (report.leagueId != fixture.leagueId
+                || report.seasonYear != fixture.seasonYear
+                || !sameDate(report.date, fixture.date)
+                || report.homeId != fixture.homeTeamId
+                || report.awayId != fixture.awayTeamId
+                || report.matchweek != fixture.matchweek
+                || report.homeGoals != fixture.homeGoals
+                || report.awayGoals != fixture.awayGoals) {
+                return invalid("runtime match report does not match its fixture result");
+            }
+
+            if (report.homeLineup.teamId != 0 && report.homeLineup.teamId != report.homeId) {
+                return invalid("runtime match report home lineup team mismatch");
+            }
+            if (report.awayLineup.teamId != 0 && report.awayLineup.teamId != report.awayId) {
+                return invalid("runtime match report away lineup team mismatch");
+            }
+            for (PlayerId playerId : report.homeLineup.startingPlayerIds) {
+                if (playerId == 0 || knownPlayers.find(playerId) == knownPlayers.end()) {
+                    return invalid("runtime match report home lineup references unknown player");
+                }
+            }
+            for (PlayerId playerId : report.awayLineup.startingPlayerIds) {
+                if (playerId == 0 || knownPlayers.find(playerId) == knownPlayers.end()) {
+                    return invalid("runtime match report away lineup references unknown player");
+                }
+            }
+
+            std::unordered_set<PlayerId> seenReportPlayers;
+            for (const MatchPlayerReport& playerReport : report.playerReports) {
+                if (playerReport.playerId == 0 || knownPlayers.find(playerReport.playerId) == knownPlayers.end()) {
+                    return invalid("runtime match player report references unknown player");
+                }
+                if (playerReport.teamId != report.homeId && playerReport.teamId != report.awayId) {
+                    return invalid("runtime match player report references a team outside the match");
+                }
+                if (!seenReportPlayers.insert(playerReport.playerId).second) {
+                    return invalid("runtime match player report has duplicate player row");
+                }
+                if (playerReport.minutesPlayed < 0 || playerReport.minutesPlayed > 130
+                    || playerReport.goals < 0
+                    || playerReport.assists < 0
+                    || playerReport.yellowCards < 0
+                    || playerReport.redCards < 0) {
+                    return invalid("runtime match player report has invalid stat values");
+                }
+            }
+
+            for (const MatchEventRecord& event : report.events) {
+                if (event.minute < 0 || event.minute > 130) {
+                    return invalid("runtime match event has invalid minute");
+                }
+                if (!isKnownMatchEventKind(event.kind)) {
+                    return invalid("runtime match event has invalid kind");
+                }
+                if (event.teamId != report.homeId && event.teamId != report.awayId) {
+                    return invalid("runtime match event references a team outside the match");
+                }
+                if (event.primaryPlayerId == 0 || knownPlayers.find(event.primaryPlayerId) == knownPlayers.end()) {
+                    return invalid("runtime match event references unknown primary player");
+                }
+                if (event.secondaryPlayerId != 0 && knownPlayers.find(event.secondaryPlayerId) == knownPlayers.end()) {
+                    return invalid("runtime match event references unknown secondary player");
+                }
             }
         }
 
@@ -423,6 +556,7 @@ SaveValidationResult RuntimeSaveValidator::validateExistingSave(
         const Date currentDate = runtimeRepository.loadCurrentDate();
         const std::vector<PersistedLeagueRuntimeState> leagueStates = runtimeRepository.loadLeagueRuntimeStates();
         const std::vector<PersistedFixtureState> fixtures = runtimeRepository.loadFixtures();
+        const std::vector<MatchReport> reports = runtimeRepository.loadMatchReports();
         const std::vector<PersistedTeamSheetState> teamSheetStates = runtimeRepository.loadTeamSheetStates();
         const std::vector<PersistedPlayerRuntimeState> playerStates = runtimeRepository.loadPlayerRuntimeStates();
         const std::vector<PersistedTeamFinanceState> teamFinanceStates = runtimeRepository.loadTeamFinanceStates();
@@ -436,6 +570,7 @@ SaveValidationResult RuntimeSaveValidator::validateExistingSave(
             currentDate,
             leagueStates,
             fixtures,
+            reports,
             teamSheetStates,
             playerStates,
             teamFinanceStates,

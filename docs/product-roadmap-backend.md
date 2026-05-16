@@ -59,23 +59,30 @@ Related documents:
 - Current behavior: Continue/Load resumes through Dashboard/safe checkpoint rather than restoring exact transient modals.
 - Remaining risk: full runtime snapshots may become costly with broader multi-league worlds; dirty/incremental save work can be considered later.
 
-## Active Backend Phase
-
 ### 6. Manual Save + Auto Save Policy
 
-- Status: active PR phase.
+- Status: implemented.
 - Scope: Dashboard Manual Save, autosave frequency settings, game-date scheduled autosave, `runtime_save_settings`, save request batching/coalescing, and documentation cleanup.
 - Default autosave frequency: Weekly.
 - Stable options: `manual_only`, `daily`, `every_3_days`, `weekly`, `every_2_weeks`.
 - Do not mix in: active interaction persistence, Save As, rolling autosave slots, dirty/incremental saves, Dashboard redesign, match engine behavior, transfer logic, or LeagueRules migration.
 
+## Active Backend Phase
+
+### 7. Match Lifecycle / Standings / History Audit
+
+- Status: active/in progress.
+- Scope: verify the existing fixture -> pre-match -> match application -> played fixture/result -> report -> standings/history/recent form -> save checkpoint flow.
+- Current verified shape: `Game` orchestrates; `MatchScheduler` queues league-scoped commands; `PlayMatchCommandHandler` applies the match; `League::applyMatchReport` is the authoritative completion path for fixture/result/report/standings/current-season history.
+- `event_enqueued` remains a transient scheduler guard, not authoritative persisted active-interaction state.
+- Do not mix in: match engine rewrite, tactical effects, active interaction persistence, free-agent persistence, completed season archives, multi-league UI, rolling autosaves, or Save As.
+
 ## Next Backend Phases
 
-1. Match Lifecycle / Standings / History Audit
-2. Free Agent Persistence
-3. Automated regression tests when stable enough
-4. Multi-league expansion preparation
-5. Match engine/tactical effects later
+1. Free Agent Persistence
+2. Automated regression tests when stable enough
+3. Multi-league expansion preparation
+4. Match engine/tactical effects later
 
 ## Deferred / Later Backend Work
 
