@@ -17,6 +17,7 @@ public:
 	bool isExpired() const;
 	//Yillik maasi verir
 	Money getWage() const;
+	int getYearsRemaining() const;
 
 
 	//Oyuncunun ID'sini verir

@@ -49,6 +49,23 @@ struct PersistedTeamSheetState {
     TeamSheet teamSheet;
 };
 
+struct PersistedTeamFinanceState {
+    LeagueId leagueId = 0;
+    TeamId teamId = 0;
+    Money totalBudget = 0;
+    Money transferBudget = 0;
+    Money wageBudget = 0;
+};
+
+struct PersistedPlayerRosterState {
+    PlayerId playerId = 0;
+    LeagueId leagueId = 0;
+    TeamId teamId = 0;
+    std::optional<Money> wage = std::nullopt;
+    std::optional<int> contractYears = std::nullopt;
+    int currentSeasonYear = -1;
+};
+
 struct PersistedTransferOfferState {
     OfferId offerId = 0;
     Date createdAt{ 1900, Month::January, 1 };
@@ -80,6 +97,8 @@ public:
     std::vector<MatchReport> loadMatchReports() const;
     std::vector<PersistedTeamSheetState> loadTeamSheetStates() const;
     std::vector<PersistedPlayerRuntimeState> loadPlayerRuntimeStates() const;
+    std::vector<PersistedTeamFinanceState> loadTeamFinanceStates() const;
+    std::vector<PersistedPlayerRosterState> loadPlayerRosterStates() const;
     std::vector<PersistedTransferOfferState> loadTransferOfferStates() const;
 
     void saveRuntimeState(
@@ -90,5 +109,7 @@ public:
         const std::vector<MatchReport>& reports,
         const std::vector<PersistedTeamSheetState>& teamSheetStates,
         const std::vector<PersistedPlayerRuntimeState>& playerStates,
+        const std::vector<PersistedTeamFinanceState>& teamFinances,
+        const std::vector<PersistedPlayerRosterState>& playerRosterStates,
         const std::vector<PersistedTransferOfferState>& transferOffers) const;
 };

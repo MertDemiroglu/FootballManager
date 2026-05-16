@@ -61,6 +61,294 @@ namespace {
         return exists;
     }
 
+    struct PlayerLocation {
+        LeagueId leagueId = 0;
+        TeamId teamId = 0;
+        League* league = nullptr;
+        Team* team = nullptr;
+        Footballer* player = nullptr;
+    };
+
+    enum class TeamSheetReconcilePolicy {
+        PreserveManualGaps,
+        AutoFill
+    };
+
+    std::optional<PlayerLocation> findPlayerLocationById(World& world, PlayerId playerId) {
+        if (playerId == 0) {
+            return std::nullopt;
+        }
+
+        std::optional<PlayerLocation> location;
+        world.forEachLeagueContext([&](LeagueContext& context) {
+            if (location.has_value()) {
+                return;
+            }
+            League& league = context.getLeague();
+            for (const auto& [teamId, team] : league.getTeams()) {
+                if (!team) {
+                    continue;
+                }
+                Footballer* player = team->findPlayerById(playerId);
+                if (!player) {
+                    continue;
+                }
+                location = PlayerLocation{ league.getId(), teamId, &league, team.get(), player };
+                return;
+            }
+        });
+        return location;
+    }
+
+    void restoreTeamFinances(World& world, const std::vector<PersistedTeamFinanceState>& teamFinances) {
+        if (teamFinances.empty()) {
+            throw std::runtime_error("save slot is missing runtime team finance state; clear incompatible development saves or start a new game");
+        }
+
+        for (const PersistedTeamFinanceState& state : teamFinances) {
+            LeagueContext* context = world.findLeagueContext(state.leagueId);
+            if (!context) {
+                throw std::runtime_error("runtime team finance references unknown league");
+            }
+            Team* team = context->getLeague().findTeamById(state.teamId);
+            if (!team) {
+                throw std::runtime_error("runtime team finance references unknown team");
+            }
+            team->setBudgetSnapshot(state.totalBudget, state.transferBudget, state.wageBudget);
+        }
+    }
+
+    void restorePlayerRosterState(World& world, const std::vector<PersistedPlayerRosterState>& rosterStates) {
+        if (rosterStates.empty()) {
+            throw std::runtime_error("save slot is missing runtime player roster state; clear incompatible development saves or start a new game");
+        }
+
+        std::unordered_set<PlayerId> restoredPlayerIds;
+        for (const PersistedPlayerRosterState& state : rosterStates) {
+            if (!restoredPlayerIds.insert(state.playerId).second) {
+                throw std::runtime_error("runtime player roster state has duplicate player id");
+            }
+
+            LeagueContext* targetContext = world.findLeagueContext(state.leagueId);
+            if (!targetContext) {
+                throw std::runtime_error("runtime player roster state references unknown league");
+            }
+            Team* targetTeam = targetContext->getLeague().findTeamById(state.teamId);
+            if (!targetTeam) {
+                throw std::runtime_error("runtime player roster state references unknown team");
+            }
+
+            std::optional<PlayerLocation> currentLocation = findPlayerLocationById(world, state.playerId);
+            if (!currentLocation.has_value() || !currentLocation->team) {
+                throw std::runtime_error("runtime player roster state references unknown player");
+            }
+
+            Footballer* restoredPlayer = nullptr;
+            if (currentLocation->leagueId == state.leagueId && currentLocation->teamId == state.teamId) {
+                restoredPlayer = currentLocation->player;
+            }
+            else {
+                if (targetTeam->findPlayerById(state.playerId)) {
+                    throw std::runtime_error("runtime player roster restore would duplicate a player");
+                }
+
+                std::unique_ptr<Footballer> movingPlayer = currentLocation->team->releasePlayer(state.playerId);
+                if (!movingPlayer) {
+                    throw std::runtime_error("runtime player roster restore failed to release player from source team");
+                }
+                targetTeam->addPlayer(std::move(movingPlayer));
+                restoredPlayer = targetTeam->findPlayerById(state.playerId);
+            }
+
+            if (!restoredPlayer) {
+                throw std::runtime_error("runtime player roster restore failed to locate restored player");
+            }
+            restoredPlayer->setTeam(state.teamId);
+
+            if (state.wage.has_value() != state.contractYears.has_value()) {
+                throw std::runtime_error("runtime player roster state has partial contract snapshot");
+            }
+            if (state.wage.has_value() && state.contractYears.has_value()) {
+                restoredPlayer->signContract(*state.wage, *state.contractYears);
+            }
+            if (state.currentSeasonYear >= 0
+                && restoredPlayer->getCurrentSeasonStats().seasonYear != state.currentSeasonYear) {
+                restoredPlayer->initializeSeasonStats(state.currentSeasonYear);
+            }
+        }
+    }
+
+    FormationId resolveTeamSheetFormationForReconcile(const TeamSheet& sheet, const Team& team) {
+        if (isFormationSupported(sheet.formation)) {
+            return sheet.formation;
+        }
+        const TacticalPreferences& preferences = team.getHeadCoach().getTacticalPreferences();
+        if (isFormationSupported(preferences.preferredFormation)) {
+            return preferences.preferredFormation;
+        }
+        return getSupportedFormationIds().front();
+    }
+
+    TeamSheet sanitizeTeamSheetForTeamPreservingGaps(const TeamSheet& sheet, const Team& team) {
+        std::unordered_set<PlayerId> rosterPlayerIds;
+        for (const auto& player : team.getPlayers()) {
+            if (!player || player->getId() == 0) {
+                continue;
+            }
+            rosterPlayerIds.insert(player->getId());
+        }
+
+        TeamSheet sanitizedSheet;
+        sanitizedSheet.teamId = team.getId();
+        sanitizedSheet.coachId = team.getHeadCoach().getId();
+        sanitizedSheet.formation = resolveTeamSheetFormationForReconcile(sheet, team);
+        sanitizedSheet.tacticalSetup = sheet.tacticalSetup;
+
+        std::unordered_set<PlayerId> usedPlayerIds;
+        const std::vector<FormationSlotRole>& slotTemplate = getFormationSlotTemplate(sanitizedSheet.formation);
+        for (const TeamSheetSlotAssignment& assignment : sheet.startingAssignments) {
+            if (assignment.slotIndex >= slotTemplate.size()) {
+                continue;
+            }
+            if (slotTemplate[assignment.slotIndex] != assignment.slotRole) {
+                continue;
+            }
+            if (assignment.playerId == 0 || rosterPlayerIds.find(assignment.playerId) == rosterPlayerIds.end()) {
+                continue;
+            }
+            if (!usedPlayerIds.insert(assignment.playerId).second) {
+                continue;
+            }
+
+            sanitizedSheet.startingAssignments.push_back(assignment);
+            sanitizedSheet.startingPlayerIds.push_back(assignment.playerId);
+        }
+
+        for (PlayerId playerId : sheet.substitutePlayerIds) {
+            if (playerId == 0 || rosterPlayerIds.find(playerId) == rosterPlayerIds.end()) {
+                continue;
+            }
+            if (!usedPlayerIds.insert(playerId).second) {
+                continue;
+            }
+            if (sanitizedSheet.substitutePlayerIds.size() >= kMaxSubstituteCount) {
+                break;
+            }
+            sanitizedSheet.substitutePlayerIds.push_back(playerId);
+        }
+
+        validateTeamSheetForTeam(sanitizedSheet, team);
+        return sanitizedSheet;
+    }
+
+    TeamSheet reconcileTeamSheetForTeamAutoFill(const TeamSheet& sheet, const Team& team) {
+        TeamSheet reconciledSheet = sanitizeTeamSheetForTeamPreservingGaps(sheet, team);
+
+        TeamSelectionService selectionService;
+        TeamSheet generatedSheet = selectionService.buildTeamSheet(team, reconciledSheet.formation);
+        generatedSheet.tacticalSetup = reconciledSheet.tacticalSetup;
+        generatedSheet.coachId = team.getHeadCoach().getId();
+
+        std::unordered_set<PlayerId> rosterPlayerIds;
+        std::vector<PlayerId> rosterOrder;
+        for (const auto& player : team.getPlayers()) {
+            if (!player || player->getId() == 0) {
+                continue;
+            }
+            rosterPlayerIds.insert(player->getId());
+            rosterOrder.push_back(player->getId());
+        }
+
+        std::unordered_set<PlayerId> usedPlayerIds;
+        for (const TeamSheetSlotAssignment& assignment : reconciledSheet.startingAssignments) {
+            usedPlayerIds.insert(assignment.playerId);
+        }
+        for (PlayerId playerId : reconciledSheet.substitutePlayerIds) {
+            usedPlayerIds.insert(playerId);
+        }
+
+        const auto slotFilled = [&](std::size_t slotIndex) {
+            for (const TeamSheetSlotAssignment& assignment : reconciledSheet.startingAssignments) {
+                if (assignment.slotIndex == slotIndex) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        const auto appendStarter = [&](const TeamSheetSlotAssignment& assignment) {
+            if (assignment.playerId == 0 || rosterPlayerIds.find(assignment.playerId) == rosterPlayerIds.end()) {
+                return false;
+            }
+            if (slotFilled(assignment.slotIndex)) {
+                return false;
+            }
+            if (!usedPlayerIds.insert(assignment.playerId).second) {
+                return false;
+            }
+            reconciledSheet.startingAssignments.push_back(assignment);
+            reconciledSheet.startingPlayerIds.push_back(assignment.playerId);
+            return true;
+        };
+
+        for (const TeamSheetSlotAssignment& generatedAssignment : generatedSheet.startingAssignments) {
+            (void)appendStarter(generatedAssignment);
+        }
+
+        for (const PlayerId playerId : rosterOrder) {
+            if (reconciledSheet.startingAssignments.size() >= generatedSheet.startingAssignments.size()) {
+                break;
+            }
+            if (usedPlayerIds.find(playerId) != usedPlayerIds.end()) {
+                continue;
+            }
+            for (const TeamSheetSlotAssignment& generatedAssignment : generatedSheet.startingAssignments) {
+                if (!slotFilled(generatedAssignment.slotIndex)) {
+                    (void)appendStarter(TeamSheetSlotAssignment{ generatedAssignment.slotIndex, generatedAssignment.slotRole, playerId });
+                    break;
+                }
+            }
+        }
+
+        const auto appendSubstitute = [&](PlayerId playerId) {
+            if (playerId == 0 || rosterPlayerIds.find(playerId) == rosterPlayerIds.end()) {
+                return false;
+            }
+            if (usedPlayerIds.find(playerId) != usedPlayerIds.end()) {
+                return false;
+            }
+            if (reconciledSheet.substitutePlayerIds.size() >= kMaxSubstituteCount) {
+                return false;
+            }
+            usedPlayerIds.insert(playerId);
+            reconciledSheet.substitutePlayerIds.push_back(playerId);
+            return true;
+        };
+
+        for (PlayerId playerId : generatedSheet.substitutePlayerIds) {
+            (void)appendSubstitute(playerId);
+        }
+        for (PlayerId playerId : rosterOrder) {
+            if (reconciledSheet.substitutePlayerIds.size() >= kMaxSubstituteCount) {
+                break;
+            }
+            (void)appendSubstitute(playerId);
+        }
+
+        validateTeamSheetForTeam(reconciledSheet, team);
+        return reconciledSheet;
+    }
+
+    TeamSheet reconcileTeamSheetForTeam(
+        const TeamSheet& sheet,
+        const Team& team,
+        TeamSheetReconcilePolicy policy) {
+        if (policy == TeamSheetReconcilePolicy::PreserveManualGaps) {
+            return sanitizeTeamSheetForTeamPreservingGaps(sheet, team);
+        }
+        return reconcileTeamSheetForTeamAutoFill(sheet, team);
+    }
+
     PersistedTransferOfferState toPersistedTransferOfferState(const TransferOffer& offer) {
         PersistedTransferOfferState state;
         state.offerId = offer.id;
@@ -162,7 +450,7 @@ void Game::ensureSaveMetadata(const GameBootstrapOptions& bootstrapOptions) {
         defaultMetadata.managedLeagueId = user.getManagedLeagueId();
         defaultMetadata.managedTeamId = user.getManagedTeamId();
         defaultMetadata.currentDate = dateToIsoString(date);
-        defaultMetadata.schemaVersion = 4;
+        defaultMetadata.schemaVersion = 5;
         defaultMetadata.worldVersion = 1;
         repository.insertDefault(defaultMetadata);
     }
@@ -209,6 +497,8 @@ void Game::restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions) {
     const std::vector<MatchReport> reports = repository.loadMatchReports();
     const std::vector<PersistedTeamSheetState> teamSheetStates = repository.loadTeamSheetStates();
     const std::vector<PersistedPlayerRuntimeState> playerStates = repository.loadPlayerRuntimeStates();
+    const std::vector<PersistedTeamFinanceState> teamFinanceStates = repository.loadTeamFinanceStates();
+    const std::vector<PersistedPlayerRosterState> playerRosterStates = repository.loadPlayerRosterStates();
     const std::vector<PersistedTransferOfferState> transferOfferStates = repository.loadTransferOfferStates();
 
     if (leagueStates.empty()) {
@@ -219,6 +509,12 @@ void Game::restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions) {
     }
     if (playerStates.empty()) {
         throw std::runtime_error("save slot is missing player runtime state");
+    }
+    if (teamFinanceStates.empty()) {
+        throw std::runtime_error("save slot is missing runtime team finance state; clear incompatible development saves or start a new game");
+    }
+    if (playerRosterStates.empty()) {
+        throw std::runtime_error("save slot is missing runtime player roster state; clear incompatible development saves or start a new game");
     }
 
     std::unordered_map<LeagueId, PersistedLeagueRuntimeState> stateByLeague;
@@ -315,6 +611,9 @@ void Game::restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions) {
             fixture.matchweek);
     }
 
+    restoreTeamFinances(world, teamFinanceStates);
+    restorePlayerRosterState(world, playerRosterStates);
+
     for (const PersistedPlayerRuntimeState& state : playerStates) {
         Footballer* player = nullptr;
         world.forEachLeagueContext([&](LeagueContext& context) {
@@ -343,9 +642,16 @@ void Game::restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions) {
             throw std::runtime_error("runtime team sheet references unknown team");
         }
 
-        state.teamSheet.coachId = team->getHeadCoach().getId();
-        validateTeamSheetForTeam(state.teamSheet, *team);
-        team->setSelectedTeamSheet(std::move(state.teamSheet));
+        const bool isManagedTeamSheet =
+            state.leagueId == user.getManagedLeagueId()
+            && state.teamSheet.teamId == user.getManagedTeamId();
+        const TeamSheetReconcilePolicy policy = isManagedTeamSheet
+            ? TeamSheetReconcilePolicy::PreserveManualGaps
+            : TeamSheetReconcilePolicy::AutoFill;
+        TeamSheet reconciledSheet = reconcileTeamSheetForTeam(state.teamSheet, *team, policy);
+        // TODO: Managed-team incomplete sheets should become a "lineup requires attention"
+        // interaction before kickoff once active interactions persist.
+        team->setSelectedTeamSheet(std::move(reconciledSheet));
     }
 
     std::vector<TransferOffer> transferOffers;
@@ -353,8 +659,8 @@ void Game::restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions) {
     for (const PersistedTransferOfferState& state : transferOfferStates) {
         transferOffers.push_back(toTransferOffer(state));
     }
-    // Restoring resolved transfer offers only restores their persisted state.
-    // Accepted transfer roster/budget effects require Roster Mutation Persistence.
+    // Restoring resolved transfer offers only restores offer state/history.
+    // Accepted transfer roster/budget effects are restored from runtime roster/finance tables.
     world.getTransferOfferService().restoreOffers(std::move(transferOffers));
 
     SqliteSaveMetadataRepository metadataRepository(saveMetadataDbPath);
@@ -375,6 +681,8 @@ void Game::persistRuntimeState() {
     std::vector<MatchReport> reports;
     std::vector<PersistedTeamSheetState> teamSheetStates;
     std::vector<PersistedPlayerRuntimeState> playerStates;
+    std::vector<PersistedTeamFinanceState> teamFinances;
+    std::vector<PersistedPlayerRosterState> playerRosterStates;
     std::vector<PersistedTransferOfferState> transferOffers;
 
     world.forEachLeagueContext([&](const LeagueContext& context) {
@@ -422,6 +730,13 @@ void Game::persistRuntimeState() {
             if (const TeamSheet* selectedTeamSheet = team->getSelectedTeamSheet()) {
                 teamSheetStates.push_back(PersistedTeamSheetState{ league.getId(), *selectedTeamSheet });
             }
+            teamFinances.push_back(PersistedTeamFinanceState{
+                league.getId(),
+                team->getId(),
+                team->getTotalBudget(),
+                team->getTransferBudget(),
+                team->getWageBudget()
+            });
             for (const auto& player : team->getPlayers()) {
                 if (!player) {
                     continue;
@@ -433,6 +748,16 @@ void Game::persistRuntimeState() {
                     condition.getFitness(),
                     condition.getMorale()
                 });
+                PersistedPlayerRosterState rosterState;
+                rosterState.playerId = player->getId();
+                rosterState.leagueId = league.getId();
+                rosterState.teamId = team->getId();
+                if (const Contract* contract = player->getContract()) {
+                    rosterState.wage = contract->getWage();
+                    rosterState.contractYears = contract->getYearsRemaining();
+                }
+                rosterState.currentSeasonYear = player->getCurrentSeasonStats().seasonYear;
+                playerRosterStates.push_back(rosterState);
             }
         }
     });
@@ -441,9 +766,18 @@ void Game::persistRuntimeState() {
         transferOffers.push_back(toPersistedTransferOfferState(offer));
     }
 
-    // TODO: Accepted transfer roster/budget effects require Roster Mutation Persistence.
     SqliteGameStateRepository repository(saveMetadataDbPath);
-    repository.saveRuntimeState(date, static_cast<int>(state), leagueStates, fixtures, reports, teamSheetStates, playerStates, transferOffers);
+    repository.saveRuntimeState(
+        date,
+        static_cast<int>(state),
+        leagueStates,
+        fixtures,
+        reports,
+        teamSheetStates,
+        playerStates,
+        teamFinances,
+        playerRosterStates,
+        transferOffers);
 }
 
 void Game::validateRuntimeDateConsistency(const char* context) const {
@@ -552,9 +886,17 @@ TeamSheet Game::resolveCompleteTeamSheetForTeam(LeagueId leagueId, TeamId teamId
         return selectedSheet;
     }
 
+    const bool isManagedTeam =
+        leagueId == user.getManagedLeagueId()
+        && teamId == user.getManagedTeamId();
+    if (isManagedTeam) {
+        // TODO: Managed-team incomplete lineups should block kickoff with a
+        // "lineup requires attention" interaction instead of falling through
+        // to play-match validation.
+        return selectedSheet;
+    }
+
     TeamSelectionService selectionService;
-    // TODO: Managed team invalid/incomplete sheets should later produce a
-    // "lineup requires attention" interaction instead of being reconciled here.
     // TODO: AI matchday sheets should later reconcile availability, condition,
     // injuries, suspensions, transfers, and coach tactical profile.
     TeamSheet generatedSheet = selectionService.buildTeamSheet(*team, selectedSheet.formation);
@@ -562,6 +904,29 @@ TeamSheet Game::resolveCompleteTeamSheetForTeam(LeagueId leagueId, TeamId teamId
     validateTeamSheetForTeam(generatedSheet, *team);
     team->setSelectedTeamSheet(generatedSheet);
     return *team->getSelectedTeamSheet();
+}
+
+void Game::reconcileSelectedTeamSheetForTeam(LeagueId leagueId, TeamId teamId, bool preserveManualGaps) {
+    LeagueContext* context = world.findLeagueContext(leagueId);
+    if (!context) {
+        return;
+    }
+
+    Team* team = context->getLeague().findTeamById(teamId);
+    if (!team) {
+        return;
+    }
+
+    const TeamSheet* selectedTeamSheet = team->getSelectedTeamSheet();
+    if (!selectedTeamSheet) {
+        return;
+    }
+
+    const TeamSheetReconcilePolicy policy = preserveManualGaps
+        ? TeamSheetReconcilePolicy::PreserveManualGaps
+        : TeamSheetReconcilePolicy::AutoFill;
+    TeamSheet reconciledSheet = reconcileTeamSheetForTeam(*selectedTeamSheet, *team, policy);
+    team->setSelectedTeamSheet(std::move(reconciledSheet));
 }
 
 Game::~Game() = default;
@@ -1255,10 +1620,23 @@ bool Game::acceptTransferOffer(OfferId offerId) {
     }
 
     const bool accepted = world.getTransferOfferService().acceptOffer(offerId, date);
-    persistRuntimeState();
     if (!accepted) {
+        persistRuntimeState();
         return false;
     }
+
+    const auto isManagedAffectedTeam = [&](LeagueId leagueId, TeamId teamId) {
+        return leagueId == managedLeagueId && teamId == managedTeamId;
+    };
+    reconcileSelectedTeamSheetForTeam(
+        offer->sellerLeagueId,
+        offer->sellerTeamId,
+        isManagedAffectedTeam(offer->sellerLeagueId, offer->sellerTeamId));
+    reconcileSelectedTeamSheetForTeam(
+        offer->buyerLeagueId,
+        offer->buyerTeamId,
+        isManagedAffectedTeam(offer->buyerLeagueId, offer->buyerTeamId));
+    persistRuntimeState();
 
     const TransferOfferDecisionInteraction* interaction = getActiveTransferOfferDecisionInteraction();
     if (interaction && interaction->getOfferId() == offerId) {

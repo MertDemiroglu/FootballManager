@@ -31,7 +31,8 @@ This document locks the current save/load ownership model after the save-slot wo
 - `TeamSheet` owns the selected/current match squad: formation, starting assignments, substitutes, and active `TacticalSetup`.
 - `PreMatchInteraction` should own match-specific frozen team sheets once active interaction persistence exists. Until then, `Game` may hold pending pre-match home/away snapshots as temporary orchestration state only.
 - `SaveMetadata` is display/cache state for save cards and identity. It must not drive gameplay or hold mutable world state.
-- Runtime DB tables are the source of persisted game runtime state. `game_state`, league runtime rows, fixtures, match reports, player runtime state, and team-sheet tables restore the playable world.
+- Runtime DB tables are the source of persisted game runtime state. `game_state`, league runtime rows, fixtures, match reports, player runtime state, roster ownership, team finances, transfer offers, and team-sheet tables restore the playable world.
+- Runtime roster ownership and team finance snapshots are the source of truth for accepted transfer effects after load. Resolved transfer offers are restored as offer state/history only; they are not replayed as commands.
 - QML is presentation only. It may hold transient UI selection/highlight state, but gameplay source of truth must come from `GameFacade`/core models and mutations must write back through backend methods.
 
 ## Persisted State
@@ -143,6 +144,29 @@ Stores mutable player condition state: form, fitness, and morale.
 - Authority: authoritative persisted condition override over seed player data.
 - Multi-league implication: player condition is saved for all players in all loaded league contexts.
 
+### `runtime_team_finances`
+
+Stores mutable team budget snapshots: total budget, transfer budget, and wage budget for each league/team.
+
+- Writer: `Game::persistRuntimeState`, via `SqliteGameStateRepository::saveRuntimeState`.
+- Reader/restorer: `SqliteGameStateRepository::loadTeamFinanceStates`, then `Game::restoreRuntimeState` calls `Team::setBudgetSnapshot`.
+- Saved when: runtime state is persisted, including accepted transfers and monthly wage/payment changes.
+- Authority: authoritative mutable finance snapshot after load. Seed team budgets are bootstrap defaults only.
+- Multi-league implication: rows are keyed by `league_id`/`team_id`; this is full-world state and is not managed-team-only.
+
+### `runtime_player_roster_state`
+
+Stores mutable player ownership and contract snapshot for team-owned players: player id, owning league/team, wage, contract years, and current season year.
+
+- Writer: `Game::persistRuntimeState`, one row for every player currently owned by every team.
+- Reader/restorer: `SqliteGameStateRepository::loadPlayerRosterStates`, then `Game::restoreRuntimeState` moves players between teams with `Team::releasePlayer` / `Team::addPlayer`.
+- Saved when: runtime state is persisted, including accepted transfer roster moves and contract-year changes.
+- Authority: authoritative runtime roster membership after load. Accepted transfer effects survive reload through this table, not by replaying accepted transfer offers.
+- Validation note: bootstrap player/team ids are used only for existence checks. Current player ownership is validated from `runtime_player_roster_state`, and schema v5 saves require every bootstrap player to appear exactly once in that runtime snapshot until free-agent persistence is introduced.
+- Contract note: when wage/contract years are present, restore calls `Footballer::signContract`; partial contract snapshots are invalid.
+- Team sheet note: after roster restore, selected `TeamSheet`s are validated and reconciled so transferred-away players are removed from starters/substitutes while preserving formation and tactical setup where possible. Managed-team sheets preserve manual gaps; AI/non-managed sheets are auto-filled.
+- Multi-league implication: ownership is stored with both `league_id` and `team_id`, so cross-league moves have a durable destination.
+
 ### `runtime_team_sheets`
 
 Stores selected match squad headers per league/team: formation, mentality, and tempo.
@@ -152,6 +176,7 @@ Stores selected match squad headers per league/team: formation, mentality, and t
 - Saved when: runtime state is persisted, including lineup editor changes and auto-select updates.
 - Authority: `Team` owns the current/default selected `TeamSheet`. `Game` only orchestrates create/update/ensure/resolve flow and persistence snapshots. `save_metadata` must not store lineup or tactical state.
 - Multi-league implication: rows are keyed by `league_id`/`team_id`; this is full-world state, not managed-team-only state.
+- Roster reconciliation note: accepted transfers reconcile affected seller/buyer selected sheets before persisting, and load-time restore repairs any remaining invalid selected sheets after runtime roster restoration. Managed-team reconciliation removes invalid sold/transferred-away players but does not silently fill missing starters or substitutes; the Lineup Editor keeps those positions empty until the user assigns a player or presses Auto Select. AI/non-managed reconciliation auto-fills so those sheets remain current. The future managed-team UX should surface a "lineup requires attention" interaction before kickoff.
 - Tactical identity note: `HeadCoach` owns `TacticalPreferences`, which are coach/team defaults. `TacticalSetup` is the active match-squad setup persisted in `TeamSheet`.
 - Match engine note: tactical setup currently supports mentality and tempo only. It persists, but does not affect simulation yet; the future match engine rewrite should consume `TacticalSetup`.
 
@@ -186,7 +211,7 @@ Stores transfer offer runtime state: offer id, created date, last valid date, ex
 - Stable codes: expiry policy uses `fourteen_day_limit` / `window_close_limit`; status uses `pending` / `resolved`; resolution uses `accepted`, `rejected`, `expired_by_deadline`, or `expired_by_window_close`.
 - ID recovery: restore replaces the in-memory offer map and sets `nextOfferId` to max persisted offer id + 1, so new offers created after load do not collide.
 - Multi-league implication: seller and buyer league/team ids are persisted for every offer. The table is full-world state and is not scoped to the managed team.
-- Scope note: accepted offer status/resolution persists, but roster and budget side effects still require Roster Mutation Persistence. Active transfer decision UI state still requires Active Interaction Persistence.
+- Scope note: accepted offer status/resolution persists separately from roster/budget state. Restore never replays accepted offers; `runtime_player_roster_state` and `runtime_team_finances` are the source of truth for accepted transfer effects. Active transfer decision UI state still requires Active Interaction Persistence.
 
 ## Validation Ownership
 
@@ -201,6 +226,10 @@ Stores transfer offer runtime state: offer id, created date, last valid date, ex
 - Runtime team sheet formation, slot roles, starter ids, substitutes, and tactical stable codes are valid.
 - Runtime team sheets have no duplicate starters, duplicate substitutes, or starter/substitute overlap.
 - Runtime team sheets do not exceed 10 substitutes.
+- Runtime team sheets may be incomplete when structurally valid; missing managed-team assignments represent empty lineup slots and are not stored as `player_id = 0`.
+- Runtime team finance rows reference known leagues/teams and have non-negative budgets.
+- Runtime player roster rows reference known players/leagues/teams, have no duplicate player ids, cover every bootstrap player once, have valid contract snapshots, and align with player condition rows.
+- Runtime team sheets do not reference players outside the team identified by `runtime_player_roster_state`; bootstrap roster ownership is not used as current ownership after transfers.
 - Runtime transfer offer ids, dates, fees, seller/buyer ids, player ids, stable codes, pending/resolved resolution rules, duplicate pending seller/buyer/player rows, and pending last-valid dates are valid.
 - Current game date is within the SQL-loaded league season window for each league runtime row.
 - Fixture dates fit their SQL-loaded league kickoff/season window.
@@ -230,34 +259,12 @@ Stores transfer offer runtime state: offer id, created date, last valid date, ex
 - Suggested priority: medium.
 - Storage direction: active interaction payload referencing persisted match report id.
 
-### Transfer decisions
+### Deeper finance/contract systems
 
-- Why it matters: accepted/rejected decisions mutate roster and finances.
-- Current state: transfer offer status/resolution is persisted so accepted/rejected/expired offers do not reappear as pending.
-- Current risk: accepted roster/budget side effects still do not survive load until roster and finance mutation persistence exists.
-- Suggested priority: after transfer offer state persistence.
-- Storage direction: roster membership, contract, and finance transaction records rather than replaying resolved offers on restore.
-
-### Roster mutations
-
-- Why it matters: transfers and contracts change team membership over time.
-- Current risk: seed rosters may override runtime roster changes on load.
-- Suggested priority: after transfer decisions.
-- Storage direction: runtime player-team membership and contract tables, or domain event snapshots.
-
-### Budgets/finance
-
-- Why it matters: wages, transfer budgets, payments, and income affect gameplay decisions.
-- Current risk: financial changes may reset to seed values.
-- Suggested priority: with roster/transfer persistence.
-- Storage direction: team finance runtime table keyed by `league_id`/`team_id`.
-
-### Contract changes
-
-- Why it matters: contract years decrease and free-agent collection mutates season state.
-- Current risk: contract state may diverge from saved season progress.
-- Suggested priority: with roster mutation persistence.
-- Storage direction: player contract runtime table.
+- Current state: team budget snapshots and player contract wage/year snapshots persist for team-owned players.
+- Remaining work: richer finance ledgers, free-agent persistence, contract renewal UI, contract negotiation history, and long-term transaction reporting.
+- Suggested priority: after active interaction persistence unless transfer gameplay exposes a blocker.
+- Storage direction: transaction/ledger tables and explicit free-agent runtime state.
 
 ### Completed season archive/history
 

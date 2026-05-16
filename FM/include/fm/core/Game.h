@@ -70,6 +70,7 @@ private:
     TeamSheet createTeamSheetForTeam(const Team& team) const;
     TeamSheet& ensureTeamSheetForTeam(LeagueId leagueId, TeamId teamId);
     TeamSheet resolveCompleteTeamSheetForTeam(LeagueId leagueId, TeamId teamId);
+    void reconcileSelectedTeamSheetForTeam(LeagueId leagueId, TeamId teamId, bool preserveManualGaps);
 
 	void temporaryForDebug_tryCreateWeeklyManagedTransferOffer();
 public:
