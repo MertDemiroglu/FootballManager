@@ -1,5 +1,5 @@
 PRAGMA foreign_keys = ON;
-PRAGMA user_version = 6;
+PRAGMA user_version = 7;
 
 CREATE TABLE IF NOT EXISTS save_metadata (
     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS save_metadata (
     "current_date" TEXT NOT NULL,
     created_at_utc TEXT NOT NULL,
     updated_at_utc TEXT NOT NULL,
-    schema_version INTEGER NOT NULL DEFAULT 6,
+    schema_version INTEGER NOT NULL DEFAULT 7,
     world_version INTEGER NOT NULL DEFAULT 1
 );
 
@@ -182,6 +182,19 @@ CREATE TABLE IF NOT EXISTS runtime_player_roster_state (
     FOREIGN KEY (league_id) REFERENCES leagues(id),
     FOREIGN KEY (team_id) REFERENCES teams(id),
     FOREIGN KEY (player_id) REFERENCES players(id)
+);
+
+CREATE TABLE IF NOT EXISTS runtime_free_agents (
+    player_id INTEGER PRIMARY KEY,
+    previous_league_id INTEGER,
+    previous_team_id INTEGER,
+    became_free_agent_date TEXT,
+    wage INTEGER,
+    contract_years INTEGER,
+    current_season_year INTEGER,
+    FOREIGN KEY (player_id) REFERENCES players(id),
+    FOREIGN KEY (previous_league_id) REFERENCES leagues(id),
+    FOREIGN KEY (previous_team_id) REFERENCES teams(id)
 );
 
 CREATE TABLE IF NOT EXISTS leagues (

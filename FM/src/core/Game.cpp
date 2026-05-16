@@ -100,6 +100,20 @@ namespace {
         return location;
     }
 
+    Footballer* findRuntimePlayerById(World& world, PlayerId playerId) {
+        std::optional<PlayerLocation> location = findPlayerLocationById(world, playerId);
+        if (location.has_value()) {
+            return location->player;
+        }
+
+        for (const auto& freeAgent : world.getTransferRoom().getFreeAgents()) {
+            if (freeAgent && freeAgent->getId() == playerId) {
+                return freeAgent.get();
+            }
+        }
+        return nullptr;
+    }
+
     void restoreTeamFinances(World& world, const std::vector<PersistedTeamFinanceState>& teamFinances) {
         if (teamFinances.empty()) {
             throw std::runtime_error("save slot is missing runtime team finance state; clear incompatible development saves or start a new game");
@@ -176,6 +190,50 @@ namespace {
                 restoredPlayer->initializeSeasonStats(state.currentSeasonYear);
             }
         }
+    }
+
+    void restoreFreeAgentState(World& world, const std::vector<PersistedFreeAgentState>& freeAgentStates) {
+        std::unordered_set<PlayerId> restoredPlayerIds;
+        std::vector<std::unique_ptr<Footballer>> restoredFreeAgents;
+        restoredFreeAgents.reserve(freeAgentStates.size());
+
+        for (const PersistedFreeAgentState& state : freeAgentStates) {
+            if (state.playerId == 0) {
+                throw std::runtime_error("runtime free agent state has an invalid player id");
+            }
+            if (!restoredPlayerIds.insert(state.playerId).second) {
+                throw std::runtime_error("runtime free agent state has duplicate player id");
+            }
+
+            std::optional<PlayerLocation> currentLocation = findPlayerLocationById(world, state.playerId);
+            if (!currentLocation.has_value() || !currentLocation->team) {
+                throw std::runtime_error("runtime free agent state references unknown player");
+            }
+
+            std::unique_ptr<Footballer> freeAgent = currentLocation->team->releasePlayer(state.playerId);
+            if (!freeAgent) {
+                throw std::runtime_error("runtime free agent restore failed to release player from source team");
+            }
+
+            freeAgent->setTeam(0);
+            if (state.wage.has_value() != state.contractYears.has_value()) {
+                throw std::runtime_error("runtime free agent state has partial contract snapshot");
+            }
+            if (state.wage.has_value() && state.contractYears.has_value()) {
+                freeAgent->signContract(*state.wage, *state.contractYears);
+            }
+            else {
+                freeAgent->clearContract();
+            }
+            if (state.currentSeasonYear.has_value()
+                && *state.currentSeasonYear >= 0
+                && freeAgent->getCurrentSeasonStats().seasonYear != *state.currentSeasonYear) {
+                freeAgent->initializeSeasonStats(*state.currentSeasonYear);
+            }
+            restoredFreeAgents.push_back(std::move(freeAgent));
+        }
+
+        world.getTransferRoom().restoreFreeAgents(std::move(restoredFreeAgents));
     }
 
     FormationId resolveTeamSheetFormationForReconcile(const TeamSheet& sheet, const Team& team) {
@@ -499,6 +557,7 @@ void Game::restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions) {
     const std::vector<PersistedPlayerRuntimeState> playerStates = repository.loadPlayerRuntimeStates();
     const std::vector<PersistedTeamFinanceState> teamFinanceStates = repository.loadTeamFinanceStates();
     const std::vector<PersistedPlayerRosterState> playerRosterStates = repository.loadPlayerRosterStates();
+    const std::vector<PersistedFreeAgentState> freeAgentStates = repository.loadFreeAgentStates();
     const std::vector<PersistedTransferOfferState> transferOfferStates = repository.loadTransferOfferStates();
 
     if (leagueStates.empty()) {
@@ -613,14 +672,10 @@ void Game::restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions) {
 
     restoreTeamFinances(world, teamFinanceStates);
     restorePlayerRosterState(world, playerRosterStates);
+    restoreFreeAgentState(world, freeAgentStates);
 
     for (const PersistedPlayerRuntimeState& state : playerStates) {
-        Footballer* player = nullptr;
-        world.forEachLeagueContext([&](LeagueContext& context) {
-            if (!player) {
-                player = context.getLeague().findPlayerById(state.playerId);
-            }
-        });
+        Footballer* player = findRuntimePlayerById(world, state.playerId);
         if (!player) {
             throw std::runtime_error("player runtime state references unknown player");
         }
@@ -683,6 +738,7 @@ void Game::persistRuntimeState() {
     std::vector<PersistedPlayerRuntimeState> playerStates;
     std::vector<PersistedTeamFinanceState> teamFinances;
     std::vector<PersistedPlayerRosterState> playerRosterStates;
+    std::vector<PersistedFreeAgentState> freeAgentStates;
     std::vector<PersistedTransferOfferState> transferOffers;
 
     world.forEachLeagueContext([&](const LeagueContext& context) {
@@ -762,6 +818,31 @@ void Game::persistRuntimeState() {
         }
     });
 
+    for (const auto& freeAgent : world.getTransferRoom().getFreeAgents()) {
+        if (!freeAgent) {
+            continue;
+        }
+        const PlayerConditionState& condition = freeAgent->getConditionState();
+        playerStates.push_back(PersistedPlayerRuntimeState{
+            freeAgent->getId(),
+            condition.getForm(),
+            condition.getFitness(),
+            condition.getMorale()
+        });
+
+        PersistedFreeAgentState freeAgentState;
+        freeAgentState.playerId = freeAgent->getId();
+        if (const Contract* contract = freeAgent->getContract()) {
+            freeAgentState.wage = contract->getWage();
+            freeAgentState.contractYears = contract->getYearsRemaining();
+        }
+        const int seasonYear = freeAgent->getCurrentSeasonStats().seasonYear;
+        if (seasonYear >= 0) {
+            freeAgentState.currentSeasonYear = seasonYear;
+        }
+        freeAgentStates.push_back(freeAgentState);
+    }
+
     for (const TransferOffer& offer : world.getTransferOfferService().exportOffers()) {
         transferOffers.push_back(toPersistedTransferOfferState(offer));
     }
@@ -777,6 +858,7 @@ void Game::persistRuntimeState() {
         playerStates,
         teamFinances,
         playerRosterStates,
+        freeAgentStates,
         transferOffers);
 }
 
@@ -1019,6 +1101,10 @@ Game::Game(const GameBootstrapOptions& bootstrapOptions)
     default:
         throw std::invalid_argument("unsupported game bootstrap mode");
     }
+
+    world.getTransferRoom().setRuntimeMutationCallback([this]() {
+        requestRuntimeSave(SaveReason::FreeAgentPoolChanged);
+    });
 
     world.getDomainEventPublisher().subscribeMatchPlayed([this](const MatchPlayedEvent& event) {
         const LeagueId managedLeagueId = user.getManagedLeagueId();

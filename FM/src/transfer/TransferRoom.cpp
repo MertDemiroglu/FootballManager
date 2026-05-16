@@ -8,6 +8,8 @@
 
 #include<algorithm>
 #include<iostream>
+#include<stdexcept>
+#include<utility>
 	
 TransferRoom::TransferRoom() = default;
 
@@ -17,8 +19,47 @@ void TransferRoom::bindWorld(World& worldRef) {
 	world = &worldRef;
 }
 
+void TransferRoom::setRuntimeMutationCallback(std::function<void()> callback) {
+	runtimeMutationCallback = std::move(callback);
+}
+
+void TransferRoom::notifyRuntimeMutation() const {
+	if (runtimeMutationCallback) {
+		runtimeMutationCallback();
+	}
+}
+
 void TransferRoom::addFreeAgent(std::unique_ptr<Footballer> player) {
+	if (!player) {
+		return;
+	}
+	const PlayerId playerId = player->getId();
+	if (playerId == 0) {
+		throw std::invalid_argument("free agent player id cannot be zero");
+	}
+	const auto duplicate = std::find_if(freeAgents.begin(), freeAgents.end(), [&](const std::unique_ptr<Footballer>& existing) {
+		return existing && existing->getId() == playerId;
+	});
+	if (duplicate != freeAgents.end()) {
+		throw std::logic_error("duplicate free agent player id");
+	}
+	player->setTeam(0);
 	freeAgents.push_back(std::move(player));
+}
+
+const std::vector<std::unique_ptr<Footballer>>& TransferRoom::getFreeAgents() const {
+	return freeAgents;
+}
+
+void TransferRoom::clearFreeAgents() {
+	freeAgents.clear();
+}
+
+void TransferRoom::restoreFreeAgents(std::vector<std::unique_ptr<Footballer>> players) {
+	clearFreeAgents();
+	for (auto& player : players) {
+		addFreeAgent(std::move(player));
+	}
 }
 
 void TransferRoom::listFreeAgents() const {
@@ -98,6 +139,13 @@ bool TransferRoom::transferFreeAgent(LeagueId toLeagueId, TeamId toTeamId, Playe
 	if (!team) {
 		return false;
 	}
+	constexpr Money negotiatedWage = Money(1000);
+	if (!team->canAffordWage(negotiatedWage)) {
+		return false;
+	}
+	if (team->findPlayerById(playerId)) {
+		return false;
+	}
 
 	auto it = std::find_if(freeAgents.begin(), freeAgents.end(), [&](const std::unique_ptr<Footballer>& p) { return p->getId() == playerId; });
 	
@@ -107,7 +155,10 @@ bool TransferRoom::transferFreeAgent(LeagueId toLeagueId, TeamId toTeamId, Playe
 
 	auto player = it->get();
 	player->setTeam(team->getId());
-	negotiateContract(team, player);
+	if (!negotiateContract(team, player)) {
+		player->setTeam(0);
+		return false;
+	}
 
 	std::unique_ptr<Footballer> movingPlayer = std::move(*it);
 	freeAgents.erase(it);
@@ -119,6 +170,7 @@ bool TransferRoom::transferFreeAgent(LeagueId toLeagueId, TeamId toTeamId, Playe
 		signedPlayer->initializeSeasonStats(buyerLeague->getCurrentSeasonYear());
 	}
 
+	notifyRuntimeMutation();
 	return true;
 }
 bool TransferRoom::negotiateContract(Team* team, Footballer* player) {
@@ -151,14 +203,20 @@ void TransferRoom::collectFreeAgentsFromLeague(LeagueId leagueId) {
 		return;
 	}
 
+	bool movedAnyPlayer = false;
 	for (const auto& [teamId, teamPtr] : context->getLeague().getTeams()) {
 		(void)teamId;
 		auto expiredPlayers = teamPtr->collectExpiredContracts();
 
 		for (auto& p : expiredPlayers) {
 			p->setTeam(0);
+			p->clearContract();
 			addFreeAgent(std::move(p));
+			movedAnyPlayer = true;
 		}
+	}
+	if (movedAnyPlayer) {
+		notifyRuntimeMutation();
 	}
 }
 

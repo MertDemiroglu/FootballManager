@@ -4,6 +4,7 @@
 #include<string>
 #include<algorithm>
 #include<unordered_map>
+#include<functional>
 
 #include"fm/common/Types.h"
 
@@ -17,6 +18,9 @@ private:
 	World* world = nullptr;
 	std::vector <std::unique_ptr<Footballer>> freeAgents;
 	std::unordered_map<LeagueId, bool> transferWindowByLeagueId;
+	std::function<void()> runtimeMutationCallback;
+
+	void notifyRuntimeMutation() const;
 
 public:
 	TransferRoom();
@@ -24,9 +28,13 @@ public:
 	explicit TransferRoom(World& world);
 
 	void bindWorld(World& world);
+	void setRuntimeMutationCallback(std::function<void()> callback);
 
 	//Boþtaki oyuncuyu Transfer Room vektörüne ekler
 	void addFreeAgent(std::unique_ptr<Footballer> player);
+	const std::vector<std::unique_ptr<Footballer>>& getFreeAgents() const;
+	void clearFreeAgents();
+	void restoreFreeAgents(std::vector<std::unique_ptr<Footballer>> players);
 	//Boþtaki oyuncularý yazdýrýr
 	void listFreeAgents() const;
 

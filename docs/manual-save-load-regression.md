@@ -101,11 +101,28 @@ Use this as a practical manual test checklist for current checkpoint-based save/
 11. Load/continue the save.
 12. Confirm player ownership, `teamId`, budgets, accepted offer status, and affected TeamSheets remain consistent.
 
+## Free Agent Persistence
+
+1. Clear or rename the AppData saves folder.
+2. Create New Game.
+3. Force or simulate a player becoming a free agent if the current debug flow supports it.
+4. Confirm the player is removed from his team.
+5. Confirm the player no longer appears in the previous team's Lineup Editor roster.
+6. If the player was selected by the managed team, confirm the affected lineup slot becomes empty.
+7. Save, close, reopen, and load/continue.
+8. Confirm the player remains a free agent and is not restored to the old team.
+9. Confirm the selected `TeamSheet` no longer references the free agent.
+10. If `transferFreeAgent` can be triggered, sign the free agent to a team and confirm he leaves `freeAgents` and appears in the target team.
+11. Save/load again and confirm the signed player's ownership remains correct.
+12. Confirm normal accepted transfer persistence still works.
+13. Confirm Load Game does not skip the save.
+14. Confirm `RuntimeSaveValidator` accepts the save.
+
 ## Save Metadata / Validation Checks
 
 1. Confirm old incompatible saves may be skipped with clear messages such as missing runtime team finance state or missing SQL league rules rows.
 2. Confirm no transfer offer, roster ownership, budget state, or autosave setting is stored in `save_metadata`.
-3. Confirm `runtime_transfer_offers`, `runtime_team_finances`, `runtime_player_roster_state`, and `runtime_save_settings` contain their expected data.
+3. Confirm `runtime_transfer_offers`, `runtime_team_finances`, `runtime_player_roster_state`, `runtime_free_agents`, and `runtime_save_settings` contain their expected data.
 4. Confirm RuntimeSaveValidator accepts a valid save.
 5. Confirm the Load Game card displays manager-team and the in-game date.
 6. Confirm no real-world date appears as Game Date unless the simulation actually reaches that date.
@@ -118,4 +135,4 @@ Use this as a practical manual test checklist for current checkpoint-based save/
 - Closing while a post-match report screen is open may not restore the exact post-match screen yet.
 - Closing while a transfer decision is open may not restore the exact transfer decision screen yet.
 - Save As, multiple named manual saves, rolling autosave slots, and incremental/dirty table-level saves are not implemented yet.
-- Free-agent pool persistence, completed season archives, completed transfer history, deeper finance ledgers, and automated save/load regression tests are future work.
+- Completed season archives, completed transfer history, deeper finance ledgers, and automated save/load regression tests are future work.

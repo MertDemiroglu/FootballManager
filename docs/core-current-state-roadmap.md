@@ -25,6 +25,7 @@ This living document describes the current core/backend shape and the next backe
 - `TeamSheet`, tactics, and substitutes persistence.
 - Transfer offer persistence.
 - Accepted transfer roster movement, budget, and contract snapshot persistence.
+- Free agent pool persistence through `runtime_free_agents`.
 - Manual save and autosave policy.
 - Managed-vs-AI `TeamSheet` reconciliation policy after roster restore/mutation.
 
@@ -38,6 +39,7 @@ This living document describes the current core/backend shape and the next backe
 - Scheduled autosave overwrites the current save slot.
 - Default autosave frequency is Weekly.
 - Important save requests can be coalesced before a safe checkpoint flush.
+- Team-owned player ownership is stored in `runtime_player_roster_state`; free agent ownership is stored separately in `runtime_free_agents`.
 - Current save format is a full runtime snapshot.
 - Dirty/incremental saves are a future optimization if multi-league snapshot cost becomes high.
 
@@ -58,7 +60,6 @@ This living document describes the current core/backend shape and the next backe
 ## Known Not-Yet-Supported Core Scenarios
 
 - Active interaction exact restore.
-- Free agent pool persistence.
 - Completed season archive/history.
 - Completed transfer history.
 - Richer finance ledgers.
@@ -72,11 +73,10 @@ This living document describes the current core/backend shape and the next backe
 
 ## Near-Term Core Roadmap
 
-1. Match Lifecycle / Standings / History Audit (active/in progress)
-2. Free Agent Persistence
-3. Automated regression tests when stable enough
-4. Multi-league expansion preparation
-5. Match engine/tactical effects later
+1. Free Agent Persistence (active/in progress)
+2. Automated regression tests when stable enough
+3. Multi-league expansion preparation
+4. Match engine/tactical effects later
 
 ## Deferred / Later Core Work
 

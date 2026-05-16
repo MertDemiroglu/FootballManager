@@ -338,7 +338,20 @@ namespace {
             "FOREIGN KEY (team_id) REFERENCES teams(id),"
             "FOREIGN KEY (player_id) REFERENCES players(id)"
             ");");
-        database.execute("PRAGMA user_version = 6;");
+        database.execute(
+            "CREATE TABLE IF NOT EXISTS runtime_free_agents ("
+            "player_id INTEGER PRIMARY KEY,"
+            "previous_league_id INTEGER,"
+            "previous_team_id INTEGER,"
+            "became_free_agent_date TEXT,"
+            "wage INTEGER,"
+            "contract_years INTEGER,"
+            "current_season_year INTEGER,"
+            "FOREIGN KEY (player_id) REFERENCES players(id),"
+            "FOREIGN KEY (previous_league_id) REFERENCES leagues(id),"
+            "FOREIGN KEY (previous_team_id) REFERENCES teams(id)"
+            ");");
+        database.execute("PRAGMA user_version = 7;");
     }
 
     PersistedTransferOfferState readTransferOfferRow(SqliteStatement& statement) {
@@ -689,6 +702,42 @@ std::vector<PersistedPlayerRosterState> SqliteGameStateRepository::loadPlayerRos
     return states;
 }
 
+std::vector<PersistedFreeAgentState> SqliteGameStateRepository::loadFreeAgentStates() const {
+    std::vector<PersistedFreeAgentState> states;
+    if (!tableExists(database, "runtime_free_agents")) {
+        return states;
+    }
+
+    SqliteStatement statement = database.prepare(
+        "SELECT player_id, previous_league_id, previous_team_id, became_free_agent_date, "
+        "wage, contract_years, current_season_year "
+        "FROM runtime_free_agents ORDER BY player_id");
+    while (statement.stepRow()) {
+        PersistedFreeAgentState state;
+        state.playerId = static_cast<PlayerId>(statement.columnInt(0));
+        if (!statement.columnIsNull(1)) {
+            state.previousLeagueId = static_cast<LeagueId>(statement.columnInt(1));
+        }
+        if (!statement.columnIsNull(2)) {
+            state.previousTeamId = static_cast<TeamId>(statement.columnInt(2));
+        }
+        if (!statement.columnIsNull(3)) {
+            state.becameFreeAgentDate = parseDate(statement.columnText(3));
+        }
+        if (!statement.columnIsNull(4)) {
+            state.wage = static_cast<Money>(statement.columnInt64(4));
+        }
+        if (!statement.columnIsNull(5)) {
+            state.contractYears = statement.columnInt(5);
+        }
+        if (!statement.columnIsNull(6)) {
+            state.currentSeasonYear = statement.columnInt(6);
+        }
+        states.push_back(state);
+    }
+    return states;
+}
+
 std::vector<PersistedTransferOfferState> SqliteGameStateRepository::loadTransferOfferStates() const {
     std::vector<PersistedTransferOfferState> transferOffers;
     if (!tableExists(database, "runtime_transfer_offers")) {
@@ -756,6 +805,7 @@ void SqliteGameStateRepository::saveRuntimeState(
     const std::vector<PersistedPlayerRuntimeState>& playerStates,
     const std::vector<PersistedTeamFinanceState>& teamFinances,
     const std::vector<PersistedPlayerRosterState>& playerRosterStates,
+    const std::vector<PersistedFreeAgentState>& freeAgentStates,
     const std::vector<PersistedTransferOfferState>& transferOffers) const {
     database.execute("BEGIN TRANSACTION;");
 
@@ -768,6 +818,7 @@ void SqliteGameStateRepository::saveRuntimeState(
         database.execute("DELETE FROM runtime_team_sheet_starters;");
         database.execute("DELETE FROM runtime_team_sheets;");
         database.execute("DELETE FROM runtime_transfer_offers;");
+        database.execute("DELETE FROM runtime_free_agents;");
         database.execute("DELETE FROM runtime_player_roster_state;");
         database.execute("DELETE FROM runtime_team_finances;");
         database.execute("DELETE FROM league_runtime_state;");
@@ -961,6 +1012,52 @@ void SqliteGameStateRepository::saveRuntimeState(
             }
             else {
                 statement.bindNull(6);
+            }
+            statement.stepDone();
+        }
+
+        for (const PersistedFreeAgentState& state : freeAgentStates) {
+            SqliteStatement statement = database.prepare(
+                "INSERT INTO runtime_free_agents ("
+                "player_id, previous_league_id, previous_team_id, became_free_agent_date, "
+                "wage, contract_years, current_season_year"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?)");
+            statement.bindInt(1, static_cast<int>(state.playerId));
+            if (state.previousLeagueId != 0) {
+                statement.bindInt(2, static_cast<int>(state.previousLeagueId));
+            }
+            else {
+                statement.bindNull(2);
+            }
+            if (state.previousTeamId != 0) {
+                statement.bindInt(3, static_cast<int>(state.previousTeamId));
+            }
+            else {
+                statement.bindNull(3);
+            }
+            if (state.becameFreeAgentDate.has_value()) {
+                statement.bindText(4, dateToIsoString(*state.becameFreeAgentDate));
+            }
+            else {
+                statement.bindNull(4);
+            }
+            if (state.wage.has_value()) {
+                statement.bindInt64(5, static_cast<std::int64_t>(*state.wage));
+            }
+            else {
+                statement.bindNull(5);
+            }
+            if (state.contractYears.has_value()) {
+                statement.bindInt(6, *state.contractYears);
+            }
+            else {
+                statement.bindNull(6);
+            }
+            if (state.currentSeasonYear.has_value()) {
+                statement.bindInt(7, *state.currentSeasonYear);
+            }
+            else {
+                statement.bindNull(7);
             }
             statement.stepDone();
         }

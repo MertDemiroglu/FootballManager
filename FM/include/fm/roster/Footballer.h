@@ -76,6 +76,7 @@ public:
 	
 	//Kontrat imzalama
 	void signContract(Money wage, int years);
+	void clearContract();
 	//Kontrati verir
 	const Contract* getContract() const;
 	//Kontrat suresini 1 yil azaltir
