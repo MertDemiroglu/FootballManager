@@ -56,6 +56,41 @@ namespace {
             ^ static_cast<std::int64_t>(teamId);
     }
 
+    struct RuntimeRosterLocation {
+        LeagueId leagueId = 0;
+        TeamId teamId = 0;
+    };
+
+    bool sameTeamKey(const RuntimeRosterLocation& location, LeagueId leagueId, TeamId teamId) {
+        return location.leagueId == leagueId && location.teamId == teamId;
+    }
+
+    std::string formatTeamKey(LeagueId leagueId, TeamId teamId) {
+        return "league_id=" + std::to_string(leagueId) + ", team_id=" + std::to_string(teamId);
+    }
+
+    std::string teamSheetOwnershipError(
+        const char* role,
+        LeagueId sheetLeagueId,
+        TeamId sheetTeamId,
+        PlayerId playerId,
+        const RuntimeRosterLocation* actualLocation) {
+        std::string message = "runtime team sheet references a ";
+        message += role;
+        message += " outside its team roster (player_id=";
+        message += std::to_string(playerId);
+        message += ", expected ";
+        message += formatTeamKey(sheetLeagueId, sheetTeamId);
+        message += ", actual ";
+        if (actualLocation) {
+            message += formatTeamKey(actualLocation->leagueId, actualLocation->teamId);
+        } else {
+            message += "missing from runtime_player_roster_state";
+        }
+        message += ")";
+        return message;
+    }
+
     SaveValidationResult validateRuntimeState(
         const Date& currentDate,
         const std::vector<PersistedLeagueRuntimeState>& leagueStates,
@@ -140,7 +175,7 @@ namespace {
             }
         }
 
-        std::unordered_map<PlayerId, std::int64_t> rosterTeamByPlayer;
+        std::unordered_map<PlayerId, RuntimeRosterLocation> rosterTeamByPlayer;
         for (const PersistedPlayerRosterState& roster : playerRosterStates) {
             if (roster.playerId == 0) {
                 return invalid("runtime player roster state has an invalid player id");
@@ -170,8 +205,14 @@ namespace {
             if (roster.currentSeasonYear < 0) {
                 return invalid("runtime player roster state has invalid current season year");
             }
-            if (!rosterTeamByPlayer.emplace(roster.playerId, rosterTeamKey).second) {
+            if (!rosterTeamByPlayer.emplace(roster.playerId, RuntimeRosterLocation{ roster.leagueId, roster.teamId }).second) {
                 return invalid("runtime player roster state has duplicate player id");
+            }
+        }
+
+        for (PlayerId playerId : knownPlayers) {
+            if (rosterTeamByPlayer.find(playerId) == rosterTeamByPlayer.end()) {
+                return invalid("runtime player roster state is missing bootstrap player");
             }
         }
 
@@ -194,6 +235,9 @@ namespace {
             }
 
             const std::int64_t sheetTeamKey = compoundTeamKey(state.leagueId, state.teamSheet.teamId);
+            if (knownTeams.find(sheetTeamKey) == knownTeams.end()) {
+                return invalid("runtime team sheet references unknown team");
+            }
             if (!seenTeamsWithSheets.insert(sheetTeamKey).second) {
                 return invalid("runtime team sheet has a duplicate league/team row");
             }
@@ -227,8 +271,14 @@ namespace {
                     return invalid("runtime team sheet has duplicate starter player ids");
                 }
                 const auto rosterIt = rosterTeamByPlayer.find(assignment.playerId);
-                if (rosterIt == rosterTeamByPlayer.end() || rosterIt->second != sheetTeamKey) {
-                    return invalid("runtime team sheet references a starter outside its team roster");
+                if (rosterIt == rosterTeamByPlayer.end()
+                    || !sameTeamKey(rosterIt->second, state.leagueId, state.teamSheet.teamId)) {
+                    return invalid(teamSheetOwnershipError(
+                        "starter",
+                        state.leagueId,
+                        state.teamSheet.teamId,
+                        assignment.playerId,
+                        rosterIt == rosterTeamByPlayer.end() ? nullptr : &rosterIt->second));
                 }
             }
 
@@ -244,8 +294,14 @@ namespace {
                     return invalid("runtime team sheet has duplicate substitute player ids");
                 }
                 const auto rosterIt = rosterTeamByPlayer.find(playerId);
-                if (rosterIt == rosterTeamByPlayer.end() || rosterIt->second != sheetTeamKey) {
-                    return invalid("runtime team sheet references a substitute outside its team roster");
+                if (rosterIt == rosterTeamByPlayer.end()
+                    || !sameTeamKey(rosterIt->second, state.leagueId, state.teamSheet.teamId)) {
+                    return invalid(teamSheetOwnershipError(
+                        "substitute",
+                        state.leagueId,
+                        state.teamSheet.teamId,
+                        playerId,
+                        rosterIt == rosterTeamByPlayer.end() ? nullptr : &rosterIt->second));
                 }
             }
         }

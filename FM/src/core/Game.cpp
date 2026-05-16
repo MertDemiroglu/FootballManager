@@ -849,6 +849,26 @@ TeamSheet Game::resolveCompleteTeamSheetForTeam(LeagueId leagueId, TeamId teamId
     return *team->getSelectedTeamSheet();
 }
 
+void Game::reconcileSelectedTeamSheetForTeam(LeagueId leagueId, TeamId teamId) {
+    LeagueContext* context = world.findLeagueContext(leagueId);
+    if (!context) {
+        return;
+    }
+
+    Team* team = context->getLeague().findTeamById(teamId);
+    if (!team) {
+        return;
+    }
+
+    const TeamSheet* selectedTeamSheet = team->getSelectedTeamSheet();
+    if (!selectedTeamSheet) {
+        return;
+    }
+
+    TeamSheet reconciledSheet = reconcileTeamSheetForTeam(*selectedTeamSheet, *team);
+    team->setSelectedTeamSheet(std::move(reconciledSheet));
+}
+
 Game::~Game() = default;
 
 Game::Game(const GameBootstrapOptions& bootstrapOptions)
@@ -1540,10 +1560,14 @@ bool Game::acceptTransferOffer(OfferId offerId) {
     }
 
     const bool accepted = world.getTransferOfferService().acceptOffer(offerId, date);
-    persistRuntimeState();
     if (!accepted) {
+        persistRuntimeState();
         return false;
     }
+
+    reconcileSelectedTeamSheetForTeam(offer->sellerLeagueId, offer->sellerTeamId);
+    reconcileSelectedTeamSheetForTeam(offer->buyerLeagueId, offer->buyerTeamId);
+    persistRuntimeState();
 
     const TransferOfferDecisionInteraction* interaction = getActiveTransferOfferDecisionInteraction();
     if (interaction && interaction->getOfferId() == offerId) {
