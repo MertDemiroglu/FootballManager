@@ -95,6 +95,10 @@ public:
     Q_INVOKABLE QString getManagerName() const;
     Q_INVOKABLE QString getLastError() const;
     Q_INVOKABLE QVariantMap getCurrentSaveMetadata() const;
+    Q_INVOKABLE bool saveGame();
+    Q_INVOKABLE QVariantList getAutoSaveFrequencyOptions() const;
+    Q_INVOKABLE QString getAutoSaveFrequencyCode() const;
+    Q_INVOKABLE bool setAutoSaveFrequency(const QString& stableCode);
     Q_INVOKABLE void clearLastError();
 
     Q_INVOKABLE QVariantMap getDashboard() const;

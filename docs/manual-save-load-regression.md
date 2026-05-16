@@ -1,8 +1,8 @@
 # Manual Save/Load Regression Checklist
 
-Do not run generated smoke executables when the local antivirus warning is still relevant. Use the app manually and inspect the save DB only when needed.
+Use this as a practical manual test checklist for current checkpoint-based save/load behavior. Do not run generated smoke executables while the local antivirus warning remains relevant; use the app manually and inspect the save DB only when needed.
 
-## Core Flow
+## Fresh New Game / Load Game
 
 1. Close the app.
 2. Clear or rename the AppData saves folder.
@@ -11,104 +11,103 @@ Do not run generated smoke executables when the local antivirus warning is still
 5. Open Load Game and verify it is empty.
 6. Confirm opening Main Menu does not create `game.db`.
 7. Create New Game.
-8. Confirm the dashboard starts on July 1, 2025.
-9. Close the app.
-10. Reopen and load/continue the save.
-11. Confirm the exact same in-game date is restored.
-12. Advance several days.
-13. Close the app.
-14. Reopen.
-15. Open Load Game and confirm the new save is listed.
-16. Load/continue the save.
-17. Confirm the exact same advanced in-game date is restored.
-18. Advance to the first match.
-19. Confirm the first fixtures still appear in August 2025 from SQL-loaded league rules.
-20. Enter pre-match.
-21. Edit lineup if applicable.
-22. Open Lineup Editor.
-23. Pick 4-4-2 and Auto Select.
-24. Change mentality to Defensive.
-25. Change tempo to High.
-26. Confirm Starting XI is assigned 11/11.
-27. Confirm the Substitutes tab shows up to 10 real players.
-28. Close the app.
-29. Reopen and load/continue the save.
-30. Open Lineup Editor.
-31. Confirm formation, Starting XI, substitutes, mentality, and tempo were restored.
-32. Change to 4-3-3 and Auto Select.
-33. Confirm the pitch still shows DM behind two CMs.
-34. Confirm substitutes regenerated without starter/substitute overlap.
-35. Close the app.
-36. Reopen and load/continue the save.
-37. Confirm 4-3-3, starters, substitutes, mentality, and tempo were restored.
-38. Go to match day and enter pre-match.
-39. Confirm pre-match shows the selected lineup rather than a freshly generated lineup.
-40. Play the match.
-41. Continue to dashboard.
-42. Close the app.
-43. Reopen and load/continue the save.
-44. Confirm the fixture remains played.
-45. Confirm the result remains visible.
-46. Confirm standings, recent form, and upcoming matches remain consistent.
-47. Confirm player fitness/form/morale survive load.
-48. Ensure Transfer Room opens during a transfer window.
-49. Create or generate a pending transfer offer if the current debug flow supports it.
-50. Confirm the pending offer appears in Transfer Room/UI.
-51. Close the app.
-52. Reopen and load/continue the save.
-53. Confirm the same pending offer still appears.
-54. Reject the offer.
-55. Close and load/continue again.
-56. Confirm the rejected offer does not reappear as pending.
-57. Create another offer after reload.
-58. Confirm the new offer id does not collide with previous ids.
-59. Advance days until an offer expires.
-60. Close and load/continue again.
-61. Confirm the expired offer does not reappear as pending.
-62. Put a likely sold player in the managed team's Starting XI.
-63. Create or load a pending transfer offer for that player and accept it.
-64. Confirm in the current session that the player is removed from the seller team.
-65. Confirm the managed-team starting slot remains empty and is not silently auto-filled.
-66. Confirm the transferred player is removed from managed starters/substitutes.
-67. Press Auto Select and confirm the empty managed-team slot can be filled by user action.
-68. Repeat with a substitute if possible and confirm the player is removed from the bench without silently filling the managed bench.
-69. Confirm the player appears in the buyer team.
-70. Confirm the AI/non-managed buyer TeamSheet remains valid/current.
-71. Confirm buyer budget is reduced and seller budget is increased according to current backend budget behavior.
-72. Confirm the accepted offer no longer appears as pending.
-73. Close the app.
-74. Reopen.
-75. Open Load Game and confirm the accepted-transfer save is listed.
-76. Load/continue the save.
-77. Confirm the player is still on the buyer team.
-78. Confirm the player is not on the seller team.
-79. Confirm the player's `teamId` matches the buyer team.
-80. Confirm buyer/seller budgets remain changed.
-81. Confirm the accepted offer does not reappear as pending.
-82. Open Lineup Editor for the seller if possible and confirm the transferred-away player is not in starters/substitutes.
-83. Confirm any managed-team slot vacated by the sale remains empty after load until Auto Select or manual assignment.
-84. Open Lineup Editor for the buyer if possible and confirm the transferred-in player can be selected.
-85. Confirm old incompatible saves may be skipped with clear messages such as missing runtime team finance state or missing SQL league rules rows.
-86. Create/reject/decide-later another offer and verify transfer offer persistence still works.
-87. Confirm date/fixture/result/team-sheet/player-condition persistence still works.
-88. Confirm no transfer offer, roster ownership, or budget state is stored in `save_metadata`.
-89. Confirm `runtime_transfer_offers`, `runtime_team_finances`, and `runtime_player_roster_state` contain full-world league/team ids, not managed-team-only rows.
-90. Confirm RuntimeSaveValidator accepts the valid save.
-91. Confirm the Load Game card displays manager-team and the in-game date.
-92. Confirm no real-world date appears as Game Date unless the simulation actually reaches that date.
-93. Confirm `created_at_utc` and `updated_at_utc` are shown only as real-world save-card timestamps.
-94. Confirm no Transfer Room UI redesign occurred.
-95. Confirm git status remains clean after the manual app run, except for intentionally ignored runtime files.
+8. Confirm Dashboard opens on July 1, 2025 with the selected club/team state.
+9. Close the app, reopen it, and confirm Load Game shows the new save.
+10. Load/continue the save and confirm the game resumes through Dashboard/current safe checkpoint.
 
-## Known Not-Yet-Supported Scenarios
+## Manual Save
+
+1. From Dashboard, click Save Game.
+2. Confirm the UI gives small success feedback.
+3. Close and reopen the app.
+4. Load/continue the save.
+5. Confirm the in-game date, managed club, selected team state, and dashboard data are preserved.
+6. Confirm no new save slot was created; Manual Save overwrites the current save slot.
+
+## Autosave Policy
+
+1. Open Dashboard Settings.
+2. Confirm the autosave options are visible: Manual only, Daily, Every 3 days, Weekly, Every 2 weeks.
+3. Confirm the default visible selection is Weekly on a new save.
+4. Set autosave to Weekly.
+5. Advance fewer than 7 game days and confirm scheduled autosave does not create new save slots or spam disk writes.
+6. Advance at least 7 game days and confirm autosave updates the current save slot.
+7. Set autosave to Manual only.
+8. Advance several days and confirm scheduled autosave does not run.
+9. Click Save Game and confirm manual save still works.
+10. Inspect the DB if needed: `runtime_save_settings` owns autosave settings; `save_metadata` does not.
+
+## Lineup / Tactics Persistence
+
+1. Open Lineup Editor.
+2. Pick 4-4-2 and Auto Select.
+3. Change mentality to Defensive.
+4. Change tempo to High.
+5. Confirm Starting XI is assigned 11/11 and Substitutes shows up to 10 real players.
+6. Close and reopen the app.
+7. Load/continue the save.
+8. Open Lineup Editor and confirm formation, Starting XI, substitutes, mentality, and tempo were restored.
+9. Change to 4-3-3 and Auto Select.
+10. Confirm the pitch still shows DM behind two CMs and substitutes have no starter/substitute overlap.
+11. Close, reopen, and confirm the 4-3-3 lineup/tactics are restored.
+
+## Match Result Persistence
+
+1. Advance to the first match.
+2. Confirm fixtures still appear in August 2025 from SQL-loaded league rules.
+3. Enter pre-match and confirm it uses the selected lineup rather than a freshly generated lineup.
+4. Play the match.
+5. Continue to Dashboard.
+6. Close and reopen the app.
+7. Load/continue the save.
+8. Confirm the fixture remains played.
+9. Confirm the result, standings, recent form, upcoming matches, and player fitness/form/morale remain consistent.
+
+## Transfer Offer Persistence
+
+1. Ensure Transfer Room opens during a transfer window.
+2. Create or generate a pending transfer offer if the current debug flow supports it.
+3. Confirm the pending offer appears in Transfer Room/UI.
+4. Close and reopen the app.
+5. Load/continue the save and confirm the same pending offer still appears.
+6. Reject the offer.
+7. Close and load/continue again.
+8. Confirm the rejected offer does not reappear as pending.
+9. Create another offer after reload and confirm the new offer id does not collide with previous ids.
+10. Advance days until an offer expires.
+11. Close and load/continue again.
+12. Confirm the expired offer does not reappear as pending.
+
+## Accepted Transfer / Roster Mutation Persistence
+
+1. Put a likely sold player in the managed team's Starting XI or substitutes.
+2. Create or load a pending transfer offer for that player and accept it.
+3. Confirm in the current session that the player is removed from the seller team and appears on the buyer team.
+4. Confirm seller/buyer budgets change according to current backend budget behavior.
+5. Confirm the accepted offer no longer appears as pending.
+6. Confirm the transferred player is removed from managed starters/substitutes.
+7. Confirm any managed-team slot vacated by the sale remains empty and is not silently auto-filled.
+8. Press Auto Select and confirm the empty managed-team slot can be filled by user action.
+9. Confirm the AI/non-managed buyer TeamSheet remains valid/current.
+10. Close and reopen the app.
+11. Load/continue the save.
+12. Confirm player ownership, `teamId`, budgets, accepted offer status, and affected TeamSheets remain consistent.
+
+## Save Metadata / Validation Checks
+
+1. Confirm old incompatible saves may be skipped with clear messages such as missing runtime team finance state or missing SQL league rules rows.
+2. Confirm no transfer offer, roster ownership, budget state, or autosave setting is stored in `save_metadata`.
+3. Confirm `runtime_transfer_offers`, `runtime_team_finances`, `runtime_player_roster_state`, and `runtime_save_settings` contain their expected data.
+4. Confirm RuntimeSaveValidator accepts a valid save.
+5. Confirm the Load Game card displays manager-team and the in-game date.
+6. Confirm no real-world date appears as Game Date unless the simulation actually reaches that date.
+7. Confirm `created_at_utc` and `updated_at_utc` are shown only as real-world save-card timestamps.
+8. Confirm git status remains clean after the manual app run, except for intentionally ignored runtime files.
+
+## Known Unsupported Save/Load Scenarios
 
 - Closing while an active pre-match interaction is open may not restore the exact pre-match screen yet.
 - Closing while a post-match report screen is open may not restore the exact post-match screen yet.
 - Closing while a transfer decision is open may not restore the exact transfer decision screen yet.
-- Transfer offer state and accepted offer roster/budget effects are persisted, but active transfer decision interaction persistence is future work.
-- Managed-team incomplete lineups are preserved after roster mutations; a future "lineup requires attention" interaction should block kickoff more explicitly.
-- Deeper finance ledgers, contract renewal UI, negotiation/counter offers, and completed transfer history UI are future work.
-- Tactical setup is persisted but does not affect match simulation yet.
-- Coach-driven tactical identity is future work.
-- Completed season archives/history are future work.
-- LeagueRules are SQL-backed for the current Super Lig seed, but additional leagues still need their own rule rows before broad multi-league expansion.
+- Save As, multiple named manual saves, rolling autosave slots, and incremental/dirty table-level saves are not implemented yet.
+- Free-agent pool persistence, completed season archives, completed transfer history, deeper finance ledgers, and automated save/load regression tests are future work.

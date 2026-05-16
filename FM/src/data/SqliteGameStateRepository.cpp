@@ -194,6 +194,12 @@ namespace {
             "updated_at_utc TEXT NOT NULL"
             ");");
         database.execute(
+            "CREATE TABLE IF NOT EXISTS runtime_save_settings ("
+            "id INTEGER PRIMARY KEY CHECK (id = 1),"
+            "auto_save_frequency TEXT NOT NULL,"
+            "last_auto_save_date TEXT"
+            ");");
+        database.execute(
             "CREATE TABLE IF NOT EXISTS league_runtime_state ("
             "league_id INTEGER PRIMARY KEY,"
             "season_year INTEGER NOT NULL,"
@@ -332,7 +338,7 @@ namespace {
             "FOREIGN KEY (team_id) REFERENCES teams(id),"
             "FOREIGN KEY (player_id) REFERENCES players(id)"
             ");");
-        database.execute("PRAGMA user_version = 5;");
+        database.execute("PRAGMA user_version = 6;");
     }
 
     PersistedTransferOfferState readTransferOfferRow(SqliteStatement& statement) {
@@ -698,6 +704,46 @@ std::vector<PersistedTransferOfferState> SqliteGameStateRepository::loadTransfer
         transferOffers.push_back(readTransferOfferRow(statement));
     }
     return transferOffers;
+}
+
+PersistedSaveSettings SqliteGameStateRepository::loadSaveSettings() const {
+    PersistedSaveSettings settings;
+    if (!tableExists(database, "runtime_save_settings")) {
+        return settings;
+    }
+
+    SqliteStatement statement = database.prepare(
+        "SELECT auto_save_frequency, last_auto_save_date FROM runtime_save_settings WHERE id = ?");
+    statement.bindInt(1, GameStateRowId);
+    if (!statement.stepRow()) {
+        return settings;
+    }
+
+    const std::optional<AutoSaveFrequency> frequency =
+        autoSaveFrequencyFromStableCode(statement.columnText(0));
+    settings.autoSaveFrequency = frequency.value_or(AutoSaveFrequency::Weekly);
+    if (!statement.columnIsNull(1)) {
+        settings.lastAutoSaveDate = parseDate(statement.columnText(1));
+    }
+    return settings;
+}
+
+void SqliteGameStateRepository::saveSaveSettings(const PersistedSaveSettings& settings) const {
+    SqliteStatement statement = database.prepare(
+        "INSERT INTO runtime_save_settings (id, auto_save_frequency, last_auto_save_date) "
+        "VALUES (?, ?, ?) "
+        "ON CONFLICT(id) DO UPDATE SET "
+        "auto_save_frequency = excluded.auto_save_frequency, "
+        "last_auto_save_date = excluded.last_auto_save_date");
+    statement.bindInt(1, GameStateRowId);
+    statement.bindText(2, std::string(toStableCode(settings.autoSaveFrequency)));
+    if (settings.lastAutoSaveDate.has_value()) {
+        statement.bindText(3, dateToIsoString(*settings.lastAutoSaveDate));
+    }
+    else {
+        statement.bindNull(3);
+    }
+    statement.stepDone();
 }
 
 void SqliteGameStateRepository::saveRuntimeState(

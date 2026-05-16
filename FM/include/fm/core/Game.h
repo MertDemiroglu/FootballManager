@@ -6,6 +6,7 @@
 #include<vector>
 
 #include"fm/core/GameBootstrapOptions.h"
+#include"fm/core/SaveScheduler.h"
 #include"fm/competition/MatchScheduler.h"
 #include"fm/competition/FixtureGenerator.h"
 
@@ -45,6 +46,7 @@ private:
     bool saveMetadataEnabled = false;
     std::string saveMetadataDbPath;
     SaveMetadata saveMetadata;
+    SaveScheduler saveScheduler;
     // TODO: these are match-specific frozen interaction snapshots. Long term
     // they belong to PreMatchInteraction / active interaction persistence, not Team.
     std::optional<PlayMatchCommand> pendingPreMatchCommand;
@@ -66,6 +68,12 @@ private:
     void updateCurrentDateSaveMetadata();
     void restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions);
     void persistRuntimeState();
+    void loadSaveSettings();
+    void persistSaveSettings() const;
+    void requestRuntimeSave(SaveReason reason);
+    void flushPendingRuntimeSaveIfNeeded();
+    void flushRuntimeSave(SaveReason reason);
+    void checkScheduledAutoSaveCheckpoint();
     void validateRuntimeDateConsistency(const char* context) const;
     TeamSheet createTeamSheetForTeam(const Team& team) const;
     TeamSheet& ensureTeamSheetForTeam(LeagueId leagueId, TeamId teamId);
@@ -133,6 +141,9 @@ public:
 	LeagueId getManagedLeagueId() const;
 	TeamId getManagedTeamId() const;
     void flushSaveState();
+    bool manualSave();
+    AutoSaveFrequency getAutoSaveFrequency() const;
+    bool setAutoSaveFrequency(AutoSaveFrequency frequency);
     SaveMetadata getSaveMetadata() const;
 
 	//tarih nesnesini verir non-const

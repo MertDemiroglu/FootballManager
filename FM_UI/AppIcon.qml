@@ -26,6 +26,8 @@ Item {
             return "calendar.svg"
         case "settings":
             return "settings.svg"
+        case "save":
+            return "save.svg"
         case "main-menu":
             return "main-menu.svg"
         case "trophy":

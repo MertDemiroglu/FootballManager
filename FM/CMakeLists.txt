@@ -4,6 +4,7 @@ project(fm_core LANGUAGES C CXX)
 
 add_library(fm_core STATIC
     src/core/Game.cpp
+    src/core/SaveScheduler.cpp
     src/roster/Contract.cpp
     src/common/Date.cpp
     src/common/DateUtils.cpp
@@ -41,6 +42,7 @@ add_library(fm_core STATIC
     src/roster/Midfielder.cpp
     src/data/RosterLoader.cpp
     src/data/RuntimeSaveValidator.cpp
+    src/data/SavePolicy.cpp
     src/data/SqliteDatabase.cpp
     src/data/SqliteBootstrapRepository.cpp
     src/data/SqliteBootstrapDatabaseInitializer.cpp

@@ -104,6 +104,7 @@ qt_add_qml_module(FM_UI
         assets/icons/fixtures.svg
         assets/icons/calendar.svg
         assets/icons/settings.svg
+        assets/icons/save.svg
         assets/icons/main-menu.svg
         assets/icons/trophy.svg
         assets/icons/star.svg
