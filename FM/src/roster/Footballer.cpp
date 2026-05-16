@@ -89,6 +89,11 @@ void Footballer::setIdForBootstrap(PlayerId newPlayerId) {
 void Footballer::signContract(Money wage, int years) {
     contract = std::make_unique<Contract>(playerId, teamId, wage, years);
 }
+
+void Footballer::clearContract() {
+    contract.reset();
+}
+
 const Contract* Footballer::getContract() const{
     return contract.get();
 }

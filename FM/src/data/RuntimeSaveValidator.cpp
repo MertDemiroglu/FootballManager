@@ -110,6 +110,7 @@ namespace {
         const std::vector<PersistedPlayerRuntimeState>& playerStates,
         const std::vector<PersistedTeamFinanceState>& teamFinanceStates,
         const std::vector<PersistedPlayerRosterState>& playerRosterStates,
+        const std::vector<PersistedFreeAgentState>& freeAgentStates,
         const std::vector<PersistedTransferOfferState>& transferOfferStates,
         const std::vector<LeagueSeedData>& seedLeagues,
         const std::unordered_map<LeagueId, LeagueRules>& rulesByLeague,
@@ -221,15 +222,60 @@ namespace {
             }
         }
 
-        for (PlayerId playerId : knownPlayers) {
-            if (rosterTeamByPlayer.find(playerId) == rosterTeamByPlayer.end()) {
-                return invalid("runtime player roster state is missing bootstrap player");
+        std::unordered_set<PlayerId> freeAgentPlayerIds;
+        for (const PersistedFreeAgentState& freeAgent : freeAgentStates) {
+            if (freeAgent.playerId == 0) {
+                return invalid("runtime free agent state has an invalid player id");
+            }
+            if (knownPlayers.find(freeAgent.playerId) == knownPlayers.end()) {
+                return invalid("runtime free agent state references unknown player");
+            }
+            if (!freeAgentPlayerIds.insert(freeAgent.playerId).second) {
+                return invalid("runtime free agent state has duplicate player id");
+            }
+            if (rosterTeamByPlayer.find(freeAgent.playerId) != rosterTeamByPlayer.end()) {
+                return invalid("runtime player ownership has player in both roster state and free agents");
+            }
+            if (freeAgent.previousLeagueId != 0 && stateByLeague.find(freeAgent.previousLeagueId) == stateByLeague.end()) {
+                return invalid("runtime free agent state references unknown previous league");
+            }
+            if (freeAgent.previousTeamId != 0) {
+                if (freeAgent.previousLeagueId == 0) {
+                    return invalid("runtime free agent state has previous team without previous league");
+                }
+                if (knownTeams.find(compoundTeamKey(freeAgent.previousLeagueId, freeAgent.previousTeamId)) == knownTeams.end()) {
+                    return invalid("runtime free agent state references unknown previous team");
+                }
+            }
+            if (freeAgent.wage.has_value() != freeAgent.contractYears.has_value()) {
+                return invalid("runtime free agent state has partial contract snapshot");
+            }
+            if (freeAgent.wage.has_value() && *freeAgent.wage < 0) {
+                return invalid("runtime free agent state has negative wage");
+            }
+            if (freeAgent.contractYears.has_value() && *freeAgent.contractYears <= 0) {
+                return invalid("runtime free agent state has invalid contract years");
+            }
+            if (freeAgent.currentSeasonYear.has_value() && *freeAgent.currentSeasonYear < 0) {
+                return invalid("runtime free agent state has invalid current season year");
             }
         }
 
+        for (PlayerId playerId : knownPlayers) {
+            if (rosterTeamByPlayer.find(playerId) == rosterTeamByPlayer.end()
+                && freeAgentPlayerIds.find(playerId) == freeAgentPlayerIds.end()) {
+                return invalid("runtime player ownership state is missing bootstrap player");
+            }
+        }
+
+        std::unordered_set<PlayerId> seenPlayerRuntimeRows;
         for (const PersistedPlayerRuntimeState& playerState : playerStates) {
-            if (rosterTeamByPlayer.find(playerState.playerId) == rosterTeamByPlayer.end()) {
-                return invalid("player runtime state is missing matching player roster state");
+            if (!seenPlayerRuntimeRows.insert(playerState.playerId).second) {
+                return invalid("player runtime state has duplicate player id");
+            }
+            if (rosterTeamByPlayer.find(playerState.playerId) == rosterTeamByPlayer.end()
+                && freeAgentPlayerIds.find(playerState.playerId) == freeAgentPlayerIds.end()) {
+                return invalid("player runtime state is missing matching ownership state");
             }
         }
 
@@ -561,6 +607,7 @@ SaveValidationResult RuntimeSaveValidator::validateExistingSave(
         const std::vector<PersistedPlayerRuntimeState> playerStates = runtimeRepository.loadPlayerRuntimeStates();
         const std::vector<PersistedTeamFinanceState> teamFinanceStates = runtimeRepository.loadTeamFinanceStates();
         const std::vector<PersistedPlayerRosterState> playerRosterStates = runtimeRepository.loadPlayerRosterStates();
+        const std::vector<PersistedFreeAgentState> freeAgentStates = runtimeRepository.loadFreeAgentStates();
         const std::vector<PersistedTransferOfferState> transferOfferStates = runtimeRepository.loadTransferOfferStates();
         SqliteBootstrapRepository bootstrapRepository(databasePath);
         const std::vector<LeagueSeedData> seedLeagues = bootstrapRepository.loadLeagues();
@@ -575,6 +622,7 @@ SaveValidationResult RuntimeSaveValidator::validateExistingSave(
             playerStates,
             teamFinanceStates,
             playerRosterStates,
+            freeAgentStates,
             transferOfferStates,
             seedLeagues,
             rulesByLeague,

@@ -19,6 +19,7 @@ Related documents:
 - Manual Save overwrites the current save slot. Scheduled autosave also overwrites the current save slot.
 - Autosave is game-date interval based, defaults to Weekly, and does not create rolling slots.
 - Important events may request a save, but full snapshot writes should be batched/coalesced at safe checkpoints where possible.
+- `runtime_player_roster_state` stores team-owned players only; `runtime_free_agents` stores free agent pool ownership.
 - The current save format is still a full runtime snapshot. Dirty/incremental table-level saves are a future optimization if multi-league snapshot cost becomes high.
 - Active interaction exact restore is intentionally deferred. Do not add `runtime_active_interaction` tables in the current phase.
 - Save As, multiple named manual saves, and rolling autosave slots are not planned for this phase.
@@ -50,7 +51,7 @@ Related documents:
 ### 4. Roster Mutation Persistence
 
 - Status: implemented for team-owned roster moves, team budget snapshots, and player contract snapshots.
-- Implemented shape: `runtime_team_finances` stores full-world team budgets; `runtime_player_roster_state` stores player ownership, contract wage/years, and current season year.
+- Implemented shape: `runtime_team_finances` stores full-world team budgets; `runtime_player_roster_state` stores team-owned player ownership, contract wage/years, and current season year.
 
 ### 5. Save Backend Runtime Persistence
 
@@ -67,20 +68,26 @@ Related documents:
 - Stable options: `manual_only`, `daily`, `every_3_days`, `weekly`, `every_2_weeks`.
 - Do not mix in: active interaction persistence, Save As, rolling autosave slots, dirty/incremental saves, Dashboard redesign, match engine behavior, transfer logic, or LeagueRules migration.
 
-## Active Backend Phase
-
 ### 7. Match Lifecycle / Standings / History Audit
 
-- Status: active/in progress.
+- Status: implemented.
 - Scope: verify the existing fixture -> pre-match -> match application -> played fixture/result -> report -> standings/history/recent form -> save checkpoint flow.
 - Current verified shape: `Game` orchestrates; `MatchScheduler` queues league-scoped commands; `PlayMatchCommandHandler` applies the match; `League::applyMatchReport` is the authoritative completion path for fixture/result/report/standings/current-season history.
 - `event_enqueued` remains a transient scheduler guard, not authoritative persisted active-interaction state.
 - Do not mix in: match engine rewrite, tactical effects, active interaction persistence, free-agent persistence, completed season archives, multi-league UI, rolling autosaves, or Save As.
 
+## Active Backend Phase
+
+### 8. Free Agent Persistence
+
+- Status: active/in progress.
+- Scope: persist `TransferRoom::freeAgents` through `runtime_free_agents`, restore those players into TransferRoom ownership, keep `runtime_player_roster_state` team-owned only, and validate disjoint player ownership.
+- Do not mix in: Transfer Room UI rework, completed transfer history, active interaction persistence, deep contracts/finance, completed season archives, scouting/data editor work, rolling autosaves, or Save As.
+
 ## Next Backend Phases
 
-1. Free Agent Persistence
-2. Automated regression tests when stable enough
+1. Automated regression tests when stable enough
+2. Team screen / Transfer room / Finance UI rework
 3. Multi-league expansion preparation
 4. Match engine/tactical effects later
 

@@ -12,6 +12,7 @@ enum class SaveReason {
     TransferAccepted,
     TransferOfferResolved,
     TeamSheetChanged,
+    FreeAgentPoolChanged,
     SeasonRollover
 };
 
@@ -36,4 +37,3 @@ public:
     bool shouldScheduledAutosave(const Date& currentDate) const;
     void markSaved(const Date& currentDate);
 };
-

@@ -67,6 +67,16 @@ struct PersistedPlayerRosterState {
     int currentSeasonYear = -1;
 };
 
+struct PersistedFreeAgentState {
+    PlayerId playerId = 0;
+    LeagueId previousLeagueId = 0;
+    TeamId previousTeamId = 0;
+    std::optional<Date> becameFreeAgentDate = std::nullopt;
+    std::optional<Money> wage = std::nullopt;
+    std::optional<int> contractYears = std::nullopt;
+    std::optional<int> currentSeasonYear = std::nullopt;
+};
+
 struct PersistedTransferOfferState {
     OfferId offerId = 0;
     Date createdAt{ 1900, Month::January, 1 };
@@ -105,6 +115,7 @@ public:
     std::vector<PersistedPlayerRuntimeState> loadPlayerRuntimeStates() const;
     std::vector<PersistedTeamFinanceState> loadTeamFinanceStates() const;
     std::vector<PersistedPlayerRosterState> loadPlayerRosterStates() const;
+    std::vector<PersistedFreeAgentState> loadFreeAgentStates() const;
     std::vector<PersistedTransferOfferState> loadTransferOfferStates() const;
     PersistedSaveSettings loadSaveSettings() const;
     void saveSaveSettings(const PersistedSaveSettings& settings) const;
@@ -119,5 +130,6 @@ public:
         const std::vector<PersistedPlayerRuntimeState>& playerStates,
         const std::vector<PersistedTeamFinanceState>& teamFinances,
         const std::vector<PersistedPlayerRosterState>& playerRosterStates,
+        const std::vector<PersistedFreeAgentState>& freeAgentStates,
         const std::vector<PersistedTransferOfferState>& transferOffers) const;
 };
