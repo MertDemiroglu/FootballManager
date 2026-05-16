@@ -450,7 +450,7 @@ void Game::ensureSaveMetadata(const GameBootstrapOptions& bootstrapOptions) {
         defaultMetadata.managedLeagueId = user.getManagedLeagueId();
         defaultMetadata.managedTeamId = user.getManagedTeamId();
         defaultMetadata.currentDate = dateToIsoString(date);
-        defaultMetadata.schemaVersion = 5;
+        defaultMetadata.schemaVersion = 6;
         defaultMetadata.worldVersion = 1;
         repository.insertDefault(defaultMetadata);
     }
@@ -780,6 +780,58 @@ void Game::persistRuntimeState() {
         transferOffers);
 }
 
+void Game::loadSaveSettings() {
+    if (!saveMetadataEnabled) {
+        saveScheduler.setAutoSaveFrequency(AutoSaveFrequency::Weekly);
+        saveScheduler.setLastAutoSaveDate(std::nullopt);
+        return;
+    }
+
+    SqliteGameStateRepository repository(saveMetadataDbPath);
+    const PersistedSaveSettings settings = repository.loadSaveSettings();
+    saveScheduler.setAutoSaveFrequency(settings.autoSaveFrequency);
+    saveScheduler.setLastAutoSaveDate(settings.lastAutoSaveDate);
+}
+
+void Game::persistSaveSettings() const {
+    if (!saveMetadataEnabled) {
+        return;
+    }
+
+    SqliteGameStateRepository repository(saveMetadataDbPath);
+    repository.saveSaveSettings(PersistedSaveSettings{
+        saveScheduler.getAutoSaveFrequency(),
+        saveScheduler.getLastAutoSaveDate()
+    });
+}
+
+void Game::requestRuntimeSave(SaveReason reason) {
+    saveScheduler.requestSave(reason);
+}
+
+void Game::flushPendingRuntimeSaveIfNeeded() {
+    if (!saveScheduler.hasPendingSave()) {
+        return;
+    }
+
+    flushRuntimeSave(saveScheduler.getPendingReason().value_or(SaveReason::Manual));
+}
+
+void Game::flushRuntimeSave(SaveReason reason) {
+    (void)reason;
+    updateCurrentDateSaveMetadata();
+    persistRuntimeState();
+    saveScheduler.markSaved(date);
+    persistSaveSettings();
+}
+
+void Game::checkScheduledAutoSaveCheckpoint() {
+    if (saveScheduler.shouldScheduledAutosave(date)) {
+        requestRuntimeSave(SaveReason::ScheduledAutoSave);
+    }
+    flushPendingRuntimeSaveIfNeeded();
+}
+
 void Game::validateRuntimeDateConsistency(const char* context) const {
     world.forEachLeagueContext([&](const LeagueContext& leagueContext) {
         const League& league = leagueContext.getLeague();
@@ -952,6 +1004,7 @@ Game::Game(const GameBootstrapOptions& bootstrapOptions)
     case GameBootstrapMode::Sqlite:
         bootstrapWorldFromSqlite(world, bootstrapOptions, initialGameDate().getYear());
         ensureSaveMetadata(bootstrapOptions);
+        loadSaveSettings();
         if (bootstrapOptions.databaseOpenMode == DatabaseOpenMode::OpenExisting) {
             restoreRuntimeState(bootstrapOptions);
             loadedRuntimeState = true;
@@ -1017,12 +1070,16 @@ Game::Game(const GameBootstrapOptions& bootstrapOptions)
     seasonStartChecks();
     updateTransferWindow(); 
     if (loadedRuntimeState && world.getTransferOfferService().expirePendingOffers(date) > 0) {
-        persistRuntimeState();
+        requestRuntimeSave(SaveReason::TransferOfferResolved);
+        flushPendingRuntimeSaveIfNeeded();
+    }
+    if (loadedRuntimeState && !saveScheduler.getLastAutoSaveDate().has_value()) {
+        saveScheduler.markSaved(date);
+        persistSaveSettings();
     }
     if (!loadedRuntimeState) {
         updateState();
-        updateCurrentDateSaveMetadata();
-        persistRuntimeState();
+        flushRuntimeSave(SaveReason::Manual);
     }
 }
 
@@ -1080,11 +1137,12 @@ void Game::updateDaily() {
 
     updateTransferWindow();
     if (world.getTransferOfferService().expirePendingOffers(date) > 0) {
-        persistRuntimeState();
+        requestRuntimeSave(SaveReason::TransferOfferResolved);
     }
 
     if (timePaused) {
         processBlockingEvent();
+        flushPendingRuntimeSaveIfNeeded();
         return;
     }
    
@@ -1131,7 +1189,8 @@ void Game::updateDaily() {
                 std::move(homeSheet),
                 std::move(awaySheet)));
             refreshTimePauseState();
-            persistRuntimeState();
+            requestRuntimeSave(SaveReason::TeamSheetChanged);
+            flushPendingRuntimeSaveIfNeeded();
             return;
         }
 
@@ -1142,11 +1201,11 @@ void Game::updateDaily() {
         TeamSheet homeSheet = resolveCompleteTeamSheetForTeam(command.leagueId, command.homeId);
         TeamSheet awaySheet = resolveCompleteTeamSheetForTeam(command.leagueId, command.awayId);
         context->getPlayMatchCommandHandler().handle(context->getLeague(), command, homeSheet, awaySheet);
-        persistRuntimeState();
+        requestRuntimeSave(SaveReason::MatchCompleted);
 
         refreshTimePauseState();
         if (timePaused) {
-            persistRuntimeState();
+            flushPendingRuntimeSaveIfNeeded();
             return;
         }
     }
@@ -1154,12 +1213,14 @@ void Game::updateDaily() {
     handleSeasonalEvents();
     refreshTimePauseState();
     if (timePaused) {
+        flushPendingRuntimeSaveIfNeeded();
         return;
     }
 
     updateTransferWindow();
     refreshTimePauseState();
     if (timePaused) {
+        flushPendingRuntimeSaveIfNeeded();
         return;
     }
 
@@ -1167,6 +1228,7 @@ void Game::updateDaily() {
         handleWeeklyEvents();
         refreshTimePauseState();
         if (timePaused) {
+            flushPendingRuntimeSaveIfNeeded();
             return;
         }
     }
@@ -1175,6 +1237,7 @@ void Game::updateDaily() {
         handleMonthlyEvents();
         refreshTimePauseState();
         if (timePaused) {
+            flushPendingRuntimeSaveIfNeeded();
             return;
         }
     }
@@ -1182,6 +1245,7 @@ void Game::updateDaily() {
     updateState();
     refreshTimePauseState();
     if (timePaused) {
+        flushPendingRuntimeSaveIfNeeded();
         return;
     }
     bool didAdvanceDay = false;
@@ -1198,13 +1262,12 @@ void Game::updateDaily() {
         world.forEachLeagueContext([&conditionService](LeagueContext& context) {
             conditionService.applyDailyRecovery(context.getLeague());
             });
-        updateCurrentDateSaveMetadata();
-        persistRuntimeState();
     }
     updateTransferWindow();
     if (world.getTransferOfferService().expirePendingOffers(date) > 0) {
-        persistRuntimeState();
+        requestRuntimeSave(SaveReason::TransferOfferResolved);
     }
+    checkScheduledAutoSaveCheckpoint();
 }
 
 void Game::handleSeasonalEvents() {
@@ -1338,7 +1401,7 @@ void Game::temporaryForDebug_tryCreateWeeklyManagedTransferOffer() {
 
         lastDebugOfferYear = currentYear;
         lastDebugOfferMonth = currentMonth;
-        persistRuntimeState();
+        requestRuntimeSave(SaveReason::TransferOfferResolved);
         return;
     }
 }
@@ -1384,6 +1447,7 @@ void Game::seasonStartChecksForContext(LeagueContext& context) {
     fixtureGenerator.generateSeasonFixture(league, seasonPlan, rules, [this]() { return world.allocateMatchId(); });
     seasonPlan.finalizeFromFixture(league, rules);
     league.setSeasonFixtureGenerated(true);
+    requestRuntimeSave(SaveReason::SeasonRollover);
 }
 
 void Game::seasonEndChecks() {
@@ -1486,8 +1550,8 @@ bool Game::playPendingPreMatch() {
     pendingPreMatchAwaySheet.reset();
     interactionManager.resolveActiveInteraction();
     refreshTimePauseState();
-    updateCurrentDateSaveMetadata();
-    persistRuntimeState();
+    requestRuntimeSave(SaveReason::MatchCompleted);
+    flushPendingRuntimeSaveIfNeeded();
     return true;
 }
 
@@ -1530,6 +1594,7 @@ bool Game::updateSelectedTeamSheetForTeam(LeagueId leagueId, TeamId teamId, cons
     try {
         validateTeamSheetForTeam(selectedSheet, *team);
         team->setSelectedTeamSheet(std::move(selectedSheet));
+        requestRuntimeSave(SaveReason::TeamSheetChanged);
     }
     catch (...) {
         return false;
@@ -1621,7 +1686,8 @@ bool Game::acceptTransferOffer(OfferId offerId) {
 
     const bool accepted = world.getTransferOfferService().acceptOffer(offerId, date);
     if (!accepted) {
-        persistRuntimeState();
+        requestRuntimeSave(SaveReason::TransferOfferResolved);
+        flushPendingRuntimeSaveIfNeeded();
         return false;
     }
 
@@ -1636,7 +1702,8 @@ bool Game::acceptTransferOffer(OfferId offerId) {
         offer->buyerLeagueId,
         offer->buyerTeamId,
         isManagedAffectedTeam(offer->buyerLeagueId, offer->buyerTeamId));
-    persistRuntimeState();
+    requestRuntimeSave(SaveReason::TransferAccepted);
+    flushPendingRuntimeSaveIfNeeded();
 
     const TransferOfferDecisionInteraction* interaction = getActiveTransferOfferDecisionInteraction();
     if (interaction && interaction->getOfferId() == offerId) {
@@ -1671,7 +1738,8 @@ bool Game::rejectTransferOffer(OfferId offerId) {
     if (!world.getTransferOfferService().rejectOffer(offerId)) {
         return false;
     }
-    persistRuntimeState();
+    requestRuntimeSave(SaveReason::TransferOfferResolved);
+    flushPendingRuntimeSaveIfNeeded();
 
     const TransferOfferDecisionInteraction* interaction = getActiveTransferOfferDecisionInteraction();
     if (interaction && interaction->getOfferId() == offerId) {
@@ -1758,8 +1826,26 @@ TeamId Game::getManagedTeamId() const {
 }
 
 void Game::flushSaveState() {
-    updateCurrentDateSaveMetadata();
-    persistRuntimeState();
+    flushRuntimeSave(saveScheduler.getPendingReason().value_or(SaveReason::Manual));
+}
+
+bool Game::manualSave() {
+    if (!saveMetadataEnabled) {
+        return false;
+    }
+
+    flushRuntimeSave(SaveReason::Manual);
+    return true;
+}
+
+AutoSaveFrequency Game::getAutoSaveFrequency() const {
+    return saveScheduler.getAutoSaveFrequency();
+}
+
+bool Game::setAutoSaveFrequency(AutoSaveFrequency frequency) {
+    saveScheduler.setAutoSaveFrequency(frequency);
+    persistSaveSettings();
+    return true;
 }
 
 SaveMetadata Game::getSaveMetadata() const {

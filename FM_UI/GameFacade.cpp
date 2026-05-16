@@ -7,6 +7,7 @@
 #include"fm/core/LeagueContext.h"
 #include"fm/data/BootstrapDtos.h"
 #include"fm/data/RuntimeSaveValidator.h"
+#include"fm/data/SavePolicy.h"
 #include"fm/data/SqliteBootstrapDatabaseInitializer.h"
 #include"fm/data/SqliteBootstrapRepository.h"
 #include"fm/roster/Team.h"
@@ -1073,6 +1074,83 @@ QVariantMap GameFacade::getCurrentSaveMetadata() const {
     map.insert(QStringLiteral("schemaVersion"), metadata.schemaVersion);
     map.insert(QStringLiteral("worldVersion"), metadata.worldVersion);
     return map;
+}
+
+bool GameFacade::saveGame() {
+    if (!gameStarted) {
+        setLastError(QStringLiteral("No active game is available to save."));
+        qWarning() << "[GameFacade::saveGame] No active game.";
+        publishGameStateChanged();
+        return false;
+    }
+
+    Game* currentGame = ensureGame();
+    if (!currentGame || !currentGame->manualSave()) {
+        setLastError(QStringLiteral("Failed to save game."));
+        qWarning() << "[GameFacade::saveGame] Manual save failed.";
+        publishGameStateChanged();
+        return false;
+    }
+
+    setLastError(QString());
+    publishGameStateChanged();
+    return true;
+}
+
+QVariantList GameFacade::getAutoSaveFrequencyOptions() const {
+    const std::array<AutoSaveFrequency, 5> frequencies{
+        AutoSaveFrequency::ManualOnly,
+        AutoSaveFrequency::Daily,
+        AutoSaveFrequency::Every3Days,
+        AutoSaveFrequency::Weekly,
+        AutoSaveFrequency::Every2Weeks
+    };
+
+    QVariantList result;
+    result.reserve(static_cast<qsizetype>(frequencies.size()));
+    for (AutoSaveFrequency frequency : frequencies) {
+        QVariantMap option;
+        option.insert(QStringLiteral("stableCode"), fromStd(std::string(toStableCode(frequency))));
+        option.insert(QStringLiteral("displayText"), fromStd(std::string(toDisplayText(frequency))));
+        result.push_back(option);
+    }
+    return result;
+}
+
+QString GameFacade::getAutoSaveFrequencyCode() const {
+    const Game* currentGame = ensureGame();
+    const AutoSaveFrequency frequency = currentGame
+        ? currentGame->getAutoSaveFrequency()
+        : AutoSaveFrequency::Weekly;
+    return fromStd(std::string(toStableCode(frequency)));
+}
+
+bool GameFacade::setAutoSaveFrequency(const QString& stableCode) {
+    if (!gameStarted) {
+        setLastError(QStringLiteral("No active game is available for save settings."));
+        publishGameStateChanged();
+        return false;
+    }
+
+    Game* currentGame = ensureGame();
+    if (!currentGame) {
+        setLastError(QStringLiteral("No active game is available for save settings."));
+        publishGameStateChanged();
+        return false;
+    }
+
+    const std::optional<AutoSaveFrequency> frequency =
+        autoSaveFrequencyFromStableCode(stableCode.toStdString());
+    if (!frequency.has_value()) {
+        setLastError(QStringLiteral("Invalid auto save frequency."));
+        publishGameStateChanged();
+        return false;
+    }
+
+    currentGame->setAutoSaveFrequency(*frequency);
+    setLastError(QString());
+    publishGameStateChanged();
+    return true;
 }
 
 void GameFacade::clearLastError() {

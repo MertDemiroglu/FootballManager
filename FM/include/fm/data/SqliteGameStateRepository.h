@@ -2,6 +2,7 @@
 
 #include "fm/common/Date.h"
 #include "fm/common/Types.h"
+#include "fm/data/SavePolicy.h"
 #include "fm/data/SqliteDatabase.h"
 #include "fm/match/MatchReport.h"
 #include "fm/match/TeamSheet.h"
@@ -81,6 +82,11 @@ struct PersistedTransferOfferState {
     std::optional<TransferOfferResolution> resolution = std::nullopt;
 };
 
+struct PersistedSaveSettings {
+    AutoSaveFrequency autoSaveFrequency = AutoSaveFrequency::Weekly;
+    std::optional<Date> lastAutoSaveDate = std::nullopt;
+};
+
 class SqliteGameStateRepository {
 private:
     SqliteDatabase database;
@@ -100,6 +106,8 @@ public:
     std::vector<PersistedTeamFinanceState> loadTeamFinanceStates() const;
     std::vector<PersistedPlayerRosterState> loadPlayerRosterStates() const;
     std::vector<PersistedTransferOfferState> loadTransferOfferStates() const;
+    PersistedSaveSettings loadSaveSettings() const;
+    void saveSaveSettings(const PersistedSaveSettings& settings) const;
 
     void saveRuntimeState(
         const Date& currentDate,

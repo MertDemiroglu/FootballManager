@@ -24,6 +24,8 @@ Item {
     readonly property bool timePaused: shellState.timePaused
     readonly property bool hasActivePreMatch: interactionState.hasActiveInteraction
                                                && interactionState.kind === "pre_match"
+    property bool settingsPanelOpen: false
+    property string sidebarStatusText: ""
 
     readonly property color backgroundColor: "#071016"
     readonly property color shellColor: "#08111a"
@@ -124,6 +126,30 @@ Item {
 
     function matchweekText(matchweek) {
         return "Matchweek " + (matchweek || "--")
+    }
+
+    function showSidebarStatus(message) {
+        sidebarStatusText = message
+        sidebarStatusTimer.restart()
+    }
+
+    function openSettingsPanel() {
+        settingsPanelOpen = true
+        autosaveSelectorModel.clear()
+        const options = gameFacade.getAutoSaveFrequencyOptions()
+        for (let i = 0; i < options.length; ++i) {
+            autosaveSelectorModel.append({
+                stableCode: options[i].stableCode,
+                displayText: options[i].displayText
+            })
+        }
+        const currentCode = gameFacade.getAutoSaveFrequencyCode()
+        for (let index = 0; index < autosaveSelectorModel.count; ++index) {
+            if (autosaveSelectorModel.get(index).stableCode === currentCode) {
+                autosaveSelector.currentIndex = index
+                break
+            }
+        }
     }
 
     function dateParts(dateText) {
@@ -280,9 +306,22 @@ Item {
 
                         SidebarItem {
                             Layout.fillWidth: true
+                            label: "Save Game"
+                            iconName: "save"
+                            onClicked: {
+                                if (gameFacade.saveGame()) {
+                                    root.showSidebarStatus("Game saved")
+                                } else {
+                                    root.showSidebarStatus("Save failed")
+                                }
+                            }
+                        }
+
+                        SidebarItem {
+                            Layout.fillWidth: true
                             label: "Settings"
                             iconName: "settings"
-                            enabled: false
+                            onClicked: root.openSettingsPanel()
                         }
 
                         SidebarItem {
@@ -290,6 +329,17 @@ Item {
                             label: "Main Menu"
                             iconName: "main-menu"
                             enabled: false
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 24
+                            text: root.sidebarStatusText
+                            color: root.green
+                            font.pixelSize: 13
+                            horizontalAlignment: Text.AlignHCenter
+                            elide: Text.ElideRight
+                            opacity: text.length > 0 ? 0.95 : 0
                         }
                     }
                 }
@@ -655,6 +705,97 @@ Item {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    Timer {
+        id: sidebarStatusTimer
+        interval: 2200
+        repeat: false
+        onTriggered: root.sidebarStatusText = ""
+    }
+
+    ListModel {
+        id: autosaveSelectorModel
+    }
+
+    Popup {
+        id: settingsPanel
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        visible: root.settingsPanelOpen
+        x: Math.max(24, (root.width - width) / 2)
+        y: Math.max(24, (root.height - height) / 2)
+        width: Math.min(root.width - 48, 420)
+        height: 260
+        padding: 0
+        onClosed: root.settingsPanelOpen = false
+
+        background: Rectangle {
+            radius: 8
+            color: root.panelColor
+            border.color: root.borderColor
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 22
+            spacing: 18
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+
+                AppIcon {
+                    Layout.preferredWidth: 26
+                    Layout.preferredHeight: 26
+                    name: "settings"
+                    size: 24
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    text: "Settings"
+                    color: root.textPrimary
+                    font.pixelSize: 22
+                    font.bold: true
+                }
+            }
+
+            Label {
+                Layout.fillWidth: true
+                text: "Auto Save"
+                color: root.textSecondary
+                font.pixelSize: 15
+            }
+
+            ComboBox {
+                id: autosaveSelector
+                Layout.fillWidth: true
+                Layout.preferredHeight: 46
+                model: autosaveSelectorModel
+                textRole: "displayText"
+                valueRole: "stableCode"
+                onActivated: function(index) {
+                    const option = autosaveSelectorModel.get(index)
+                    if (option && gameFacade.setAutoSaveFrequency(option.stableCode)) {
+                        root.showSidebarStatus("Auto save: " + option.displayText)
+                    } else {
+                        root.showSidebarStatus("Setting failed")
+                    }
+                }
+            }
+
+            Item {
+                Layout.fillHeight: true
+            }
+
+            Button {
+                Layout.alignment: Qt.AlignRight
+                text: "Done"
+                onClicked: settingsPanel.close()
             }
         }
     }

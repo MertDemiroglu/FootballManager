@@ -15,6 +15,12 @@ This document locks the current save/load ownership model after the save-slot wo
 
 - Save slot folder: `AppData/.../saves/<saveSlotId>/game.db`
 - Runtime DB contents represent the whole football world across all leagues.
+- Saves are checkpoint-based. Manual Save and scheduled autosave write the current safe runtime state to the current save slot; they do not restore exact transient popup/screen state.
+- Continue/Load enters gameplay through Dashboard/current safe checkpoint.
+- Manual Save overwrites the current save slot. Scheduled autosave also overwrites the current save slot and does not create rolling autosave folders.
+- Autosave is based on game-date intervals, not wall-clock time. The default frequency is Weekly.
+- Important world mutations can request a save, and `Game` coalesces pending requests so one safe flow does not spam full snapshot writes.
+- The current format is a full runtime snapshot. Dirty/incremental table-level writes are a future optimization if multi-league snapshot cost becomes high.
 - `SaveSlotPaths` resolves app/save-slot paths in the FM_UI app layer.
 - `Game/core` receives explicit `GameBootstrapOptions`; it does not resolve AppData or source-tree paths.
 - `GameFacade` starts without an active game and creates/loads a `Game` only after explicit New Game, Continue, or Load Game actions.
@@ -32,6 +38,7 @@ This document locks the current save/load ownership model after the save-slot wo
 - `PreMatchInteraction` should own match-specific frozen team sheets once active interaction persistence exists. Until then, `Game` may hold pending pre-match home/away snapshots as temporary orchestration state only.
 - `SaveMetadata` is display/cache state for save cards and identity. It must not drive gameplay or hold mutable world state.
 - Runtime DB tables are the source of persisted game runtime state. `game_state`, league runtime rows, fixtures, match reports, player runtime state, roster ownership, team finances, transfer offers, and team-sheet tables restore the playable world.
+- `runtime_save_settings` owns runtime/app save policy such as autosave frequency. Do not store autosave settings in `save_metadata`.
 - Runtime roster ownership and team finance snapshots are the source of truth for accepted transfer effects after load. Resolved transfer offers are restored as offer state/history only; they are not replayed as commands.
 - QML is presentation only. It may hold transient UI selection/highlight state, but gameplay source of truth must come from `GameFacade`/core models and mutations must write back through backend methods.
 
@@ -53,9 +60,20 @@ Stores singleton runtime game state, currently including `current_date` and curr
 
 - Writer: `SqliteGameStateRepository::saveRuntimeState`, called by `Game::persistRuntimeState`.
 - Reader: `SqliteGameStateRepository::loadCurrentDate`, called by `Game::restoreRuntimeState` and `RuntimeSaveValidator`.
-- Saved when: runtime state is flushed, day advances, matches are queued/played, and other current save lifecycle paths persist state.
+- Saved when: runtime state is flushed by Manual Save, scheduled autosave, or a coalesced important save request.
 - Authority: authoritative persisted game date.
 - Multi-league implication: one game date drives all leagues in the saved world.
+
+### `runtime_save_settings`
+
+Stores singleton save policy settings: autosave frequency and the game-date checkpoint used for the next scheduled autosave calculation.
+
+- Writer: `SqliteGameStateRepository::saveSaveSettings`, called by `Game` after save-policy changes and runtime save flushes.
+- Reader: `SqliteGameStateRepository::loadSaveSettings`, called by `Game` during bootstrap.
+- Default: `auto_save_frequency = weekly`; `last_auto_save_date` may be null until the first save/settings write initializes it.
+- Stable codes: `manual_only`, `daily`, `every_3_days`, `weekly`, and `every_2_weeks`.
+- Authority: authoritative save policy for the current save slot.
+- Scope note: this table is intentionally separate from `save_metadata`; metadata remains display/cache state only.
 
 ### `league_runtime_state`
 
@@ -162,7 +180,7 @@ Stores mutable player ownership and contract snapshot for team-owned players: pl
 - Reader/restorer: `SqliteGameStateRepository::loadPlayerRosterStates`, then `Game::restoreRuntimeState` moves players between teams with `Team::releasePlayer` / `Team::addPlayer`.
 - Saved when: runtime state is persisted, including accepted transfer roster moves and contract-year changes.
 - Authority: authoritative runtime roster membership after load. Accepted transfer effects survive reload through this table, not by replaying accepted transfer offers.
-- Validation note: bootstrap player/team ids are used only for existence checks. Current player ownership is validated from `runtime_player_roster_state`, and schema v5 saves require every bootstrap player to appear exactly once in that runtime snapshot until free-agent persistence is introduced.
+- Validation note: bootstrap player/team ids are used only for existence checks. Current player ownership is validated from `runtime_player_roster_state`, and current checkpoint saves require every bootstrap player to appear exactly once in that runtime snapshot until free-agent persistence is introduced.
 - Contract note: when wage/contract years are present, restore calls `Footballer::signContract`; partial contract snapshots are invalid.
 - Team sheet note: after roster restore, selected `TeamSheet`s are validated and reconciled so transferred-away players are removed from starters/substitutes while preserving formation and tactical setup where possible. Managed-team sheets preserve manual gaps; AI/non-managed sheets are auto-filled.
 - Multi-league implication: ownership is stored with both `league_id` and `team_id`, so cross-league moves have a durable destination.
@@ -240,9 +258,10 @@ Stores transfer offer runtime state: offer id, created date, last valid date, ex
 ### Pending/active blocking interactions
 
 - Why it matters: closing during pre-match, post-match, or transfer decisions should restore the exact blocking state.
-- Current risk: reload may resume at dashboard/world state rather than the exact interaction screen.
-- Suggested priority: high after selected match squad persistence.
+- Current behavior: reload resumes at dashboard/world state rather than the exact interaction screen.
+- Suggested priority: deferred/low priority after match lifecycle audit, free-agent persistence, and UI/finance work unless a product blocker appears.
 - Storage direction: interaction table with kind, league/team/match/offer ids, and payload version.
+- Current phase rule: do not add active interaction tables yet.
 
 ### Pre-match interaction state
 
