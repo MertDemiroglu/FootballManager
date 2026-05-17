@@ -128,7 +128,12 @@ namespace {
             if (!team) {
                 throw std::runtime_error("runtime team finance references unknown team");
             }
-            team->setBudgetSnapshot(state.totalBudget, state.transferBudget, state.wageBudget, state.financialStrategy);
+            team->setBudgetSnapshot(
+                state.totalBudget,
+                state.transferBudget,
+                state.wageBudget,
+                state.financialStrategy,
+                state.financialHealth);
         }
     }
 
@@ -508,7 +513,7 @@ void Game::ensureSaveMetadata(const GameBootstrapOptions& bootstrapOptions) {
         defaultMetadata.managedLeagueId = user.getManagedLeagueId();
         defaultMetadata.managedTeamId = user.getManagedTeamId();
         defaultMetadata.currentDate = dateToIsoString(date);
-        defaultMetadata.schemaVersion = 6;
+        defaultMetadata.schemaVersion = 9;
         defaultMetadata.worldVersion = 1;
         repository.insertDefault(defaultMetadata);
     }
@@ -792,7 +797,8 @@ void Game::persistRuntimeState() {
                 team->getTotalBudget(),
                 team->getTransferBudget(),
                 team->getWageBudget(),
-                team->getFinancialStrategy()
+                team->getFinancialStrategy(),
+                team->getFinancialHealth()
             });
             for (const auto& player : team->getPlayers()) {
                 if (!player) {

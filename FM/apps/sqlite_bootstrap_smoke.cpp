@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
         Game game(buildBootstrapOptions(argc, argv));
         const SaveMetadata metadata = game.getSaveMetadata();
         if (metadata.saveSlotId.empty() || metadata.currentDate.empty()
-            || metadata.schemaVersion != 6 || metadata.worldVersion != 1) {
+            || metadata.schemaVersion != 9 || metadata.worldVersion != 1) {
             throw std::runtime_error("sqlite bootstrap loaded invalid save metadata");
         }
 

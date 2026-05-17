@@ -73,10 +73,17 @@ public:
 	void spend(Money amount);
 	void setBudgetSnapshot(Money totalBudget, Money transferBudget, Money wageBudget);
 	void setBudgetSnapshot(Money totalBudget, Money transferBudget, Money wageBudget, ClubFinancialStrategy strategy);
+	void setBudgetSnapshot(
+		Money totalBudget,
+		Money transferBudget,
+		Money wageBudget,
+		ClubFinancialStrategy strategy,
+		ClubFinancialHealth health);
 	Money getTotalBudget() const;
 	Money getTransferBudget() const;
 	Money getWageBudget() const;
 	ClubFinancialStrategy getFinancialStrategy() const;
+	ClubFinancialHealth getFinancialHealth() const;
 	void spendTransferFee(Money fee);
 	void receiveTransferFee(Money fee);
 	Money calculateCurrentAnnualWageSpend() const;

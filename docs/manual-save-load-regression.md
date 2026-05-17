@@ -94,7 +94,7 @@ Use this as a practical manual test checklist for current checkpoint-based save/
 4. Confirm buyer cash balance decreases by the transfer fee.
 5. Confirm buyer transfer budget decreases by the transfer fee.
 6. Confirm seller cash balance increases by the transfer fee.
-7. Confirm seller transfer budget increases by the seller strategy retention percentage.
+7. Confirm seller transfer budget increases by the seller health-plus-strategy retention percentage.
 8. Confirm wage affordability uses current player contracts rather than only comparing against the wage limit.
 9. Confirm the accepted offer no longer appears as pending.
 10. Confirm the transferred player is removed from managed starters/substitutes.
@@ -107,20 +107,20 @@ Use this as a practical manual test checklist for current checkpoint-based save/
 ## Finance Foundation
 
 1. Create New Game.
-2. Confirm save/load still works.
-3. Confirm `runtime_team_finances` rows persist for every team.
+2. Confirm teams get finance state with strategy and health.
+3. Confirm Balanced/Stable allocation uses the health sporting envelope, not full cash directly.
 4. Accept a paid transfer.
 5. Confirm buyer cash balance decreases.
 6. Confirm buyer transfer budget decreases.
-7. Confirm seller cash balance increases.
-8. Confirm seller transfer budget increases by strategy retention.
+7. Confirm seller cash balance increases by the full fee.
+8. Confirm seller transfer budget increases by health-plus-strategy sale retention.
 9. Save/load.
-10. Confirm finance values and `financial_strategy` persist.
-11. Confirm wage affordability uses current contracts.
-12. Sign or transfer a player with wage if the current flow supports it.
-13. Confirm no duplicate ownership or transfer regression.
-14. Confirm old transfer offer persistence still works.
-15. Confirm RuntimeSaveValidator accepts valid saves.
+10. Confirm cash, transfer budget, wage budget, strategy, and health persist.
+11. Confirm RuntimeSaveValidator accepts valid saves.
+12. Confirm wage affordability uses current contracts.
+13. Sign or transfer a player with wage if the current flow supports it.
+14. Confirm no duplicate ownership or transfer regression.
+15. Confirm old transfer offer persistence still works.
 
 ## Free Agent Persistence
 
@@ -141,7 +141,7 @@ Use this as a practical manual test checklist for current checkpoint-based save/
 
 ## Save Metadata / Validation Checks
 
-1. Confirm old incompatible saves may be skipped with clear messages such as missing runtime team finance strategy, missing runtime team finance state, or missing SQL league rules rows.
+1. Confirm old incompatible saves may be skipped with clear messages such as missing runtime team finance strategy/health, missing runtime team finance state, or missing SQL league rules rows.
 2. Confirm no transfer offer, roster ownership, budget state, or autosave setting is stored in `save_metadata`.
 3. Confirm `runtime_transfer_offers`, `runtime_team_finances`, `runtime_player_roster_state`, `runtime_free_agents`, and `runtime_save_settings` contain their expected data.
 4. Confirm RuntimeSaveValidator accepts a valid save.
@@ -156,4 +156,4 @@ Use this as a practical manual test checklist for current checkpoint-based save/
 - Closing while a post-match report screen is open may not restore the exact post-match screen yet.
 - Closing while a transfer decision is open may not restore the exact transfer decision screen yet.
 - Save As, multiple named manual saves, rolling autosave slots, and incremental/dirty table-level saves are not implemented yet.
-- Completed season archives, completed transfer history, deep finance ledgers, debt, revenue streams, finance UI, transfer AI, player valuation, and automated save/load regression tests are future work.
+- Completed season archives, completed transfer history, deep finance ledgers, debt/liabilities, ticket/sponsor/prize/shirt revenue, stadium/wage/debt/general operating expenses, finance UI, transfer AI, player valuation, and automated save/load regression tests are future work.

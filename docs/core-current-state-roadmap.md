@@ -26,7 +26,7 @@ This living document describes the current core/backend shape and the next backe
 - Transfer offer persistence.
 - Accepted transfer roster movement, centralized `TeamFinance`, and contract snapshot persistence.
 - Free agent pool persistence through `runtime_free_agents`.
-- Finance Foundation: `TeamFinance` owns cash balance, transfer budget, annual wage budget limit, and `ClubFinancialStrategy`.
+- Finance Foundation: `TeamFinance` owns cash balance, transfer budget, annual wage budget limit, `ClubFinancialStrategy`, and `ClubFinancialHealth`.
 - Manual save and autosave policy.
 - Managed-vs-AI `TeamSheet` reconciliation policy after roster restore/mutation.
 
@@ -41,8 +41,11 @@ This living document describes the current core/backend shape and the next backe
 - Default autosave frequency is Weekly.
 - Important save requests can be coalesced before a safe checkpoint flush.
 - Team-owned player ownership is stored in `runtime_player_roster_state`; free agent ownership is stored separately in `runtime_free_agents`.
-- Team finance is stored in `runtime_team_finances`: `total_budget` maps to cash balance, `transfer_budget` to the active transfer allocation, `wage_budget` to the annual wage budget limit, and `financial_strategy` to the stable strategy code.
+- Team finance is stored in `runtime_team_finances`: `total_budget` maps to cash balance, `transfer_budget` to the active transfer allocation, `wage_budget` to the annual wage budget limit, `financial_strategy` to the stable strategy code, and `financial_health` to the stable health code.
+- Finance allocation is two-stage. `ClubFinancialHealth` determines how much cash can be allocated to football spending, then `ClubFinancialStrategy` splits that sporting envelope between wage and transfer budget. Remaining cash is operating reserve, future expenses, or profit buffer.
+- Transfer sale revenue increases cash by the full fee and increases transfer budget by health-based retention plus the strategy modifier.
 - Current wage spend is derived from player contracts and is not persisted as a team finance field.
+- Wage payments currently reduce cash balance and the MVP avoids negative cash; debt/liability handling is a future finance phase.
 - Current save format is a full runtime snapshot.
 - Dirty/incremental saves are a future optimization if multi-league snapshot cost becomes high.
 
@@ -65,7 +68,7 @@ This living document describes the current core/backend shape and the next backe
 - Active interaction exact restore.
 - Completed season archive/history.
 - Completed transfer history.
-- Deep finance ledgers, debt, revenue streams, sponsor income, taxes, financial fair play, and finance UI.
+- Deep finance ledgers, debt/liabilities, ticket income, sponsorships, prize money, shirt sales, stadium maintenance, general operations, taxes, financial fair play, and finance UI.
 - Contract renewal, negotiation, and counter offers.
 - Tactical setup affecting match simulation.
 - Coach-driven tactical identity.
@@ -86,6 +89,6 @@ This living document describes the current core/backend shape and the next backe
 - Active Interaction Persistence.
 - Rolling autosave slots.
 - Save As / multiple named saves.
-- Deep finance ledgers, debt, revenue streams, finance UI, transfer AI, player valuation, and richer contract systems.
+- Deep finance ledgers, debt/liabilities, revenue and expense streams, finance UI, transfer AI, player valuation, and richer contract systems.
 - Completed season archives.
 - Broader data editor/scouting systems.

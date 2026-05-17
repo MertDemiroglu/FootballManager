@@ -86,10 +86,11 @@ Related documents:
 ### 9. Finance Foundation
 
 - Status: implemented/in progress.
-- Scope: replace primitive `Team` budget fields with `TeamFinance`, which owns cash balance, transfer budget, annual wage budget limit, and `ClubFinancialStrategy`.
-- Behavior: strategy allocation is applied when budgets are initialized/reallocated, not dynamically on every cash change. Paid transfers spend cash and transfer budget; sales increase cash and retain a strategy percentage into transfer budget; wage affordability derives current annual wage spend from contracts.
-- Save mapping: `runtime_team_finances.total_budget` maps to cash balance, `transfer_budget` to transfer budget, `wage_budget` to wage budget limit, and `financial_strategy` to the stable strategy code.
-- Do not mix in: finance UI, transfer AI, player valuation, deep ledgers, debt, sponsor/revenue streams, taxes, scouting/data editor work, match engine changes, rolling autosaves, or Save As.
+- Scope: replace primitive `Team` budget fields with `TeamFinance`, which owns cash balance, transfer budget, annual wage budget limit, `ClubFinancialStrategy`, and `ClubFinancialHealth`.
+- Behavior: allocation is two-stage and happens when budgets are initialized/reallocated, not dynamically on every cash change. Health determines the sporting allocation envelope from cash balance; strategy splits that envelope between wage and transfer budget. Remaining cash stays as operating reserve/future expenses/profit buffer.
+- Transfer behavior: paid transfers spend cash and transfer budget. Sales increase cash by the full fee and increase transfer budget by final sale retention, calculated from health base retention plus strategy modifier clamped to 10%-90%. Wage affordability derives current annual wage spend from contracts.
+- Save mapping: `runtime_team_finances.total_budget` maps to cash balance, `transfer_budget` to transfer budget, `wage_budget` to wage budget limit, `financial_strategy` to the stable strategy code, and `financial_health` to the stable health code.
+- Do not mix in: finance UI, transfer AI, player valuation, deep ledgers, debt/liabilities, ticket/sponsor/prize/shirt revenue streams, stadium/wage/debt/general operating expense streams, taxes, scouting/data editor work, match engine changes, rolling autosaves, or Save As.
 
 ## Next Backend Phases
 
@@ -103,6 +104,6 @@ Related documents:
 - Active Interaction Persistence.
 - Rolling autosave slots.
 - Save As / multiple named saves.
-- Deep finance ledgers, debt, revenue streams, finance UI, transfer AI, player valuation, and richer contract systems.
+- Deep finance ledgers, debt/liabilities, revenue and expense streams, finance UI, transfer AI, player valuation, and richer contract systems.
 - Completed season archives.
 - Broader data editor/scouting systems.

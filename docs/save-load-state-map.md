@@ -182,10 +182,11 @@ Stores mutable team finance snapshots for each league/team.
 - Writer: `Game::persistRuntimeState`, via `SqliteGameStateRepository::saveRuntimeState`.
 - Reader/restorer: `SqliteGameStateRepository::loadTeamFinanceStates`, then `Game::restoreRuntimeState` calls `Team::setBudgetSnapshot`.
 - Saved when: runtime state is persisted, including accepted transfers and monthly wage/payment changes.
-- Columns: `total_budget` is `TeamFinance.cashBalance`, `transfer_budget` is the active transfer spending allocation, `wage_budget` is the annual wage budget limit, and `financial_strategy` is the stable `ClubFinancialStrategy` code.
+- Columns: `total_budget` is `TeamFinance.cashBalance`, `transfer_budget` is the active transfer spending allocation, `wage_budget` is the annual wage budget limit, `financial_strategy` is the stable `ClubFinancialStrategy` code, and `financial_health` is the stable `ClubFinancialHealth` code.
 - Authority: authoritative mutable finance snapshot after load. Seed team budgets are bootstrap defaults only.
-- Finance model: transfer budget and wage budget are allocation limits, not separate cash accounts. Paid transfers reduce both cash balance and transfer budget; sales increase cash balance and add only the strategy retention share to transfer budget. Wage payments reduce cash balance. Current annual wage spend is derived from contracts and is not persisted here.
-- Compatibility: old development saves without `financial_strategy` are incompatible and should fail with a clear message instead of silently assuming a strategy.
+- Finance model: cash balance is the main club money. Financial health determines the sporting allocation envelope, strategy splits that envelope into wage and transfer budget, and the remaining cash stays as operating reserve/future expenses/profit buffer. Transfer budget and wage budget are allocation limits, not separate cash accounts.
+- Transfer behavior: paid transfers reduce both buyer cash balance and transfer budget. Sales increase seller cash balance by the full fee and add only the health-plus-strategy retention share to transfer budget. Wage payments reduce cash balance. Current annual wage spend is derived from contracts and is not persisted here.
+- Compatibility: old development saves without `financial_strategy` or `financial_health` are incompatible and should fail with a clear message instead of silently assuming values.
 - Multi-league implication: rows are keyed by `league_id`/`team_id`; this is full-world state and is not managed-team-only.
 
 ### `runtime_player_roster_state`
@@ -275,7 +276,7 @@ Stores transfer offer runtime state: offer id, created date, last valid date, ex
 - Runtime team sheets have no duplicate starters, duplicate substitutes, or starter/substitute overlap.
 - Runtime team sheets do not exceed 10 substitutes.
 - Runtime team sheets may be incomplete when structurally valid; missing managed-team assignments represent empty lineup slots and are not stored as `player_id = 0`.
-- Runtime team finance rows must exist for every team, reference known leagues/teams, have non-negative cash/transfer/wage values, carry a valid strategy stable code, and keep transfer budget at or below cash balance.
+- Runtime team finance rows must exist for every team, reference known leagues/teams, have non-negative cash/transfer/wage values, carry valid strategy and health stable codes, and keep transfer budget at or below cash balance.
 - Current annual wage spend may exceed the wage budget limit in an existing squad; validation does not reject that state, but wage affordability blocks additional wages until load is reduced.
 - Runtime player roster rows reference known players/leagues/teams, have no duplicate player ids, and have valid contract snapshots.
 - Runtime free agent rows reference known players, have no duplicate player ids, are disjoint from runtime roster rows, have valid optional previous-team metadata, and have valid optional contract/stat snapshots.
@@ -315,8 +316,8 @@ Validation intentionally tolerates played fixtures without a detailed report for
 
 ### Deeper finance/contract systems
 
-- Current state: `TeamFinance` centralizes cash balance, transfer budget, wage budget limit, and financial strategy; player contract wage/year snapshots persist for team-owned players and free agents.
-- Remaining work: deep ledgers, debt, revenue streams, sponsor income, taxes, financial fair play, finance UI, transfer AI, player valuation, contract renewal UI, contract negotiation history, and long-term transaction reporting.
+- Current state: `TeamFinance` centralizes cash balance, health, strategy, transfer budget, and wage budget limit; player contract wage/year snapshots persist for team-owned players and free agents.
+- Remaining work: deep ledgers, debt/liabilities, ticket income, sponsorships, prize money, shirt sales, stadium maintenance, wage/debt/general operating expense streams, taxes, financial fair play, finance UI, transfer AI, player valuation, contract renewal UI, contract negotiation history, and long-term transaction reporting.
 - Suggested priority: after active interaction persistence unless transfer gameplay exposes a blocker.
 - Storage direction: transaction/ledger tables and explicit free-agent runtime state.
 

@@ -58,6 +58,7 @@ struct PersistedTeamFinanceState {
     Money transferBudget = 0;
     Money wageBudget = 0;
     ClubFinancialStrategy financialStrategy = ClubFinancialStrategy::Balanced;
+    ClubFinancialHealth financialHealth = ClubFinancialHealth::Stable;
 };
 
 struct PersistedPlayerRosterState {

@@ -231,7 +231,7 @@ void Team::spend(Money amount) {
 }
 
 void Team::setBudgetSnapshot(Money totalBudgetValue, Money transferBudgetValue, Money wageBudgetValue) {
-    finance.setSnapshot(totalBudgetValue, transferBudgetValue, wageBudgetValue, finance.getStrategy());
+    finance.setSnapshot(totalBudgetValue, transferBudgetValue, wageBudgetValue, finance.getStrategy(), finance.getHealth());
 }
 
 void Team::setBudgetSnapshot(
@@ -239,7 +239,16 @@ void Team::setBudgetSnapshot(
     Money transferBudgetValue,
     Money wageBudgetValue,
     ClubFinancialStrategy strategy) {
-    finance.setSnapshot(totalBudgetValue, transferBudgetValue, wageBudgetValue, strategy);
+    finance.setSnapshot(totalBudgetValue, transferBudgetValue, wageBudgetValue, strategy, finance.getHealth());
+}
+
+void Team::setBudgetSnapshot(
+    Money totalBudgetValue,
+    Money transferBudgetValue,
+    Money wageBudgetValue,
+    ClubFinancialStrategy strategy,
+    ClubFinancialHealth health) {
+    finance.setSnapshot(totalBudgetValue, transferBudgetValue, wageBudgetValue, strategy, health);
 }
 
 Money Team::getTotalBudget() const {
@@ -256,6 +265,10 @@ Money Team::getWageBudget() const {
 
 ClubFinancialStrategy Team::getFinancialStrategy() const {
     return finance.getStrategy();
+}
+
+ClubFinancialHealth Team::getFinancialHealth() const {
+    return finance.getHealth();
 }
 
 void Team::spendTransferFee(Money fee) {
@@ -284,7 +297,7 @@ Money Team::getAvailableWageBudget() const {
 }
 
 void Team::setBudgets() {
-    finance.allocateFromCashBalance(finance.getCashBalance(), finance.getStrategy());
+    finance.allocateFromCashBalance(finance.getCashBalance(), finance.getStrategy(), finance.getHealth());
 }
 void Team::payWagesMonthly() {
    finance.payWages(calculateCurrentAnnualWageSpend() / 12);

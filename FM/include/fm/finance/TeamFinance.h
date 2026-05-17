@@ -13,9 +13,21 @@ enum class ClubFinancialStrategy {
     Conservative
 };
 
+enum class ClubFinancialHealth {
+    Excellent,
+    Stable,
+    Cautious,
+    Tight,
+    Distressed
+};
+
 std::string toStableCode(ClubFinancialStrategy strategy);
 std::optional<ClubFinancialStrategy> clubFinancialStrategyFromStableCode(const std::string& stableCode);
 std::string toDisplayText(ClubFinancialStrategy strategy);
+
+std::string toStableCode(ClubFinancialHealth health);
+std::optional<ClubFinancialHealth> clubFinancialHealthFromStableCode(const std::string& stableCode);
+std::string toDisplayText(ClubFinancialHealth health);
 
 class TeamFinance {
 private:
@@ -23,6 +35,7 @@ private:
     Money transferBudget = 0;
     Money wageBudgetLimit = 0;
     ClubFinancialStrategy strategy = ClubFinancialStrategy::Balanced;
+    ClubFinancialHealth health = ClubFinancialHealth::Stable;
 
     void capTransferBudgetToCashBalance();
 
@@ -33,8 +46,13 @@ public:
         Money cashBalance,
         Money transferBudget,
         Money wageBudgetLimit,
-        ClubFinancialStrategy strategy);
+        ClubFinancialStrategy strategy,
+        ClubFinancialHealth health);
     void allocateFromCashBalance(Money startingCash, ClubFinancialStrategy strategy);
+    void allocateFromCashBalance(
+        Money startingCash,
+        ClubFinancialStrategy strategy,
+        ClubFinancialHealth health);
 
     bool canAffordTransfer(Money fee) const;
     bool spendTransferFee(Money fee);
@@ -48,5 +66,8 @@ public:
     Money getCashBalance() const;
     Money getTransferBudget() const;
     Money getWageBudgetLimit() const;
+    Money calculateSportingAllocationEnvelope() const;
+    Money getUnallocatedCashBuffer() const;
     ClubFinancialStrategy getStrategy() const;
+    ClubFinancialHealth getHealth() const;
 };

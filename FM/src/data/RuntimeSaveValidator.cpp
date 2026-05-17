@@ -192,6 +192,10 @@ namespace {
             if (!clubFinancialStrategyFromStableCode(strategyCode).has_value()) {
                 return invalid("runtime team finance has an invalid financial strategy");
             }
+            const std::string healthCode = toStableCode(finance.financialHealth);
+            if (!clubFinancialHealthFromStableCode(healthCode).has_value()) {
+                return invalid("runtime team finance has an invalid financial health");
+            }
         }
         for (const std::int64_t teamKey : knownTeams) {
             if (seenFinanceRows.find(teamKey) == seenFinanceRows.end()) {
