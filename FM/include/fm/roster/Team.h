@@ -3,6 +3,7 @@
 #include"fm/roster/Footballer.h"
 #include"fm/transfer/TransferRoom.h"
 #include"fm/common/Types.h"
+#include"fm/finance/TeamFinance.h"
 #include"fm/roster/Contract.h"
 #include"fm/roster/HeadCoach.h"
 #include"fm/match/TeamSheet.h"
@@ -21,7 +22,7 @@ class Team {
 private:
 
 	TeamId id;
-	Money transferBudget, wageBudget, totalBudget;
+	TeamFinance finance;
 	std::string name;
 	std::string primaryColor;
 	std::string secondaryColor;
@@ -71,9 +72,22 @@ public:
 	//Takimdan para azaltir
 	void spend(Money amount);
 	void setBudgetSnapshot(Money totalBudget, Money transferBudget, Money wageBudget);
+	void setBudgetSnapshot(Money totalBudget, Money transferBudget, Money wageBudget, ClubFinancialStrategy strategy);
+	void setBudgetSnapshot(
+		Money totalBudget,
+		Money transferBudget,
+		Money wageBudget,
+		ClubFinancialStrategy strategy,
+		ClubFinancialHealth health);
 	Money getTotalBudget() const;
 	Money getTransferBudget() const;
 	Money getWageBudget() const;
+	ClubFinancialStrategy getFinancialStrategy() const;
+	ClubFinancialHealth getFinancialHealth() const;
+	void spendTransferFee(Money fee);
+	void receiveTransferFee(Money fee);
+	Money calculateCurrentAnnualWageSpend() const;
+	Money getAvailableWageBudget() const;
 
 	//Butceyi belirler
 	void setBudgets();

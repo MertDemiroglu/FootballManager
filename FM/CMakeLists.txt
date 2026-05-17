@@ -5,6 +5,7 @@ project(fm_core LANGUAGES C CXX)
 add_library(fm_core STATIC
     src/core/Game.cpp
     src/core/SaveScheduler.cpp
+    src/finance/TeamFinance.cpp
     src/roster/Contract.cpp
     src/common/Date.cpp
     src/common/DateUtils.cpp

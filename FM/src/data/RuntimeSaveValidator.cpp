@@ -185,6 +185,22 @@ namespace {
             if (finance.totalBudget < 0 || finance.transferBudget < 0 || finance.wageBudget < 0) {
                 return invalid("runtime team finance has a negative budget");
             }
+            if (finance.transferBudget > finance.totalBudget) {
+                return invalid("runtime team finance transfer budget exceeds cash balance");
+            }
+            const std::string strategyCode = toStableCode(finance.financialStrategy);
+            if (!clubFinancialStrategyFromStableCode(strategyCode).has_value()) {
+                return invalid("runtime team finance has an invalid financial strategy");
+            }
+            const std::string healthCode = toStableCode(finance.financialHealth);
+            if (!clubFinancialHealthFromStableCode(healthCode).has_value()) {
+                return invalid("runtime team finance has an invalid financial health");
+            }
+        }
+        for (const std::int64_t teamKey : knownTeams) {
+            if (seenFinanceRows.find(teamKey) == seenFinanceRows.end()) {
+                return invalid("runtime team finance row is missing for a team");
+            }
         }
 
         std::unordered_map<PlayerId, RuntimeRosterLocation> rosterTeamByPlayer;

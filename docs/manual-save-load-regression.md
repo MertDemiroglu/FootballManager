@@ -91,15 +91,37 @@ Use this as a practical manual test checklist for current checkpoint-based save/
 1. Put a likely sold player in the managed team's Starting XI or substitutes.
 2. Create or load a pending transfer offer for that player and accept it.
 3. Confirm in the current session that the player is removed from the seller team and appears on the buyer team.
-4. Confirm seller/buyer budgets change according to current backend budget behavior.
-5. Confirm the accepted offer no longer appears as pending.
-6. Confirm the transferred player is removed from managed starters/substitutes.
-7. Confirm any managed-team slot vacated by the sale remains empty and is not silently auto-filled.
-8. Press Auto Select and confirm the empty managed-team slot can be filled by user action.
-9. Confirm the AI/non-managed buyer TeamSheet remains valid/current.
-10. Close and reopen the app.
-11. Load/continue the save.
-12. Confirm player ownership, `teamId`, budgets, accepted offer status, and affected TeamSheets remain consistent.
+4. Confirm buyer cash balance decreases by the transfer fee.
+5. Confirm buyer transfer budget decreases by the transfer fee.
+6. Confirm seller cash balance increases by the transfer fee.
+7. Confirm seller transfer budget increases by the seller health-plus-strategy retention percentage.
+8. Confirm wage affordability uses current player contracts rather than only comparing against the wage limit.
+9. Confirm the accepted offer no longer appears as pending.
+10. Confirm the transferred player is removed from managed starters/substitutes.
+11. Confirm any managed-team slot vacated by the sale remains empty and is not silently auto-filled.
+12. Press Auto Select and confirm the empty managed-team slot can be filled by user action.
+13. Confirm the AI/non-managed buyer TeamSheet remains valid/current.
+14. Save, close, reopen, and load/continue.
+15. Confirm player ownership, `teamId`, finance values, accepted offer status, and affected TeamSheets remain consistent.
+
+## Finance Foundation
+
+1. Create New Game.
+2. Confirm teams get finance state with strategy and health.
+3. Confirm Balanced/Stable allocation uses the health sporting envelope, not full cash directly.
+4. Confirm supported strategies are Balanced, DevelopmentFocused, StarFocused, and ValueTrading only.
+5. Accept a paid transfer.
+6. Confirm buyer cash balance decreases.
+7. Confirm buyer transfer budget decreases.
+8. Confirm seller cash balance increases by the full fee.
+9. Confirm seller transfer budget increases by health-plus-strategy sale retention, which may reach 100% for financially strong clubs.
+10. Save/load.
+11. Confirm cash, transfer budget, wage budget, strategy, and health persist.
+12. Confirm RuntimeSaveValidator accepts valid saves.
+13. Confirm wage affordability uses current contracts.
+14. Sign or transfer a player with wage if the current flow supports it.
+15. Confirm no duplicate ownership or transfer regression.
+16. Confirm old transfer offer persistence still works.
 
 ## Free Agent Persistence
 
@@ -120,7 +142,7 @@ Use this as a practical manual test checklist for current checkpoint-based save/
 
 ## Save Metadata / Validation Checks
 
-1. Confirm old incompatible saves may be skipped with clear messages such as missing runtime team finance state or missing SQL league rules rows.
+1. Confirm old incompatible saves may be skipped with clear messages such as missing runtime team finance strategy/health, missing runtime team finance state, or missing SQL league rules rows.
 2. Confirm no transfer offer, roster ownership, budget state, or autosave setting is stored in `save_metadata`.
 3. Confirm `runtime_transfer_offers`, `runtime_team_finances`, `runtime_player_roster_state`, `runtime_free_agents`, and `runtime_save_settings` contain their expected data.
 4. Confirm RuntimeSaveValidator accepts a valid save.
@@ -135,4 +157,4 @@ Use this as a practical manual test checklist for current checkpoint-based save/
 - Closing while a post-match report screen is open may not restore the exact post-match screen yet.
 - Closing while a transfer decision is open may not restore the exact transfer decision screen yet.
 - Save As, multiple named manual saves, rolling autosave slots, and incremental/dirty table-level saves are not implemented yet.
-- Completed season archives, completed transfer history, deeper finance ledgers, and automated save/load regression tests are future work.
+- Completed season archives, completed transfer history, deep finance ledgers, debt/liabilities, ticket/sponsor/prize/shirt revenue, stadium/wage/debt/general operating expenses, finance UI, transfer AI, player valuation, and automated save/load regression tests are future work.

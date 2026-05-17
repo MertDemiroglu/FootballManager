@@ -185,6 +185,16 @@ namespace {
         return statement.columnInt(0) > 0;
     }
 
+    bool columnExists(const SqliteDatabase& database, const std::string& tableName, const std::string& columnName) {
+        SqliteStatement statement = database.prepare("PRAGMA table_info(" + tableName + ")");
+        while (statement.stepRow()) {
+            if (statement.columnText(1) == columnName) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     void ensureSchema(const SqliteDatabase& database) {
         database.execute(
             "CREATE TABLE IF NOT EXISTS game_state ("
@@ -322,10 +332,20 @@ namespace {
             "total_budget INTEGER NOT NULL,"
             "transfer_budget INTEGER NOT NULL,"
             "wage_budget INTEGER NOT NULL,"
+            "financial_strategy TEXT NOT NULL DEFAULT 'balanced',"
+            "financial_health TEXT NOT NULL DEFAULT 'stable',"
             "PRIMARY KEY (league_id, team_id),"
             "FOREIGN KEY (league_id) REFERENCES leagues(id),"
             "FOREIGN KEY (team_id) REFERENCES teams(id)"
             ");");
+        if (!columnExists(database, "runtime_team_finances", "financial_strategy")) {
+            throw std::runtime_error(
+                "runtime_team_finances is missing financial_strategy; clear incompatible development saves or start a new game");
+        }
+        if (!columnExists(database, "runtime_team_finances", "financial_health")) {
+            throw std::runtime_error(
+                "runtime_team_finances is missing financial_health; clear incompatible development saves or start a new game");
+        }
         database.execute(
             "CREATE TABLE IF NOT EXISTS runtime_player_roster_state ("
             "player_id INTEGER PRIMARY KEY,"
@@ -351,7 +371,7 @@ namespace {
             "FOREIGN KEY (previous_league_id) REFERENCES leagues(id),"
             "FOREIGN KEY (previous_team_id) REFERENCES teams(id)"
             ");");
-        database.execute("PRAGMA user_version = 7;");
+        database.execute("PRAGMA user_version = 9;");
     }
 
     PersistedTransferOfferState readTransferOfferRow(SqliteStatement& statement) {
@@ -660,9 +680,17 @@ std::vector<PersistedTeamFinanceState> SqliteGameStateRepository::loadTeamFinanc
     if (!tableExists(database, "runtime_team_finances")) {
         return states;
     }
+    if (!columnExists(database, "runtime_team_finances", "financial_strategy")) {
+        throw std::runtime_error(
+            "runtime_team_finances is missing financial_strategy; clear incompatible development saves or start a new game");
+    }
+    if (!columnExists(database, "runtime_team_finances", "financial_health")) {
+        throw std::runtime_error(
+            "runtime_team_finances is missing financial_health; clear incompatible development saves or start a new game");
+    }
 
     SqliteStatement statement = database.prepare(
-        "SELECT league_id, team_id, total_budget, transfer_budget, wage_budget "
+        "SELECT league_id, team_id, total_budget, transfer_budget, wage_budget, financial_strategy, financial_health "
         "FROM runtime_team_finances ORDER BY league_id, team_id");
     while (statement.stepRow()) {
         PersistedTeamFinanceState state;
@@ -671,6 +699,18 @@ std::vector<PersistedTeamFinanceState> SqliteGameStateRepository::loadTeamFinanc
         state.totalBudget = static_cast<Money>(statement.columnInt64(2));
         state.transferBudget = static_cast<Money>(statement.columnInt64(3));
         state.wageBudget = static_cast<Money>(statement.columnInt64(4));
+        const std::string strategyCode = statement.columnText(5);
+        const std::optional<ClubFinancialStrategy> strategy = clubFinancialStrategyFromStableCode(strategyCode);
+        if (!strategy.has_value()) {
+            throw std::runtime_error("runtime team finance has invalid financial_strategy stable code: " + strategyCode);
+        }
+        state.financialStrategy = *strategy;
+        const std::string healthCode = statement.columnText(6);
+        const std::optional<ClubFinancialHealth> health = clubFinancialHealthFromStableCode(healthCode);
+        if (!health.has_value()) {
+            throw std::runtime_error("runtime team finance has invalid financial_health stable code: " + healthCode);
+        }
+        state.financialHealth = *health;
         states.push_back(state);
     }
     return states;
@@ -977,13 +1017,15 @@ void SqliteGameStateRepository::saveRuntimeState(
         for (const PersistedTeamFinanceState& state : teamFinances) {
             SqliteStatement statement = database.prepare(
                 "INSERT INTO runtime_team_finances ("
-                "league_id, team_id, total_budget, transfer_budget, wage_budget"
-                ") VALUES (?, ?, ?, ?, ?)");
+                "league_id, team_id, total_budget, transfer_budget, wage_budget, financial_strategy, financial_health"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?)");
             statement.bindInt(1, static_cast<int>(state.leagueId));
             statement.bindInt(2, static_cast<int>(state.teamId));
             statement.bindInt64(3, static_cast<std::int64_t>(state.totalBudget));
             statement.bindInt64(4, static_cast<std::int64_t>(state.transferBudget));
             statement.bindInt64(5, static_cast<std::int64_t>(state.wageBudget));
+            statement.bindText(6, toStableCode(state.financialStrategy));
+            statement.bindText(7, toStableCode(state.financialHealth));
             statement.stepDone();
         }
 

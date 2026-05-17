@@ -3,6 +3,7 @@
 #include "fm/common/Date.h"
 #include "fm/common/Types.h"
 #include "fm/data/SavePolicy.h"
+#include "fm/finance/TeamFinance.h"
 #include "fm/data/SqliteDatabase.h"
 #include "fm/match/MatchReport.h"
 #include "fm/match/TeamSheet.h"
@@ -56,6 +57,8 @@ struct PersistedTeamFinanceState {
     Money totalBudget = 0;
     Money transferBudget = 0;
     Money wageBudget = 0;
+    ClubFinancialStrategy financialStrategy = ClubFinancialStrategy::Balanced;
+    ClubFinancialHealth financialHealth = ClubFinancialHealth::Stable;
 };
 
 struct PersistedPlayerRosterState {

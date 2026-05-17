@@ -113,8 +113,8 @@ bool TransferRoom::transferPlayer(LeagueId fromLeagueId, TeamId fromTeamId, Leag
 		return false;
 	}
 
-	buyer->spend(fee);
-	seller->earn(fee);
+	buyer->spendTransferFee(fee);
+	seller->receiveTransferFee(fee);
 	soldPlayer->setTeam(buyer->getId());
 	soldPlayer->signContract(negotiatedWage, negotiatedYears);
 	buyer->addPlayer(std::move(soldPlayer));

@@ -128,7 +128,12 @@ namespace {
             if (!team) {
                 throw std::runtime_error("runtime team finance references unknown team");
             }
-            team->setBudgetSnapshot(state.totalBudget, state.transferBudget, state.wageBudget);
+            team->setBudgetSnapshot(
+                state.totalBudget,
+                state.transferBudget,
+                state.wageBudget,
+                state.financialStrategy,
+                state.financialHealth);
         }
     }
 
@@ -508,7 +513,7 @@ void Game::ensureSaveMetadata(const GameBootstrapOptions& bootstrapOptions) {
         defaultMetadata.managedLeagueId = user.getManagedLeagueId();
         defaultMetadata.managedTeamId = user.getManagedTeamId();
         defaultMetadata.currentDate = dateToIsoString(date);
-        defaultMetadata.schemaVersion = 6;
+        defaultMetadata.schemaVersion = 9;
         defaultMetadata.worldVersion = 1;
         repository.insertDefault(defaultMetadata);
     }
@@ -791,7 +796,9 @@ void Game::persistRuntimeState() {
                 team->getId(),
                 team->getTotalBudget(),
                 team->getTransferBudget(),
-                team->getWageBudget()
+                team->getWageBudget(),
+                team->getFinancialStrategy(),
+                team->getFinancialHealth()
             });
             for (const auto& player : team->getPlayers()) {
                 if (!player) {
@@ -1447,7 +1454,7 @@ void Game::temporaryForDebug_tryCreateWeeklyManagedTransferOffer() {
         }
 
         // Temporary debug funding guard so that generated offers are actually testable via Accept.
-        constexpr Money debugFundingBoost = 5000000;
+        constexpr Money debugFundingBoost = 50000000;
         if (!candidateTeam->canAffordTransfer(1) || !candidateTeam->canAffordWage(1000)) {
             candidateTeam->earn(debugFundingBoost);
             candidateTeam->setBudgets();

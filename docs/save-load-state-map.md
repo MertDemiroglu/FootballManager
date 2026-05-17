@@ -32,7 +32,7 @@ This document locks the current save/load ownership model after the save-slot wo
 - `World` owns league contexts and cross-league services.
 - `LeagueContext` owns league-scoped orchestration state such as rules, season plan, rollover guard state, and match command handling.
 - `League` owns competition runtime state: teams, fixtures, standings/projections, current season history, and match reports.
-- `Team` owns roster membership, player index, colors, budgets, coach relation, and the current/default selected `TeamSheet`.
+- `Team` owns roster membership, player index, colors, coach relation, `TeamFinance`, and the current/default selected `TeamSheet`.
 - `HeadCoach` owns `TacticalPreferences`: preferred formation, mentality, and tempo. These are defaults/identity, not a concrete match squad.
 - `TeamSheet` owns the selected/current match squad: formation, starting assignments, substitutes, and active `TacticalSetup`.
 - `PreMatchInteraction` should own match-specific frozen team sheets once active interaction persistence exists. Until then, `Game` may hold pending pre-match home/away snapshots as temporary orchestration state only.
@@ -177,12 +177,17 @@ Stores mutable player condition state: form, fitness, and morale.
 
 ### `runtime_team_finances`
 
-Stores mutable team budget snapshots: total budget, transfer budget, and wage budget for each league/team.
+Stores mutable team finance snapshots for each league/team.
 
 - Writer: `Game::persistRuntimeState`, via `SqliteGameStateRepository::saveRuntimeState`.
 - Reader/restorer: `SqliteGameStateRepository::loadTeamFinanceStates`, then `Game::restoreRuntimeState` calls `Team::setBudgetSnapshot`.
 - Saved when: runtime state is persisted, including accepted transfers and monthly wage/payment changes.
+- Columns: `total_budget` is `TeamFinance.cashBalance`, `transfer_budget` is the active transfer spending allocation, `wage_budget` is the annual wage budget limit, `financial_strategy` is the stable `ClubFinancialStrategy` code, and `financial_health` is the stable `ClubFinancialHealth` code.
 - Authority: authoritative mutable finance snapshot after load. Seed team budgets are bootstrap defaults only.
+- Finance model: cash balance is the main club money. Financial health determines the sporting allocation envelope, strategy splits that envelope into wage and transfer budget, and the remaining cash stays as operating reserve/future expenses/profit buffer. Transfer budget and wage budget are allocation limits, not separate cash accounts.
+- Strategy model: supported strategies are Balanced, DevelopmentFocused, StarFocused, and ValueTrading. `Conservative` was removed because financial caution belongs to `ClubFinancialHealth`; all supported strategy wage/transfer splits total 100%. Direct custom wage/transfer sliders and runtime strategy changes are future board/manager-trust work.
+- Transfer behavior: paid transfers reduce both buyer cash balance and transfer budget. Sales increase seller cash balance by the full fee and add only the health-plus-strategy retention share to transfer budget; sale retention can reach 100% for financially strong clubs. Wage payments reduce cash balance. Current annual wage spend is derived from contracts and is not persisted here.
+- Compatibility: old development saves without `financial_strategy` or `financial_health` are incompatible and should fail with a clear message instead of silently assuming values.
 - Multi-league implication: rows are keyed by `league_id`/`team_id`; this is full-world state and is not managed-team-only.
 
 ### `runtime_player_roster_state`
@@ -272,7 +277,8 @@ Stores transfer offer runtime state: offer id, created date, last valid date, ex
 - Runtime team sheets have no duplicate starters, duplicate substitutes, or starter/substitute overlap.
 - Runtime team sheets do not exceed 10 substitutes.
 - Runtime team sheets may be incomplete when structurally valid; missing managed-team assignments represent empty lineup slots and are not stored as `player_id = 0`.
-- Runtime team finance rows reference known leagues/teams and have non-negative budgets.
+- Runtime team finance rows must exist for every team, reference known leagues/teams, have non-negative cash/transfer/wage values, carry valid strategy and health stable codes, and keep transfer budget at or below cash balance.
+- Current annual wage spend may exceed the wage budget limit in an existing squad; validation does not reject that state, but wage affordability blocks additional wages until load is reduced.
 - Runtime player roster rows reference known players/leagues/teams, have no duplicate player ids, and have valid contract snapshots.
 - Runtime free agent rows reference known players, have no duplicate player ids, are disjoint from runtime roster rows, have valid optional previous-team metadata, and have valid optional contract/stat snapshots.
 - `runtime_player_roster_state` plus `runtime_free_agents` covers every bootstrap player exactly once.
@@ -311,8 +317,8 @@ Validation intentionally tolerates played fixtures without a detailed report for
 
 ### Deeper finance/contract systems
 
-- Current state: team budget snapshots and player contract wage/year snapshots persist for team-owned players and free agents.
-- Remaining work: richer finance ledgers, contract renewal UI, contract negotiation history, and long-term transaction reporting.
+- Current state: `TeamFinance` centralizes cash balance, health, strategy, transfer budget, and wage budget limit; player contract wage/year snapshots persist for team-owned players and free agents.
+- Remaining work: deep ledgers, debt/liabilities, ticket income, sponsorships, prize money, shirt sales, stadium maintenance, wage/debt/general operating expense streams, taxes, financial fair play, finance UI, transfer AI, player valuation, contract renewal UI, contract negotiation history, and long-term transaction reporting.
 - Suggested priority: after active interaction persistence unless transfer gameplay exposes a blocker.
 - Storage direction: transaction/ledger tables and explicit free-agent runtime state.
 
