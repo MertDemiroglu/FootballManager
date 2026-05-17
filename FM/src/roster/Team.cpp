@@ -48,9 +48,6 @@ Team::Team(const std::string& name) : Team(generateTeamId(), name) {}
 
 Team::Team(TeamId id, const std::string& name)
     : id(id),
-      wageBudget(0),
-      transferBudget(0),
-      totalBudget(0),
       name(name),
       primaryColor(DefaultPrimaryColor),
       secondaryColor(DefaultSecondaryColor),
@@ -219,53 +216,78 @@ std::unique_ptr<Footballer> Team::releasePlayer(PlayerId playerId) {
 
 //transfer islemleri
 bool Team::canAffordTransfer(Money amount) const {
-    return transferBudget >= amount;
+    return finance.canAffordTransfer(amount);
 }
 
 bool Team::canAffordWage(Money amount) const {
-    return wageBudget >= amount;
+    return finance.canFitWage(calculateCurrentAnnualWageSpend(), amount);
 }
 void Team::earn(Money amount) {
-    totalBudget += amount;
+    finance.receiveCash(amount);
 }
 
 void Team::spend(Money amount) {
-    totalBudget -= amount;
+    (void)finance.spendCash(amount);
 }
 
 void Team::setBudgetSnapshot(Money totalBudgetValue, Money transferBudgetValue, Money wageBudgetValue) {
-    if (totalBudgetValue < 0 || transferBudgetValue < 0 || wageBudgetValue < 0) {
-        throw std::invalid_argument("team budgets cannot be negative");
-    }
+    finance.setSnapshot(totalBudgetValue, transferBudgetValue, wageBudgetValue, finance.getStrategy());
+}
 
-    totalBudget = totalBudgetValue;
-    transferBudget = transferBudgetValue;
-    wageBudget = wageBudgetValue;
+void Team::setBudgetSnapshot(
+    Money totalBudgetValue,
+    Money transferBudgetValue,
+    Money wageBudgetValue,
+    ClubFinancialStrategy strategy) {
+    finance.setSnapshot(totalBudgetValue, transferBudgetValue, wageBudgetValue, strategy);
 }
 
 Money Team::getTotalBudget() const {
-    return totalBudget;
+    return finance.getCashBalance();
 }
 
 Money Team::getTransferBudget() const {
-    return transferBudget;
+    return finance.getTransferBudget();
 }
 
 Money Team::getWageBudget() const {
-    return wageBudget;
+    return finance.getWageBudgetLimit();
+}
+
+ClubFinancialStrategy Team::getFinancialStrategy() const {
+    return finance.getStrategy();
+}
+
+void Team::spendTransferFee(Money fee) {
+    (void)finance.spendTransferFee(fee);
+}
+
+void Team::receiveTransferFee(Money fee) {
+    finance.receiveTransferFee(fee);
+}
+
+Money Team::calculateCurrentAnnualWageSpend() const {
+    Money totalWages = 0;
+    for (const auto& player : players) {
+        if (!player) {
+            continue;
+        }
+        if (const Contract* contract = player->getContract()) {
+            totalWages += contract->getWage();
+        }
+    }
+    return totalWages;
+}
+
+Money Team::getAvailableWageBudget() const {
+    return std::max<Money>(0, getWageBudget() - calculateCurrentAnnualWageSpend());
 }
 
 void Team::setBudgets() {
-    wageBudget = totalBudget * 40 / 100;
-    transferBudget = totalBudget * 60 / 100;
+    finance.allocateFromCashBalance(finance.getCashBalance(), finance.getStrategy());
 }
 void Team::payWagesMonthly() {
-   for (const auto& p : players) {
-       //kontrol sistemi iyilestirilebilir
-       if (const Contract* c = p->getContract()) {
-           spend(c->getWage() / 12);
-       }
-   }  
+   finance.payWages(calculateCurrentAnnualWageSpend() / 12);
 }
 std::vector<std::unique_ptr<Footballer>> Team::collectExpiredContracts() {
     //sozlesme bitimi kontrolu

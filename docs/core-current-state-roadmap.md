@@ -8,7 +8,7 @@ This living document describes the current core/backend shape and the next backe
 - `World` owns `LeagueContext`s and cross-league services such as transfer rooms, transfer offers, id allocation, and domain event publishing.
 - `LeagueContext` owns league-scoped orchestration: rules, season plan, fixture/match command handling, and rollover guard state.
 - `League` owns competition state: teams, fixtures, standings/projections, current season history, and match reports.
-- `Team` owns roster membership, player index, budgets, colors, coach relation, and the selected/current `TeamSheet`.
+- `Team` owns roster membership, player index, colors, coach relation, a `TeamFinance` snapshot, and the selected/current `TeamSheet`.
 - `HeadCoach` owns `TacticalPreferences`, which are coach/team defaults rather than a concrete match squad.
 - `TeamSheet` owns formation, starting XI slot assignments, substitutes, and active `TacticalSetup`.
 - QML/UI must not own gameplay source-of-truth. Gameplay state comes from core models exposed through `GameFacade`.
@@ -24,8 +24,9 @@ This living document describes the current core/backend shape and the next backe
 - Player condition persistence.
 - `TeamSheet`, tactics, and substitutes persistence.
 - Transfer offer persistence.
-- Accepted transfer roster movement, budget, and contract snapshot persistence.
+- Accepted transfer roster movement, centralized `TeamFinance`, and contract snapshot persistence.
 - Free agent pool persistence through `runtime_free_agents`.
+- Finance Foundation: `TeamFinance` owns cash balance, transfer budget, annual wage budget limit, and `ClubFinancialStrategy`.
 - Manual save and autosave policy.
 - Managed-vs-AI `TeamSheet` reconciliation policy after roster restore/mutation.
 
@@ -40,6 +41,8 @@ This living document describes the current core/backend shape and the next backe
 - Default autosave frequency is Weekly.
 - Important save requests can be coalesced before a safe checkpoint flush.
 - Team-owned player ownership is stored in `runtime_player_roster_state`; free agent ownership is stored separately in `runtime_free_agents`.
+- Team finance is stored in `runtime_team_finances`: `total_budget` maps to cash balance, `transfer_budget` to the active transfer allocation, `wage_budget` to the annual wage budget limit, and `financial_strategy` to the stable strategy code.
+- Current wage spend is derived from player contracts and is not persisted as a team finance field.
 - Current save format is a full runtime snapshot.
 - Dirty/incremental saves are a future optimization if multi-league snapshot cost becomes high.
 
@@ -62,7 +65,7 @@ This living document describes the current core/backend shape and the next backe
 - Active interaction exact restore.
 - Completed season archive/history.
 - Completed transfer history.
-- Richer finance ledgers.
+- Deep finance ledgers, debt, revenue streams, sponsor income, taxes, financial fair play, and finance UI.
 - Contract renewal, negotiation, and counter offers.
 - Tactical setup affecting match simulation.
 - Coach-driven tactical identity.
@@ -73,16 +76,16 @@ This living document describes the current core/backend shape and the next backe
 
 ## Near-Term Core Roadmap
 
-1. Free Agent Persistence (active/in progress)
-2. Automated regression tests when stable enough
-3. Multi-league expansion preparation
-4. Match engine/tactical effects later
+1. Finance Foundation (implemented/in progress)
+2. Match Engine design and Transfer World design
+3. Automated regression tests when stable enough
+4. Multi-league expansion preparation
 
 ## Deferred / Later Core Work
 
 - Active Interaction Persistence.
 - Rolling autosave slots.
 - Save As / multiple named saves.
-- Deep finance/contract systems.
+- Deep finance ledgers, debt, revenue streams, finance UI, transfer AI, player valuation, and richer contract systems.
 - Completed season archives.
 - Broader data editor/scouting systems.

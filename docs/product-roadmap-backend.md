@@ -51,12 +51,12 @@ Related documents:
 ### 4. Roster Mutation Persistence
 
 - Status: implemented for team-owned roster moves, team budget snapshots, and player contract snapshots.
-- Implemented shape: `runtime_team_finances` stores full-world team budgets; `runtime_player_roster_state` stores team-owned player ownership, contract wage/years, and current season year.
+- Implemented shape: `runtime_team_finances` stores full-world team finance snapshots; `runtime_player_roster_state` stores team-owned player ownership, contract wage/years, and current season year.
 
 ### 5. Save Backend Runtime Persistence
 
 - Status: largely complete for the current checkpoint model.
-- Persisted today: game date, fixtures, match results/reports, player condition, selected `TeamSheet`s, tactics, substitutes, LeagueRules config, transfer offers, accepted transfer roster movement, budgets, and contract snapshots.
+- Persisted today: game date, fixtures, match results/reports, player condition, selected `TeamSheet`s, tactics, substitutes, LeagueRules config, transfer offers, accepted transfer roster movement, `TeamFinance`, and contract snapshots.
 - Current behavior: Continue/Load resumes through Dashboard/safe checkpoint rather than restoring exact transient modals.
 - Remaining risk: full runtime snapshots may become costly with broader multi-league worlds; dirty/incremental save work can be considered later.
 
@@ -76,26 +76,33 @@ Related documents:
 - `event_enqueued` remains a transient scheduler guard, not authoritative persisted active-interaction state.
 - Do not mix in: match engine rewrite, tactical effects, active interaction persistence, free-agent persistence, completed season archives, multi-league UI, rolling autosaves, or Save As.
 
-## Active Backend Phase
-
 ### 8. Free Agent Persistence
 
-- Status: active/in progress.
+- Status: implemented.
 - Scope: persist `TransferRoom::freeAgents` through `runtime_free_agents`, restore those players into TransferRoom ownership, keep `runtime_player_roster_state` team-owned only, and validate disjoint player ownership.
-- Do not mix in: Transfer Room UI rework, completed transfer history, active interaction persistence, deep contracts/finance, completed season archives, scouting/data editor work, rolling autosaves, or Save As.
+
+## Active Backend Phase
+
+### 9. Finance Foundation
+
+- Status: implemented/in progress.
+- Scope: replace primitive `Team` budget fields with `TeamFinance`, which owns cash balance, transfer budget, annual wage budget limit, and `ClubFinancialStrategy`.
+- Behavior: strategy allocation is applied when budgets are initialized/reallocated, not dynamically on every cash change. Paid transfers spend cash and transfer budget; sales increase cash and retain a strategy percentage into transfer budget; wage affordability derives current annual wage spend from contracts.
+- Save mapping: `runtime_team_finances.total_budget` maps to cash balance, `transfer_budget` to transfer budget, `wage_budget` to wage budget limit, and `financial_strategy` to the stable strategy code.
+- Do not mix in: finance UI, transfer AI, player valuation, deep ledgers, debt, sponsor/revenue streams, taxes, scouting/data editor work, match engine changes, rolling autosaves, or Save As.
 
 ## Next Backend Phases
 
-1. Automated regression tests when stable enough
-2. Team screen / Transfer room / Finance UI rework
-3. Multi-league expansion preparation
-4. Match engine/tactical effects later
+1. Match Engine design and Transfer World design
+2. Automated regression tests when stable enough
+3. Team screen / Transfer room / Finance UI rework
+4. Multi-league expansion preparation
 
 ## Deferred / Later Backend Work
 
 - Active Interaction Persistence.
 - Rolling autosave slots.
 - Save As / multiple named saves.
-- Deep finance/contract systems.
+- Deep finance ledgers, debt, revenue streams, finance UI, transfer AI, player valuation, and richer contract systems.
 - Completed season archives.
 - Broader data editor/scouting systems.
