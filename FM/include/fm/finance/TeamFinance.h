@@ -9,8 +9,7 @@ enum class ClubFinancialStrategy {
     Balanced,
     DevelopmentFocused,
     StarFocused,
-    ValueTrading,
-    Conservative
+    ValueTrading
 };
 
 enum class ClubFinancialHealth {

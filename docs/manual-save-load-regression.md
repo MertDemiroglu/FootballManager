@@ -109,18 +109,19 @@ Use this as a practical manual test checklist for current checkpoint-based save/
 1. Create New Game.
 2. Confirm teams get finance state with strategy and health.
 3. Confirm Balanced/Stable allocation uses the health sporting envelope, not full cash directly.
-4. Accept a paid transfer.
-5. Confirm buyer cash balance decreases.
-6. Confirm buyer transfer budget decreases.
-7. Confirm seller cash balance increases by the full fee.
-8. Confirm seller transfer budget increases by health-plus-strategy sale retention.
-9. Save/load.
-10. Confirm cash, transfer budget, wage budget, strategy, and health persist.
-11. Confirm RuntimeSaveValidator accepts valid saves.
-12. Confirm wage affordability uses current contracts.
-13. Sign or transfer a player with wage if the current flow supports it.
-14. Confirm no duplicate ownership or transfer regression.
-15. Confirm old transfer offer persistence still works.
+4. Confirm supported strategies are Balanced, DevelopmentFocused, StarFocused, and ValueTrading only.
+5. Accept a paid transfer.
+6. Confirm buyer cash balance decreases.
+7. Confirm buyer transfer budget decreases.
+8. Confirm seller cash balance increases by the full fee.
+9. Confirm seller transfer budget increases by health-plus-strategy sale retention, which may reach 100% for financially strong clubs.
+10. Save/load.
+11. Confirm cash, transfer budget, wage budget, strategy, and health persist.
+12. Confirm RuntimeSaveValidator accepts valid saves.
+13. Confirm wage affordability uses current contracts.
+14. Sign or transfer a player with wage if the current flow supports it.
+15. Confirm no duplicate ownership or transfer regression.
+16. Confirm old transfer offer persistence still works.
 
 ## Free Agent Persistence
 

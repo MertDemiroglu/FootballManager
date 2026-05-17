@@ -43,7 +43,8 @@ This living document describes the current core/backend shape and the next backe
 - Team-owned player ownership is stored in `runtime_player_roster_state`; free agent ownership is stored separately in `runtime_free_agents`.
 - Team finance is stored in `runtime_team_finances`: `total_budget` maps to cash balance, `transfer_budget` to the active transfer allocation, `wage_budget` to the annual wage budget limit, `financial_strategy` to the stable strategy code, and `financial_health` to the stable health code.
 - Finance allocation is two-stage. `ClubFinancialHealth` determines how much cash can be allocated to football spending, then `ClubFinancialStrategy` splits that sporting envelope between wage and transfer budget. Remaining cash is operating reserve, future expenses, or profit buffer.
-- Transfer sale revenue increases cash by the full fee and increases transfer budget by health-based retention plus the strategy modifier.
+- Transfer sale revenue increases cash by the full fee and increases transfer budget by health-based retention plus the strategy modifier; financially strong clubs can retain up to 100% for reinvestment.
+- `Conservative` is not a strategy; financial caution belongs to `ClubFinancialHealth`. Direct wage/transfer sliders and runtime strategy changes are future board/manager-trust work.
 - Current wage spend is derived from player contracts and is not persisted as a team finance field.
 - Wage payments currently reduce cash balance and the MVP avoids negative cash; debt/liability handling is a future finance phase.
 - Current save format is a full runtime snapshot.

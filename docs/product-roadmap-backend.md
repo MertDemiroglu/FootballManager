@@ -88,8 +88,10 @@ Related documents:
 - Status: implemented/in progress.
 - Scope: replace primitive `Team` budget fields with `TeamFinance`, which owns cash balance, transfer budget, annual wage budget limit, `ClubFinancialStrategy`, and `ClubFinancialHealth`.
 - Behavior: allocation is two-stage and happens when budgets are initialized/reallocated, not dynamically on every cash change. Health determines the sporting allocation envelope from cash balance; strategy splits that envelope between wage and transfer budget. Remaining cash stays as operating reserve/future expenses/profit buffer.
-- Transfer behavior: paid transfers spend cash and transfer budget. Sales increase cash by the full fee and increase transfer budget by final sale retention, calculated from health base retention plus strategy modifier clamped to 10%-90%. Wage affordability derives current annual wage spend from contracts.
+- Strategy model: supported strategies are Balanced, DevelopmentFocused, StarFocused, and ValueTrading. `Conservative` was removed because financial caution belongs to health, not strategy; all strategy wage/transfer splits now total 100%.
+- Transfer behavior: paid transfers spend cash and transfer budget. Sales increase cash by the full fee and increase transfer budget by final sale retention, calculated from health base retention plus strategy modifier clamped to 10%-100%. Wage affordability derives current annual wage spend from contracts.
 - Save mapping: `runtime_team_finances.total_budget` maps to cash balance, `transfer_budget` to transfer budget, `wage_budget` to wage budget limit, `financial_strategy` to the stable strategy code, and `financial_health` to the stable health code.
+- Future tuning: strategy changes, direct custom wage/transfer sliders, and board-approved adjustment bands are future board/manager-trust work, not part of this PR.
 - Do not mix in: finance UI, transfer AI, player valuation, deep ledgers, debt/liabilities, ticket/sponsor/prize/shirt revenue streams, stadium/wage/debt/general operating expense streams, taxes, scouting/data editor work, match engine changes, rolling autosaves, or Save As.
 
 ## Next Backend Phases

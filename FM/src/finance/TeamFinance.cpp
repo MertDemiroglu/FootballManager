@@ -26,8 +26,6 @@ namespace {
             return { 75, 25, 0 };
         case ClubFinancialStrategy::ValueTrading:
             return { 50, 50, 10 };
-        case ClubFinancialStrategy::Conservative:
-            return { 50, 35, -10 };
         }
 
         throw std::runtime_error("unsupported club financial strategy");
@@ -36,15 +34,15 @@ namespace {
     HealthPolicy policyFor(ClubFinancialHealth health) {
         switch (health) {
         case ClubFinancialHealth::Excellent:
-            return { 85, 80 };
+            return { 85, 90 };
         case ClubFinancialHealth::Stable:
-            return { 80, 70 };
+            return { 80, 75 };
         case ClubFinancialHealth::Cautious:
-            return { 70, 55 };
+            return { 70, 60 };
         case ClubFinancialHealth::Tight:
             return { 55, 40 };
         case ClubFinancialHealth::Distressed:
-            return { 40, 25 };
+            return { 40, 20 };
         }
 
         throw std::runtime_error("unsupported club financial health");
@@ -56,7 +54,7 @@ namespace {
         return std::clamp(
             healthPolicy.baseSaleRetentionPercent + strategyPolicy.saleRetentionModifierPercent,
             10,
-            90);
+            100);
     }
 
     void validateNonNegative(Money value, const char* fieldName) {
@@ -76,8 +74,6 @@ std::string toStableCode(ClubFinancialStrategy strategy) {
         return "star_focused";
     case ClubFinancialStrategy::ValueTrading:
         return "value_trading";
-    case ClubFinancialStrategy::Conservative:
-        return "conservative";
     }
 
     throw std::runtime_error("cannot persist unsupported club financial strategy");
@@ -96,9 +92,6 @@ std::optional<ClubFinancialStrategy> clubFinancialStrategyFromStableCode(const s
     if (stableCode == "value_trading") {
         return ClubFinancialStrategy::ValueTrading;
     }
-    if (stableCode == "conservative") {
-        return ClubFinancialStrategy::Conservative;
-    }
     return std::nullopt;
 }
 
@@ -112,8 +105,6 @@ std::string toDisplayText(ClubFinancialStrategy strategy) {
         return "Star focused";
     case ClubFinancialStrategy::ValueTrading:
         return "Value trading";
-    case ClubFinancialStrategy::Conservative:
-        return "Conservative";
     }
 
     throw std::runtime_error("cannot display unsupported club financial strategy");
