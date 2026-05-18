@@ -2,6 +2,7 @@
 
 #include "fm/common/Types.h"
 #include "fm/roster/Formation.h"
+#include "fm/roster/PlayerAttributes.h"
 
 #include <string>
 #include <vector>
@@ -25,6 +26,8 @@ struct PlayerSeedData {
     int s3 = 0;
     int s4 = 0;
     int s5 = 0;
+    bool hasExplicitAttributes = false;
+    PlayerAttributes attributes;
 };
 
 struct TeamSeedData {

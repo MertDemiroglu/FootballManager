@@ -123,6 +123,19 @@ Use this as a practical manual test checklist for current checkpoint-based save/
 15. Confirm no duplicate ownership or transfer regression.
 16. Confirm old transfer offer persistence still works.
 
+## Player Attribute / Match Engine Foundation
+
+1. Build the project.
+2. Create New Game.
+3. Confirm players load successfully.
+4. Confirm every player has valid attributes in the 0-100 range.
+5. Confirm `totalPower()` returns sane 0-100 style values.
+6. Confirm `TeamSelectionService` still works.
+7. Confirm `PlayerRoleFit` still affects slot selection.
+8. Save and load.
+9. Confirm transfer, free-agent, and finance persistence still works.
+10. Confirm no match engine behavior rewrite occurred.
+
 ## Free Agent Persistence
 
 1. Clear or rename the AppData saves folder.

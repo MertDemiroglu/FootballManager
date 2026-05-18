@@ -18,6 +18,8 @@ add_library(fm_core STATIC
     src/roster/Footballer.cpp
     src/roster/FootballerFactory.cpp
     src/roster/Forward.cpp
+    src/roster/PlayerAttributes.cpp
+    src/roster/PlayerOverallCalculator.cpp
     src/interaction/GameInteraction.cpp
     src/roster/HeadCoach.cpp
     src/roster/Goalkeeper.cpp

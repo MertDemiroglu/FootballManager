@@ -371,7 +371,7 @@ namespace {
             "FOREIGN KEY (previous_league_id) REFERENCES leagues(id),"
             "FOREIGN KEY (previous_team_id) REFERENCES teams(id)"
             ");");
-        database.execute("PRAGMA user_version = 9;");
+        database.execute("PRAGMA user_version = 10;");
     }
 
     PersistedTransferOfferState readTransferOfferRow(SqliteStatement& statement) {

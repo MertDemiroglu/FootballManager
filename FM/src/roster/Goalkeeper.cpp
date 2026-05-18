@@ -1,9 +1,14 @@
 #include"fm/roster/Goalkeeper.h"
 
-Goalkeeper::Goalkeeper(const std::string& name, const std::string& team, int age, int r, int d, int a, int p, int k) : Footballer(name, PlayerPosition::Goalkeeper, team, age),  reflexes(r), diving(d), aerial(a), positioning(p), kicking(k){}
+#include"fm/roster/PlayerOverallCalculator.h"
+
+Goalkeeper::Goalkeeper(const std::string& name, const std::string& team, int age, int r, int d, int a, int p, int k)
+    : Footballer(name, PlayerPosition::Goalkeeper, team, age) {
+    setAttributes(buildAttributesFromLegacySkills(PlayerPosition::Goalkeeper, r, d, a, p, k, age));
+}
 
 int Goalkeeper::totalPower() const {
-    return (reflexes * 3 + diving * 2 + aerial * 2 + positioning + kicking) / 9;
+    return PlayerOverallCalculator::calculateOverall(attributes, position);
 }
 double Goalkeeper::calculateMarketValue() const {
     return totalPower() * 1.8 + (30 - age) * 2;

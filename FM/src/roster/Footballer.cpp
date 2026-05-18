@@ -62,6 +62,19 @@ int Footballer::getAge() const {
     return age;
 }
 
+const PlayerAttributes& Footballer::getAttributes() const {
+    return attributes;
+}
+
+PlayerAttributes& Footballer::getAttributes() {
+    return attributes;
+}
+
+void Footballer::setAttributes(PlayerAttributes newAttributes) {
+    validatePlayerAttributes(newAttributes);
+    attributes = newAttributes;
+}
+
 //set fonksiyonlari
 void Footballer::setTeam(TeamId newTeamId) {
     teamId = newTeamId;

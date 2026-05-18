@@ -513,7 +513,7 @@ void Game::ensureSaveMetadata(const GameBootstrapOptions& bootstrapOptions) {
         defaultMetadata.managedLeagueId = user.getManagedLeagueId();
         defaultMetadata.managedTeamId = user.getManagedTeamId();
         defaultMetadata.currentDate = dateToIsoString(date);
-        defaultMetadata.schemaVersion = 9;
+        defaultMetadata.schemaVersion = 10;
         defaultMetadata.worldVersion = 1;
         repository.insertDefault(defaultMetadata);
     }

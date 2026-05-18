@@ -1,5 +1,5 @@
 PRAGMA foreign_keys = ON;
-PRAGMA user_version = 9;
+PRAGMA user_version = 10;
 
 CREATE TABLE IF NOT EXISTS save_metadata (
     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS save_metadata (
     "current_date" TEXT NOT NULL,
     created_at_utc TEXT NOT NULL,
     updated_at_utc TEXT NOT NULL,
-    schema_version INTEGER NOT NULL DEFAULT 9,
+    schema_version INTEGER NOT NULL DEFAULT 10,
     world_version INTEGER NOT NULL DEFAULT 1
 );
 
@@ -283,4 +283,40 @@ CREATE TABLE IF NOT EXISTS players (
     s4 INTEGER NOT NULL,
     s5 INTEGER NOT NULL,
     FOREIGN KEY (team_id) REFERENCES teams(id)
+);
+
+CREATE TABLE IF NOT EXISTS player_attributes (
+    player_id INTEGER PRIMARY KEY,
+    shooting INTEGER NOT NULL,
+    passing INTEGER NOT NULL,
+    first_touch INTEGER NOT NULL,
+    technique INTEGER NOT NULL,
+    tackling INTEGER NOT NULL,
+    dribbling INTEGER NOT NULL,
+    crossing INTEGER NOT NULL,
+    marking INTEGER NOT NULL,
+    heading INTEGER NOT NULL,
+    set_pieces INTEGER NOT NULL,
+    decisions INTEGER NOT NULL,
+    vision INTEGER NOT NULL,
+    positioning INTEGER NOT NULL,
+    off_the_ball INTEGER NOT NULL,
+    composure INTEGER NOT NULL,
+    concentration INTEGER NOT NULL,
+    work_rate INTEGER NOT NULL,
+    teamwork INTEGER NOT NULL,
+    leadership INTEGER NOT NULL,
+    aggression INTEGER NOT NULL,
+    pace INTEGER NOT NULL,
+    acceleration INTEGER NOT NULL,
+    stamina INTEGER NOT NULL,
+    strength INTEGER NOT NULL,
+    agility INTEGER NOT NULL,
+    jumping_reach INTEGER NOT NULL,
+    shot_stopping INTEGER NOT NULL,
+    handling INTEGER NOT NULL,
+    aerial_ability INTEGER NOT NULL,
+    one_on_ones INTEGER NOT NULL,
+    distribution INTEGER NOT NULL,
+    FOREIGN KEY (player_id) REFERENCES players(id)
 );

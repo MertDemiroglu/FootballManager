@@ -105,10 +105,10 @@ SqliteSaveMetadataRepository::SqliteSaveMetadataRepository(
         "\"current_date\" TEXT NOT NULL,"
         "created_at_utc TEXT NOT NULL,"
         "updated_at_utc TEXT NOT NULL,"
-        "schema_version INTEGER NOT NULL DEFAULT 9,"
+        "schema_version INTEGER NOT NULL DEFAULT 10,"
         "world_version INTEGER NOT NULL DEFAULT 1"
         ");");
-    database.execute("PRAGMA user_version = 9;");
+    database.execute("PRAGMA user_version = 10;");
 }
 
 bool SqliteSaveMetadataRepository::exists() const {

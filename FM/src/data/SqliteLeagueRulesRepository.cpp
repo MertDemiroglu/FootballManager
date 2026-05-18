@@ -185,7 +185,7 @@ void SqliteLeagueRulesRepository::ensureSchema() const {
         "PRIMARY KEY (league_id, offset_index),"
         "FOREIGN KEY (league_id) REFERENCES leagues(id)"
         ");"
-        "PRAGMA user_version = 9;");
+        "PRAGMA user_version = 10;");
 }
 
 LeagueRules SqliteLeagueRulesRepository::loadLeagueRules(LeagueId leagueId) const {
