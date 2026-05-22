@@ -135,6 +135,7 @@ Use this as a practical manual test checklist for current checkpoint-based save/
 8. Save and load.
 9. Confirm transfer, free-agent, and finance persistence still works.
 10. Confirm no match engine behavior rewrite occurred.
+11. Coordinate match engine design docs do not change runtime behavior; no new manual regression is required beyond build and New Game smoke.
 
 ## Free Agent Persistence
 

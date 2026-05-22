@@ -101,12 +101,22 @@ Related documents:
 - Design docs: `docs/player-attribute-model.md` and `docs/match-engine-design.md`.
 - Do not mix in: real match engine implementation, mini-pitch UI, live event stream, player development, scouting, valuation overhaul, transfer AI, or per-player position familiarity tables.
 
+### 11. Match Engine Coordinate Simulation Design
+
+- Status: documented.
+- Scope: define the future lightweight real-football simulation model: real pitch dimensions, possession-based simulation steps, tactical shape, action plans, perception, action candidates, intended-vs-actual ball trajectories, path interception, arrival contests, local contests, watched traces, and background summaries.
+- V1 tactical inputs needed by the future engine: Mentality, Tempo, Width, DefensiveLine, PressingIntensity, MarkingStyle, and PassingDirectness.
+- Current behavior: no runtime engine implementation was added; current match result behavior, save/load behavior, and UI behavior remain unchanged.
+- Next step: create the `MatchEngine` interface/skeleton and output contracts before implementing the full simulation engine.
+- Do not mix in: full coordinate engine implementation, mini-pitch UI, tactical UI, substitutions, injuries, save/load schema changes, or match result behavior changes.
+
 ## Next Backend Phases
 
-1. Transfer World design
-2. Automated regression tests when stable enough
-3. Team screen / Transfer room / Finance UI rework
-4. Multi-league expansion preparation
+1. MatchEngine interface/skeleton for coordinate simulation output contracts
+2. Transfer World design
+3. Automated regression tests when stable enough
+4. Team screen / Transfer room / Finance UI rework
+5. Multi-league expansion preparation
 
 ## Deferred / Later Backend Work
 
