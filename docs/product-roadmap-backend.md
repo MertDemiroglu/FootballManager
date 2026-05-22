@@ -126,14 +126,23 @@ Related documents:
 - Future work: More Options UI exposure, coach-driven full tactical identity, tactical AI, and real match engine effects.
 - Do not mix in: match engine implementation, mini-pitch UI, tactical effects, tactical AI, QML gameplay ownership, or match result behavior changes.
 
+### 14. MatchEngine Interface Skeleton
+
+- Status: implemented.
+- Scope: add the Qt-free `MatchEngine` boundary, snapshot-based `MatchEngineInput`, team/player snapshot DTOs, output-only `MatchEngineResult`, future team/player simulation stats, and optional trace/report containers.
+- Current behavior: runtime match behavior is unchanged. The skeleton `MatchEngine::simulate` is not wired into `PlayMatchCommandHandler`, does not call the existing `MatchSimulation`, does not apply reports, and does not mutate domain objects, standings, fixtures, reports, history, UI, or save/load state.
+- Future work: build a `MatchEngineInputBuilder` / snapshot builder, then add `PlayerSimState` and `BallState` internal simulation state skeletons before implementing real coordinate simulation behavior.
+- Do not mix in: full coordinate engine implementation, tactical effects, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
+
 ## Next Backend Phases
 
-1. MatchEngine interface/skeleton for coordinate simulation output contracts
-2. Tactical More Options UI exposure
-3. Transfer World design
-4. Automated regression tests when stable enough
-5. Team screen / Transfer room / Finance UI rework
-6. Multi-league expansion preparation
+1. MatchEngineInputBuilder / snapshot builder
+2. PlayerSimState + BallState internal simulation state skeleton
+3. Tactical More Options UI exposure
+4. Transfer World design
+5. Automated regression tests when stable enough
+6. Team screen / Transfer room / Finance UI rework
+7. Multi-league expansion preparation
 
 ## Deferred / Later Backend Work
 

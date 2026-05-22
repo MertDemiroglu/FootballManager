@@ -33,6 +33,7 @@ This living document describes the current core/backend shape and the next backe
 - Match Engine Coordinate Simulation Design documented in `docs/match-engine-design.md`; the real match engine implementation remains future work.
 - Match Engine Core Types foundation: Qt-free pitch geometry, trace, trajectory, intent, action, and contest DTO/enums for future coordinate simulation.
 - TacticalSetup V1 Expansion: TeamSheet tactics now persist Mentality, Tempo, Width, DefensiveLine, PressingIntensity, MarkingStyle, and PassingDirectness. Current match behavior is unchanged and More Options UI exposure is future work.
+- MatchEngine interface/skeleton: Qt-free snapshot input DTOs, output-only result DTOs, and a non-integrated `MatchEngine::simulate` boundary exist for future coordinate simulation.
 - Manual save and autosave policy.
 - Managed-vs-AI `TeamSheet` reconciliation policy after roster restore/mutation.
 
@@ -73,11 +74,11 @@ This living document describes the current core/backend shape and the next backe
 
 ## Future Match Engine Design Status
 
-- The coordinate simulation design is documented only. It does not change runtime match results, standings, save/load, or UI behavior.
-- The current active implementation phase is Match Engine Core Types: compile-safe DTOs/enums and pitch helpers only.
+- The coordinate simulation design and initial skeleton boundary are documented and compile-safe. They do not change runtime match results, standings, save/load, or UI behavior.
+- The current implemented MatchEngine skeleton includes core type DTOs/enums, pitch helpers, snapshot-based input, output-only result DTOs, and a non-integrated `MatchEngine::simulate` entry point.
 - The future V1 engine should use real pitch dimensions, tactical shape, action plan/reassessment, perception, ball trajectories, path interception, local contests, watched traces, and background summaries.
 - V1 tactical inputs needed by the future engine are Mentality, Tempo, Width, DefensiveLine, PressingIntensity, MarkingStyle, and PassingDirectness.
-- Runtime match behavior is unchanged. The next planned implementation phase should stay incremental, such as tactical setup V1 expansion or the `MatchEngine` interface/skeleton and output contracts, not the full simulation engine.
+- Runtime match behavior is unchanged. The next planned implementation phase should stay incremental, such as a `MatchEngineInputBuilder` / snapshot builder or `PlayerSimState` + `BallState` internal simulation state skeleton, not the full simulation engine.
 
 ## Known Not-Yet-Supported Core Scenarios
 
@@ -100,10 +101,12 @@ This living document describes the current core/backend shape and the next backe
 
 1. Finance Foundation (implemented)
 2. Player Attribute Model and Match Engine design foundation (implemented)
-3. Match Engine Core Types foundation (active)
-4. Tactical setup V1 expansion or MatchEngine interface/skeleton for coordinate simulation output contracts
-5. Automated regression tests when stable enough
-6. Multi-league expansion preparation
+3. Match Engine Core Types foundation (implemented)
+4. TacticalSetup V1 expansion (implemented)
+5. MatchEngine interface/skeleton for coordinate simulation output contracts (implemented)
+6. MatchEngineInputBuilder / snapshot builder or PlayerSimState + BallState internal simulation state skeleton
+7. Automated regression tests when stable enough
+8. Multi-league expansion preparation
 
 ## Deferred / Later Core Work
 
