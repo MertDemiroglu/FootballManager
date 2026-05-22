@@ -37,6 +37,16 @@ When the caller leaves `MatchEngineOptions::deterministicSeed` as zero, the buil
 
 The builder validates obvious structural problems before returning input: non-zero match, league, and team ids; distinct home and away teams; valid team sheets for the provided teams; roster membership for referenced starters and substitutes; duplicate player ids inside snapshots; and players appearing in both home and away snapshots.
 
+## Internal Simulation State Skeleton
+
+`MatchSimulationState` is the future in-memory state container for the coordinate-based match engine. It holds the live clock and phase, home and away team state, player state, ball state, possession state, and optional trace frames for watched/debug output.
+
+`PlayerSimState` stores a player's live coordinate position, tactical or intent target position, current intent, ball ownership flag, future live fatigue/derived physical values, and the snapshot base overall for quick debugging.
+
+`TeamSimState` stores the side, tactical setup, live goals accumulator, future possession accumulator, and the team's player simulation states. `BallState` stores the current ball control mode, position, future carrier ids, and optional trajectory. `PossessionState` stores the current team/player possession identifiers and possession phase metadata.
+
+This state is not persisted, does not replace `MatchReport`, and is not wired into the current match flow. `MatchReport` remains the authoritative output for completed matches, and existing match result behavior remains unchanged.
+
 Future integration path:
 
 ```text
