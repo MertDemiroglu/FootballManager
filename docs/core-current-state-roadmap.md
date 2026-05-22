@@ -30,6 +30,7 @@ This living document describes the current core/backend shape and the next backe
 - Finance Foundation: `TeamFinance` owns cash balance, transfer budget, annual wage budget limit, `ClubFinancialStrategy`, and `ClubFinancialHealth`.
 - Player Attribute Model foundation: Technical, Mental, Physical, and Goalkeeper attributes, attribute-based base `totalPower()`, SQL `player_attributes` support, and deterministic legacy `s1..s5` fallback.
 - Match Engine Coordinate Simulation Design documented in `docs/match-engine-design.md`; the real match engine implementation remains future work.
+- Match Engine Core Types foundation: Qt-free pitch geometry, trace, trajectory, intent, action, and contest DTO/enums for future coordinate simulation.
 - Manual save and autosave policy.
 - Managed-vs-AI `TeamSheet` reconciliation policy after roster restore/mutation.
 
@@ -71,9 +72,10 @@ This living document describes the current core/backend shape and the next backe
 ## Future Match Engine Design Status
 
 - The coordinate simulation design is documented only. It does not change runtime match results, standings, save/load, or UI behavior.
+- The current active implementation phase is Match Engine Core Types: compile-safe DTOs/enums and pitch helpers only.
 - The future V1 engine should use real pitch dimensions, tactical shape, action plan/reassessment, perception, ball trajectories, path interception, local contests, watched traces, and background summaries.
 - V1 tactical inputs needed by the future engine are Mentality, Tempo, Width, DefensiveLine, PressingIntensity, MarkingStyle, and PassingDirectness.
-- The next planned implementation phase should introduce the `MatchEngine` interface/skeleton and output contracts, not the full simulation engine.
+- Runtime match behavior is unchanged. The next planned implementation phase should stay incremental, such as tactical setup V1 expansion or the `MatchEngine` interface/skeleton and output contracts, not the full simulation engine.
 
 ## Known Not-Yet-Supported Core Scenarios
 
@@ -96,9 +98,10 @@ This living document describes the current core/backend shape and the next backe
 
 1. Finance Foundation (implemented)
 2. Player Attribute Model and Match Engine design foundation (implemented)
-3. MatchEngine interface/skeleton for coordinate simulation output contracts
-4. Automated regression tests when stable enough
-5. Multi-league expansion preparation
+3. Match Engine Core Types foundation (active)
+4. Tactical setup V1 expansion or MatchEngine interface/skeleton for coordinate simulation output contracts
+5. Automated regression tests when stable enough
+6. Multi-league expansion preparation
 
 ## Deferred / Later Core Work
 
