@@ -80,6 +80,15 @@ namespace {
         }
 
         EditableLineup lineup(team, FormationId::FourThreeThree);
+        TacticalSetup customSetup;
+        customSetup.mentality = TeamMentality::Attacking;
+        customSetup.tempo = TeamTempo::High;
+        customSetup.width = TeamWidth::Wide;
+        customSetup.defensiveLine = DefensiveLine::High;
+        customSetup.pressingIntensity = PressingIntensity::High;
+        customSetup.markingStyle = MarkingStyle::ManOriented;
+        customSetup.passingDirectness = PassingDirectness::Direct;
+        lineup.setTacticalSetup(customSetup);
         expect(!lineup.toTeamSheetIfComplete().has_value(),
             "incomplete editable lineup should not export to TeamSheet");
 
@@ -98,6 +107,16 @@ namespace {
             "exported TeamSheet should contain 11 starting player ids");
         expect(exported->startingAssignments.size() == 11,
             "exported TeamSheet should contain 11 slot assignments");
+        expect(exported->tacticalSetup.width == TeamWidth::Wide,
+            "exported TeamSheet should preserve hidden tactical width");
+        expect(exported->tacticalSetup.defensiveLine == DefensiveLine::High,
+            "exported TeamSheet should preserve hidden defensive line");
+        expect(exported->tacticalSetup.pressingIntensity == PressingIntensity::High,
+            "exported TeamSheet should preserve hidden pressing intensity");
+        expect(exported->tacticalSetup.markingStyle == MarkingStyle::ManOriented,
+            "exported TeamSheet should preserve hidden marking style");
+        expect(exported->tacticalSetup.passingDirectness == PassingDirectness::Direct,
+            "exported TeamSheet should preserve hidden passing directness");
     }
 
     GameBootstrapOptions createTemporaryBootstrapOptions(

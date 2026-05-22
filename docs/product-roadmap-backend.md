@@ -57,7 +57,7 @@ Related documents:
 ### 5. Save Backend Runtime Persistence
 
 - Status: largely complete for the current checkpoint model.
-- Persisted today: game date, fixtures, match results/reports, player condition, selected `TeamSheet`s, tactics, substitutes, LeagueRules config, transfer offers, accepted transfer roster movement, `TeamFinance`, and contract snapshots.
+- Persisted today: game date, fixtures, match results/reports, player condition, selected `TeamSheet`s, TacticalSetup V1 fields, substitutes, LeagueRules config, transfer offers, accepted transfer roster movement, `TeamFinance`, and contract snapshots.
 - Current behavior: Continue/Load resumes through Dashboard/safe checkpoint rather than restoring exact transient modals.
 - Remaining risk: full runtime snapshots may become costly with broader multi-league worlds; dirty/incremental save work can be considered later.
 
@@ -112,16 +112,24 @@ Related documents:
 
 ### 12. Match Engine Core Types
 
-- Status: active.
+- Status: implemented.
 - Scope: add Qt-free core skeleton types for future coordinate simulation: `PitchPoint`, `PitchGeometry`, `MatchSimulationDetail`, trace frame DTOs, ball trajectory DTOs, and intent/action/contest enums.
 - Current behavior: runtime match behavior is unchanged. The existing lightweight `MatchSimulation`, `PlayMatchCommandHandler`, `League::applyMatchReport`, UI, and save/load paths are not integrated with these types yet.
-- Next step: stay incremental by extending `TacticalSetup` V1 or adding the `MatchEngine` interface/skeleton and output contracts before any real simulation behavior.
+- Next step: add the `MatchEngine` interface/skeleton and output contracts before any real simulation behavior.
 - Do not mix in: match engine implementation, player movement simulation, tactical UI, mini-pitch UI, save/load schema changes, or match result behavior changes.
+
+### 13. TacticalSetup V1 Expansion
+
+- Status: implemented.
+- Scope: expand Qt-free `TacticalSetup` with Mentality, Tempo, Width, DefensiveLine, PressingIntensity, MarkingStyle, and PassingDirectness; add stable codes/display text; persist the fields on `runtime_team_sheets`.
+- Current behavior: existing mentality/tempo UI remains compatible. New tactical fields default on TeamSheets and persist through save/load, but do not affect current match results.
+- Future work: More Options UI exposure, coach-driven full tactical identity, tactical AI, and real match engine effects.
+- Do not mix in: match engine implementation, mini-pitch UI, tactical effects, tactical AI, QML gameplay ownership, or match result behavior changes.
 
 ## Next Backend Phases
 
-1. Match Engine Core Types foundation
-2. Tactical setup V1 expansion or MatchEngine interface/skeleton for coordinate simulation output contracts
+1. MatchEngine interface/skeleton for coordinate simulation output contracts
+2. Tactical More Options UI exposure
 3. Transfer World design
 4. Automated regression tests when stable enough
 5. Team screen / Transfer room / Finance UI rework

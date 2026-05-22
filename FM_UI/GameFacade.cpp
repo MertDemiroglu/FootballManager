@@ -1826,6 +1826,16 @@ QVariantMap GameFacade::getEditableLineupTacticalSetup() const {
     tacticalSetupMap.insert(QStringLiteral("mentalityText"), fromStd(std::string(toDisplayText(tacticalSetup.mentality))));
     tacticalSetupMap.insert(QStringLiteral("tempoCode"), fromStd(std::string(toStableCode(tacticalSetup.tempo))));
     tacticalSetupMap.insert(QStringLiteral("tempoText"), fromStd(std::string(toDisplayText(tacticalSetup.tempo))));
+    tacticalSetupMap.insert(QStringLiteral("widthCode"), fromStd(std::string(toStableCode(tacticalSetup.width))));
+    tacticalSetupMap.insert(QStringLiteral("widthText"), fromStd(std::string(toDisplayText(tacticalSetup.width))));
+    tacticalSetupMap.insert(QStringLiteral("defensiveLineCode"), fromStd(std::string(toStableCode(tacticalSetup.defensiveLine))));
+    tacticalSetupMap.insert(QStringLiteral("defensiveLineText"), fromStd(std::string(toDisplayText(tacticalSetup.defensiveLine))));
+    tacticalSetupMap.insert(QStringLiteral("pressingIntensityCode"), fromStd(std::string(toStableCode(tacticalSetup.pressingIntensity))));
+    tacticalSetupMap.insert(QStringLiteral("pressingIntensityText"), fromStd(std::string(toDisplayText(tacticalSetup.pressingIntensity))));
+    tacticalSetupMap.insert(QStringLiteral("markingStyleCode"), fromStd(std::string(toStableCode(tacticalSetup.markingStyle))));
+    tacticalSetupMap.insert(QStringLiteral("markingStyleText"), fromStd(std::string(toDisplayText(tacticalSetup.markingStyle))));
+    tacticalSetupMap.insert(QStringLiteral("passingDirectnessCode"), fromStd(std::string(toStableCode(tacticalSetup.passingDirectness))));
+    tacticalSetupMap.insert(QStringLiteral("passingDirectnessText"), fromStd(std::string(toDisplayText(tacticalSetup.passingDirectness))));
     return tacticalSetupMap;
 }
 

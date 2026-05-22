@@ -41,8 +41,8 @@ HeadCoach::HeadCoach(CoachId id, const std::string& name, FormationId preferredF
         throw std::invalid_argument("preferred formation is not supported");
     }
 
-    // TODO: Coach tactical profile should later come from SQL/coach data and
-    // include tactical tendencies beyond formation, mentality, and tempo.
+    // TODO: Coach-driven full tactical identity should later come from SQL/coach data.
+    // TacticalSetup V1 adds match-squad inputs, but coach preferences stay minimal for now.
     tacticalPreferences.preferredFormation = preferredFormation;
     tacticalPreferences.preferredMentality = TeamMentality::Balanced;
     tacticalPreferences.preferredTempo = TeamTempo::Normal;

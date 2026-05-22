@@ -229,16 +229,17 @@ Stores free agent pool ownership for players currently owned by `TransferRoom::f
 
 ### `runtime_team_sheets`
 
-Stores selected match squad headers per league/team: formation, mentality, and tempo.
+Stores selected match squad headers per league/team: formation and TacticalSetup V1 fields.
 
 - Writer: `Game::persistRuntimeState`.
 - Reader/restorer: `SqliteGameStateRepository::loadTeamSheetStates`, then `Game::restoreRuntimeState`.
 - Saved when: runtime state is persisted, including lineup editor changes and auto-select updates.
 - Authority: `Team` owns the current/default selected `TeamSheet`. `Game` only orchestrates create/update/ensure/resolve flow and persistence snapshots. `save_metadata` must not store lineup or tactical state.
 - Multi-league implication: rows are keyed by `league_id`/`team_id`; this is full-world state, not managed-team-only state.
+- Persisted tactical fields: `mentality`, `tempo`, `width`, `defensive_line`, `pressing_intensity`, `marking_style`, and `passing_directness`.
 - Roster reconciliation note: accepted transfers reconcile affected seller/buyer selected sheets before persisting, and load-time restore repairs any remaining invalid selected sheets after runtime roster restoration. Managed-team reconciliation removes invalid sold/transferred-away players but does not silently fill missing starters or substitutes; the Lineup Editor keeps those positions empty until the user assigns a player or presses Auto Select. AI/non-managed reconciliation auto-fills so those sheets remain current. The future managed-team UX should surface a "lineup requires attention" interaction before kickoff.
 - Tactical identity note: `HeadCoach` owns `TacticalPreferences`, which are coach/team defaults. `TacticalSetup` is the active match-squad setup persisted in `TeamSheet`.
-- Match engine note: tactical setup currently supports mentality and tempo only. It persists, but does not affect simulation yet. The coordinate simulation V1 design needs Mentality, Tempo, Width, DefensiveLine, PressingIntensity, MarkingStyle, and PassingDirectness; the extra inputs are future work and no save/load schema change is part of this design phase.
+- Match engine note: TacticalSetup V1 persists the inputs needed by the future coordinate match engine, but they do not affect current match results yet. More Options UI exposure, coach-driven full tactical identity, tactical AI, and tactical effects are future work.
 
 ### `runtime_team_sheet_starters`
 

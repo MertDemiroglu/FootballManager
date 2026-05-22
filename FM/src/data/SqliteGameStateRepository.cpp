@@ -175,6 +175,46 @@ namespace {
         return *tempo;
     }
 
+    TeamWidth parseWidthOrThrow(const std::string& stableCode) {
+        std::optional<TeamWidth> width = teamWidthFromStableCode(stableCode);
+        if (!width.has_value()) {
+            throw std::runtime_error("runtime team sheet has invalid width stable code: " + stableCode);
+        }
+        return *width;
+    }
+
+    DefensiveLine parseDefensiveLineOrThrow(const std::string& stableCode) {
+        std::optional<DefensiveLine> defensiveLine = defensiveLineFromStableCode(stableCode);
+        if (!defensiveLine.has_value()) {
+            throw std::runtime_error("runtime team sheet has invalid defensive_line stable code: " + stableCode);
+        }
+        return *defensiveLine;
+    }
+
+    PressingIntensity parsePressingIntensityOrThrow(const std::string& stableCode) {
+        std::optional<PressingIntensity> pressingIntensity = pressingIntensityFromStableCode(stableCode);
+        if (!pressingIntensity.has_value()) {
+            throw std::runtime_error("runtime team sheet has invalid pressing_intensity stable code: " + stableCode);
+        }
+        return *pressingIntensity;
+    }
+
+    MarkingStyle parseMarkingStyleOrThrow(const std::string& stableCode) {
+        std::optional<MarkingStyle> markingStyle = markingStyleFromStableCode(stableCode);
+        if (!markingStyle.has_value()) {
+            throw std::runtime_error("runtime team sheet has invalid marking_style stable code: " + stableCode);
+        }
+        return *markingStyle;
+    }
+
+    PassingDirectness parsePassingDirectnessOrThrow(const std::string& stableCode) {
+        std::optional<PassingDirectness> passingDirectness = passingDirectnessFromStableCode(stableCode);
+        if (!passingDirectness.has_value()) {
+            throw std::runtime_error("runtime team sheet has invalid passing_directness stable code: " + stableCode);
+        }
+        return *passingDirectness;
+    }
+
     bool tableExists(const SqliteDatabase& database, const std::string& tableName) {
         SqliteStatement statement = database.prepare(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?");
@@ -193,6 +233,24 @@ namespace {
             }
         }
         return false;
+    }
+
+    void requireRuntimeTeamSheetsTacticalSetupV1Schema(const SqliteDatabase& database) {
+        const std::vector<std::string> requiredColumns{
+            "width",
+            "defensive_line",
+            "pressing_intensity",
+            "marking_style",
+            "passing_directness"
+        };
+
+        for (const std::string& columnName : requiredColumns) {
+            if (!columnExists(database, "runtime_team_sheets", columnName)) {
+                throw std::runtime_error(
+                    "runtime_team_sheets is missing " + columnName
+                    + "; clear incompatible development saves or start a new game");
+            }
+        }
     }
 
     void ensureSchema(const SqliteDatabase& database) {
@@ -286,8 +344,14 @@ namespace {
             "formation TEXT NOT NULL,"
             "mentality TEXT NOT NULL,"
             "tempo TEXT NOT NULL,"
+            "width TEXT NOT NULL DEFAULT 'balanced',"
+            "defensive_line TEXT NOT NULL DEFAULT 'standard',"
+            "pressing_intensity TEXT NOT NULL DEFAULT 'normal',"
+            "marking_style TEXT NOT NULL DEFAULT 'mixed',"
+            "passing_directness TEXT NOT NULL DEFAULT 'balanced',"
             "PRIMARY KEY (league_id, team_id)"
             ");");
+        requireRuntimeTeamSheetsTacticalSetupV1Schema(database);
         database.execute(
             "CREATE TABLE IF NOT EXISTS runtime_team_sheet_starters ("
             "league_id INTEGER NOT NULL,"
@@ -371,7 +435,7 @@ namespace {
             "FOREIGN KEY (previous_league_id) REFERENCES leagues(id),"
             "FOREIGN KEY (previous_team_id) REFERENCES teams(id)"
             ");");
-        database.execute("PRAGMA user_version = 10;");
+        database.execute("PRAGMA user_version = 11;");
     }
 
     PersistedTransferOfferState readTransferOfferRow(SqliteStatement& statement) {
@@ -567,10 +631,12 @@ std::vector<PersistedTeamSheetState> SqliteGameStateRepository::loadTeamSheetSta
     if (!tableExists(database, "runtime_team_sheets")) {
         return states;
     }
+    requireRuntimeTeamSheetsTacticalSetupV1Schema(database);
 
     {
         SqliteStatement statement = database.prepare(
-            "SELECT league_id, team_id, formation, mentality, tempo "
+            "SELECT league_id, team_id, formation, mentality, tempo, width, defensive_line, "
+            "pressing_intensity, marking_style, passing_directness "
             "FROM runtime_team_sheets ORDER BY league_id, team_id");
         while (statement.stepRow()) {
             const LeagueId leagueId = static_cast<LeagueId>(statement.columnInt(0));
@@ -587,6 +653,11 @@ std::vector<PersistedTeamSheetState> SqliteGameStateRepository::loadTeamSheetSta
             state.teamSheet.formation = *formation;
             state.teamSheet.tacticalSetup.mentality = parseMentalityOrThrow(statement.columnText(3));
             state.teamSheet.tacticalSetup.tempo = parseTempoOrThrow(statement.columnText(4));
+            state.teamSheet.tacticalSetup.width = parseWidthOrThrow(statement.columnText(5));
+            state.teamSheet.tacticalSetup.defensiveLine = parseDefensiveLineOrThrow(statement.columnText(6));
+            state.teamSheet.tacticalSetup.pressingIntensity = parsePressingIntensityOrThrow(statement.columnText(7));
+            state.teamSheet.tacticalSetup.markingStyle = parseMarkingStyleOrThrow(statement.columnText(8));
+            state.teamSheet.tacticalSetup.passingDirectness = parsePassingDirectnessOrThrow(statement.columnText(9));
             states.push_back(std::move(state));
         }
     }
@@ -969,13 +1040,19 @@ void SqliteGameStateRepository::saveRuntimeState(
         for (const PersistedTeamSheetState& state : teamSheetStates) {
             SqliteStatement statement = database.prepare(
                 "INSERT INTO runtime_team_sheets ("
-                "league_id, team_id, formation, mentality, tempo"
-                ") VALUES (?, ?, ?, ?, ?)");
+                "league_id, team_id, formation, mentality, tempo, width, defensive_line, "
+                "pressing_intensity, marking_style, passing_directness"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.bindInt(1, static_cast<int>(state.leagueId));
             statement.bindInt(2, static_cast<int>(state.teamSheet.teamId));
             statement.bindText(3, toStableCode(state.teamSheet.formation));
             statement.bindText(4, std::string(toStableCode(state.teamSheet.tacticalSetup.mentality)));
             statement.bindText(5, std::string(toStableCode(state.teamSheet.tacticalSetup.tempo)));
+            statement.bindText(6, std::string(toStableCode(state.teamSheet.tacticalSetup.width)));
+            statement.bindText(7, std::string(toStableCode(state.teamSheet.tacticalSetup.defensiveLine)));
+            statement.bindText(8, std::string(toStableCode(state.teamSheet.tacticalSetup.pressingIntensity)));
+            statement.bindText(9, std::string(toStableCode(state.teamSheet.tacticalSetup.markingStyle)));
+            statement.bindText(10, std::string(toStableCode(state.teamSheet.tacticalSetup.passingDirectness)));
             statement.stepDone();
 
             for (const TeamSheetSlotAssignment& assignment : state.teamSheet.startingAssignments) {

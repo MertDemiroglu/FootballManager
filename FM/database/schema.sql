@@ -1,5 +1,5 @@
 PRAGMA foreign_keys = ON;
-PRAGMA user_version = 10;
+PRAGMA user_version = 11;
 
 CREATE TABLE IF NOT EXISTS save_metadata (
     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS save_metadata (
     "current_date" TEXT NOT NULL,
     created_at_utc TEXT NOT NULL,
     updated_at_utc TEXT NOT NULL,
-    schema_version INTEGER NOT NULL DEFAULT 10,
+    schema_version INTEGER NOT NULL DEFAULT 11,
     world_version INTEGER NOT NULL DEFAULT 1
 );
 
@@ -115,6 +115,11 @@ CREATE TABLE IF NOT EXISTS runtime_team_sheets (
     formation TEXT NOT NULL,
     mentality TEXT NOT NULL,
     tempo TEXT NOT NULL,
+    width TEXT NOT NULL DEFAULT 'balanced',
+    defensive_line TEXT NOT NULL DEFAULT 'standard',
+    pressing_intensity TEXT NOT NULL DEFAULT 'normal',
+    marking_style TEXT NOT NULL DEFAULT 'mixed',
+    passing_directness TEXT NOT NULL DEFAULT 'balanced',
     PRIMARY KEY (league_id, team_id),
     FOREIGN KEY (league_id) REFERENCES leagues(id),
     FOREIGN KEY (team_id) REFERENCES teams(id)
