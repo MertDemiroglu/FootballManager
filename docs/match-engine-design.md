@@ -25,11 +25,23 @@ The `MatchEngine` interface now exists as a compile-safe, Qt-free core boundary.
 
 `MatchEngine` does not mutate domain objects and is not integrated into match playing yet. Existing match behavior remains unchanged: `PlayMatchCommandHandler` still uses the current lightweight match flow, and `League::applyMatchReport` remains the authoritative apply path.
 
+## MatchEngineInputBuilder
+
+`MatchEngineInputBuilder` is the read-only boundary between current domain state and future snapshot-based match simulation. It converts existing `Team`, `Footballer`, and `TeamSheet` state into immutable `MatchEngineInput` values without transferring ownership or storing mutable domain references inside the match engine input.
+
+The builder creates `MatchTeamSnapshot` and `MatchPlayerSnapshot` values from the current team rosters and the provided team sheets. `TeamSheet.tacticalSetup` is the tactical source of truth for the snapshot. The builder does not read UI state, save metadata, standings, fixtures, or league history.
+
+The builder is intentionally not a simulation entry point. It does not call `MatchEngine::simulate`, does not produce or apply match reports, does not publish events, and does not mutate teams, players, team sheets, leagues, world state, fixtures, standings, history, or save state. Current runtime match behavior remains unchanged.
+
+When the caller leaves `MatchEngineOptions::deterministicSeed` as zero, the builder fills it with a stable deterministic seed derived from match id, league id, match date, and home/away team ids. It does not depend on wall-clock time.
+
+The builder validates obvious structural problems before returning input: non-zero match, league, and team ids; distinct home and away teams; valid team sheets for the provided teams; roster membership for referenced starters and substitutes; duplicate player ids inside snapshots; and players appearing in both home and away snapshots.
+
 Future integration path:
 
 ```text
-Game / PlayMatchCommandHandler
-  -> build MatchEngineInput snapshot
+PlayMatchCommandHandler
+  -> MatchEngineInputBuilder::build
   -> MatchEngine::simulate
   -> MatchReport
   -> League::applyMatchReport
