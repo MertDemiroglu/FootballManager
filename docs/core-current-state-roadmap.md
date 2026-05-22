@@ -11,6 +11,7 @@ This living document describes the current core/backend shape and the next backe
 - `Team` owns roster membership, player index, colors, coach relation, a `TeamFinance` snapshot, and the selected/current `TeamSheet`.
 - `HeadCoach` owns `TacticalPreferences`, which are coach/team defaults rather than a concrete match squad.
 - `TeamSheet` owns formation, starting XI slot assignments, substitutes, and active `TacticalSetup`.
+- `Footballer` owns permanent `PlayerAttributes` on a 0-100 core scale. Condition, form, and morale remain runtime state in `PlayerConditionState`.
 - QML/UI must not own gameplay source-of-truth. Gameplay state comes from core models exposed through `GameFacade`.
 
 ## Implemented Backend Systems
@@ -27,6 +28,8 @@ This living document describes the current core/backend shape and the next backe
 - Accepted transfer roster movement, centralized `TeamFinance`, and contract snapshot persistence.
 - Free agent pool persistence through `runtime_free_agents`.
 - Finance Foundation: `TeamFinance` owns cash balance, transfer budget, annual wage budget limit, `ClubFinancialStrategy`, and `ClubFinancialHealth`.
+- Player Attribute Model foundation: Technical, Mental, Physical, and Goalkeeper attributes, attribute-based base `totalPower()`, SQL `player_attributes` support, and deterministic legacy `s1..s5` fallback.
+- Match engine design documentation added in `docs/match-engine-design.md`; the real match engine remains future work.
 - Manual save and autosave policy.
 - Managed-vs-AI `TeamSheet` reconciliation policy after roster restore/mutation.
 
@@ -42,6 +45,7 @@ This living document describes the current core/backend shape and the next backe
 - Important save requests can be coalesced before a safe checkpoint flush.
 - Team-owned player ownership is stored in `runtime_player_roster_state`; free agent ownership is stored separately in `runtime_free_agents`.
 - Team finance is stored in `runtime_team_finances`: `total_budget` maps to cash balance, `transfer_budget` to the active transfer allocation, `wage_budget` to the annual wage budget limit, `financial_strategy` to the stable strategy code, and `financial_health` to the stable health code.
+- Permanent player attributes are seed/static data. `player_attributes` is the preferred explicit data source, while legacy `players.s1..s5` remains a transitional fallback. Runtime saves do not store player attribute progression yet.
 - Finance allocation is two-stage. `ClubFinancialHealth` determines how much cash can be allocated to football spending, then `ClubFinancialStrategy` splits that sporting envelope between wage and transfer budget. Remaining cash is operating reserve, future expenses, or profit buffer.
 - Transfer sale revenue increases cash by the full fee and increases transfer budget by health-based retention plus the strategy modifier; financially strong clubs can retain up to 100% for reinvestment.
 - `Conservative` is not a strategy; financial caution belongs to `ClubFinancialHealth`. Direct wage/transfer sliders and runtime strategy changes are future board/manager-trust work.
@@ -72,6 +76,9 @@ This living document describes the current core/backend shape and the next backe
 - Deep finance ledgers, debt/liabilities, ticket income, sponsorships, prize money, shirt sales, stadium maintenance, general operations, taxes, financial fair play, and finance UI.
 - Contract renewal, negotiation, and counter offers.
 - Tactical setup affecting match simulation.
+- Real match engine implementation. Current `MatchSimulation` remains the existing lightweight behavior.
+- Mini-pitch UI and live match event stream.
+- Player-specific position familiarity overlay. `PlayerRoleFit` remains the primary-position based role-fit system for now.
 - Coach-driven tactical identity.
 - Broader multi-league expansion beyond the current seed.
 - Save migration framework for old schema versions.
@@ -80,8 +87,8 @@ This living document describes the current core/backend shape and the next backe
 
 ## Near-Term Core Roadmap
 
-1. Finance Foundation (implemented/in progress)
-2. Match Engine design and Transfer World design
+1. Finance Foundation (implemented)
+2. Player Attribute Model and Match Engine design foundation (implemented)
 3. Automated regression tests when stable enough
 4. Multi-league expansion preparation
 

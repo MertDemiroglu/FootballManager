@@ -38,6 +38,7 @@ This document locks the current save/load ownership model after the save-slot wo
 - `PreMatchInteraction` should own match-specific frozen team sheets once active interaction persistence exists. Until then, `Game` may hold pending pre-match home/away snapshots as temporary orchestration state only.
 - `SaveMetadata` is display/cache state for save cards and identity. It must not drive gameplay or hold mutable world state.
 - Runtime DB tables are the source of persisted game runtime state. `game_state`, league runtime rows, fixtures, match reports, player runtime state, team-owned roster ownership, free agent ownership, team finances, transfer offers, and team-sheet tables restore the playable world.
+- Permanent player attributes come from seed/static player data. `player_attributes` is the preferred explicit source and legacy `players.s1..s5` remains a transitional fallback; runtime saves do not store permanent attributes or progression yet.
 - `runtime_save_settings` owns runtime/app save policy such as autosave frequency. Do not store autosave settings in `save_metadata`.
 - Runtime roster ownership, free agent ownership, and team finance snapshots are the source of truth for accepted transfer and free-agent effects after load. Resolved transfer offers are restored as offer state/history only; they are not replayed as commands.
 - QML is presentation only. It may hold transient UI selection/highlight state, but gameplay source of truth must come from `GameFacade`/core models and mutations must write back through backend methods.
@@ -121,6 +122,17 @@ Stores deterministic fixture date distribution offsets per league.
 - Reader: `SqliteLeagueRulesRepository`, then fixture generation through `LeagueRules`.
 - Authority: authoritative matchday distribution data.
 - Multi-league implication: rows are keyed by `league_id` and ordered by zero-based `offset_index`.
+
+### `player_attributes`
+
+Stores permanent seed/static player attributes on the 0-100 core scale.
+
+- Writer: bootstrap schema/seed data or future data editing tools.
+- Reader: `SqliteBootstrapRepository`, then `WorldBootstrapLoader` and `Footballer`.
+- Saved when: seeded/bootstrap data is initialized. This is not mutable runtime progress in the current phase.
+- Authority: preferred explicit player attribute source.
+- Compatibility: if a player has no row, the loader builds deterministic fallback attributes from legacy `players.s1..s5`, primary position, and age.
+- Scope note: condition, form, and morale remain in `player_runtime_state`; `PlayerRoleFit` remains the position-fit system. Player-specific position familiarity and player development/progression tables are deferred.
 
 ### `runtime_fixtures`
 
@@ -321,6 +333,13 @@ Validation intentionally tolerates played fixtures without a detailed report for
 - Remaining work: deep ledgers, debt/liabilities, ticket income, sponsorships, prize money, shirt sales, stadium maintenance, wage/debt/general operating expense streams, taxes, financial fair play, finance UI, transfer AI, player valuation, contract renewal UI, contract negotiation history, and long-term transaction reporting.
 - Suggested priority: after active interaction persistence unless transfer gameplay exposes a blocker.
 - Storage direction: transaction/ledger tables and explicit free-agent runtime state.
+
+### Player development and position familiarity
+
+- Current state: `Footballer` owns base `PlayerAttributes`, loaded from `player_attributes` or generated from legacy `s1..s5`.
+- Remaining work: player development/progression, scouting views, attribute history, and player-specific position familiarity overlays.
+- Storage direction: future runtime progression tables and possibly `player_position_familiarity(player_id, position, familiarity_score)`.
+- Current phase rule: do not persist permanent attributes in runtime save tables and do not add per-player familiarity rows yet.
 
 ### Completed season archive/history
 

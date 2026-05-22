@@ -5,6 +5,7 @@
 #include<memory>
 
 #include"fm/roster/Contract.h"
+#include"fm/roster/PlayerAttributes.h"
 #include"fm/roster/PlayerPosition.h"
 #include"fm/match/PlayerConditionState.h"
 
@@ -37,6 +38,7 @@ protected:
 	std::string name;
 	PlayerPosition position;
 	int age;
+	PlayerAttributes attributes;
 	PlayerSeasonStats currentSeasonStats;
 	std::unordered_map<int, PlayerSeasonStats> archivedSeasonStatsByYear;
 	PlayerConditionState conditionState;
@@ -64,6 +66,9 @@ public:
 	PlayerPosition getPlayerPosition() const;
 	//Oyuncunun yasini verir
 	int getAge() const;
+	const PlayerAttributes& getAttributes() const;
+	PlayerAttributes& getAttributes();
+	void setAttributes(PlayerAttributes newAttributes);
 
 	//Oyuncunun form-fitness-moral degerlerini verir
 	const PlayerConditionState& getConditionState() const;

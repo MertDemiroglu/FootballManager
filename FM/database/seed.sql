@@ -1,3 +1,4 @@
+DELETE FROM player_attributes;
 DELETE FROM players;
 DELETE FROM teams;
 DELETE FROM coaches;

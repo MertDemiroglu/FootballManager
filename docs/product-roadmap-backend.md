@@ -20,6 +20,7 @@ Related documents:
 - Autosave is game-date interval based, defaults to Weekly, and does not create rolling slots.
 - Important events may request a save, but full snapshot writes should be batched/coalesced at safe checkpoints where possible.
 - `runtime_player_roster_state` stores team-owned players only; `runtime_free_agents` stores free agent pool ownership.
+- Permanent player attributes are seed/static data for now. `player_attributes` is the preferred explicit source, with deterministic `s1..s5` fallback for transitional seed compatibility.
 - The current save format is still a full runtime snapshot. Dirty/incremental table-level saves are a future optimization if multi-league snapshot cost becomes high.
 - Active interaction exact restore is intentionally deferred. Do not add `runtime_active_interaction` tables in the current phase.
 - Save As, multiple named manual saves, and rolling autosave slots are not planned for this phase.
@@ -81,11 +82,9 @@ Related documents:
 - Status: implemented.
 - Scope: persist `TransferRoom::freeAgents` through `runtime_free_agents`, restore those players into TransferRoom ownership, keep `runtime_player_roster_state` team-owned only, and validate disjoint player ownership.
 
-## Active Backend Phase
-
 ### 9. Finance Foundation
 
-- Status: implemented/in progress.
+- Status: implemented.
 - Scope: replace primitive `Team` budget fields with `TeamFinance`, which owns cash balance, transfer budget, annual wage budget limit, `ClubFinancialStrategy`, and `ClubFinancialHealth`.
 - Behavior: allocation is two-stage and happens when budgets are initialized/reallocated, not dynamically on every cash change. Health determines the sporting allocation envelope from cash balance; strategy splits that envelope between wage and transfer budget. Remaining cash stays as operating reserve/future expenses/profit buffer.
 - Strategy model: supported strategies are Balanced, DevelopmentFocused, StarFocused, and ValueTrading. `Conservative` was removed because financial caution belongs to health, not strategy; all strategy wage/transfer splits now total 100%.
@@ -94,9 +93,17 @@ Related documents:
 - Future tuning: strategy changes, direct custom wage/transfer sliders, and board-approved adjustment bands are future board/manager-trust work, not part of this PR.
 - Do not mix in: finance UI, transfer AI, player valuation, deep ledgers, debt/liabilities, ticket/sponsor/prize/shirt revenue streams, stadium/wage/debt/general operating expense streams, taxes, scouting/data editor work, match engine changes, rolling autosaves, or Save As.
 
+### 10. Player Attribute Model + Match Engine Design Foundation
+
+- Status: implemented.
+- Scope: add `PlayerAttributes` with Technical, Mental, Physical, and Goalkeeper groups on a 0-100 core scale; make `Footballer` own attributes; route base `totalPower()` through position-weighted attributes; add SQL `player_attributes`; keep legacy `s1..s5` fallback for current seed compatibility.
+- Position fit: `PlayerRoleFit` remains the current primary-position based fit system. Player-specific position familiarity is future work.
+- Design docs: `docs/player-attribute-model.md` and `docs/match-engine-design.md`.
+- Do not mix in: real match engine implementation, mini-pitch UI, live event stream, player development, scouting, valuation overhaul, transfer AI, or per-player position familiarity tables.
+
 ## Next Backend Phases
 
-1. Match Engine design and Transfer World design
+1. Transfer World design
 2. Automated regression tests when stable enough
 3. Team screen / Transfer room / Finance UI rework
 4. Multi-league expansion preparation

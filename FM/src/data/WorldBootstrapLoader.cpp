@@ -57,6 +57,10 @@ void WorldBootstrapLoader::load(World& world, int initialSeasonYear) const {
                     throw std::runtime_error("failed to create footballer for seed player: " + playerSeed.name);
                 }
 
+                if (playerSeed.hasExplicitAttributes) {
+                    player->setAttributes(playerSeed.attributes);
+                }
+
                 player->setIdForBootstrap(playerSeed.id);
                 player->setTeam(teamSeed.id);
                 player->signContract(playerSeed.wage, playerSeed.contractYears);
