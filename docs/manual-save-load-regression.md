@@ -46,10 +46,10 @@ Use this as a practical manual test checklist for current checkpoint-based save/
 5. Confirm Starting XI is assigned 11/11 and Substitutes shows up to 10 real players.
 6. Close and reopen the app.
 7. Load/continue the save.
-8. Open Lineup Editor and confirm formation, Starting XI, substitutes, mentality, and tempo were restored.
+8. Open Lineup Editor and confirm formation, Starting XI, substitutes, mentality, and tempo were restored. Backend TacticalSetup V1 fields should remain persisted with defaults for Width, DefensiveLine, PressingIntensity, MarkingStyle, and PassingDirectness.
 9. Change to 4-3-3 and Auto Select.
 10. Confirm the pitch still shows DM behind two CMs and substitutes have no starter/substitute overlap.
-11. Close, reopen, and confirm the 4-3-3 lineup/tactics are restored.
+11. Close, reopen, and confirm the 4-3-3 lineup/tactics are restored. Current match results should remain unchanged; More Options UI exposure is future work.
 
 ## Match Lifecycle / Result Persistence
 

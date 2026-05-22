@@ -101,6 +101,47 @@ namespace {
         return message;
     }
 
+    SaveValidationResult validateTacticalSetupStableCodes(const TacticalSetup& tacticalSetup) {
+        const std::string mentalityCode = std::string(toStableCode(tacticalSetup.mentality));
+        if (!teamMentalityFromStableCode(mentalityCode).has_value()) {
+            return invalid("runtime team sheet has an invalid mentality stable code");
+        }
+
+        const std::string tempoCode = std::string(toStableCode(tacticalSetup.tempo));
+        if (!teamTempoFromStableCode(tempoCode).has_value()) {
+            return invalid("runtime team sheet has an invalid tempo stable code");
+        }
+
+        const std::string widthCode = std::string(toStableCode(tacticalSetup.width));
+        if (!teamWidthFromStableCode(widthCode).has_value()) {
+            return invalid("runtime team sheet has an invalid width stable code");
+        }
+
+        const std::string defensiveLineCode = std::string(toStableCode(tacticalSetup.defensiveLine));
+        if (!defensiveLineFromStableCode(defensiveLineCode).has_value()) {
+            return invalid("runtime team sheet has an invalid defensive_line stable code");
+        }
+
+        const std::string pressingIntensityCode = std::string(toStableCode(tacticalSetup.pressingIntensity));
+        if (!pressingIntensityFromStableCode(pressingIntensityCode).has_value()) {
+            return invalid("runtime team sheet has an invalid pressing_intensity stable code");
+        }
+
+        const std::string markingStyleCode = std::string(toStableCode(tacticalSetup.markingStyle));
+        if (!markingStyleFromStableCode(markingStyleCode).has_value()) {
+            return invalid("runtime team sheet has an invalid marking_style stable code");
+        }
+
+        const std::string passingDirectnessCode = std::string(toStableCode(tacticalSetup.passingDirectness));
+        if (!passingDirectnessFromStableCode(passingDirectnessCode).has_value()) {
+            return invalid("runtime team sheet has an invalid passing_directness stable code");
+        }
+
+        SaveValidationResult result;
+        result.valid = true;
+        return result;
+    }
+
     SaveValidationResult validateRuntimeState(
         const Date& currentDate,
         const std::vector<PersistedLeagueRuntimeState>& leagueStates,
@@ -305,6 +346,10 @@ namespace {
             }
             if (!isFormationSupported(state.teamSheet.formation)) {
                 return invalid("runtime team sheet has an invalid formation");
+            }
+            const SaveValidationResult tacticalValidation = validateTacticalSetupStableCodes(state.teamSheet.tacticalSetup);
+            if (!tacticalValidation.valid) {
+                return tacticalValidation;
             }
 
             const std::int64_t sheetTeamKey = compoundTeamKey(state.leagueId, state.teamSheet.teamId);

@@ -11,6 +11,7 @@ This living document describes the current core/backend shape and the next backe
 - `Team` owns roster membership, player index, colors, coach relation, a `TeamFinance` snapshot, and the selected/current `TeamSheet`.
 - `HeadCoach` owns `TacticalPreferences`, which are coach/team defaults rather than a concrete match squad.
 - `TeamSheet` owns formation, starting XI slot assignments, substitutes, and active `TacticalSetup`.
+- `TacticalSetup` V1 contains Mentality, Tempo, Width, DefensiveLine, PressingIntensity, MarkingStyle, and PassingDirectness. These are match-squad inputs for future coordinate simulation, not current result modifiers.
 - `Footballer` owns permanent `PlayerAttributes` on a 0-100 core scale. Condition, form, and morale remain runtime state in `PlayerConditionState`.
 - QML/UI must not own gameplay source-of-truth. Gameplay state comes from core models exposed through `GameFacade`.
 
@@ -23,7 +24,7 @@ This living document describes the current core/backend shape and the next backe
 - Fixtures, results, and match reports persistence.
 - Match lifecycle is owned by core: scheduler creates league-scoped commands, `PlayMatchCommandHandler` applies reports, and `League` updates fixture/result/standings/history together.
 - Player condition persistence.
-- `TeamSheet`, tactics, and substitutes persistence.
+- `TeamSheet`, tactics, and substitutes persistence, including TacticalSetup V1 fields on `runtime_team_sheets`.
 - Transfer offer persistence.
 - Accepted transfer roster movement, centralized `TeamFinance`, and contract snapshot persistence.
 - Free agent pool persistence through `runtime_free_agents`.
@@ -31,6 +32,7 @@ This living document describes the current core/backend shape and the next backe
 - Player Attribute Model foundation: Technical, Mental, Physical, and Goalkeeper attributes, attribute-based base `totalPower()`, SQL `player_attributes` support, and deterministic legacy `s1..s5` fallback.
 - Match Engine Coordinate Simulation Design documented in `docs/match-engine-design.md`; the real match engine implementation remains future work.
 - Match Engine Core Types foundation: Qt-free pitch geometry, trace, trajectory, intent, action, and contest DTO/enums for future coordinate simulation.
+- TacticalSetup V1 Expansion: TeamSheet tactics now persist Mentality, Tempo, Width, DefensiveLine, PressingIntensity, MarkingStyle, and PassingDirectness. Current match behavior is unchanged and More Options UI exposure is future work.
 - Manual save and autosave policy.
 - Managed-vs-AI `TeamSheet` reconciliation policy after roster restore/mutation.
 

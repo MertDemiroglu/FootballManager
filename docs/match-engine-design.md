@@ -120,7 +120,7 @@ Team shape depends on:
 - marking style
 - passing directness
 
-Required tactical inputs for the V1 design:
+`TacticalSetup` V1 now stores the required tactical inputs as core TeamSheet state:
 
 - Mentality
 - Tempo
@@ -130,7 +130,7 @@ Required tactical inputs for the V1 design:
 - MarkingStyle
 - PassingDirectness
 
-The current UI already has a "More Options" direction. Future tactical UI can expose these inputs without changing the principle that core owns match decisions and QML only edits user-facing setup.
+These fields are persisted with selected `TeamSheet` runtime state, but they do not yet affect current match results. The current UI still only exposes mentality and tempo. Future tactical UI can expose More Options without changing the principle that core owns match decisions and QML only edits user-facing setup.
 
 ## 6. Marking Style
 
