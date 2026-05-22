@@ -55,6 +55,14 @@ This document defines the core player attribute model used by roster evaluation 
 
 `PlayerConditionState` remains separate from permanent attributes. Form, fitness, and morale can modify match performance later, but they do not rewrite the player's base attribute values.
 
+## Future Match Engine Usage
+
+In the future coordinate-based match engine, mental attributes feed perception and decision quality. Vision, Decisions, Composure, Teamwork, Concentration, and related pressure context should affect which options a player notices, how early they notice them, and how sharply they select between candidates.
+
+Technical and physical attributes feed execution and movement. Passing, Crossing, Shooting, First Touch, Tackling, Dribbling, Acceleration, Pace, Agility, Strength, Stamina, and goalkeeper attributes should affect whether selected actions are executed well, how quickly players arrive, and how duels resolve.
+
+`PlayerRoleFit` remains important for future simulation. Role fit should affect local contests and movement/decision effectiveness without replacing the permanent attribute model.
+
 ## Position Fit
 
 The current position-fit model remains `PlayerRoleFit`:

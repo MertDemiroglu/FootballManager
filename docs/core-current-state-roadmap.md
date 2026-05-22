@@ -29,7 +29,7 @@ This living document describes the current core/backend shape and the next backe
 - Free agent pool persistence through `runtime_free_agents`.
 - Finance Foundation: `TeamFinance` owns cash balance, transfer budget, annual wage budget limit, `ClubFinancialStrategy`, and `ClubFinancialHealth`.
 - Player Attribute Model foundation: Technical, Mental, Physical, and Goalkeeper attributes, attribute-based base `totalPower()`, SQL `player_attributes` support, and deterministic legacy `s1..s5` fallback.
-- Match engine design documentation added in `docs/match-engine-design.md`; the real match engine remains future work.
+- Match Engine Coordinate Simulation Design documented in `docs/match-engine-design.md`; the real match engine implementation remains future work.
 - Manual save and autosave policy.
 - Managed-vs-AI `TeamSheet` reconciliation policy after roster restore/mutation.
 
@@ -68,6 +68,13 @@ This living document describes the current core/backend shape and the next backe
 - Runtime restore rebuilds current standings/history by restoring reports first and falling back to persisted fixture results only when an older checkpoint has a played fixture without a detailed report.
 - `event_enqueued` is non-authoritative persisted state until active interaction persistence exists. Save/load resets/ignores it so reloading before playing a pre-match cannot permanently skip the fixture.
 
+## Future Match Engine Design Status
+
+- The coordinate simulation design is documented only. It does not change runtime match results, standings, save/load, or UI behavior.
+- The future V1 engine should use real pitch dimensions, tactical shape, action plan/reassessment, perception, ball trajectories, path interception, local contests, watched traces, and background summaries.
+- V1 tactical inputs needed by the future engine are Mentality, Tempo, Width, DefensiveLine, PressingIntensity, MarkingStyle, and PassingDirectness.
+- The next planned implementation phase should introduce the `MatchEngine` interface/skeleton and output contracts, not the full simulation engine.
+
 ## Known Not-Yet-Supported Core Scenarios
 
 - Active interaction exact restore.
@@ -76,7 +83,7 @@ This living document describes the current core/backend shape and the next backe
 - Deep finance ledgers, debt/liabilities, ticket income, sponsorships, prize money, shirt sales, stadium maintenance, general operations, taxes, financial fair play, and finance UI.
 - Contract renewal, negotiation, and counter offers.
 - Tactical setup affecting match simulation.
-- Real match engine implementation. Current `MatchSimulation` remains the existing lightweight behavior.
+- Real coordinate-based match engine implementation. Current `MatchSimulation` remains the existing lightweight behavior.
 - Mini-pitch UI and live match event stream.
 - Player-specific position familiarity overlay. `PlayerRoleFit` remains the primary-position based role-fit system for now.
 - Coach-driven tactical identity.
@@ -89,8 +96,9 @@ This living document describes the current core/backend shape and the next backe
 
 1. Finance Foundation (implemented)
 2. Player Attribute Model and Match Engine design foundation (implemented)
-3. Automated regression tests when stable enough
-4. Multi-league expansion preparation
+3. MatchEngine interface/skeleton for coordinate simulation output contracts
+4. Automated regression tests when stable enough
+5. Multi-league expansion preparation
 
 ## Deferred / Later Core Work
 
@@ -100,3 +108,4 @@ This living document describes the current core/backend shape and the next backe
 - Deep finance ledgers, debt/liabilities, revenue and expense streams, finance UI, transfer AI, player valuation, and richer contract systems.
 - Completed season archives.
 - Broader data editor/scouting systems.
+- Full coordinate-based match engine implementation, including tactical shape, action plans, ball trajectories, path interception, local contests, watched traces, and background summaries.

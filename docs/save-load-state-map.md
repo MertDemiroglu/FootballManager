@@ -42,6 +42,7 @@ This document locks the current save/load ownership model after the save-slot wo
 - `runtime_save_settings` owns runtime/app save policy such as autosave frequency. Do not store autosave settings in `save_metadata`.
 - Runtime roster ownership, free agent ownership, and team finance snapshots are the source of truth for accepted transfer and free-agent effects after load. Resolved transfer offers are restored as offer state/history only; they are not replayed as commands.
 - QML is presentation only. It may hold transient UI selection/highlight state, but gameplay source of truth must come from `GameFacade`/core models and mutations must write back through backend methods.
+- The future coordinate-based match engine is design-only at this point. It should continue to emit authoritative `MatchReport` output that is applied through the existing match lifecycle instead of introducing a second save/apply path.
 
 ## Match Lifecycle Checkpoint Flow
 
@@ -52,7 +53,7 @@ This document locks the current save/load ownership model after the save-slot wo
 - `MatchPlayedEvent` is published after the match report is applied. It is not a second match-application path.
 - On restore, fixtures are loaded first, then current-season reports are restored through `League::restoreMatchReport`. This rebuilds standings/recent form from the restored played-match state. If an older checkpoint has played goals without a report, `Game::restoreRuntimeState` falls back to `League::restoreFixtureResult` so the result still affects standings/history once.
 - Match completion requests a runtime save and `Game` flushes it at a safe checkpoint. Manual Save and scheduled autosave still overwrite the same current save slot.
-- Completed season archives, active interaction exact restore, and tactical effects in simulation remain future work.
+- Completed season archives, active interaction exact restore, and tactical effects in simulation remain future work. The next match-engine step should be an interface/skeleton and output contract, not full simulation implementation.
 
 ## Persisted State
 
@@ -237,7 +238,7 @@ Stores selected match squad headers per league/team: formation, mentality, and t
 - Multi-league implication: rows are keyed by `league_id`/`team_id`; this is full-world state, not managed-team-only state.
 - Roster reconciliation note: accepted transfers reconcile affected seller/buyer selected sheets before persisting, and load-time restore repairs any remaining invalid selected sheets after runtime roster restoration. Managed-team reconciliation removes invalid sold/transferred-away players but does not silently fill missing starters or substitutes; the Lineup Editor keeps those positions empty until the user assigns a player or presses Auto Select. AI/non-managed reconciliation auto-fills so those sheets remain current. The future managed-team UX should surface a "lineup requires attention" interaction before kickoff.
 - Tactical identity note: `HeadCoach` owns `TacticalPreferences`, which are coach/team defaults. `TacticalSetup` is the active match-squad setup persisted in `TeamSheet`.
-- Match engine note: tactical setup currently supports mentality and tempo only. It persists, but does not affect simulation yet; the future match engine rewrite should consume `TacticalSetup`.
+- Match engine note: tactical setup currently supports mentality and tempo only. It persists, but does not affect simulation yet. The coordinate simulation V1 design needs Mentality, Tempo, Width, DefensiveLine, PressingIntensity, MarkingStyle, and PassingDirectness; the extra inputs are future work and no save/load schema change is part of this design phase.
 
 ### `runtime_team_sheet_starters`
 
