@@ -110,13 +110,22 @@ Related documents:
 - Next step: create the `MatchEngine` interface/skeleton and output contracts before implementing the full simulation engine.
 - Do not mix in: full coordinate engine implementation, mini-pitch UI, tactical UI, substitutions, injuries, save/load schema changes, or match result behavior changes.
 
+### 12. Match Engine Core Types
+
+- Status: active.
+- Scope: add Qt-free core skeleton types for future coordinate simulation: `PitchPoint`, `PitchGeometry`, `MatchSimulationDetail`, trace frame DTOs, ball trajectory DTOs, and intent/action/contest enums.
+- Current behavior: runtime match behavior is unchanged. The existing lightweight `MatchSimulation`, `PlayMatchCommandHandler`, `League::applyMatchReport`, UI, and save/load paths are not integrated with these types yet.
+- Next step: stay incremental by extending `TacticalSetup` V1 or adding the `MatchEngine` interface/skeleton and output contracts before any real simulation behavior.
+- Do not mix in: match engine implementation, player movement simulation, tactical UI, mini-pitch UI, save/load schema changes, or match result behavior changes.
+
 ## Next Backend Phases
 
-1. MatchEngine interface/skeleton for coordinate simulation output contracts
-2. Transfer World design
-3. Automated regression tests when stable enough
-4. Team screen / Transfer room / Finance UI rework
-5. Multi-league expansion preparation
+1. Match Engine Core Types foundation
+2. Tactical setup V1 expansion or MatchEngine interface/skeleton for coordinate simulation output contracts
+3. Transfer World design
+4. Automated regression tests when stable enough
+5. Team screen / Transfer room / Finance UI rework
+6. Multi-league expansion preparation
 
 ## Deferred / Later Backend Work
 

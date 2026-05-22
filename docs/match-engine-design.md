@@ -2,6 +2,21 @@
 
 This document captures the final architecture direction for the future coordinate-based match engine. It is design-only. It does not implement the real engine, add simulation code, change match result behavior, add mini-pitch UI, or change save/load behavior.
 
+## Current Skeleton Status
+
+PR70 introduces the first compile-time core type layer for the future engine:
+
+- `PitchGeometry`
+- `PitchPoint`
+- `MatchSimulationDetail`
+- `MatchTraceFrame`
+- `BallTrajectory`
+- intent, action, and contest enums
+
+These are skeleton types only. No simulation behavior, player movement, action resolution, match integration, UI rendering, or save/load behavior exists yet.
+
+The next phase should stay incremental: either extend `TacticalSetup` V1 with the tactical inputs needed by the design or add the `MatchEngine` interface/skeleton and output contracts, depending on the chosen order.
+
 ## 1. Vision
 
 The project goal is not a simple score formula. The future match engine should be a realistic but lightweight football simulation where players, the ball, tactics, and local contests create the match outcome.
