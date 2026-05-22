@@ -17,6 +17,7 @@ struct MatchPlayerSnapshot {
     PlayerAttributes attributes;
     PlayerConditionState conditionState;
     int baseOverall = 0;
+    int totalPower = 0;
 };
 
 struct MatchTeamSnapshot {
