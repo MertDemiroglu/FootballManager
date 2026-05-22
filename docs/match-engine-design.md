@@ -4,7 +4,7 @@ This document captures the final architecture direction for the future coordinat
 
 ## Current Skeleton Status
 
-PR70 introduces the first compile-time core type layer for the future engine:
+The first compile-time core type layer for the future engine includes:
 
 - `PitchGeometry`
 - `PitchPoint`
@@ -15,7 +15,25 @@ PR70 introduces the first compile-time core type layer for the future engine:
 
 These are skeleton types only. No simulation behavior, player movement, action resolution, match integration, UI rendering, or save/load behavior exists yet.
 
-The next phase should stay incremental: either extend `TacticalSetup` V1 with the tactical inputs needed by the design or add the `MatchEngine` interface/skeleton and output contracts, depending on the chosen order.
+`TacticalSetup` V1 now provides the tactical input fields needed by the future engine, but these fields do not affect current match results.
+
+## Current Skeleton Implementation
+
+The `MatchEngine` interface now exists as a compile-safe, Qt-free core boundary. It consumes `MatchEngineInput`, which is snapshot-based and uses value DTOs rather than mutable `Team`, `Footballer`, `League`, `World`, standing, fixture, or save-state references.
+
+`MatchEngineResult` is output-only. It can carry a future authoritative `MatchReport`, team/player simulation stats, and optional trace frames. The current skeleton implementation returns an empty/default result and does not apply that result anywhere.
+
+`MatchEngine` does not mutate domain objects and is not integrated into match playing yet. Existing match behavior remains unchanged: `PlayMatchCommandHandler` still uses the current lightweight match flow, and `League::applyMatchReport` remains the authoritative apply path.
+
+Future integration path:
+
+```text
+Game / PlayMatchCommandHandler
+  -> build MatchEngineInput snapshot
+  -> MatchEngine::simulate
+  -> MatchReport
+  -> League::applyMatchReport
+```
 
 ## 1. Vision
 

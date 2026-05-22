@@ -30,6 +30,7 @@ add_library(fm_core STATIC
     src/competition/LeagueRules.cpp
     src/competition/MatchScheduler.cpp
     src/match_engine/PitchGeometry.cpp
+    src/match_engine/MatchEngine.cpp
     src/match/MatchSimulation.cpp
     src/match/PlayerConditionState.cpp
     src/match/PlayerConditionService.cpp
