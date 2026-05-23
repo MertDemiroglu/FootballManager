@@ -86,8 +86,7 @@ namespace {
         BallTrajectoryType type,
         double executionQuality,
         double pressure,
-        std::uint64_t seed,
-        double& targetErrorMeters) {
+        std::uint64_t seed) {
         const double quality = std::clamp(executionQuality, 0.0, 100.0);
         const double pressureValue = std::clamp(pressure, 0.0, 100.0);
         const double baseErrorMeters = baseErrorMetersFor(type);
@@ -102,7 +101,7 @@ namespace {
         const double magnitudeUnit = unitFrom(mix(seed ^ 0x517cc1b727220a95ULL));
         constexpr double TwoPi = 6.28318530717958647692;
 
-        targetErrorMeters = errorBudgetMeters * magnitudeUnit;
+        const double targetErrorMeters = errorBudgetMeters * magnitudeUnit;
         return PitchGeometry::clampToPitch(PitchPoint{
             intendedTarget.x + std::cos(angleUnit * TwoPi) * targetErrorMeters,
             intendedTarget.y + std::sin(angleUnit * TwoPi) * targetErrorMeters
@@ -120,14 +119,12 @@ BallTrajectoryBuildResult BallTrajectoryBuilder::build(
         ? fallbackSeedFor(start, intendedTarget, request.type)
         : request.seed;
 
-    double targetErrorMeters = 0.0;
     const PitchPoint actualTarget = applyTargetError(
         intendedTarget,
         request.type,
         request.executionQuality,
         request.pressure,
-        seed,
-        targetErrorMeters);
+        seed);
 
     const double distanceMeters = PitchGeometry::distance(start, actualTarget);
     const double speedMetersPerSecond =
@@ -141,7 +138,7 @@ BallTrajectoryBuildResult BallTrajectoryBuilder::build(
     result.trajectory.arrivalSecond =
         request.startSecond + (distanceMeters / speedMetersPerSecond);
     result.trajectory.type = request.type;
-    result.targetErrorMeters = targetErrorMeters;
+    result.targetErrorMeters = PitchGeometry::distance(intendedTarget, actualTarget);
 
     return result;
 }

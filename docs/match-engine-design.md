@@ -27,9 +27,9 @@ The `MatchEngine` interface now exists as a compile-safe, Qt-free core boundary.
 
 `TeamShapeModel` now exists as the first tactical-positioning helper. It is a Qt-free, read-only model layer that converts `TeamSheet`, `TacticalSetup`, pitch context, and attacking direction into per-player target positions. It does not mutate teams, players, leagues, fixtures, standings, reports, history, save state, or UI state, and it is not wired into current live match play.
 
-The shape model creates a base position from formation slot layout on the 105m x 68m pitch, applies small tactical adjustments for mentality, width, and defensive line, and returns `PlayerShapeTarget` values containing base, tactical, and final target positions. For now, `finalTarget` equals the tactical target because local intent adjustments are a later phase.
+The shape model creates a base position from formation slot layout on the 105m x 68m pitch, applies small tactical adjustments for mentality, width, and defensive line, and returns `PlayerShapeTarget` values containing base, tactical, and final target positions. Defensive line affects only defensive-line and screen roles: out of possession it represents defensive block height, during defensive transition it represents recovery line height, in possession it represents rest-defense/back-line support height, and during attacking transition it represents how aggressively the back line follows the attack. For now, `finalTarget` equals the tactical target because local intent adjustments are a later phase.
 
-`BallTrajectoryBuilder` now exists as a Qt-free helper layer for constructing deterministic `BallTrajectory` values from an intended target. The skeleton clamps safe pitch coordinates, keeps `intendedTarget` and `actualTarget` distinct, applies a simple target-error model from execution quality, pressure, and seed, and computes a basic speed and arrival time by trajectory type. It also provides linear trajectory sampling for future path checks. It does not model real ball physics, decide action outcomes, mutate match state, or affect current runtime match results.
+`BallTrajectoryBuilder` now exists as a Qt-free helper layer for constructing deterministic `BallTrajectory` values from an intended target. The skeleton clamps safe pitch coordinates, keeps `intendedTarget` and `actualTarget` distinct, applies a simple target-error model from execution quality, pressure, and seed, reports target error as the final post-clamp deviation from intended to actual target, and computes a basic speed and arrival time by trajectory type. It also provides linear trajectory sampling for future path checks. It does not model real ball physics, decide action outcomes, mutate match state, or affect current runtime match results.
 
 `InterceptionResolver` now exists as a Qt-free helper layer for finding possible path-interception candidates along a sampled ball trajectory. It compares defender ETA from `PlayerSimState::position` with ball arrival at each sample, records candidate margins and simple quality scores, and exposes an optional best candidate. It does not decide final interception success or failure, mutate player or ball state, emit match events, or apply results. A future `ContestResolver` will consume these candidates to resolve contest outcomes.
 
@@ -182,7 +182,11 @@ Team shape depends on:
 
 These fields are persisted with selected `TeamSheet` runtime state, but they do not yet affect current match results. The current UI still only exposes mentality and tempo. Future tactical UI can expose More Options without changing the principle that core owns match decisions and QML only edits user-facing setup.
 
+`DefensiveLine` is intentionally a positional shape adjustment, not pressing behavior. In `OutOfPossession` it raises or drops the defensive block, in `DefensiveTransition` it shifts the recovery line, in `InPossession` it shifts rest-defense/back-line support, and in `AttackingTransition` it controls how far the back line follows the attack.
+
 `PressingIntensity` is intentionally not movement yet. It will later influence local intents such as `PressBallCarrier`, `ContainBallCarrier`, and defensive recovery urgency.
+
+`MarkingStyle` is intentionally not target selection yet. It will later influence whether defenders protect zones, combine zone and runner tracking, or follow opponents more tightly.
 
 `PassingDirectness` is intentionally not action scoring yet. It will later influence `ActionCandidate` generation and weighting for shorter support play, balanced progression, or more direct forward passes.
 
@@ -363,7 +367,7 @@ Every pass, cross, and shot should create a `BallTrajectory` with:
 
 The intended target is what the player tried. The actual target is produced by execution quality, pressure, and deterministic randomness.
 
-The current `BallTrajectoryBuilder` skeleton represents this principle in code. Its error model is intentionally simple: lower execution quality and higher pressure increase the possible deviation from the intended target, while a deterministic seed keeps repeat runs stable. The produced actual target remains a helper result for future simulation layers and is not connected to current match playback or results.
+The current `BallTrajectoryBuilder` skeleton represents this principle in code. Its error model is intentionally simple: lower execution quality and higher pressure increase the possible deviation from the intended target, while a deterministic seed keeps repeat runs stable. The reported `targetErrorMeters` diagnostic is the actual final post-clamp distance between intended target and actual target. The produced actual target remains a helper result for future simulation layers and is not connected to current match playback or results.
 
 Poor players or pressured players can underhit, overhit, misdirect, or play the ball behind the runner.
 

@@ -130,12 +130,7 @@ namespace {
             }
         }
 
-        const bool outOfPossession =
-            !context.hasPossession
-            || context.phase == TeamShapePhase::OutOfPossession
-            || context.phase == TeamShapePhase::DefensiveTransition;
-
-        if (outOfPossession && isDefensiveLineRole(slotRole)) {
+        if (isDefensiveLineRole(slotRole)) {
             switch (context.tacticalSetup.defensiveLine) {
             case DefensiveLine::Low:
                 adjusted.x -= direction * 4.0;
