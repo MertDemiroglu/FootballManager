@@ -12,6 +12,7 @@ The first compile-time core type layer for the future engine includes:
 - `MatchTraceFrame`
 - `BallTrajectory`
 - intent, action, and contest enums
+- `ActionPlan`, reassessment triggers, `PerceptionModel`, `ActionCandidateGenerator`, and `ActionSelector`
 
 These are skeleton types only. No simulation behavior, player movement, action resolution, match integration, UI rendering, or save/load behavior exists yet.
 
@@ -32,6 +33,14 @@ The shape model creates a base position from formation slot layout on the 105m x
 `BallTrajectoryBuilder` now exists as a Qt-free helper layer for constructing deterministic `BallTrajectory` values from an intended target. The skeleton clamps safe pitch coordinates, keeps `intendedTarget` and `actualTarget` distinct, applies a simple target-error model from execution quality, pressure, and seed, reports target error as the final post-clamp deviation from intended to actual target, and computes a basic speed and arrival time by trajectory type. It also provides linear trajectory sampling for future path checks. It does not model real ball physics, decide action outcomes, mutate match state, or affect current runtime match results.
 
 `InterceptionResolver` now exists as a Qt-free helper layer for finding possible path-interception candidates along a sampled ball trajectory. It compares defender ETA from `PlayerSimState::position` with ball arrival at each sample, records candidate margins and simple quality scores, and exposes an optional best candidate. It does not decide final interception success or failure, mutate player or ball state, emit match events, or apply results. A future `ContestResolver` will consume these candidates to resolve contest outcomes.
+
+`ActionPlan` now exists as the first ball-carrier planning skeleton. It stores the current plan type, objective target, start time, duration limit, periodic reassessment interval, and last scan time. The reassessment helper represents both event-triggered scans, such as receiving the ball, entering a new zone, pressure changes, tackle-range danger, passing or shooting windows, dangerous teammate runs, and control worsening, plus periodic scans and max-duration expiry.
+
+`PerceptionModel` now separates option existence from option awareness. It uses Vision, Decisions, Composure, Teamwork, pressure, ball-control difficulty, option quality, and a deterministic seed influence to answer whether the player notices an available option. The scoring is intentionally simple and is not tuned as real football behavior yet.
+
+`ActionCandidateGenerator` now produces a small, deterministic candidate list from broad pitch context: hold, back pass, short pass, carry, low cross, shoot, and clear where appropriate. It uses `PitchGeometry` for rough areas and only light `TacticalSetup` hints for safe, direct, or attacking options. `ActionSelector` ranks candidates by score and chooses through weighted deterministic selection, with higher Decisions sharpening the choice toward stronger candidates and lower Decisions allowing more variance.
+
+These planning helpers are not integrated into live match play. They do not call `MatchEngine::simulate`, replace `MatchSimulation`, mutate match state, produce reports, update fixtures, standings, history, save/load, or UI state. Existing match behavior remains unchanged.
 
 ## MatchEngineInputBuilder
 
@@ -276,6 +285,8 @@ Players should also perform periodic scans. Watched matches should scan frequent
 
 These values are design guidelines, not final constants.
 
+The current implementation contains the compile-safe DTOs and helpers for this model only. `evaluateReassessmentTriggers` reports explicit event triggers, `PeriodicScanDue`, and `MaxDurationExpired`, but it does not perform deep perception, tactical context analysis, or live state mutation yet.
+
 ## 9. Perception / Awareness Model
 
 An option can exist without the player perceiving it.
@@ -294,6 +305,8 @@ Perception factors:
 - deterministic random
 
 High Vision and Decisions players should detect new options earlier. Low mental-quality players may continue dribbling and miss the better pass. This is how mid-dribble new pass options are supported without forcing every player to instantly know every pitch event.
+
+The current `PerceptionModel` is a small deterministic skeleton. It keeps the option-awareness concept available to future action planning without affecting current match results.
 
 ## 10. Action Candidate Model
 
@@ -328,6 +341,8 @@ Each `ActionCandidate` should conceptually include:
 - final score
 
 Selection should use a weighted deterministic choice. Better mental attributes sharpen selection toward stronger options. Lower decision quality creates more variance and more suboptimal choices.
+
+The current `ActionCandidateGenerator` and `ActionSelector` implement this as a future-expandable skeleton only. Candidate scoring is broad and deterministic, and selected actions are not executed by the live game.
 
 ## 11. Technical Execution Model
 

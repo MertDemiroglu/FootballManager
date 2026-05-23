@@ -163,19 +163,26 @@ Related documents:
 - Status: implemented.
 - Scope: add Qt-free helper layers that build deterministic `BallTrajectory` values from intended targets, separate intended and actual target points through a simple execution-quality/pressure/seed error model, sample trajectories linearly, and evaluate possible path-interception candidates from defender positions.
 - Current behavior: runtime match behavior is unchanged. These helpers are not wired into `PlayMatchCommandHandler`, do not call `MatchEngine::simulate`, do not replace `MatchSimulation`, do not mutate player state, ball state, domain objects, fixtures, standings, reports, history, save/load state, or UI.
-- Future work: add `ActionPlan` / `ActionCandidate` / `PlayerIntent`, `ContestResolver`, and Movement/Intent resolver skeletons before implementing a minimal coordinate simulation prototype.
+- Future work: add `ContestResolver` and Movement/Intent resolver skeletons before implementing a minimal coordinate simulation prototype.
 - Do not mix in: final contest resolution, full coordinate engine implementation, tactical effects in current match flow, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
+
+### 19. ActionPlan / ActionCandidate / PlayerIntent Skeleton
+
+- Status: implemented.
+- Scope: add Qt-free helper layers for future ball-carrier planning: `ActionPlan` types, reassessment trigger evaluation, `PerceptionModel` option awareness, basic `ActionCandidateGenerator` output, and weighted deterministic `ActionSelector` choice.
+- Current behavior: runtime match behavior is unchanged. These helpers are not wired into `PlayMatchCommandHandler`, do not call `MatchEngine::simulate`, do not replace `MatchSimulation`, do not execute selected actions, and do not mutate player state, ball state, domain objects, fixtures, standings, reports, history, save/load state, or UI.
+- Future work: add `ContestResolver`, then MovementResolver / PlayerIntentResolver, before implementing a minimal coordinate simulation prototype.
+- Do not mix in: contest resolution, movement resolution, full coordinate engine implementation, tactical effects in current match flow, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
 
 ## Next Backend Phases
 
-1. ActionPlan / ActionCandidate / PlayerIntent skeleton
-2. ContestResolver skeleton
-3. MovementResolver + PlayerIntentResolver skeleton
-4. Minimal Coordinate Simulation Prototype
-5. Transfer World design
-6. Automated regression tests when stable enough
-7. Team screen / Transfer room / Finance UI rework
-8. Multi-league expansion preparation
+1. ContestResolver skeleton
+2. MovementResolver + PlayerIntentResolver skeleton
+3. Minimal Coordinate Simulation Prototype
+4. Transfer World design
+5. Automated regression tests when stable enough
+6. Team screen / Transfer room / Finance UI rework
+7. Multi-league expansion preparation
 
 ## Deferred / Later Backend Work
 
