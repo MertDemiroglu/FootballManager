@@ -113,8 +113,11 @@ This living document describes the current core/backend shape and the next backe
 8. TeamShapeModel skeleton (implemented)
 9. BallTrajectoryBuilder + InterceptionResolver skeleton (implemented)
 10. ActionPlan / ActionCandidate / PlayerIntent skeleton
-11. Automated regression tests when stable enough
-12. Multi-league expansion preparation
+11. ContestResolver skeleton
+12. MovementResolver + PlayerIntentResolver skeleton
+13. Minimal Coordinate Simulation Prototype
+14. Automated regression tests when stable enough
+15. Multi-league expansion preparation
 
 ## Deferred / Later Core Work
 
