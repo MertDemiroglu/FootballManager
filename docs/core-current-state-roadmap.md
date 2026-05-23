@@ -37,8 +37,9 @@ This living document describes the current core/backend shape and the next backe
 - MatchEngineInputBuilder: Qt-free snapshot builder creates `MatchEngineInput` values from existing teams and team sheets, fills a deterministic seed when missing, and validates obvious structural roster/team-sheet issues. It is not integrated into runtime match play yet.
 - MatchEngine internal state skeleton: Qt-free `MatchSimulationState`, `PlayerSimState`, `TeamSimState`, `BallState`, and `PossessionState` containers exist for future in-memory coordinate simulation. They are not persisted and are not integrated into runtime match play yet.
 - TeamShapeModel skeleton: Qt-free tactical-positioning helper converts TeamSheet starters and TacticalSetup context into clamped pitch target positions. It applies only small mentality, width, and defensive-line adjustments and is not integrated into runtime match play yet.
-- BallTrajectoryBuilder + InterceptionResolver skeleton: Qt-free helper layers now build deterministic ball trajectories from intended targets, keep intended and actual targets distinct through a simple quality/pressure/seed error model, sample trajectories linearly, and produce path-interception candidates without resolving final contest outcomes or changing runtime match behavior.
+- BallTrajectoryBuilder + InterceptionResolver skeleton: Qt-free helper layers now build deterministic ball trajectories from intended targets, keep intended and actual targets distinct through a simple quality/pressure/seed error model, sample trajectories linearly, and produce path-interception candidates without mutating state or changing runtime match behavior.
 - ActionPlan / ActionCandidate / PlayerIntent skeleton: Qt-free planning helpers now represent ball-carrier plans, reassessment triggers, option perception, basic action candidate generation, and deterministic weighted action selection. They are not integrated into runtime match play yet.
+- ContestResolver skeleton: Qt-free helper layer now resolves local contest outcomes from copied participants and timing/context inputs. It returns winner, loser, winning side, resolution type, possession-change, attacking-success, loose-ball/deflection information, margin, and score details without mutating player, ball, simulation, domain, save/load, report, fixture, standing, history, or UI state.
 - Manual save and autosave policy.
 - Managed-vs-AI `TeamSheet` reconciliation policy after roster restore/mutation.
 
@@ -80,10 +81,10 @@ This living document describes the current core/backend shape and the next backe
 ## Future Match Engine Design Status
 
 - The coordinate simulation design and initial skeleton boundary are documented and compile-safe. They do not change runtime match results, standings, save/load, or UI behavior.
-- The current implemented MatchEngine skeleton includes core type DTOs/enums, pitch helpers, snapshot-based input, output-only result DTOs, a non-integrated `MatchEngine::simulate` entry point, a read-only `MatchEngineInputBuilder` snapshot builder, in-memory simulation state containers, a non-integrated `TeamShapeModel` tactical target helper, non-mutating `BallTrajectoryBuilder` / `InterceptionResolver` helper layers, and non-integrated action-planning helpers.
+- The current implemented MatchEngine skeleton includes core type DTOs/enums, pitch helpers, snapshot-based input, output-only result DTOs, a non-integrated `MatchEngine::simulate` entry point, a read-only `MatchEngineInputBuilder` snapshot builder, in-memory simulation state containers, a non-integrated `TeamShapeModel` tactical target helper, non-mutating `BallTrajectoryBuilder` / `InterceptionResolver` / `ContestResolver` helper layers, and non-integrated action-planning helpers.
 - The future V1 engine should use real pitch dimensions, tactical shape, action plan/reassessment, perception, ball trajectories, path interception, local contests, watched traces, and background summaries.
 - V1 tactical inputs needed by the future engine are Mentality, Tempo, Width, DefensiveLine, PressingIntensity, MarkingStyle, and PassingDirectness.
-- Runtime match behavior is unchanged. The next planned implementation phase should stay incremental: `ContestResolver` skeleton, then MovementResolver / PlayerIntentResolver, then the first minimal coordinate simulation prototype.
+- Runtime match behavior is unchanged. The next planned implementation phase should stay incremental: MovementResolver + PlayerIntentResolver skeleton, then the first minimal coordinate simulation prototype.
 
 ## Known Not-Yet-Supported Core Scenarios
 
@@ -114,7 +115,7 @@ This living document describes the current core/backend shape and the next backe
 8. TeamShapeModel skeleton (implemented)
 9. BallTrajectoryBuilder + InterceptionResolver skeleton (implemented)
 10. ActionPlan / ActionCandidate / PlayerIntent skeleton (implemented)
-11. ContestResolver skeleton
+11. ContestResolver skeleton (implemented)
 12. MovementResolver + PlayerIntentResolver skeleton
 13. Minimal Coordinate Simulation Prototype
 14. Automated regression tests when stable enough
