@@ -25,6 +25,10 @@ The `MatchEngine` interface now exists as a compile-safe, Qt-free core boundary.
 
 `MatchEngine` does not mutate domain objects and is not integrated into match playing yet. Existing match behavior remains unchanged: `PlayMatchCommandHandler` still uses the current lightweight match flow, and `League::applyMatchReport` remains the authoritative apply path.
 
+`TeamShapeModel` now exists as the first tactical-positioning helper. It is a Qt-free, read-only model layer that converts `TeamSheet`, `TacticalSetup`, pitch context, and attacking direction into per-player target positions. It does not mutate teams, players, leagues, fixtures, standings, reports, history, save state, or UI state, and it is not wired into current live match play.
+
+The shape model creates a base position from formation slot layout on the 105m x 68m pitch, applies small tactical adjustments for mentality, width, and defensive line, and returns `PlayerShapeTarget` values containing base, tactical, and final target positions. For now, `finalTarget` equals the tactical target because local intent adjustments are a later phase.
+
 ## MatchEngineInputBuilder
 
 `MatchEngineInputBuilder` is the read-only boundary between current domain state and future snapshot-based match simulation. It converts existing `Team`, `Footballer`, and `TeamSheet` state into immutable `MatchEngineInput` values without transferring ownership or storing mutable domain references inside the match engine input.
@@ -146,6 +150,8 @@ BallState
 
 Tactical shape is the default positioning system. Players do not move randomly. Each player's target position starts from the team shape and is then modified by local intent.
 
+The current `TeamShapeModel` skeleton provides those default target positions for off-ball movement. It maps starters from `TeamSheet` formation slots to `PitchPoint` targets, mirrors the target shape for away-team attacking direction, clamps output to pitch boundaries, and keeps the result deterministic. This is structural foundation only; it does not implement player movement, contests, action selection, or match result changes.
+
 Team shape depends on:
 
 - formation
@@ -172,6 +178,10 @@ Team shape depends on:
 
 These fields are persisted with selected `TeamSheet` runtime state, but they do not yet affect current match results. The current UI still only exposes mentality and tempo. Future tactical UI can expose More Options without changing the principle that core owns match decisions and QML only edits user-facing setup.
 
+`PressingIntensity` is intentionally not movement yet. It will later influence local intents such as `PressBallCarrier`, `ContainBallCarrier`, and defensive recovery urgency.
+
+`PassingDirectness` is intentionally not action scoring yet. It will later influence `ActionCandidate` generation and weighting for shorter support play, balanced progression, or more direct forward passes.
+
 ## 6. Marking Style
 
 `MarkingStyle` should behave like an enum with these values:
@@ -185,6 +195,12 @@ These fields are persisted with selected `TeamSheet` runtime state, but they do 
 `Mixed` is the default balanced model. It combines space coverage and runner tracking. Example: one centre-back tracks the striker while another protects the passing or crossing lane.
 
 `ManOriented` uses tighter opponent following. It improves runner tracking, but may open exploitable space and consume more stamina.
+
+The current `TeamShapeModel` does not select man or zone targets yet. Future behavior should be:
+
+- `Zonal`: protect zones and passing lanes.
+- `Mixed`: allow one defender to track a runner while another cuts a lane.
+- `ManOriented`: apply tighter opponent tracking.
 
 Marking style affects:
 
