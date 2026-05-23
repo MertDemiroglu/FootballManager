@@ -131,7 +131,7 @@ Related documents:
 - Status: implemented.
 - Scope: add the Qt-free `MatchEngine` boundary, snapshot-based `MatchEngineInput`, team/player snapshot DTOs, output-only `MatchEngineResult`, future team/player simulation stats, and optional trace/report containers.
 - Current behavior: runtime match behavior is unchanged. The skeleton `MatchEngine::simulate` is not wired into `PlayMatchCommandHandler`, does not call the existing `MatchSimulation`, does not apply reports, and does not mutate domain objects, standings, fixtures, reports, history, UI, or save/load state.
-- Future work: add a `TeamShapeModel` skeleton before implementing real coordinate simulation behavior.
+- Future work: add `BallTrajectoryBuilder` and `InterceptionResolver` skeletons before implementing real coordinate simulation behavior.
 - Do not mix in: full coordinate engine implementation, tactical effects, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
 
 ### 15. MatchEngineInputBuilder / Snapshot Builder
@@ -139,7 +139,7 @@ Related documents:
 - Status: implemented.
 - Scope: add the Qt-free read-only `MatchEngineInputBuilder` layer that converts existing `Team`, `Footballer`, and `TeamSheet` domain state into snapshot-based `MatchEngineInput` values. It copies team/player/team-sheet data, uses `TeamSheet.tacticalSetup` as the tactical source of truth, validates obvious structural roster and team-sheet issues, and fills a deterministic seed when the caller does not provide one.
 - Current behavior: runtime match behavior is unchanged. The builder is not wired into `PlayMatchCommandHandler`, does not call `MatchEngine::simulate`, does not call `League::applyMatchReport`, and does not mutate domain, save/load, UI, standings, fixtures, reports, or event state.
-- Future work: add a `TeamShapeModel` skeleton before implementing real coordinate simulation behavior.
+- Future work: add `BallTrajectoryBuilder` and `InterceptionResolver` skeletons before implementing real coordinate simulation behavior.
 - Do not mix in: full coordinate engine implementation, tactical effects, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
 
 ### 16. MatchEngine Internal State Skeleton
@@ -147,12 +147,20 @@ Related documents:
 - Status: implemented.
 - Scope: add Qt-free in-memory containers for future coordinate simulation state: `MatchSimulationState`, `PlayerSimState`, `TeamSimState`, `BallState`, and `PossessionState`, plus small linear search helpers.
 - Current behavior: runtime match behavior is unchanged. The state skeleton is not persisted, not wired into `PlayMatchCommandHandler`, does not call `MatchEngine::simulate`, does not call `League::applyMatchReport`, and does not replace `MatchReport`.
-- Future work: add a `TeamShapeModel` skeleton before implementing real coordinate simulation behavior.
+- Future work: add `BallTrajectoryBuilder` and `InterceptionResolver` skeletons before implementing real coordinate simulation behavior.
 - Do not mix in: full coordinate engine implementation, movement resolution, player intent resolution, ball trajectory building, contest resolution, tactical effects, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
+
+### 17. TeamShapeModel Skeleton
+
+- Status: implemented.
+- Scope: add a Qt-free tactical-positioning helper that converts `TeamSheet` starting assignments, `TacticalSetup`, pitch context, and attacking direction into `PlayerShapeTarget` values. The skeleton maps formation slots to 105m x 68m pitch coordinates, mirrors away-team shape, clamps targets to pitch boundaries, and applies simple mentality, width, and defensive-line adjustments.
+- Current behavior: runtime match behavior is unchanged. `TeamShapeModel` is not wired into `PlayMatchCommandHandler`, does not call `MatchEngine::simulate`, does not replace `MatchSimulation`, does not mutate domain or save state, and does not update UI, fixtures, standings, reports, or history.
+- Future work: add `BallTrajectoryBuilder` and `InterceptionResolver` skeletons before implementing real coordinate simulation behavior.
+- Do not mix in: full coordinate engine implementation, tactical effects in current match flow, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
 
 ## Next Backend Phases
 
-1. TeamShapeModel skeleton
+1. BallTrajectoryBuilder + InterceptionResolver skeleton
 2. Tactical More Options UI exposure
 3. Transfer World design
 4. Automated regression tests when stable enough
