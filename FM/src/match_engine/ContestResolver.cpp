@@ -6,13 +6,14 @@
 #include<algorithm>
 #include<cmath>
 #include<initializer_list>
+#include<iterator>
 #include<limits>
 #include<utility>
 
 namespace {
-    constexpr double CloseContestMargin = 2.5;
     constexpr double DefaultContestSpeedMetersPerSecond = 6.0;
     constexpr double MinimumContestSpeedMetersPerSecond = 0.5;
+    constexpr double SelectionWeightExponent = 1.6;
 
     struct ScoredParticipant {
         ContestParticipant participant;
@@ -115,7 +116,8 @@ namespace {
             return 0.0;
         }
 
-        return std::clamp(request.pressure, 0.0, 1.0) * 8.0;
+        const double pressureFactor = std::clamp(request.pressure, 0.0, 100.0) / 100.0;
+        return pressureFactor * 8.0;
     }
 
     double interceptionCandidateBonus(
@@ -346,26 +348,14 @@ namespace {
         return score;
     }
 
-    double randomScoreFor(
-        const ContestResolverRequest& request,
-        const ContestParticipant& participant,
-        std::uint64_t index) {
-        const std::uint64_t typeSeed =
-            static_cast<std::uint64_t>(request.type) + 0x9e3779b97f4a7c15ULL;
-        const std::uint64_t seed =
-            request.seed
-            ^ matchEngineMix64(static_cast<std::uint64_t>(participant.playerId))
-            ^ matchEngineMix64(static_cast<std::uint64_t>(participant.teamId) << 1)
-            ^ matchEngineMix64(typeSeed << 2)
-            ^ matchEngineMix64(index + 17ULL);
-
-        return (matchEngineDeterministicUnitInterval(seed) * 10.0) - 5.0;
+    double selectionWeightFor(double finalScore) {
+        const double safeScore = std::max(finalScore, 1.0);
+        return std::pow(safeScore, SelectionWeightExponent);
     }
 
     ContestantScore scoreParticipant(
         const ContestResolverRequest& request,
-        const ContestParticipant& participant,
-        std::uint64_t index) {
+        const ContestParticipant& participant) {
         ContestantScore score;
         score.playerId = participant.playerId;
         score.teamId = participant.teamId;
@@ -373,40 +363,344 @@ namespace {
         score.attributeScore = attributeScoreFor(request, participant);
         score.timingScore = timingScoreFor(request, participant);
         score.contextScore = contextScoreFor(request, participant);
-        score.randomScore = randomScoreFor(request, participant, index);
         score.finalScore =
             score.attributeScore
             + score.timingScore
-            + score.contextScore
-            + score.randomScore;
+            + score.contextScore;
+        score.selectionWeight = selectionWeightFor(score.finalScore);
         return score;
     }
 
-    bool isDeflectionType(ContestType type) {
-        return type == ContestType::PassingLaneInterception
-            || type == ContestType::GroundCrossInterception
-            || type == ContestType::ShotBlock;
+    std::uint64_t sideSeed(ContestSide side) {
+        return static_cast<std::uint64_t>(side) + 0x75a85ec6d4c53b2bULL;
     }
 
-    bool defenderWinChangesPossession(ContestType type) {
-        return type == ContestType::PassingLaneInterception
-            || type == ContestType::GroundCrossInterception
-            || type == ContestType::ReceptionDuel
-            || type == ContestType::DribbleDuel
-            || type == ContestType::TackleAttempt
-            || type == ContestType::AerialDuel
-            || type == ContestType::LooseBallRace;
-    }
+    std::uint64_t contestRollSeed(
+        const ContestResolverRequest& request,
+        const std::vector<ScoredParticipant>& scoredParticipants,
+        std::uint64_t purpose) {
+        std::uint64_t seed = request.seed
+            ^ matchEngineMix64(static_cast<std::uint64_t>(request.type) + 0x9e3779b97f4a7c15ULL)
+            ^ matchEngineMix64(purpose)
+            ^ matchEngineMix64(static_cast<std::uint64_t>(scoredParticipants.size()) + 31ULL);
 
-    ContestResolutionType closeContestResolution(ContestType type) {
-        if (isDeflectionType(type)) {
-            return ContestResolutionType::BallDeflected;
+        std::uint64_t index = 0;
+        for (const ScoredParticipant& scored : scoredParticipants) {
+            seed ^= matchEngineMix64(static_cast<std::uint64_t>(scored.participant.playerId) + (index * 17ULL));
+            seed ^= matchEngineMix64((static_cast<std::uint64_t>(scored.participant.teamId) << 1) + (index * 29ULL));
+            seed ^= matchEngineMix64(sideSeed(scored.participant.side) + (index * 43ULL));
+            ++index;
         }
 
-        return ContestResolutionType::BallLoose;
+        return seed;
     }
 
-    void applyResolutionMapping(ContestResolverResult& result) {
+    std::vector<ScoredParticipant>::const_iterator selectWeightedWinner(
+        const ContestResolverRequest& request,
+        const std::vector<ScoredParticipant>& scoredParticipants) {
+        double totalWeight = 0.0;
+        for (const ScoredParticipant& scored : scoredParticipants) {
+            totalWeight += scored.score.selectionWeight;
+        }
+
+        if (totalWeight <= 0.0) {
+            return std::max_element(
+                scoredParticipants.begin(),
+                scoredParticipants.end(),
+                [](const ScoredParticipant& lhs, const ScoredParticipant& rhs) {
+                    return lhs.score.finalScore < rhs.score.finalScore;
+                });
+        }
+
+        const double roll = matchEngineDeterministicUnitInterval(
+            contestRollSeed(request, scoredParticipants, 0x441fd67d2f5d41c3ULL)) * totalWeight;
+
+        double cursor = 0.0;
+        for (auto it = scoredParticipants.begin(); it != scoredParticipants.end(); ++it) {
+            cursor += it->score.selectionWeight;
+            if (roll < cursor) {
+                return it;
+            }
+        }
+
+        return std::prev(scoredParticipants.end());
+    }
+
+    double attackingControlSkill(const ContestParticipant& participant) {
+        return weightedAverageOrBase(
+            participant,
+            {
+                { participant.attributes.technical.firstTouch, 1.1 },
+                { participant.attributes.technical.technique, 0.95 },
+                { participant.attributes.technical.dribbling, 0.85 },
+                { participant.attributes.mental.composure, 0.8 },
+                { participant.attributes.mental.decisions, 0.45 }
+            });
+    }
+
+    double defensiveControlSkill(const ContestParticipant& participant) {
+        return weightedAverageOrBase(
+            participant,
+            {
+                { participant.attributes.technical.tackling, 1.05 },
+                { participant.attributes.technical.marking, 0.85 },
+                { participant.attributes.mental.positioning, 1.0 },
+                { participant.attributes.mental.concentration, 0.7 },
+                { participant.attributes.mental.decisions, 0.55 }
+            });
+    }
+
+    double keeperControlSkill(const ContestParticipant& participant) {
+        return weightedAverageOrBase(
+            participant,
+            {
+                { participant.attributes.goalkeeper.handling, 1.25 },
+                { participant.attributes.goalkeeper.shotStopping, 1.0 },
+                { participant.attributes.goalkeeper.oneOnOnes, 0.65 },
+                { participant.attributes.mental.composure, 0.55 },
+                { participant.attributes.mental.concentration, 0.65 }
+            });
+    }
+
+    double controlScore(
+        const ContestResolverRequest& request,
+        const ContestParticipant& winner,
+        const ContestantScore& winnerScore,
+        double winningMargin,
+        double controlSkill) {
+        double score = 45.0;
+        score += std::clamp(winningMargin, -20.0, 25.0) * 1.1;
+        score += std::clamp(winnerScore.timingScore, -12.0, 20.0) * 0.75;
+        score += (controlSkill - 50.0) * 0.35;
+        score -= std::clamp(winner.fatigue, 0.0, 1.0) * 15.0;
+
+        if (winner.side == ContestSide::Attacking) {
+            score += (executionScore(request.executionQuality) - 50.0) * 0.12;
+            score -= (std::clamp(request.pressure, 0.0, 100.0) / 100.0) * 6.0;
+        }
+
+        if (request.interceptionCandidate
+            && request.interceptionCandidate->playerId == winner.playerId) {
+            score += std::clamp(request.interceptionCandidate->qualityScore, 0.0, 10.0) * 0.8;
+            score += std::clamp(1.0 - std::abs(request.interceptionCandidate->arrivalMarginSeconds), 0.0, 1.0) * 5.0;
+        }
+
+        switch (request.type) {
+        case ContestType::ReceptionDuel:
+        case ContestType::DribbleDuel:
+        case ContestType::LooseBallRace:
+            score += 8.0;
+            break;
+        case ContestType::AerialDuel:
+            score -= 8.0;
+            break;
+        case ContestType::TackleAttempt:
+            if (winner.side == ContestSide::Defending) {
+                score -= 5.0;
+            }
+            break;
+        case ContestType::GoalkeeperSave:
+            score += 4.0;
+            break;
+        case ContestType::ShotBlock:
+        case ContestType::PassingLaneInterception:
+        case ContestType::GroundCrossInterception:
+            break;
+        }
+
+        return std::clamp(score, 5.0, 95.0);
+    }
+
+    double outcomeRoll(
+        const ContestResolverRequest& request,
+        const ContestParticipant& winner,
+        std::uint64_t purpose) {
+        const std::uint64_t seed =
+            request.seed
+            ^ matchEngineMix64(static_cast<std::uint64_t>(request.type) + 0xa24baed4963ee407ULL)
+            ^ matchEngineMix64(static_cast<std::uint64_t>(winner.playerId) + 0x9fb21c651e98df25ULL)
+            ^ matchEngineMix64(static_cast<std::uint64_t>(winner.teamId) << 1)
+            ^ matchEngineMix64(sideSeed(winner.side))
+            ^ matchEngineMix64(purpose);
+
+        return matchEngineDeterministicUnitInterval(seed) * 100.0;
+    }
+
+    ContestBallOutcome defensiveLooseOrDeflectedOutcome(
+        const ContestResolverRequest& request,
+        const ContestParticipant& winner,
+        const ContestantScore& winnerScore,
+        double winningMargin,
+        bool allowDeflection) {
+        const double cleanScore = controlScore(
+            request,
+            winner,
+            winnerScore,
+            winningMargin,
+            defensiveControlSkill(winner));
+        const double roll = outcomeRoll(request, winner, 0x14f30c31cc2df175ULL);
+
+        if (roll < cleanScore) {
+            return ContestBallOutcome::DefenderControls;
+        }
+
+        if (allowDeflection) {
+            const double deflectionWindow = std::clamp(34.0 - (cleanScore * 0.18), 16.0, 30.0);
+            if (roll < cleanScore + deflectionWindow) {
+                return ContestBallOutcome::BallDeflected;
+            }
+        }
+
+        return ContestBallOutcome::BallLoose;
+    }
+
+    ContestBallOutcome keeperSaveOutcome(
+        const ContestResolverRequest& request,
+        const ContestParticipant& winner,
+        const ContestantScore& winnerScore,
+        double winningMargin) {
+        const double holdScore = controlScore(
+            request,
+            winner,
+            winnerScore,
+            winningMargin,
+            keeperControlSkill(winner));
+        const double roll = outcomeRoll(request, winner, 0x9c3df932889d1f9bULL);
+
+        if (roll < holdScore) {
+            return ContestBallOutcome::KeeperControls;
+        }
+
+        return outcomeRoll(request, winner, 0x38f8ad1f826a3815ULL) < 70.0
+            ? ContestBallOutcome::BallDeflected
+            : ContestBallOutcome::BallLoose;
+    }
+
+    ContestBallOutcome attackingAerialOutcome(
+        const ContestResolverRequest& request,
+        const ContestParticipant& winner,
+        const ContestantScore& winnerScore,
+        double winningMargin) {
+        const double cleanScore = controlScore(
+            request,
+            winner,
+            winnerScore,
+            winningMargin,
+            attackingControlSkill(winner));
+
+        return outcomeRoll(request, winner, 0x79d7745f6f75e0d5ULL) < cleanScore
+            ? ContestBallOutcome::AttackerKeepsControl
+            : ContestBallOutcome::BallLoose;
+    }
+
+    ContestBallOutcome resolveBallOutcome(
+        const ContestResolverRequest& request,
+        const ContestParticipant& winner,
+        const ContestantScore& winnerScore,
+        double winningMargin) {
+        if (winner.side == ContestSide::Neutral) {
+            return ContestBallOutcome::BallLoose;
+        }
+
+        switch (request.type) {
+        case ContestType::PassingLaneInterception:
+        case ContestType::GroundCrossInterception:
+            if (winner.side == ContestSide::Defending) {
+                return defensiveLooseOrDeflectedOutcome(
+                    request,
+                    winner,
+                    winnerScore,
+                    winningMargin,
+                    true);
+            }
+            return ContestBallOutcome::AttackerKeepsControl;
+
+        case ContestType::ReceptionDuel:
+            if (winner.side == ContestSide::Defending) {
+                return defensiveLooseOrDeflectedOutcome(
+                    request,
+                    winner,
+                    winnerScore,
+                    winningMargin,
+                    false);
+            }
+            return ContestBallOutcome::AttackerKeepsControl;
+
+        case ContestType::DribbleDuel:
+        case ContestType::TackleAttempt:
+            if (winner.side == ContestSide::Defending) {
+                return defensiveLooseOrDeflectedOutcome(
+                    request,
+                    winner,
+                    winnerScore,
+                    winningMargin,
+                    true);
+            }
+            return ContestBallOutcome::AttackerKeepsControl;
+
+        case ContestType::ShotBlock:
+            return winner.side == ContestSide::Defending
+                ? ContestBallOutcome::BallDeflected
+                : ContestBallOutcome::ShotContinues;
+
+        case ContestType::GoalkeeperSave:
+            return winner.side == ContestSide::Defending
+                ? keeperSaveOutcome(request, winner, winnerScore, winningMargin)
+                : ContestBallOutcome::ShotContinues;
+
+        case ContestType::AerialDuel:
+            if (winner.side == ContestSide::Defending) {
+                return defensiveLooseOrDeflectedOutcome(
+                    request,
+                    winner,
+                    winnerScore,
+                    winningMargin,
+                    true);
+            }
+            return attackingAerialOutcome(request, winner, winnerScore, winningMargin);
+
+        case ContestType::LooseBallRace:
+            return winner.side == ContestSide::Defending
+                ? ContestBallOutcome::DefenderControls
+                : ContestBallOutcome::AttackerKeepsControl;
+        }
+
+        return ContestBallOutcome::BallLoose;
+    }
+
+    void applyCleanController(ContestResolverResult& result) {
+        if (!result.winner) {
+            return;
+        }
+
+        switch (result.ballOutcome) {
+        case ContestBallOutcome::AttackerKeepsControl:
+            if (result.winner->side == ContestSide::Attacking
+                && (result.type == ContestType::ReceptionDuel
+                    || result.type == ContestType::DribbleDuel
+                    || result.type == ContestType::TackleAttempt
+                    || result.type == ContestType::AerialDuel
+                    || result.type == ContestType::LooseBallRace)) {
+                result.cleanController = result.winner;
+            }
+            break;
+        case ContestBallOutcome::DefenderControls:
+        case ContestBallOutcome::KeeperControls:
+            result.cleanController = result.winner;
+            break;
+        case ContestBallOutcome::None:
+        case ContestBallOutcome::BallDeflected:
+        case ContestBallOutcome::BallLoose:
+        case ContestBallOutcome::ShotContinues:
+        case ContestBallOutcome::OutOfPlay:
+            break;
+        }
+    }
+
+    void applyResolutionMapping(
+        ContestResolverResult& result,
+        const ContestResolverRequest& request,
+        const ContestantScore& winnerScore) {
         if (!result.winner) {
             result.resolution = ContestResolutionType::NoContest;
             result.winningSide = ContestSide::None;
@@ -414,49 +708,72 @@ namespace {
         }
 
         result.winningSide = result.winner->side;
+        result.attackingSideSucceeded = result.winningSide == ContestSide::Attacking;
+        result.defendingActionSucceeded = result.winningSide == ContestSide::Defending;
+        result.ballOutcome = resolveBallOutcome(
+            request,
+            *result.winner,
+            winnerScore,
+            result.winningMargin);
 
-        if (result.winningMargin <= CloseContestMargin) {
-            result.resolution = closeContestResolution(result.type);
-            result.attackingSideSucceeded = false;
-            result.possessionChanges = false;
-            result.ballBecomesLoose = result.resolution == ContestResolutionType::BallLoose;
-            return;
-        }
-
-        if (result.type == ContestType::GoalkeeperSave) {
+        switch (request.type) {
+        case ContestType::PassingLaneInterception:
+        case ContestType::GroundCrossInterception:
             if (result.winningSide == ContestSide::Defending) {
-                result.resolution = ContestResolutionType::KeeperSaved;
-                result.possessionChanges = true;
-            } else if (result.winningSide == ContestSide::Attacking) {
-                result.resolution = ContestResolutionType::ShotBeatsKeeper;
-                result.attackingSideSucceeded = true;
+                if (result.ballOutcome == ContestBallOutcome::DefenderControls) {
+                    result.resolution = ContestResolutionType::DefenderWon;
+                } else if (result.ballOutcome == ContestBallOutcome::BallDeflected) {
+                    result.resolution = ContestResolutionType::BallDeflected;
+                } else {
+                    result.resolution = ContestResolutionType::BallLoose;
+                }
+            } else {
+                result.resolution = ContestResolutionType::AttackerWon;
+            }
+            break;
+
+        case ContestType::GoalkeeperSave:
+            result.resolution = result.winningSide == ContestSide::Defending
+                ? ContestResolutionType::KeeperSaved
+                : ContestResolutionType::ShotBeatsKeeper;
+            break;
+
+        case ContestType::ShotBlock:
+            result.resolution = result.winningSide == ContestSide::Defending
+                ? ContestResolutionType::BallDeflected
+                : ContestResolutionType::AttackerWon;
+            break;
+
+        case ContestType::ReceptionDuel:
+        case ContestType::DribbleDuel:
+        case ContestType::TackleAttempt:
+        case ContestType::AerialDuel:
+        case ContestType::LooseBallRace:
+            if (result.winningSide == ContestSide::Attacking) {
+                result.resolution = ContestResolutionType::AttackerWon;
+            } else if (result.winningSide == ContestSide::Defending) {
+                result.resolution = ContestResolutionType::DefenderWon;
             } else {
                 result.resolution = ContestResolutionType::BallLoose;
-                result.ballBecomesLoose = true;
             }
-            return;
+            break;
         }
 
-        if (result.type == ContestType::ShotBlock
-            && result.winningSide == ContestSide::Defending) {
-            result.resolution = ContestResolutionType::BallDeflected;
-            return;
-        }
-
-        if (result.winningSide == ContestSide::Attacking) {
-            result.resolution = ContestResolutionType::AttackerWon;
-            result.attackingSideSucceeded = true;
-            return;
-        }
-
-        if (result.winningSide == ContestSide::Defending) {
-            result.resolution = ContestResolutionType::DefenderWon;
-            result.possessionChanges = defenderWinChangesPossession(result.type);
-            return;
-        }
-
-        result.resolution = ContestResolutionType::BallLoose;
-        result.ballBecomesLoose = true;
+        applyCleanController(result);
+        result.ballDeflected = result.ballOutcome == ContestBallOutcome::BallDeflected;
+        result.ballBecomesLoose = result.ballOutcome == ContestBallOutcome::BallLoose;
+        result.cleanPossessionWon = result.cleanController.has_value();
+        result.possessionChanges =
+            result.cleanController
+            && result.cleanController->side == ContestSide::Defending
+            && (result.type == ContestType::PassingLaneInterception
+                || result.type == ContestType::GroundCrossInterception
+                || result.type == ContestType::ReceptionDuel
+                || result.type == ContestType::DribbleDuel
+                || result.type == ContestType::TackleAttempt
+                || result.type == ContestType::GoalkeeperSave
+                || result.type == ContestType::AerialDuel
+                || result.type == ContestType::LooseBallRace);
     }
 }
 
@@ -467,7 +784,6 @@ ContestResolverResult ContestResolver::resolve(const ContestResolverRequest& req
     std::vector<ScoredParticipant> scoredParticipants;
     scoredParticipants.reserve(request.participants.size());
 
-    std::uint64_t validIndex = 0;
     for (const ContestParticipant& participant : request.participants) {
         if (!isValidParticipant(participant)) {
             continue;
@@ -475,22 +791,23 @@ ContestResolverResult ContestResolver::resolve(const ContestResolverRequest& req
 
         ScoredParticipant scored;
         scored.participant = participant;
-        scored.score = scoreParticipant(request, participant, validIndex);
+        scored.score = scoreParticipant(request, participant);
         scoredParticipants.push_back(scored);
         result.scores.push_back(scored.score);
-        ++validIndex;
     }
 
     if (scoredParticipants.empty()) {
         return result;
     }
 
-    const auto winnerIt = std::max_element(
-        scoredParticipants.begin(),
-        scoredParticipants.end(),
-        [](const ScoredParticipant& lhs, const ScoredParticipant& rhs) {
-            return lhs.score.finalScore < rhs.score.finalScore;
+    std::sort(
+        result.scores.begin(),
+        result.scores.end(),
+        [](const ContestantScore& lhs, const ContestantScore& rhs) {
+            return lhs.finalScore > rhs.finalScore;
         });
+
+    const auto winnerIt = selectWeightedWinner(request, scoredParticipants);
 
     result.winner = winnerIt->participant;
 
@@ -513,6 +830,6 @@ ContestResolverResult ContestResolver::resolve(const ContestResolverRequest& req
         result.winningMargin = winnerIt->score.finalScore;
     }
 
-    applyResolutionMapping(result);
+    applyResolutionMapping(result, request, winnerIt->score);
     return result;
 }

@@ -27,6 +27,17 @@ enum class ContestResolutionType {
     OutOfPlay
 };
 
+enum class ContestBallOutcome {
+    None,
+    AttackerKeepsControl,
+    DefenderControls,
+    KeeperControls,
+    BallDeflected,
+    BallLoose,
+    ShotContinues,
+    OutOfPlay
+};
+
 struct ContestParticipant {
     PlayerId playerId = 0;
     TeamId teamId = 0;
@@ -53,8 +64,8 @@ struct ContestantScore {
     double attributeScore = 0.0;
     double timingScore = 0.0;
     double contextScore = 0.0;
-    double randomScore = 0.0;
     double finalScore = 0.0;
+    double selectionWeight = 0.0;
 };
 
 struct ContestResolverRequest {
@@ -66,7 +77,7 @@ struct ContestResolverRequest {
     std::optional<InterceptionCandidate> interceptionCandidate;
 
     double ballArrivalSecond = 0.0;
-    double pressure = 0.0;
+    double pressure = 0.0; // 0-100
     double executionQuality = 70.0;
 
     std::uint64_t seed = 0;
@@ -75,17 +86,24 @@ struct ContestResolverRequest {
 struct ContestResolverResult {
     ContestType type = ContestType::ReceptionDuel;
     ContestResolutionType resolution = ContestResolutionType::NoContest;
+    ContestBallOutcome ballOutcome = ContestBallOutcome::None;
 
+    // Contest/action winner, not necessarily the clean post-contest ball controller.
     std::optional<ContestParticipant> winner;
     std::optional<ContestParticipant> loser;
+    // Set only when a player actually controls the ball after the contest.
+    std::optional<ContestParticipant> cleanController;
 
     std::vector<ContestantScore> scores;
 
     ContestSide winningSide = ContestSide::None;
 
     bool attackingSideSucceeded = false;
+    bool defendingActionSucceeded = false;
     bool possessionChanges = false;
     bool ballBecomesLoose = false;
+    bool ballDeflected = false;
+    bool cleanPossessionWon = false;
 
     double winningMargin = 0.0;
 };

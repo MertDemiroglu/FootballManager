@@ -177,9 +177,10 @@ Related documents:
 ### 20. ContestResolver Skeleton
 
 - Status: implemented.
-- Scope: add a Qt-free local contest outcome resolver with copied `ContestParticipant` inputs, deterministic attribute/timing/context scoring, explicit winner/loser and winning side output, and resolution flags for attacking success, possession changes, loose balls, and deflections.
+- Scope: add a Qt-free local contest outcome resolver with copied `ContestParticipant` inputs, deterministic attribute/timing/context scoring, weighted deterministic contest winner selection, explicit winner/loser and winning side output, and separate ball-outcome reporting for clean control, deflections, loose balls, and shot continuation.
 - Current behavior: runtime match behavior is unchanged. `ContestResolver` is not wired into `PlayMatchCommandHandler`, does not call `MatchEngine::simulate`, does not replace `MatchSimulation`, does not mutate player state, ball state, domain objects, fixtures, standings, reports, history, save/load state, or UI.
-- Goalkeeper note: `GoalkeeperSave` can return `KeeperSaved` or `ShotBeatsKeeper`, but goals and score/report application remain future shot/save/goal prototype work.
+- Semantics note: contest/action winner is separate from post-action ball control. Clean interceptions, deflections, loose balls, defender-won tackles with loose/deflected outcomes, and goalkeeper save-and-hold/save-and-parry outcomes are represented without assigning future recovery.
+- Goalkeeper note: `GoalkeeperSave` can save-and-hold, save-and-parry, leave a loose rebound, or be beaten, but goals and score/report application remain future shot/save/goal prototype work.
 - Future work: add MovementResolver + PlayerIntentResolver skeletons before implementing a minimal coordinate simulation prototype.
 - Do not mix in: movement resolution, player intent resolution, full coordinate engine implementation, tactical effects in current match flow, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
 
