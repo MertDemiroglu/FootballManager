@@ -29,6 +29,10 @@ The `MatchEngine` interface now exists as a compile-safe, Qt-free core boundary.
 
 The shape model creates a base position from formation slot layout on the 105m x 68m pitch, applies small tactical adjustments for mentality, width, and defensive line, and returns `PlayerShapeTarget` values containing base, tactical, and final target positions. For now, `finalTarget` equals the tactical target because local intent adjustments are a later phase.
 
+`BallTrajectoryBuilder` now exists as a Qt-free helper layer for constructing deterministic `BallTrajectory` values from an intended target. The skeleton clamps safe pitch coordinates, keeps `intendedTarget` and `actualTarget` distinct, applies a simple target-error model from execution quality, pressure, and seed, and computes a basic speed and arrival time by trajectory type. It also provides linear trajectory sampling for future path checks. It does not model real ball physics, decide action outcomes, mutate match state, or affect current runtime match results.
+
+`InterceptionResolver` now exists as a Qt-free helper layer for finding possible path-interception candidates along a sampled ball trajectory. It compares defender ETA from `PlayerSimState::position` with ball arrival at each sample, records candidate margins and simple quality scores, and exposes an optional best candidate. It does not decide final interception success or failure, mutate player or ball state, emit match events, or apply results. A future `ContestResolver` will consume these candidates to resolve contest outcomes.
+
 ## MatchEngineInputBuilder
 
 `MatchEngineInputBuilder` is the read-only boundary between current domain state and future snapshot-based match simulation. It converts existing `Team`, `Footballer`, and `TeamSheet` state into immutable `MatchEngineInput` values without transferring ownership or storing mutable domain references inside the match engine input.
@@ -359,6 +363,8 @@ Every pass, cross, and shot should create a `BallTrajectory` with:
 
 The intended target is what the player tried. The actual target is produced by execution quality, pressure, and deterministic randomness.
 
+The current `BallTrajectoryBuilder` skeleton represents this principle in code. Its error model is intentionally simple: lower execution quality and higher pressure increase the possible deviation from the intended target, while a deterministic seed keeps repeat runs stable. The produced actual target remains a helper result for future simulation layers and is not connected to current match playback or results.
+
 Poor players or pressured players can underhit, overhit, misdirect, or play the ball behind the runner.
 
 Trajectory types:
@@ -380,6 +386,8 @@ Ball resolution is two-stage.
 Defenders can cut the ball before it reaches the target. The defender does not have to run to the final target point.
 
 The engine samples or evaluates points along the trajectory. Defender ETA to an interception point is compared with ball ETA to that point.
+
+The current `InterceptionResolver` skeleton performs this path sampling and ETA comparison. It returns candidates and a best candidate for later contest resolution, but it does not yet decide whether a pass, cross, shot, or clearance is successfully intercepted.
 
 Interception should consider:
 

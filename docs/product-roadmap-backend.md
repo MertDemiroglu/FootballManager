@@ -158,10 +158,18 @@ Related documents:
 - Future work: add `BallTrajectoryBuilder` and `InterceptionResolver` skeletons before implementing real coordinate simulation behavior.
 - Do not mix in: full coordinate engine implementation, tactical effects in current match flow, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
 
+### 18. BallTrajectoryBuilder + InterceptionResolver Skeleton
+
+- Status: implemented.
+- Scope: add Qt-free helper layers that build deterministic `BallTrajectory` values from intended targets, separate intended and actual target points through a simple execution-quality/pressure/seed error model, sample trajectories linearly, and evaluate possible path-interception candidates from defender positions.
+- Current behavior: runtime match behavior is unchanged. These helpers are not wired into `PlayMatchCommandHandler`, do not call `MatchEngine::simulate`, do not replace `MatchSimulation`, do not mutate player state, ball state, domain objects, fixtures, standings, reports, history, save/load state, or UI.
+- Future work: add `ActionPlan` / `ActionCandidate` / `PlayerIntent` skeletons before implementing a minimal coordinate simulation prototype.
+- Do not mix in: final contest resolution, full coordinate engine implementation, tactical effects in current match flow, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
+
 ## Next Backend Phases
 
-1. BallTrajectoryBuilder + InterceptionResolver skeleton
-2. Tactical More Options UI exposure
+1. ActionPlan / ActionCandidate / PlayerIntent skeleton
+2. Minimal coordinate simulation prototype
 3. Transfer World design
 4. Automated regression tests when stable enough
 5. Team screen / Transfer room / Finance UI rework

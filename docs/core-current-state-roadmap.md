@@ -37,6 +37,7 @@ This living document describes the current core/backend shape and the next backe
 - MatchEngineInputBuilder: Qt-free snapshot builder creates `MatchEngineInput` values from existing teams and team sheets, fills a deterministic seed when missing, and validates obvious structural roster/team-sheet issues. It is not integrated into runtime match play yet.
 - MatchEngine internal state skeleton: Qt-free `MatchSimulationState`, `PlayerSimState`, `TeamSimState`, `BallState`, and `PossessionState` containers exist for future in-memory coordinate simulation. They are not persisted and are not integrated into runtime match play yet.
 - TeamShapeModel skeleton: Qt-free tactical-positioning helper converts TeamSheet starters and TacticalSetup context into clamped pitch target positions. It applies only small mentality, width, and defensive-line adjustments and is not integrated into runtime match play yet.
+- BallTrajectoryBuilder + InterceptionResolver skeleton: Qt-free helper layers now build deterministic ball trajectories from intended targets, keep intended and actual targets distinct through a simple quality/pressure/seed error model, sample trajectories linearly, and produce path-interception candidates without resolving final contest outcomes or changing runtime match behavior.
 - Manual save and autosave policy.
 - Managed-vs-AI `TeamSheet` reconciliation policy after roster restore/mutation.
 
@@ -78,10 +79,10 @@ This living document describes the current core/backend shape and the next backe
 ## Future Match Engine Design Status
 
 - The coordinate simulation design and initial skeleton boundary are documented and compile-safe. They do not change runtime match results, standings, save/load, or UI behavior.
-- The current implemented MatchEngine skeleton includes core type DTOs/enums, pitch helpers, snapshot-based input, output-only result DTOs, a non-integrated `MatchEngine::simulate` entry point, a read-only `MatchEngineInputBuilder` snapshot builder, in-memory simulation state containers, and a non-integrated `TeamShapeModel` tactical target helper.
+- The current implemented MatchEngine skeleton includes core type DTOs/enums, pitch helpers, snapshot-based input, output-only result DTOs, a non-integrated `MatchEngine::simulate` entry point, a read-only `MatchEngineInputBuilder` snapshot builder, in-memory simulation state containers, a non-integrated `TeamShapeModel` tactical target helper, and non-mutating `BallTrajectoryBuilder` / `InterceptionResolver` helper layers.
 - The future V1 engine should use real pitch dimensions, tactical shape, action plan/reassessment, perception, ball trajectories, path interception, local contests, watched traces, and background summaries.
 - V1 tactical inputs needed by the future engine are Mentality, Tempo, Width, DefensiveLine, PressingIntensity, MarkingStyle, and PassingDirectness.
-- Runtime match behavior is unchanged. The next planned implementation phase should stay incremental: `BallTrajectoryBuilder` + `InterceptionResolver` skeleton, not the full simulation engine.
+- Runtime match behavior is unchanged. The next planned implementation phase should stay incremental: `ActionPlan` / `ActionCandidate` / `PlayerIntent` skeleton, not the full simulation engine.
 
 ## Known Not-Yet-Supported Core Scenarios
 
@@ -110,9 +111,10 @@ This living document describes the current core/backend shape and the next backe
 6. MatchEngineInputBuilder / snapshot builder (implemented)
 7. PlayerSimState + BallState + MatchSimulationState internal simulation state skeleton (implemented)
 8. TeamShapeModel skeleton (implemented)
-9. BallTrajectoryBuilder + InterceptionResolver skeleton
-10. Automated regression tests when stable enough
-11. Multi-league expansion preparation
+9. BallTrajectoryBuilder + InterceptionResolver skeleton (implemented)
+10. ActionPlan / ActionCandidate / PlayerIntent skeleton
+11. Automated regression tests when stable enough
+12. Multi-league expansion preparation
 
 ## Deferred / Later Core Work
 
