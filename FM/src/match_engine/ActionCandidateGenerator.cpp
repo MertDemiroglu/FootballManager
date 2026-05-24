@@ -153,7 +153,7 @@ namespace {
     }
 
     ActionCandidate buildCandidate(
-        MatchActionType type,
+        BallCarrierActionType type,
         PitchPoint target,
         PlayerId targetPlayerId,
         double tacticalScore,
@@ -188,7 +188,7 @@ std::vector<ActionCandidate> ActionCandidateGenerator::generate(
         && request.ballState.carrierPlayerId == request.ballCarrier.playerId;
 
     candidates.push_back(buildCandidate(
-        MatchActionType::Hold,
+        BallCarrierActionType::Hold,
         carrierPosition,
         0,
         24.0 + mentalitySafeBonus(tacticalSetup.mentality),
@@ -198,7 +198,7 @@ std::vector<ActionCandidate> ActionCandidateGenerator::generate(
 
     if (const PlayerSimState* backTarget = nearestTeammate(request, true, false)) {
         candidates.push_back(buildCandidate(
-            MatchActionType::BackPass,
+            BallCarrierActionType::BackPass,
             backTarget->position,
             backTarget->playerId,
             30.0 + mentalitySafeBonus(tacticalSetup.mentality),
@@ -209,7 +209,7 @@ std::vector<ActionCandidate> ActionCandidateGenerator::generate(
 
     if (const PlayerSimState* shortTarget = nearestTeammate(request, false, false)) {
         candidates.push_back(buildCandidate(
-            MatchActionType::ShortPass,
+            BallCarrierActionType::ShortPass,
             shortTarget->position,
             shortTarget->playerId,
             28.0,
@@ -219,7 +219,7 @@ std::vector<ActionCandidate> ActionCandidateGenerator::generate(
     }
 
     candidates.push_back(buildCandidate(
-        MatchActionType::Carry,
+        BallCarrierActionType::Carry,
         advanceTarget(carrierPosition, direction, 12.0),
         0,
         26.0 + directProgressionBonus(tacticalSetup),
@@ -229,7 +229,7 @@ std::vector<ActionCandidate> ActionCandidateGenerator::generate(
 
     if (isWide(carrierPosition) && isFinalThird(carrierPosition, direction)) {
         candidates.push_back(buildCandidate(
-            MatchActionType::LowCross,
+            BallCarrierActionType::LowCross,
             lowCrossTarget(direction),
             0,
             28.0 + mentalityAttackBonus(tacticalSetup.mentality),
@@ -240,7 +240,7 @@ std::vector<ActionCandidate> ActionCandidateGenerator::generate(
 
     if (isNearOpponentBox(carrierPosition, direction)) {
         candidates.push_back(buildCandidate(
-            MatchActionType::Shoot,
+            BallCarrierActionType::Shoot,
             goalCenterFor(direction),
             0,
             24.0 + mentalityAttackBonus(tacticalSetup.mentality),
@@ -251,7 +251,7 @@ std::vector<ActionCandidate> ActionCandidateGenerator::generate(
 
     if (isOwnDefensiveDanger(carrierPosition, direction)) {
         candidates.push_back(buildCandidate(
-            MatchActionType::Clear,
+            BallCarrierActionType::Clear,
             advanceTarget(carrierPosition, direction, 35.0),
             0,
             32.0 + mentalitySafeBonus(tacticalSetup.mentality),
@@ -262,8 +262,8 @@ std::vector<ActionCandidate> ActionCandidateGenerator::generate(
 
     if (request.simulationState.possession.isTransition) {
         for (ActionCandidate& candidate : candidates) {
-            if (candidate.type == MatchActionType::Carry
-                || candidate.type == MatchActionType::ShortPass) {
+            if (candidate.type == BallCarrierActionType::Carry
+                || candidate.type == BallCarrierActionType::ShortPass) {
                 candidate.contextScore += 4.0;
             }
             candidate.finalScore = clampScore(

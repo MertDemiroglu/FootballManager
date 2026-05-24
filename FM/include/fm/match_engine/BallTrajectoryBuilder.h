@@ -25,6 +25,15 @@ struct BallTrajectoryBuildResult {
     double targetErrorMeters = 0.0;
 };
 
+struct DeflectedBallTrajectoryRequest {
+    PitchPoint contactPoint;
+    PitchPoint incomingStart;
+    PitchPoint incomingTarget;
+    double deflectionStrength = 0.5;
+    double startSecond = 0.0;
+    std::uint64_t seed = 0;
+};
+
 struct BallTrajectorySample {
     PitchPoint point;
     double second = 0.0;
@@ -34,6 +43,8 @@ struct BallTrajectorySample {
 class BallTrajectoryBuilder {
 public:
     BallTrajectoryBuildResult build(const BallTrajectoryBuildRequest& request) const;
+    BallTrajectory buildDeflectedTrajectory(
+        const DeflectedBallTrajectoryRequest& request) const;
 };
 
 std::vector<BallTrajectorySample> sampleTrajectory(

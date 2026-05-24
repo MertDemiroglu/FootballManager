@@ -181,17 +181,25 @@ Related documents:
 - Current behavior: runtime match behavior is unchanged. `ContestResolver` is not wired into `PlayMatchCommandHandler`, does not call `MatchEngine::simulate`, does not replace `MatchSimulation`, does not mutate player state, ball state, domain objects, fixtures, standings, reports, history, save/load state, or UI.
 - Semantics note: contest/action winner is separate from post-action ball control. Clean interceptions, deflections, loose balls, defender-won tackles with loose/deflected outcomes, and goalkeeper save-and-hold/save-and-parry outcomes are represented without assigning future recovery.
 - Goalkeeper note: `GoalkeeperSave` can save-and-hold, save-and-parry, leave a loose rebound, or be beaten, but goals and score/report application remain future shot/save/goal prototype work.
-- Future work: add MovementResolver + PlayerIntentResolver skeletons before implementing a minimal coordinate simulation prototype.
+- Future work: TacticalZone, DefensiveResponsibility, MovementResolver, PlayerIntentResolver, and deflected trajectory skeletons now exist; the next step is a minimal coordinate simulation prototype.
 - Do not mix in: movement resolution, player intent resolution, full coordinate engine implementation, tactical effects in current match flow, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
+
+### 21. Tactical Zones + Player Intent Resolver + Movement Resolver Skeleton
+
+- Status: implemented.
+- Scope: add Qt-free helper layers for the next coordinate-engine foundation: `TacticalZone` as a 3x3 attacking-perspective zone model, `DefensiveResponsibility` as role/zone/pressable-opponent responsibility data, `PlayerIntentResolver` as deterministic role/zone/distance constrained intent selection, `MovementResolver` as non-mutating movement toward an intent target over `deltaSeconds`, and a deterministic deflected-ball trajectory helper on `BallTrajectoryBuilder`.
+- Current behavior: runtime match behavior is unchanged. These helpers are not wired into `PlayMatchCommandHandler`, do not call `MatchEngine::simulate`, do not replace `MatchSimulation`, do not execute selected intents, do not apply ball state, and do not mutate player state, domain objects, fixtures, standings, reports, history, save/load state, or UI.
+- Semantics note: `BallCarrierActionType` is the current ball carrier decision enum. `PlayerIntentType` is the off-ball, defensive, loose-ball reaction, and emergency intent enum. Marking style affects willingness but does not override role/zone eligibility for pressing.
+- Future work: implement the Minimal Coordinate Simulation Prototype.
+- Do not mix in: full coordinate engine implementation, tactical effects in current match flow, mini-pitch UI, live playback, shots/goals/cards/injuries/reports, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
 
 ## Next Backend Phases
 
-1. MovementResolver + PlayerIntentResolver skeleton
-2. Minimal Coordinate Simulation Prototype
-3. Transfer World design
-4. Automated regression tests when stable enough
-5. Team screen / Transfer room / Finance UI rework
-6. Multi-league expansion preparation
+1. Minimal Coordinate Simulation Prototype
+2. Transfer World design
+3. Automated regression tests when stable enough
+4. Team screen / Transfer room / Finance UI rework
+5. Multi-league expansion preparation
 
 ## Deferred / Later Backend Work
 

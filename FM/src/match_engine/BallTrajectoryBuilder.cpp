@@ -26,6 +26,8 @@ namespace {
             return 25.0;
         case BallTrajectoryType::Clearance:
             return 22.0;
+        case BallTrajectoryType::Deflection:
+            return 12.0;
         }
 
         return 15.0;
@@ -47,6 +49,8 @@ namespace {
             return 5.0;
         case BallTrajectoryType::Clearance:
             return 12.0;
+        case BallTrajectoryType::Deflection:
+            return 4.0;
         }
 
         return 5.0;
@@ -141,6 +145,48 @@ BallTrajectoryBuildResult BallTrajectoryBuilder::build(
     result.targetErrorMeters = PitchGeometry::distance(intendedTarget, actualTarget);
 
     return result;
+}
+
+BallTrajectory BallTrajectoryBuilder::buildDeflectedTrajectory(
+    const DeflectedBallTrajectoryRequest& request) const {
+    const PitchPoint contactPoint = PitchGeometry::clampToPitch(request.contactPoint);
+    const PitchPoint incomingStart = PitchGeometry::clampToPitch(request.incomingStart);
+    const PitchPoint incomingTarget = PitchGeometry::clampToPitch(request.incomingTarget);
+    const std::uint64_t seed = request.seed == 0
+        ? fallbackSeedFor(incomingStart, incomingTarget, BallTrajectoryType::Deflection)
+        : request.seed;
+
+    const double incomingDx = incomingTarget.x - incomingStart.x;
+    const double incomingDy = incomingTarget.y - incomingStart.y;
+    double baseAngle = std::atan2(incomingDy, incomingDx);
+    if (std::abs(incomingDx) < 0.001 && std::abs(incomingDy) < 0.001) {
+        baseAngle = unitFrom(mix(seed)) * 6.28318530717958647692;
+    }
+
+    const double strength = std::clamp(request.deflectionStrength, 0.0, 1.0);
+    const double deviationUnit = unitFrom(mix(seed ^ 0x8bf6d6f7c2ee9331ULL));
+    const double signedDeviation = (deviationUnit * 2.0) - 1.0;
+    const double deviationRadians = signedDeviation * (0.35 + (strength * 1.05));
+    const double distanceMeters =
+        8.0 + (strength * 18.0) + (unitFrom(mix(seed ^ 0x36ae2f64fb7a2d9bULL)) * 8.0);
+
+    const PitchPoint actualTarget = PitchGeometry::clampToPitch(PitchPoint{
+        contactPoint.x + std::cos(baseAngle + deviationRadians) * distanceMeters,
+        contactPoint.y + std::sin(baseAngle + deviationRadians) * distanceMeters
+    });
+    const double actualDistance = PitchGeometry::distance(contactPoint, actualTarget);
+    const double speedMetersPerSecond =
+        std::max(8.0 + (strength * 9.0), MinBallSpeedMetersPerSecond);
+
+    BallTrajectory trajectory;
+    trajectory.start = contactPoint;
+    trajectory.intendedTarget = actualTarget;
+    trajectory.actualTarget = actualTarget;
+    trajectory.startSecond = request.startSecond;
+    trajectory.arrivalSecond = request.startSecond + (actualDistance / speedMetersPerSecond);
+    trajectory.speedMetersPerSecond = speedMetersPerSecond;
+    trajectory.type = BallTrajectoryType::Deflection;
+    return trajectory;
 }
 
 std::vector<BallTrajectorySample> sampleTrajectory(

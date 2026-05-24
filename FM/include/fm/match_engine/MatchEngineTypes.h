@@ -58,7 +58,8 @@ enum class BallTrajectoryType {
     HighCross,
     Cutback,
     Shot,
-    Clearance
+    Clearance,
+    Deflection
 };
 
 struct BallTrajectory {
@@ -72,27 +73,40 @@ struct BallTrajectory {
 };
 
 enum class PlayerIntentType {
-    HoldShape,
+    // Neutral / fallback
+    None,
+
+    // Attacking team off-ball intents
+    HoldAttackingShape,
     MoveToSupport,
+    DropForPass,
     MakeRunBehind,
     AttackNearPost,
     AttackFarPost,
     AttackCutbackZone,
-    DropForPass,
+    OccupyWidth,
+    OccupyHalfSpace,
+
+    // Defensive team intents
+    HoldDefensiveShape,
+    CoverSpace,
+    MarkOpponent,
     PressBallCarrier,
     ContainBallCarrier,
-    TrackRunner,
-    MarkOpponent,
-    CoverSpace,
-    ProtectGoalZone,
     BlockPassingLane,
     InterceptBallPath,
     AttemptTackle,
     RecoverToGoal,
+    ProtectGoalZone,
+
+    // Loose / deflected ball reaction
+    RecoverLooseBall,
+
+    // Emergency
     ClearDanger
 };
 
-enum class MatchActionType {
+enum class BallCarrierActionType {
     ShortPass,
     BackPass,
     ThroughBall,
@@ -121,14 +135,14 @@ enum class ContestType {
 };
 
 struct PlayerIntent {
-    PlayerIntentType type = PlayerIntentType::HoldShape;
+    PlayerIntentType type = PlayerIntentType::None;
     PitchPoint target;
     PlayerId relatedPlayerId = 0;
     double urgency = 0.0;
 };
 
 struct ActionCandidate {
-    MatchActionType type = MatchActionType::Hold;
+    BallCarrierActionType type = BallCarrierActionType::Hold;
     PitchPoint intendedTarget;
     PlayerId targetPlayerId = 0;
     double tacticalScore = 0.0;
