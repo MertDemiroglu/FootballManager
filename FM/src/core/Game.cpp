@@ -560,6 +560,7 @@ void Game::restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions) {
     const std::vector<MatchReport> reports = repository.loadMatchReports();
     const std::vector<PersistedTeamSheetState> teamSheetStates = repository.loadTeamSheetStates();
     const std::vector<PersistedPlayerRuntimeState> playerStates = repository.loadPlayerRuntimeStates();
+    const std::vector<PersistedPlayerAttributesState> playerAttributesStates = repository.loadPlayerAttributesStates();
     const std::vector<PersistedTeamFinanceState> teamFinanceStates = repository.loadTeamFinanceStates();
     const std::vector<PersistedPlayerRosterState> playerRosterStates = repository.loadPlayerRosterStates();
     const std::vector<PersistedFreeAgentState> freeAgentStates = repository.loadFreeAgentStates();
@@ -679,6 +680,14 @@ void Game::restoreRuntimeState(const GameBootstrapOptions& bootstrapOptions) {
     restorePlayerRosterState(world, playerRosterStates);
     restoreFreeAgentState(world, freeAgentStates);
 
+    for (const PersistedPlayerAttributesState& state : playerAttributesStates) {
+        Footballer* player = findRuntimePlayerById(world, state.playerId);
+        if (!player) {
+            throw std::runtime_error("player attribute state references unknown player");
+        }
+        player->setAttributes(state.attributes);
+    }
+
     for (const PersistedPlayerRuntimeState& state : playerStates) {
         Footballer* player = findRuntimePlayerById(world, state.playerId);
         if (!player) {
@@ -741,6 +750,7 @@ void Game::persistRuntimeState() {
     std::vector<MatchReport> reports;
     std::vector<PersistedTeamSheetState> teamSheetStates;
     std::vector<PersistedPlayerRuntimeState> playerStates;
+    std::vector<PersistedPlayerAttributesState> playerAttributesStates;
     std::vector<PersistedTeamFinanceState> teamFinances;
     std::vector<PersistedPlayerRosterState> playerRosterStates;
     std::vector<PersistedFreeAgentState> freeAgentStates;
@@ -811,6 +821,10 @@ void Game::persistRuntimeState() {
                     condition.getFitness(),
                     condition.getMorale()
                 });
+                playerAttributesStates.push_back(PersistedPlayerAttributesState{
+                    player->getId(),
+                    player->getAttributes()
+                });
                 PersistedPlayerRosterState rosterState;
                 rosterState.playerId = player->getId();
                 rosterState.leagueId = league.getId();
@@ -835,6 +849,10 @@ void Game::persistRuntimeState() {
             condition.getForm(),
             condition.getFitness(),
             condition.getMorale()
+        });
+        playerAttributesStates.push_back(PersistedPlayerAttributesState{
+            freeAgent->getId(),
+            freeAgent->getAttributes()
         });
 
         PersistedFreeAgentState freeAgentState;
@@ -863,6 +881,7 @@ void Game::persistRuntimeState() {
         reports,
         teamSheetStates,
         playerStates,
+        playerAttributesStates,
         teamFinances,
         playerRosterStates,
         freeAgentStates,

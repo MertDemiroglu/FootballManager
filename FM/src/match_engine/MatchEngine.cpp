@@ -1,6 +1,6 @@
 #include"fm/match_engine/MatchEngine.h"
 
-#include"fm/match_engine/CoordinateSimulationPrototype.h"
+#include"fm/match_engine/CoordinateMatchSimulator.h"
 
 bool hasValidTeams(const MatchEngineInput& input) {
     return input.matchId != 0
@@ -14,5 +14,5 @@ MatchEngineResult MatchEngine::simulate(const MatchEngineInput& input) const {
         return {};
     }
 
-    return CoordinateSimulationPrototype{}.run(input);
+    return CoordinateMatchSimulator{}.run(input);
 }

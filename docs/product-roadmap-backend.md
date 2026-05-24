@@ -20,7 +20,7 @@ Related documents:
 - Autosave is game-date interval based, defaults to Weekly, and does not create rolling slots.
 - Important events may request a save, but full snapshot writes should be batched/coalesced at safe checkpoints where possible.
 - `runtime_player_roster_state` stores team-owned players only; `runtime_free_agents` stores free agent pool ownership.
-- Permanent player attributes are seed/static data for now. `player_attributes` is the preferred explicit source, with deterministic `s1..s5` fallback for transitional seed compatibility.
+- Permanent player attributes load from seed/static `player_attributes`, with deterministic `s1..s5` fallback for transitional seed compatibility. Runtime saves persist detailed attributes in `runtime_player_attributes` for rostered players and free agents; old saves without that table still load safely.
 - The current save format is still a full runtime snapshot. Dirty/incremental table-level saves are a future optimization if multi-league snapshot cost becomes high.
 - Active interaction exact restore is intentionally deferred. Do not add `runtime_active_interaction` tables in the current phase.
 - Save As, multiple named manual saves, and rolling autosave slots are not planned for this phase.
@@ -114,8 +114,8 @@ Related documents:
 
 - Status: implemented.
 - Scope: add Qt-free core skeleton types for future coordinate simulation: `PitchPoint`, `PitchGeometry`, `MatchSimulationDetail`, trace frame DTOs, ball trajectory DTOs, and intent/action/contest enums.
-- Current behavior: runtime match behavior is unchanged. The existing lightweight `MatchSimulation`, `PlayMatchCommandHandler`, `League::applyMatchReport`, UI, and save/load paths are not integrated with these types yet.
-- Next step: add the `MatchEngine` interface/skeleton and output contracts before any real simulation behavior.
+- Current role: these types are consumed by the coordinate simulator. The lightweight `MatchSimulation` remains available as a fallback, and `League::applyMatchReport` remains the authoritative application path.
+- Next step: keep expanding match event richness, watched/background behavior, and tuning.
 - Do not mix in: match engine implementation, player movement simulation, tactical UI, mini-pitch UI, save/load schema changes, or match result behavior changes.
 
 ### 13. TacticalSetup V1 Expansion
@@ -130,7 +130,7 @@ Related documents:
 
 - Status: implemented.
 - Scope: add the Qt-free `MatchEngine` boundary, snapshot-based `MatchEngineInput`, team/player snapshot DTOs, output-only `MatchEngineResult`, future team/player simulation stats, and optional trace/report containers.
-- Current behavior: runtime match behavior is unchanged. The skeleton `MatchEngine::simulate` is not wired into `PlayMatchCommandHandler`, does not call the existing `MatchSimulation`, does not apply reports, and does not mutate domain objects, standings, fixtures, reports, history, UI, or save/load state.
+- Current role: `MatchEngine::simulate` is the pure coordinate simulation entry point. It does not mutate domain objects, standings, fixtures, reports, history, UI, or save/load state.
 - Future work: add `BallTrajectoryBuilder` and `InterceptionResolver` skeletons before implementing real coordinate simulation behavior.
 - Do not mix in: full coordinate engine implementation, tactical effects, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
 
@@ -138,7 +138,7 @@ Related documents:
 
 - Status: implemented.
 - Scope: add the Qt-free read-only `MatchEngineInputBuilder` layer that converts existing `Team`, `Footballer`, and `TeamSheet` domain state into snapshot-based `MatchEngineInput` values. It copies team/player/team-sheet data, uses `TeamSheet.tacticalSetup` as the tactical source of truth, validates obvious structural roster and team-sheet issues, and fills a deterministic seed when the caller does not provide one.
-- Current behavior: runtime match behavior is unchanged. The builder is not wired into `PlayMatchCommandHandler`, does not call `MatchEngine::simulate`, does not call `League::applyMatchReport`, and does not mutate domain, save/load, UI, standings, fixtures, reports, or event state.
+- Current role: the builder feeds the default coordinate handler path with copied snapshots. It does not call `MatchEngine::simulate`, does not call `League::applyMatchReport`, and does not mutate domain, save/load, UI, standings, fixtures, reports, or event state.
 - Future work: add `BallTrajectoryBuilder` and `InterceptionResolver` skeletons before implementing real coordinate simulation behavior.
 - Do not mix in: full coordinate engine implementation, tactical effects, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
 
@@ -146,7 +146,7 @@ Related documents:
 
 - Status: implemented.
 - Scope: add Qt-free in-memory containers for future coordinate simulation state: `MatchSimulationState`, `PlayerSimState`, `TeamSimState`, `BallState`, and `PossessionState`, plus small linear search helpers.
-- Current behavior: runtime match behavior is unchanged. The state skeleton is not persisted, not wired into `PlayMatchCommandHandler`, does not call `MatchEngine::simulate`, does not call `League::applyMatchReport`, and does not replace `MatchReport`.
+- Current role: the in-memory state powers the coordinate simulator and remains unpersisted. It does not call `League::applyMatchReport` and does not replace `MatchReport`.
 - Future work: add `BallTrajectoryBuilder` and `InterceptionResolver` skeletons before implementing real coordinate simulation behavior.
 - Do not mix in: full coordinate engine implementation, movement resolution, player intent resolution, ball trajectory building, contest resolution, tactical effects, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
 
@@ -154,7 +154,7 @@ Related documents:
 
 - Status: implemented.
 - Scope: add a Qt-free tactical-positioning helper that converts `TeamSheet` starting assignments, `TacticalSetup`, pitch context, and attacking direction into `PlayerShapeTarget` values. The skeleton maps formation slots to 105m x 68m pitch coordinates, mirrors away-team shape, clamps targets to pitch boundaries, and applies simple mentality, width, and defensive-line adjustments.
-- Current behavior: runtime match behavior is unchanged. `TeamShapeModel` is not wired into `PlayMatchCommandHandler`, does not call `MatchEngine::simulate`, does not replace `MatchSimulation`, does not mutate domain or save state, and does not update UI, fixtures, standings, reports, or history.
+- Current role: `TeamShapeModel` is consumed by the coordinate simulator. It does not replace `MatchSimulation` by itself, does not mutate domain or save state, and does not update UI, fixtures, standings, reports, or history.
 - Future work: add `BallTrajectoryBuilder` and `InterceptionResolver` skeletons before implementing real coordinate simulation behavior.
 - Do not mix in: full coordinate engine implementation, tactical effects in current match flow, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
 
@@ -162,50 +162,50 @@ Related documents:
 
 - Status: implemented.
 - Scope: add Qt-free helper layers that build deterministic `BallTrajectory` values from intended targets, separate intended and actual target points through a simple execution-quality/pressure/seed error model, sample trajectories linearly, and evaluate possible path-interception candidates from defender positions.
-- Current behavior: runtime match behavior is unchanged. These helpers are not wired into `PlayMatchCommandHandler`, do not call `MatchEngine::simulate`, do not replace `MatchSimulation`, do not mutate player state, ball state, domain objects, fixtures, standings, reports, history, save/load state, or UI.
-- Follow-on work: action-planning helpers and `ContestResolver` now exist; add Movement/Intent resolver skeletons before implementing a minimal coordinate simulation prototype.
+- Current role: these helpers are consumed by the coordinate simulator. They do not replace `MatchSimulation` by themselves and do not mutate player state, ball state, domain objects, fixtures, standings, reports, history, save/load state, or UI.
+- Follow-on work: action-planning helpers and `ContestResolver` now exist; tune the coordinate simulator and enrich events.
 - Do not mix in: final contest resolution, full coordinate engine implementation, tactical effects in current match flow, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
 
 ### 19. ActionPlan / ActionCandidate / PlayerIntent Skeleton
 
 - Status: implemented.
 - Scope: add Qt-free helper layers for future ball-carrier planning: `ActionPlan` types, reassessment trigger evaluation, `PerceptionModel` option awareness, basic `ActionCandidateGenerator` output, and weighted deterministic `ActionSelector` choice.
-- Current behavior: runtime match behavior is unchanged. These helpers are not wired into `PlayMatchCommandHandler`, do not call `MatchEngine::simulate`, do not replace `MatchSimulation`, do not execute selected actions, and do not mutate player state, ball state, domain objects, fixtures, standings, reports, history, save/load state, or UI.
-- Follow-on work: `ContestResolver` now exists; add MovementResolver / PlayerIntentResolver before implementing a minimal coordinate simulation prototype.
+- Current role: these helpers are consumed by the coordinate simulator. They do not replace `MatchSimulation` by themselves and do not mutate player state, ball state, domain objects, fixtures, standings, reports, history, save/load state, or UI.
+- Follow-on work: `ContestResolver` now exists; tune movement/intent behavior inside the coordinate simulator.
 - Do not mix in: contest resolution, movement resolution, full coordinate engine implementation, tactical effects in current match flow, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
 
 ### 20. ContestResolver Skeleton
 
 - Status: implemented.
 - Scope: add a Qt-free local contest outcome resolver with copied `ContestParticipant` inputs, deterministic attribute/timing/context scoring, weighted deterministic contest winner selection, explicit winner/loser and winning side output, and separate ball-outcome reporting for clean control, deflections, loose balls, and shot continuation.
-- Current behavior: runtime match behavior is unchanged. `ContestResolver` is not wired into `PlayMatchCommandHandler`, does not call `MatchEngine::simulate`, does not replace `MatchSimulation`, does not mutate player state, ball state, domain objects, fixtures, standings, reports, history, save/load state, or UI.
+- Current role: `ContestResolver` is consumed by the coordinate simulator. It does not replace `MatchSimulation` by itself and does not mutate player state, ball state, domain objects, fixtures, standings, reports, history, save/load state, or UI.
 - Semantics note: contest/action winner is separate from post-action ball control. Clean interceptions, deflections, loose balls, defender-won tackles with loose/deflected outcomes, and goalkeeper save-and-hold/save-and-parry outcomes are represented without assigning future recovery.
-- Goalkeeper note: `GoalkeeperSave` can save-and-hold, save-and-parry, leave a loose rebound, or be beaten. Local prototype goal/stat/trace handling now consumes this outcome later in `CoordinateSimulationPrototype`; report application remains future adapter/runtime work.
-- Future work: TacticalZone, DefensiveResponsibility, MovementResolver, PlayerIntentResolver, and deflected trajectory skeletons now exist; the next step is a minimal coordinate simulation prototype.
+- Goalkeeper note: `GoalkeeperSave` can save-and-hold, save-and-parry, leave a loose rebound, or be beaten. Local simulator goal/stat/trace handling consumes this outcome in `CoordinateMatchSimulator`; report application remains owned by the handler and `League::applyMatchReport`.
+- Future work: TacticalZone, DefensiveResponsibility, MovementResolver, PlayerIntentResolver, and deflected trajectory helpers now exist; the next step is tuning and event richness.
 - Do not mix in: movement resolution, player intent resolution, full coordinate engine implementation, tactical effects in current match flow, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
 
 ### 21. Tactical Zones + Player Intent Resolver + Movement Resolver Skeleton
 
 - Status: implemented.
 - Scope: add Qt-free helper layers for the next coordinate-engine foundation: `TacticalZone` as a 3x3 attacking-perspective zone model, `DefensiveResponsibility` as role/zone/pressable-opponent responsibility data, `PlayerIntentResolver` as deterministic role/zone/distance constrained intent selection, `MovementResolver` as non-mutating movement toward an intent target over `deltaSeconds`, and a deterministic deflected-ball trajectory helper on `BallTrajectoryBuilder`.
-- Current behavior: runtime match behavior is unchanged. These helpers are not wired into `PlayMatchCommandHandler`, do not call `MatchEngine::simulate`, do not replace `MatchSimulation`, do not execute selected intents, do not apply ball state, and do not mutate player state, domain objects, fixtures, standings, reports, history, save/load state, or UI.
+- Current role: these helpers are consumed by the coordinate simulator. They do not replace `MatchSimulation` by themselves, do not apply authoritative world state, and do not mutate player state, domain objects, fixtures, standings, reports, history, save/load state, or UI.
 - Semantics note: `BallCarrierActionType` is the current ball carrier decision enum. `PlayerIntentType` is the off-ball, defensive, loose-ball reaction, and emergency intent enum. Marking style affects willingness but does not override role/zone eligibility for pressing.
-- Future work: implement the Minimal Coordinate Simulation Prototype.
+- Future work: tune watched/background behavior and event richness.
 - Do not mix in: full coordinate engine implementation, tactical effects in current match flow, mini-pitch UI, live playback, shots/goals/cards/injuries/reports, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
 
-### 22. Minimal Coordinate Simulation Prototype
+### 22. Minimal coordinate match simulator
 
-- Status: implemented as a bounded non-runtime prototype.
-- Scope: add `CoordinateSimulationPrototype` behind valid `MatchEngine::simulate` input. The prototype initializes local `MatchSimulationState` from snapshots, places starters through `TeamShapeModel`, resolves intents and movement, selects controlled-ball actions, builds trajectories, handles minimal in-flight/deflected/loose ball outcomes, and returns prototype stats/traces through `MatchEngineResult`.
-- Current behavior: runtime match behavior is unchanged. The prototype is not wired into `PlayMatchCommandHandler`, does not replace `MatchSimulation`, does not create or apply `MatchReport`, does not call `League::applyMatchReport`, and does not mutate domain objects, fixtures, standings, reports, history, save/load state, or UI.
+- Status: implemented as a bounded coordinate simulator.
+- Scope: add `CoordinateMatchSimulator` behind valid `MatchEngine::simulate` input. The simulator initializes local `MatchSimulationState` from snapshots, places starters through `TeamShapeModel`, resolves intents and movement, selects controlled-ball actions, builds trajectories, handles minimal in-flight/deflected/loose ball outcomes, and returns simulation stats/traces through `MatchEngineResult`.
+- Current behavior: the simulator now powers the default coordinate path through `MatchEngine::simulate`. It creates an optional `MatchReport` but still does not apply it, call `League::applyMatchReport`, or mutate domain objects, fixtures, standings, reports, history, save/load state, or UI.
 - Future work: deterministic regression/smoke tests after the report adapter.
 - Do not mix in: runtime integration, mini-pitch UI, save/load schema changes, fixture/standing/report application changes, or final 90-minute match simulation tuning.
 
-### 23. Shot / Save / Goal Local Prototype + Ball Vertical Profile
+### 23. Shot / Save / Goal local simulator + Ball Vertical Profile
 
-- Status: implemented as a bounded non-runtime prototype.
-- Scope: add `BallFlightProfile` and apex height to `BallTrajectory`, expose simple ball-height helpers, map trajectory types to ground/low/high/lofted/shot profiles, use temporary attribute-based reach checks for high balls and aerial situations, route high crosses/clearances toward aerial contest handling, and resolve on-target local prototype shots through `GoalkeeperSave`.
-- Current behavior: runtime match behavior is unchanged. Prototype saves, rebounds, and goals update only `MatchEngineResult` stats/traces; the follow-on adapter can now create an optional prototype `MatchReport`, but no report is applied and no fixture, standing, history, save/load, domain event, or UI behavior changes.
+- Status: implemented as a bounded coordinate simulator.
+- Scope: add `BallFlightProfile` and apex height to `BallTrajectory`, expose simple ball-height helpers, map trajectory types to ground/low/high/lofted/shot profiles, use temporary attribute-based reach checks for high balls and aerial situations, route high crosses/clearances toward aerial contest handling, and resolve on-target local simulator shots through `GoalkeeperSave`.
+- Current behavior: simulator saves, rebounds, and goals update `MatchEngineResult` stats/traces and the adapted simulator `MatchReport`. Report application still happens only in `PlayMatchCommandHandler` via `League::applyMatchReport`.
 - Future work: deterministic regression/smoke tests before runtime integration.
 - Do not mix in: runtime integration, `PlayMatchCommandHandler`, current `MatchSimulation` replacement, `League::applyMatchReport`, mini-pitch UI, save/load schema changes, fixture/standing/report application changes, or final 90-minute tuning.
 
@@ -213,23 +213,25 @@ Related documents:
 
 - Status: implemented as a non-runtime conversion layer.
 - Scope: add a Qt-free pure adapter that builds the current narrow `MatchReport` shape from `MatchEngineInput` and `MatchEngineResult`. It maps match metadata, season year, score, lineup snapshots, player report basics, and goal trace frames.
-- Current behavior: default runtime match behavior is unchanged. The adapter does not map unsupported prototype stats such as shots, passes, interceptions, saves, xG, possession, or trace frames into `MatchReport`, and it does not apply the report to `League`, game state, fixtures, standings, history, save/load, domain events, or UI.
+- Current behavior: the adapter feeds the default coordinate match flow. It does not map unsupported simulator stats such as shots, passes, interceptions, saves, xG, possession, or trace frames into `MatchReport`, and it does not apply the report to `League`, game state, fixtures, standings, history, save/load, domain events, or UI.
 - Future work: first playable coordinate match flow after feature-flagged integration prep.
 - Do not mix in: runtime integration, `PlayMatchCommandHandler`, current `MatchSimulation` replacement, `League::applyMatchReport`, mini-pitch UI, save/load schema changes, fixture/standing/report application changes, or final 90-minute tuning.
 
-### 25. Deterministic Smoke Tests + Feature-Flagged Integration Prep
+### 25. First Playable Coordinate Match Flow
 
-- Status: implemented / integration prep.
-- Scope: add `fm_match_engine_smoke` coverage for deterministic result/report behavior, report metadata consistency, starter player reports, invalid-input defaults, and background/watched/debug no-crash execution. Add `PlayMatchCommandHandler` engine selection with default `Lightweight` and opt-in `CoordinatePrototype`.
-- Current behavior: default runtime behavior is unchanged. Existing handler construction continues to use lightweight `MatchSimulation`. `CoordinatePrototype` mode builds input with `MatchEngineInputBuilder`, runs `MatchEngine`, uses `result.report` only when ids and metadata match the command, and falls back to lightweight simulation when unsafe.
+- Status: implemented.
+- Scope: make `Coordinate` the default `PlayMatchCommandHandler` mode, rename engine mode and simulator terminology away from old experimental wording, keep explicit `Lightweight` mode, validate coordinate reports, and persist detailed `PlayerAttributes` through runtime save/load. `fm_match_engine_smoke` now covers deterministic result/report behavior, report metadata consistency, starter player reports, invalid-input defaults, background/watched/debug no-crash execution, default handler mode selection, fixture/standings/report application, `MatchPlayedEvent` publication, and explicit lightweight mode.
+- Current behavior: normal handler construction now tries the coordinate engine first. `Coordinate` mode builds input with `MatchEngineInputBuilder`, runs `MatchEngine`, uses `result.report` only when ids, metadata, goals, lineup team ids, and player-report team ids are safe, and falls back to lightweight simulation when unsafe. `Lightweight` remains a compatibility mode.
 - Authoritative apply: `League::applyMatchReport` remains the only match application point, followed by condition effects and `MatchPlayedEvent` publication.
-- Do not mix in: UI settings, save/load schema changes, default coordinate-engine activation, new domain events, removal of `MatchSimulation`, or changes to `League::applyMatchReport` semantics.
+- Save/load: detailed `PlayerAttributes` are persisted in runtime saves for rostered players and free agents. Old saves without detailed runtime attributes still load and keep seed/bootstrap or legacy `s1..s5` fallback attributes.
+- Do not mix in: UI settings, new domain events, removal of `MatchSimulation`, or changes to `League::applyMatchReport` semantics.
 
 ## Next Backend Phases
 
-1. First playable coordinate match flow
-2. Watched/background mode separation
-3. Tuning/stability pass
+1. Watched/background mode separation
+2. Tuning/stability pass
+3. Match event richness and UI playback preparation
+4. Eventual lightweight deprecation/cleanup after confidence
 
 ## Deferred / Later Backend Work
 

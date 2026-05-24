@@ -7,11 +7,11 @@
 
 enum class MatchSimulationEngineMode {
     Lightweight,
-    CoordinatePrototype
+    Coordinate
 };
 
 struct PlayMatchCommandHandlerOptions {
-    MatchSimulationEngineMode engineMode = MatchSimulationEngineMode::Lightweight;
+    MatchSimulationEngineMode engineMode = MatchSimulationEngineMode::Coordinate;
 };
 
 class PlayMatchCommandHandler {

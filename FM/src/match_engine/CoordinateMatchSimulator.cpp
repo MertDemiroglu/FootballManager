@@ -1,4 +1,4 @@
-#include"fm/match_engine/CoordinateSimulationPrototype.h"
+#include"fm/match_engine/CoordinateMatchSimulator.h"
 
 #include"DeterministicRandom.h"
 #include"fm/match_engine/ActionCandidateGenerator.h"
@@ -1687,7 +1687,7 @@ namespace {
     }
 }
 
-MatchEngineResult CoordinateSimulationPrototype::run(const MatchEngineInput& input) const {
+MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) const {
     MatchEngineResult result;
     result.homeStats.teamId = input.homeTeam.teamId;
     result.awayStats.teamId = input.awayTeam.teamId;

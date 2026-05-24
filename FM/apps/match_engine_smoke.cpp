@@ -1,11 +1,16 @@
 #include"fm/match_engine/MatchEngine.h"
 #include"fm/match_engine/MatchEngineInputBuilder.h"
+#include"fm/competition/League.h"
+#include"fm/data/SqliteGameStateRepository.h"
+#include"fm/events/DomainEventPublisher.h"
+#include"fm/match/PlayMatchCommandHandler.h"
 #include"fm/match/TeamSelectionService.h"
 #include"fm/roster/FootballerFactory.h"
 #include"fm/roster/Team.h"
 
 #include<algorithm>
 #include<cstdint>
+#include<filesystem>
 #include<iostream>
 #include<memory>
 #include<stdexcept>
@@ -17,6 +22,40 @@ namespace {
         if (!condition) {
             throw std::runtime_error(message);
         }
+    }
+
+    bool sameAttributes(const PlayerAttributes& lhs, const PlayerAttributes& rhs) {
+        return lhs.technical.shooting == rhs.technical.shooting
+            && lhs.technical.passing == rhs.technical.passing
+            && lhs.technical.firstTouch == rhs.technical.firstTouch
+            && lhs.technical.technique == rhs.technical.technique
+            && lhs.technical.tackling == rhs.technical.tackling
+            && lhs.technical.dribbling == rhs.technical.dribbling
+            && lhs.technical.crossing == rhs.technical.crossing
+            && lhs.technical.marking == rhs.technical.marking
+            && lhs.technical.heading == rhs.technical.heading
+            && lhs.technical.setPieces == rhs.technical.setPieces
+            && lhs.mental.decisions == rhs.mental.decisions
+            && lhs.mental.vision == rhs.mental.vision
+            && lhs.mental.positioning == rhs.mental.positioning
+            && lhs.mental.offTheBall == rhs.mental.offTheBall
+            && lhs.mental.composure == rhs.mental.composure
+            && lhs.mental.concentration == rhs.mental.concentration
+            && lhs.mental.workRate == rhs.mental.workRate
+            && lhs.mental.teamwork == rhs.mental.teamwork
+            && lhs.mental.leadership == rhs.mental.leadership
+            && lhs.mental.aggression == rhs.mental.aggression
+            && lhs.physical.pace == rhs.physical.pace
+            && lhs.physical.acceleration == rhs.physical.acceleration
+            && lhs.physical.stamina == rhs.physical.stamina
+            && lhs.physical.strength == rhs.physical.strength
+            && lhs.physical.agility == rhs.physical.agility
+            && lhs.physical.jumpingReach == rhs.physical.jumpingReach
+            && lhs.goalkeeper.shotStopping == rhs.goalkeeper.shotStopping
+            && lhs.goalkeeper.handling == rhs.goalkeeper.handling
+            && lhs.goalkeeper.aerialAbility == rhs.goalkeeper.aerialAbility
+            && lhs.goalkeeper.oneOnOnes == rhs.goalkeeper.oneOnOnes
+            && lhs.goalkeeper.distribution == rhs.goalkeeper.distribution;
     }
 
     std::unique_ptr<Footballer> makePlayer(
@@ -154,6 +193,104 @@ namespace {
         require(result.awayStats.goals == 0, "invalid input away goals should default to zero");
         require(result.traceFrames.empty(), "invalid input trace frames should default empty");
     }
+
+    PlayMatchCommand buildCommand(const League& league, const FixtureMatch& match, const Date& date) {
+        return PlayMatchCommand{
+            match.matchId,
+            league.getId(),
+            league.getCurrentSeasonYear(),
+            date,
+            match.homeId,
+            match.awayId,
+            match.matchweek
+        };
+    }
+
+    void runHandlerSmoke(MatchSimulationEngineMode engineMode) {
+        const Date matchDate{ 2026, Month::March, 14 };
+        League league("Handler Smoke", 909);
+        league.addTeam(std::make_unique<Team>(makeTeam(501, "Handler Home", 3)));
+        league.addTeam(std::make_unique<Team>(makeTeam(502, "Handler Away", 0)));
+        league.resetForNewSeason(2026);
+        league.initializeMatchdayTracking(1);
+        league.addFixtureMatch(707, 1, matchDate, 501, 502);
+
+        FixtureMatch* match = league.findFixtureMatchById(707);
+        require(match != nullptr, "handler smoke fixture should exist");
+        match->eventEnqueued = true;
+
+        int publishedEvents = 0;
+        MatchId publishedMatchId = 0;
+        DomainEventPublisher publisher;
+        publisher.subscribeMatchPlayed([&](const MatchPlayedEvent& event) {
+            ++publishedEvents;
+            publishedMatchId = event.matchId;
+        });
+
+        PlayMatchCommandHandlerOptions options;
+        options.engineMode = engineMode;
+        PlayMatchCommandHandler handler(publisher, options);
+        handler.handle(league, buildCommand(league, *match, matchDate));
+
+        const FixtureMatch* playedMatch = league.findFixtureMatchById(707);
+        require(playedMatch != nullptr && playedMatch->played, "handler should mark fixture played");
+        require(!playedMatch->eventEnqueued, "handler should clear fixture event enqueue guard");
+        require(playedMatch->homeGoals >= 0 && playedMatch->awayGoals >= 0, "handler should apply non-negative goals");
+
+        const auto& standings = league.getStandings();
+        require(standings.at(501).played == 1, "home standings should update through League");
+        require(standings.at(502).played == 1, "away standings should update through League");
+        require(league.findCurrentSeasonMatchReportById(707) != nullptr, "applied match report should be stored");
+        require(publishedEvents == 1, "handler should publish one MatchPlayedEvent");
+        require(publishedMatchId == 707, "published event should reference played match");
+    }
+
+    void runHandlerIntegrationSmoke() {
+        PlayMatchCommandHandlerOptions defaultOptions;
+        require(defaultOptions.engineMode == MatchSimulationEngineMode::Coordinate,
+            "default handler engine mode should be coordinate");
+        runHandlerSmoke(MatchSimulationEngineMode::Coordinate);
+        runHandlerSmoke(MatchSimulationEngineMode::Lightweight);
+    }
+
+    void runPlayerAttributesPersistenceSmoke() {
+        const std::filesystem::path dbPath =
+            std::filesystem::temp_directory_path() / "fm_match_engine_attributes_smoke.db";
+        std::error_code removeError;
+        std::filesystem::remove(dbPath, removeError);
+
+        PlayerAttributes attributes =
+            buildAttributesFromLegacySkills(PlayerPosition::CentralMidfielder, 71, 68, 74, 69, 73, 24);
+        attributes.technical.setPieces = 77;
+        attributes.goalkeeper.distribution = 12;
+
+        {
+            SqliteGameStateRepository repository(dbPath.string());
+            repository.saveRuntimeState(
+                Date{ 2026, Month::March, 14 },
+                0,
+                {},
+                {},
+                {},
+                {},
+                {},
+                { PersistedPlayerAttributesState{ 12345, attributes } },
+                {},
+                {},
+                {},
+                {});
+        }
+
+        SqliteGameStateRepository repository(dbPath.string(), GameStateRepositoryMode::ReadExisting);
+        const std::vector<PersistedPlayerAttributesState> loadedAttributes =
+            repository.loadPlayerAttributesStates();
+        require(loadedAttributes.size() == 1, "runtime save should persist one player attribute row");
+        require(loadedAttributes.front().playerId == 12345, "loaded player attribute row should preserve player id");
+        require(sameAttributes(loadedAttributes.front().attributes, attributes),
+            "loaded player attributes should match saved detailed attributes");
+
+        std::filesystem::remove(dbPath, removeError);
+    }
 }
 
 int main() {
@@ -163,6 +300,8 @@ int main() {
         runDetailSmoke(MatchSimulationDetail::BackgroundSummary);
         runDetailSmoke(MatchSimulationDetail::WatchedMatch);
         runDetailSmoke(MatchSimulationDetail::DebugFullTrace);
+        runHandlerIntegrationSmoke();
+        runPlayerAttributesPersistenceSmoke();
     }
     catch (const std::exception& ex) {
         std::cerr << "fm_match_engine_smoke failed: " << ex.what() << '\n';

@@ -4,6 +4,7 @@
 #include "fm/common/Types.h"
 #include "fm/data/SavePolicy.h"
 #include "fm/finance/TeamFinance.h"
+#include "fm/roster/PlayerAttributes.h"
 #include "fm/data/SqliteDatabase.h"
 #include "fm/match/MatchReport.h"
 #include "fm/match/TeamSheet.h"
@@ -44,6 +45,11 @@ struct PersistedPlayerRuntimeState {
     int form = 50;
     int fitness = 100;
     int morale = 50;
+};
+
+struct PersistedPlayerAttributesState {
+    PlayerId playerId = 0;
+    PlayerAttributes attributes;
 };
 
 struct PersistedTeamSheetState {
@@ -116,6 +122,7 @@ public:
     std::vector<MatchReport> loadMatchReports() const;
     std::vector<PersistedTeamSheetState> loadTeamSheetStates() const;
     std::vector<PersistedPlayerRuntimeState> loadPlayerRuntimeStates() const;
+    std::vector<PersistedPlayerAttributesState> loadPlayerAttributesStates() const;
     std::vector<PersistedTeamFinanceState> loadTeamFinanceStates() const;
     std::vector<PersistedPlayerRosterState> loadPlayerRosterStates() const;
     std::vector<PersistedFreeAgentState> loadFreeAgentStates() const;
@@ -131,6 +138,7 @@ public:
         const std::vector<MatchReport>& reports,
         const std::vector<PersistedTeamSheetState>& teamSheetStates,
         const std::vector<PersistedPlayerRuntimeState>& playerStates,
+        const std::vector<PersistedPlayerAttributesState>& playerAttributesStates,
         const std::vector<PersistedTeamFinanceState>& teamFinances,
         const std::vector<PersistedPlayerRosterState>& playerRosterStates,
         const std::vector<PersistedFreeAgentState>& freeAgentStates,

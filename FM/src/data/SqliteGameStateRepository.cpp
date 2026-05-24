@@ -338,6 +338,41 @@ namespace {
             "morale INTEGER NOT NULL"
             ");");
         database.execute(
+            "CREATE TABLE IF NOT EXISTS runtime_player_attributes ("
+            "player_id INTEGER PRIMARY KEY,"
+            "shooting INTEGER NOT NULL,"
+            "passing INTEGER NOT NULL,"
+            "first_touch INTEGER NOT NULL,"
+            "technique INTEGER NOT NULL,"
+            "tackling INTEGER NOT NULL,"
+            "dribbling INTEGER NOT NULL,"
+            "crossing INTEGER NOT NULL,"
+            "marking INTEGER NOT NULL,"
+            "heading INTEGER NOT NULL,"
+            "set_pieces INTEGER NOT NULL,"
+            "decisions INTEGER NOT NULL,"
+            "vision INTEGER NOT NULL,"
+            "positioning INTEGER NOT NULL,"
+            "off_the_ball INTEGER NOT NULL,"
+            "composure INTEGER NOT NULL,"
+            "concentration INTEGER NOT NULL,"
+            "work_rate INTEGER NOT NULL,"
+            "teamwork INTEGER NOT NULL,"
+            "leadership INTEGER NOT NULL,"
+            "aggression INTEGER NOT NULL,"
+            "pace INTEGER NOT NULL,"
+            "acceleration INTEGER NOT NULL,"
+            "stamina INTEGER NOT NULL,"
+            "strength INTEGER NOT NULL,"
+            "agility INTEGER NOT NULL,"
+            "jumping_reach INTEGER NOT NULL,"
+            "shot_stopping INTEGER NOT NULL,"
+            "handling INTEGER NOT NULL,"
+            "aerial_ability INTEGER NOT NULL,"
+            "one_on_ones INTEGER NOT NULL,"
+            "distribution INTEGER NOT NULL"
+            ");");
+        database.execute(
             "CREATE TABLE IF NOT EXISTS runtime_team_sheets ("
             "league_id INTEGER NOT NULL,"
             "team_id INTEGER NOT NULL,"
@@ -746,6 +781,59 @@ std::vector<PersistedPlayerRuntimeState> SqliteGameStateRepository::loadPlayerRu
     return playerStates;
 }
 
+std::vector<PersistedPlayerAttributesState> SqliteGameStateRepository::loadPlayerAttributesStates() const {
+    std::vector<PersistedPlayerAttributesState> playerAttributesStates;
+    if (!tableExists(database, "runtime_player_attributes")) {
+        return playerAttributesStates;
+    }
+
+    SqliteStatement statement = database.prepare(
+        "SELECT player_id, "
+        "shooting, passing, first_touch, technique, tackling, dribbling, crossing, marking, heading, set_pieces, "
+        "decisions, vision, positioning, off_the_ball, composure, concentration, work_rate, teamwork, leadership, aggression, "
+        "pace, acceleration, stamina, strength, agility, jumping_reach, "
+        "shot_stopping, handling, aerial_ability, one_on_ones, distribution "
+        "FROM runtime_player_attributes ORDER BY player_id");
+    while (statement.stepRow()) {
+        PersistedPlayerAttributesState state;
+        state.playerId = static_cast<PlayerId>(statement.columnInt(0));
+        state.attributes.technical.shooting = statement.columnInt(1);
+        state.attributes.technical.passing = statement.columnInt(2);
+        state.attributes.technical.firstTouch = statement.columnInt(3);
+        state.attributes.technical.technique = statement.columnInt(4);
+        state.attributes.technical.tackling = statement.columnInt(5);
+        state.attributes.technical.dribbling = statement.columnInt(6);
+        state.attributes.technical.crossing = statement.columnInt(7);
+        state.attributes.technical.marking = statement.columnInt(8);
+        state.attributes.technical.heading = statement.columnInt(9);
+        state.attributes.technical.setPieces = statement.columnInt(10);
+        state.attributes.mental.decisions = statement.columnInt(11);
+        state.attributes.mental.vision = statement.columnInt(12);
+        state.attributes.mental.positioning = statement.columnInt(13);
+        state.attributes.mental.offTheBall = statement.columnInt(14);
+        state.attributes.mental.composure = statement.columnInt(15);
+        state.attributes.mental.concentration = statement.columnInt(16);
+        state.attributes.mental.workRate = statement.columnInt(17);
+        state.attributes.mental.teamwork = statement.columnInt(18);
+        state.attributes.mental.leadership = statement.columnInt(19);
+        state.attributes.mental.aggression = statement.columnInt(20);
+        state.attributes.physical.pace = statement.columnInt(21);
+        state.attributes.physical.acceleration = statement.columnInt(22);
+        state.attributes.physical.stamina = statement.columnInt(23);
+        state.attributes.physical.strength = statement.columnInt(24);
+        state.attributes.physical.agility = statement.columnInt(25);
+        state.attributes.physical.jumpingReach = statement.columnInt(26);
+        state.attributes.goalkeeper.shotStopping = statement.columnInt(27);
+        state.attributes.goalkeeper.handling = statement.columnInt(28);
+        state.attributes.goalkeeper.aerialAbility = statement.columnInt(29);
+        state.attributes.goalkeeper.oneOnOnes = statement.columnInt(30);
+        state.attributes.goalkeeper.distribution = statement.columnInt(31);
+        validatePlayerAttributes(state.attributes);
+        playerAttributesStates.push_back(state);
+    }
+    return playerAttributesStates;
+}
+
 std::vector<PersistedTeamFinanceState> SqliteGameStateRepository::loadTeamFinanceStates() const {
     std::vector<PersistedTeamFinanceState> states;
     if (!tableExists(database, "runtime_team_finances")) {
@@ -914,6 +1002,7 @@ void SqliteGameStateRepository::saveRuntimeState(
     const std::vector<MatchReport>& reports,
     const std::vector<PersistedTeamSheetState>& teamSheetStates,
     const std::vector<PersistedPlayerRuntimeState>& playerStates,
+    const std::vector<PersistedPlayerAttributesState>& playerAttributesStates,
     const std::vector<PersistedTeamFinanceState>& teamFinances,
     const std::vector<PersistedPlayerRosterState>& playerRosterStates,
     const std::vector<PersistedFreeAgentState>& freeAgentStates,
@@ -933,6 +1022,7 @@ void SqliteGameStateRepository::saveRuntimeState(
         database.execute("DELETE FROM runtime_player_roster_state;");
         database.execute("DELETE FROM runtime_team_finances;");
         database.execute("DELETE FROM league_runtime_state;");
+        database.execute("DELETE FROM runtime_player_attributes;");
         database.execute("DELETE FROM player_runtime_state;");
         database.execute("DELETE FROM game_state;");
 
@@ -1088,6 +1178,51 @@ void SqliteGameStateRepository::saveRuntimeState(
             statement.bindInt(2, state.form);
             statement.bindInt(3, state.fitness);
             statement.bindInt(4, state.morale);
+            statement.stepDone();
+        }
+
+        for (const PersistedPlayerAttributesState& state : playerAttributesStates) {
+            validatePlayerAttributes(state.attributes);
+            SqliteStatement statement = database.prepare(
+                "INSERT INTO runtime_player_attributes ("
+                "player_id, "
+                "shooting, passing, first_touch, technique, tackling, dribbling, crossing, marking, heading, set_pieces, "
+                "decisions, vision, positioning, off_the_ball, composure, concentration, work_rate, teamwork, leadership, aggression, "
+                "pace, acceleration, stamina, strength, agility, jumping_reach, "
+                "shot_stopping, handling, aerial_ability, one_on_ones, distribution"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            statement.bindInt(1, static_cast<int>(state.playerId));
+            statement.bindInt(2, state.attributes.technical.shooting);
+            statement.bindInt(3, state.attributes.technical.passing);
+            statement.bindInt(4, state.attributes.technical.firstTouch);
+            statement.bindInt(5, state.attributes.technical.technique);
+            statement.bindInt(6, state.attributes.technical.tackling);
+            statement.bindInt(7, state.attributes.technical.dribbling);
+            statement.bindInt(8, state.attributes.technical.crossing);
+            statement.bindInt(9, state.attributes.technical.marking);
+            statement.bindInt(10, state.attributes.technical.heading);
+            statement.bindInt(11, state.attributes.technical.setPieces);
+            statement.bindInt(12, state.attributes.mental.decisions);
+            statement.bindInt(13, state.attributes.mental.vision);
+            statement.bindInt(14, state.attributes.mental.positioning);
+            statement.bindInt(15, state.attributes.mental.offTheBall);
+            statement.bindInt(16, state.attributes.mental.composure);
+            statement.bindInt(17, state.attributes.mental.concentration);
+            statement.bindInt(18, state.attributes.mental.workRate);
+            statement.bindInt(19, state.attributes.mental.teamwork);
+            statement.bindInt(20, state.attributes.mental.leadership);
+            statement.bindInt(21, state.attributes.mental.aggression);
+            statement.bindInt(22, state.attributes.physical.pace);
+            statement.bindInt(23, state.attributes.physical.acceleration);
+            statement.bindInt(24, state.attributes.physical.stamina);
+            statement.bindInt(25, state.attributes.physical.strength);
+            statement.bindInt(26, state.attributes.physical.agility);
+            statement.bindInt(27, state.attributes.physical.jumpingReach);
+            statement.bindInt(28, state.attributes.goalkeeper.shotStopping);
+            statement.bindInt(29, state.attributes.goalkeeper.handling);
+            statement.bindInt(30, state.attributes.goalkeeper.aerialAbility);
+            statement.bindInt(31, state.attributes.goalkeeper.oneOnOnes);
+            statement.bindInt(32, state.attributes.goalkeeper.distribution);
             statement.stepDone();
         }
 
