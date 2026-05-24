@@ -62,6 +62,15 @@ enum class BallTrajectoryType {
     Deflection
 };
 
+enum class BallFlightProfile {
+    Ground,
+    Low,
+    Medium,
+    High,
+    Lofted,
+    Shot
+};
+
 struct BallTrajectory {
     PitchPoint start;
     PitchPoint intendedTarget;
@@ -70,6 +79,8 @@ struct BallTrajectory {
     double arrivalSecond = 0.0;
     double speedMetersPerSecond = 0.0;
     BallTrajectoryType type = BallTrajectoryType::GroundPass;
+    BallFlightProfile flightProfile = BallFlightProfile::Ground;
+    double apexHeightMeters = 0.0;
 };
 
 enum class PlayerIntentType {

@@ -56,6 +56,50 @@ namespace {
         return 5.0;
     }
 
+    BallFlightProfile flightProfileFor(BallTrajectoryType type) {
+        switch (type) {
+        case BallTrajectoryType::GroundPass:
+            return BallFlightProfile::Ground;
+        case BallTrajectoryType::ThroughBall:
+        case BallTrajectoryType::LowCross:
+        case BallTrajectoryType::Cutback:
+            return BallFlightProfile::Low;
+        case BallTrajectoryType::HighCross:
+            return BallFlightProfile::High;
+        case BallTrajectoryType::Shot:
+            return BallFlightProfile::Shot;
+        case BallTrajectoryType::Clearance:
+            return BallFlightProfile::Lofted;
+        case BallTrajectoryType::Deflection:
+            return BallFlightProfile::Medium;
+        }
+
+        return BallFlightProfile::Ground;
+    }
+
+    double apexHeightMetersFor(BallTrajectoryType type) {
+        switch (type) {
+        case BallTrajectoryType::GroundPass:
+            return 0.05;
+        case BallTrajectoryType::ThroughBall:
+            return 0.4;
+        case BallTrajectoryType::LowCross:
+            return 0.8;
+        case BallTrajectoryType::HighCross:
+            return 3.5;
+        case BallTrajectoryType::Cutback:
+            return 0.2;
+        case BallTrajectoryType::Shot:
+            return 1.2;
+        case BallTrajectoryType::Clearance:
+            return 7.0;
+        case BallTrajectoryType::Deflection:
+            return 1.5;
+        }
+
+        return 0.05;
+    }
+
     std::uint64_t mix(std::uint64_t value) {
         value += 0x9e3779b97f4a7c15ULL;
         value = (value ^ (value >> 30)) * 0xbf58476d1ce4e5b9ULL;
@@ -142,6 +186,8 @@ BallTrajectoryBuildResult BallTrajectoryBuilder::build(
     result.trajectory.arrivalSecond =
         request.startSecond + (distanceMeters / speedMetersPerSecond);
     result.trajectory.type = request.type;
+    result.trajectory.flightProfile = flightProfileFor(request.type);
+    result.trajectory.apexHeightMeters = apexHeightMetersFor(request.type);
     result.targetErrorMeters = PitchGeometry::distance(intendedTarget, actualTarget);
 
     return result;
@@ -186,6 +232,12 @@ BallTrajectory BallTrajectoryBuilder::buildDeflectedTrajectory(
     trajectory.arrivalSecond = request.startSecond + (actualDistance / speedMetersPerSecond);
     trajectory.speedMetersPerSecond = speedMetersPerSecond;
     trajectory.type = BallTrajectoryType::Deflection;
+    trajectory.flightProfile = strength < 0.45
+        ? BallFlightProfile::Low
+        : BallFlightProfile::Medium;
+    trajectory.apexHeightMeters = strength < 0.45
+        ? 0.6 + (strength * 1.35)
+        : 1.5 + (strength * 1.5);
     return trajectory;
 }
 
@@ -212,4 +264,30 @@ std::vector<BallTrajectorySample> sampleTrajectory(
     }
 
     return samples;
+}
+
+double ballHeightAtProgress(const BallTrajectory& trajectory, double progress) {
+    constexpr double GroundHeightMeters = 0.05;
+    const double clampedProgress = std::clamp(progress, 0.0, 1.0);
+
+    if (trajectory.flightProfile == BallFlightProfile::Ground) {
+        return GroundHeightMeters;
+    }
+
+    const double apexHeightMeters = std::max(0.0, trajectory.apexHeightMeters);
+    const double height =
+        GroundHeightMeters
+        + (4.0 * apexHeightMeters * clampedProgress * (1.0 - clampedProgress));
+    return std::max(0.0, height);
+}
+
+double ballHeightAtSecond(const BallTrajectory& trajectory, double second) {
+    const double durationSeconds = trajectory.arrivalSecond - trajectory.startSecond;
+    if (durationSeconds <= 0.001) {
+        return ballHeightAtProgress(trajectory, 1.0);
+    }
+
+    return ballHeightAtProgress(
+        trajectory,
+        (second - trajectory.startSecond) / durationSeconds);
 }

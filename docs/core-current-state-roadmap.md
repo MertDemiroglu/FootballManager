@@ -42,6 +42,7 @@ This living document describes the current core/backend shape and the next backe
 - ContestResolver skeleton: Qt-free helper layer now resolves local contest/action winners from copied participants and timing/context inputs using deterministic weighted selection, then separately reports the physical ball outcome, optional clean controller, possession-change, attacking/defending success, loose-ball/deflection information, margin, and score details without mutating player, ball, simulation, domain, save/load, report, fixture, standing, history, or UI state.
 - TacticalZone / DefensiveResponsibility / PlayerIntentResolver / MovementResolver skeleton: Qt-free helper layers now provide a 3x3 attacking-perspective tactical zone model, role-based defensive responsibility and press eligibility, deterministic role/zone/distance constrained intent resolution, non-mutating player movement toward intent targets, and deterministic deflected-ball trajectory creation. They are not integrated into runtime match play yet.
 - Minimal Coordinate Simulation Prototype: `MatchEngine::simulate` now delegates valid snapshot input to a bounded Qt-free prototype loop that initializes local `MatchSimulationState`, wires TeamShapeModel, PlayerIntentResolver, MovementResolver, ActionCandidateGenerator/Selector, BallTrajectoryBuilder, InterceptionResolver, and ContestResolver, and returns prototype stats/traces without creating `MatchReport` or mutating game state.
+- Shot / Save / Goal Local Prototype + Ball Vertical Profile: `BallTrajectory` now carries a simple vertical flight profile and apex height; the local prototype uses temporary attribute-based reach checks for high balls/aerial situations, routes high crosses/clearances toward aerial handling, and resolves on-target shots through goalkeeper save contests into local-only save, rebound, or goal trace/stat outcomes.
 - Manual save and autosave policy.
 - Managed-vs-AI `TeamSheet` reconciliation policy after roster restore/mutation.
 
@@ -86,7 +87,7 @@ This living document describes the current core/backend shape and the next backe
 - The current implemented MatchEngine foundation includes core type DTOs/enums, pitch helpers, snapshot-based input, output-only result DTOs, a non-runtime `MatchEngine::simulate` prototype entry point, a read-only `MatchEngineInputBuilder` snapshot builder, in-memory simulation state containers, `TeamShapeModel`, `BallTrajectoryBuilder` / `InterceptionResolver` / `ContestResolver`, action-planning helpers, tactical zones, defensive responsibilities, player intent resolution, movement resolution, deflected trajectory creation, and prototype stat/trace output.
 - The future V1 engine should use real pitch dimensions, tactical shape, action plan/reassessment, perception, ball trajectories, path interception, local contests, watched traces, and background summaries.
 - V1 tactical inputs needed by the future engine are Mentality, Tempo, Width, DefensiveLine, PressingIntensity, MarkingStyle, and PassingDirectness.
-- Runtime match behavior is unchanged. The next planned implementation phase should stay incremental: Shot / Save / Goal Local Prototype.
+- Runtime match behavior is unchanged. The next planned implementation phase should stay incremental: MatchEngineResult -> MatchReport Adapter.
 
 ## Known Not-Yet-Supported Core Scenarios
 
@@ -120,7 +121,7 @@ This living document describes the current core/backend shape and the next backe
 11. ContestResolver skeleton (implemented)
 12. TacticalZone / DefensiveResponsibility / PlayerIntentResolver / MovementResolver / DeflectedTrajectory skeleton (implemented)
 13. Minimal Coordinate Simulation Prototype (implemented as a non-runtime prototype)
-14. Shot / Save / Goal Local Prototype
+14. Shot / Save / Goal Local Prototype + Ball Vertical Profile (implemented as a non-runtime prototype)
 15. MatchEngineResult -> MatchReport Adapter
 16. Deterministic regression/smoke tests
 17. Feature-flagged runtime integration

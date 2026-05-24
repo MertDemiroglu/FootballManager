@@ -29,6 +29,8 @@ namespace {
         PlayerId targetPlayerId = 0;
         BallCarrierActionType actionType = BallCarrierActionType::Hold;
         BallTrajectoryType trajectoryType = BallTrajectoryType::GroundPass;
+        double executionQuality = 70.0;
+        double pressure = 0.0;
         bool isShot = false;
     };
 
@@ -41,6 +43,29 @@ namespace {
 
     double clampDouble(double value, double minimum, double maximum) {
         return std::clamp(value, minimum, maximum);
+    }
+
+    double clampedAttribute(int value) {
+        return std::clamp(static_cast<double>(value), 0.0, 100.0);
+    }
+
+    // Temporary attribute-only reach model until player height is modeled.
+    double effectiveAerialReachMeters(const PlayerAttributes& attributes, bool goalkeeper) {
+        if (goalkeeper) {
+            return 1.75
+                + (clampedAttribute(attributes.physical.jumpingReach) / 100.0 * 0.75)
+                + (clampedAttribute(attributes.goalkeeper.aerialAbility) / 100.0 * 0.45);
+        }
+
+        return 1.65
+            + (clampedAttribute(attributes.physical.jumpingReach) / 100.0 * 0.85)
+            + (clampedAttribute(attributes.technical.heading) / 100.0 * 0.15);
+    }
+
+    double effectiveGroundInterventionReachMeters(const PlayerAttributes& attributes) {
+        return 0.8
+            + (clampedAttribute(attributes.physical.agility) / 100.0 * 0.25)
+            + (clampedAttribute(attributes.technical.tackling) / 100.0 * 0.25);
     }
 
     std::uint64_t combineSeed(std::uint64_t seed, std::uint64_t value) {
@@ -131,6 +156,18 @@ namespace {
         }
 
         return findSnapshot(input.awayTeam, playerId);
+    }
+
+    const MatchTeamSnapshot* snapshotForPlayerTeam(
+        const MatchEngineInput& input,
+        TeamId teamId,
+        PlayerId playerId) {
+        const MatchTeamSnapshot* team = snapshotForTeam(input, teamId);
+        if (team != nullptr && findSnapshot(*team, playerId) != nullptr) {
+            return team;
+        }
+
+        return nullptr;
     }
 
     const TeamSimState* opponentTeam(
@@ -395,6 +432,12 @@ namespace {
         }
 
         return FormationSlotRole::Unknown;
+    }
+
+    bool isAssignedGoalkeeper(const MatchEngineInput& input, TeamId teamId, PlayerId playerId) {
+        const MatchTeamSnapshot* team = snapshotForPlayerTeam(input, teamId, playerId);
+        return team != nullptr
+            && assignedRoleFor(team->teamSheet, playerId) == FormationSlotRole::Goalkeeper;
     }
 
     int kickoffPriority(FormationSlotRole role) {
@@ -769,6 +812,182 @@ namespace {
         state.possession.isTransition = true;
     }
 
+    AttackingDirection attackingDirectionForTeam(const TeamSimState& team) {
+        return attackingDirectionFor(team.side == TeamSide::Home);
+    }
+
+    PitchPoint opponentGoalCenter(AttackingDirection direction) {
+        return direction == AttackingDirection::HomeToAway
+            ? PitchGeometry::awayGoalCenter()
+            : PitchGeometry::homeGoalCenter();
+    }
+
+    PitchPoint ownGoalCenter(const TeamSimState& team) {
+        return team.side == TeamSide::Home
+            ? PitchGeometry::homeGoalCenter()
+            : PitchGeometry::awayGoalCenter();
+    }
+
+    bool isInsideGoalMouthY(double y) {
+        const double halfGoalWidth = PitchGeometry::GoalWidthMeters / 2.0;
+        const double centerY = PitchGeometry::WidthMeters / 2.0;
+        return y >= centerY - halfGoalWidth && y <= centerY + halfGoalWidth;
+    }
+
+    bool shotCrossesGoalMouth(
+        const BallTrajectory& trajectory,
+        AttackingDirection attackingDirection) {
+        if (!isInsideGoalMouthY(trajectory.actualTarget.y)) {
+            return false;
+        }
+
+        if (attackingDirection == AttackingDirection::HomeToAway) {
+            return trajectory.actualTarget.x >= PitchGeometry::LengthMeters - 1.0;
+        }
+
+        return trajectory.actualTarget.x <= 1.0;
+    }
+
+    bool isHighBallTrajectory(const BallTrajectory& trajectory) {
+        return trajectory.type == BallTrajectoryType::HighCross
+            || trajectory.type == BallTrajectoryType::Clearance
+            || trajectory.flightProfile == BallFlightProfile::High
+            || trajectory.flightProfile == BallFlightProfile::Lofted;
+    }
+
+    bool canReachBallHeight(
+        const MatchEngineInput& input,
+        const PlayerSimState& player,
+        const BallTrajectory& trajectory,
+        double second) {
+        const MatchPlayerSnapshot* snapshot = findSnapshotForPlayer(input, player.playerId);
+        const PlayerAttributes attributes =
+            snapshot != nullptr ? snapshot->attributes : PlayerAttributes{};
+        const bool goalkeeper = isAssignedGoalkeeper(input, player.teamId, player.playerId);
+        const double heightMeters = ballHeightAtSecond(trajectory, second);
+
+        if (heightMeters <= effectiveGroundInterventionReachMeters(attributes)) {
+            return true;
+        }
+
+        return heightMeters <= effectiveAerialReachMeters(attributes, goalkeeper);
+    }
+
+    std::optional<InterceptionCandidate> bestReachableInterceptionCandidate(
+        const MatchSimulationState& state,
+        const MatchEngineInput& input,
+        const BallTrajectory& trajectory,
+        const InterceptionResolverResult& interception,
+        double minimumQualityScore) {
+        std::optional<InterceptionCandidate> best;
+
+        for (const InterceptionCandidate& candidate : interception.candidates) {
+            if (candidate.qualityScore < minimumQualityScore) {
+                continue;
+            }
+
+            const PlayerSimState* defender = findPlayerState(state, candidate.playerId);
+            if (defender == nullptr
+                || !canReachBallHeight(input, *defender, trajectory, candidate.ballArrivalSecond)) {
+                continue;
+            }
+
+            if (!best || candidate.qualityScore > best->qualityScore) {
+                best = candidate;
+            }
+        }
+
+        return best;
+    }
+
+    const PlayerSimState* findGoalkeeperOrNearestOwnGoal(
+        const MatchEngineInput& input,
+        const TeamSimState& team) {
+        const MatchTeamSnapshot* snapshot = snapshotForTeam(input, team.teamId);
+        if (snapshot != nullptr) {
+            for (const TeamSheetSlotAssignment& assignment : snapshot->teamSheet.startingAssignments) {
+                if (assignment.slotRole == FormationSlotRole::Goalkeeper) {
+                    if (const PlayerSimState* goalkeeper = findPlayerInTeam(team, assignment.playerId)) {
+                        return goalkeeper;
+                    }
+                }
+            }
+        }
+
+        const PlayerSimState* nearest = nullptr;
+        double nearestDistance = std::numeric_limits<double>::max();
+        const PitchPoint goalCenter = ownGoalCenter(team);
+        for (const PlayerSimState& player : team.players) {
+            const double distance = PitchGeometry::distance(player.position, goalCenter);
+            if (nearest == nullptr || distance < nearestDistance) {
+                nearest = &player;
+                nearestDistance = distance;
+            }
+        }
+
+        return nearest;
+    }
+
+    void resetForLocalKickoff(
+        MatchSimulationState& state,
+        const MatchEngineInput& input,
+        TeamId concedingTeamId) {
+        TeamSimState* concedingTeam = findTeamState(state, concedingTeamId);
+        const MatchTeamSnapshot* concedingSnapshot = snapshotForTeam(input, concedingTeamId);
+        if (concedingTeam == nullptr || concedingSnapshot == nullptr) {
+            setLooseBall(state, pitchCenter());
+            state.possession.isTransition = false;
+            return;
+        }
+
+        const PlayerId kickoffPlayerId = chooseKickoffCarrier(*concedingSnapshot, *concedingTeam);
+        setControlledBy(state, kickoffPlayerId, concedingTeamId, pitchCenter());
+        state.possession.phase = PossessionPhase::BuildUp;
+        state.possession.isTransition = false;
+    }
+
+    void applyLocalPrototypeGoal(
+        MatchSimulationState& state,
+        MatchEngineResult& result,
+        const MatchEngineInput& input,
+        const PendingBallAction& pending,
+        const BallTrajectory& trajectory,
+        TeamId concedingTeamId) {
+        ++teamStatsFor(result, pending.sourceTeamId).goals;
+        ++playerStatsFor(result, pending.sourcePlayerId, pending.sourceTeamId).goals;
+
+        if (TeamSimState* scoringTeam = findTeamState(state, pending.sourceTeamId)) {
+            ++scoringTeam->goals;
+        }
+
+        const AttackingDirection direction =
+            state.homeTeam.teamId == pending.sourceTeamId
+                ? AttackingDirection::HomeToAway
+                : AttackingDirection::AwayToHome;
+        appendTrace(
+            result,
+            input.options.detail,
+            state,
+            MatchTraceKind::Goal,
+            pending.sourceTeamId,
+            pending.sourcePlayerId,
+            0,
+            trajectory.actualTarget,
+            opponentGoalCenter(direction));
+
+        resetForLocalKickoff(state, input, concedingTeamId);
+        appendTrace(
+            result,
+            input.options.detail,
+            state,
+            MatchTraceKind::PossessionStart,
+            state.ball.carrierTeamId,
+            state.ball.carrierPlayerId,
+            0,
+            state.ball.position,
+            state.ball.position);
+    }
+
     void executeControlledAction(
         MatchSimulationState& state,
         MatchEngineResult& result,
@@ -863,12 +1082,13 @@ namespace {
         }
 
         const BallTrajectoryType trajectoryType = trajectoryTypeFor(actionType);
+        const double executionQuality = executionQualityFor(playerSnapshot, actionType);
         const BallTrajectoryBuildResult trajectory = trajectoryBuilder.build(BallTrajectoryBuildRequest{
             state.ball.position,
             action.intendedTarget,
             trajectoryType,
             static_cast<double>(state.currentSecond),
-            executionQualityFor(playerSnapshot, actionType),
+            executionQuality,
             action.pressurePenalty,
             stepSeed(
                 baseSeed,
@@ -900,6 +1120,8 @@ namespace {
             action.targetPlayerId,
             actionType,
             trajectoryType,
+            executionQuality,
+            action.pressurePenalty,
             actionType == BallCarrierActionType::Shoot
         };
 
@@ -915,12 +1137,16 @@ namespace {
             trajectory.trajectory.actualTarget);
     }
 
-    ContestType contestTypeFor(const PendingBallAction& pending) {
+    ContestType contestTypeFor(
+        const PendingBallAction& pending,
+        const BallTrajectory& trajectory) {
         if (pending.isShot) {
             return ContestType::ShotBlock;
         }
+        if (isHighBallTrajectory(trajectory)) {
+            return ContestType::AerialDuel;
+        }
         if (pending.trajectoryType == BallTrajectoryType::LowCross
-            || pending.trajectoryType == BallTrajectoryType::HighCross
             || pending.trajectoryType == BallTrajectoryType::Cutback) {
             return ContestType::GroundCrossInterception;
         }
@@ -947,6 +1173,183 @@ namespace {
         participant.arrivalSecond = arrivalSecond;
         participant.startingAdvantage = startingAdvantage;
         return participant;
+    }
+
+    bool processShotAtGoal(
+        MatchSimulationState& state,
+        MatchEngineResult& result,
+        const MatchEngineInput& input,
+        const BallTrajectoryBuilder& trajectoryBuilder,
+        const ContestResolver& contestResolver,
+        std::optional<ContestResolverResult>& lastContestResult,
+        std::optional<PendingBallAction>& pending,
+        const BallTrajectory& trajectory,
+        const TeamSimState& defendingTeam,
+        std::uint64_t baseSeed) {
+        if (!pending || !pending->isShot) {
+            return false;
+        }
+
+        const TeamSimState* attackingTeam = findTeamState(state, pending->sourceTeamId);
+        if (attackingTeam == nullptr) {
+            setLooseBall(state, trajectory.actualTarget);
+            pending = std::nullopt;
+            return true;
+        }
+
+        const AttackingDirection direction = attackingDirectionForTeam(*attackingTeam);
+        const bool onTarget = shotCrossesGoalMouth(trajectory, direction);
+        if (!onTarget) {
+            setLooseBall(state, trajectory.actualTarget);
+            appendTrace(
+                result,
+                input.options.detail,
+                state,
+                MatchTraceKind::LooseBall,
+                pending->sourceTeamId,
+                pending->sourcePlayerId,
+                0,
+                trajectory.actualTarget,
+                trajectory.actualTarget);
+            pending = std::nullopt;
+            return true;
+        }
+
+        ++teamStatsFor(result, pending->sourceTeamId).shotsOnTarget;
+
+        const PlayerSimState* goalkeeper = findGoalkeeperOrNearestOwnGoal(input, defendingTeam);
+        const PlayerSimState* shooter = findPlayerState(state, pending->sourcePlayerId);
+        if (goalkeeper == nullptr || shooter == nullptr) {
+            applyLocalPrototypeGoal(
+                state,
+                result,
+                input,
+                *pending,
+                trajectory,
+                defendingTeam.teamId);
+            pending = std::nullopt;
+            return true;
+        }
+
+        const PitchPoint savePoint = trajectory.actualTarget;
+        ContestResolverRequest request;
+        request.type = ContestType::GoalkeeperSave;
+        request.contestPoint = savePoint;
+        request.ballArrivalSecond = trajectory.arrivalSecond;
+        request.pressure = std::max(35.0, pending->pressure);
+        request.executionQuality = pending->executionQuality;
+        request.seed = stepSeed(
+            baseSeed,
+            state,
+            static_cast<std::uint64_t>(pending->sourcePlayerId)
+                ^ (static_cast<std::uint64_t>(goalkeeper->playerId) << 32)
+                ^ 0x51a7e5a9ULL);
+        request.participants.push_back(participantFor(
+            *goalkeeper,
+            findSnapshotForPlayer(input, goalkeeper->playerId),
+            ContestSide::Defending,
+            0.0,
+            0.0));
+        request.participants.push_back(participantFor(
+            *shooter,
+            findSnapshotForPlayer(input, shooter->playerId),
+            ContestSide::Attacking,
+            trajectory.arrivalSecond,
+            (pending->executionQuality - 50.0) * 0.08));
+
+        const ContestResolverResult contest = contestResolver.resolve(request);
+        lastContestResult = contest;
+
+        if (contest.ballOutcome == ContestBallOutcome::KeeperControls
+            || (contest.cleanController
+                && contest.cleanController->playerId == goalkeeper->playerId)) {
+            setControlledBy(state, goalkeeper->playerId, goalkeeper->teamId, savePoint);
+            appendTrace(
+                result,
+                input.options.detail,
+                state,
+                MatchTraceKind::Save,
+                goalkeeper->teamId,
+                goalkeeper->playerId,
+                pending->sourcePlayerId,
+                savePoint,
+                savePoint);
+            pending = std::nullopt;
+            return true;
+        }
+
+        if (contest.ballOutcome == ContestBallOutcome::BallDeflected || contest.ballDeflected) {
+            state.ball.controlState = BallControlState::InFlight;
+            state.ball.carrierPlayerId = 0;
+            state.ball.carrierTeamId = 0;
+            state.ball.position = savePoint;
+            state.ball.trajectory = trajectoryBuilder.buildDeflectedTrajectory(
+                DeflectedBallTrajectoryRequest{
+                    savePoint,
+                    trajectory.start,
+                    trajectory.actualTarget,
+                    0.5,
+                    trajectory.arrivalSecond,
+                    stepSeed(baseSeed, state, goalkeeper->playerId ^ 0x5afeULL)
+                });
+            appendTrace(
+                result,
+                input.options.detail,
+                state,
+                MatchTraceKind::Save,
+                goalkeeper->teamId,
+                goalkeeper->playerId,
+                pending->sourcePlayerId,
+                savePoint,
+                state.ball.trajectory->actualTarget);
+            pending = PendingBallAction{
+                goalkeeper->teamId,
+                goalkeeper->playerId,
+                0,
+                BallCarrierActionType::Hold,
+                BallTrajectoryType::Deflection,
+                50.0,
+                0.0,
+                false
+            };
+            return true;
+        }
+
+        if (contest.ballOutcome == ContestBallOutcome::BallLoose || contest.ballBecomesLoose) {
+            setLooseBall(state, savePoint);
+            appendTrace(
+                result,
+                input.options.detail,
+                state,
+                MatchTraceKind::Save,
+                goalkeeper->teamId,
+                goalkeeper->playerId,
+                pending->sourcePlayerId,
+                savePoint,
+                savePoint);
+            appendTrace(
+                result,
+                input.options.detail,
+                state,
+                MatchTraceKind::LooseBall,
+                goalkeeper->teamId,
+                goalkeeper->playerId,
+                pending->sourcePlayerId,
+                savePoint,
+                savePoint);
+            pending = std::nullopt;
+            return true;
+        }
+
+        applyLocalPrototypeGoal(
+            state,
+            result,
+            input,
+            *pending,
+            trajectory,
+            defendingTeam.teamId);
+        pending = std::nullopt;
+        return true;
     }
 
     void processInFlightBall(
@@ -980,9 +1383,18 @@ namespace {
                 7,
                 0.35
             });
+        const std::optional<InterceptionCandidate> reachableCandidate =
+            pending
+                ? bestReachableInterceptionCandidate(
+                    state,
+                    input,
+                    trajectory,
+                    interception,
+                    6.0)
+                : std::nullopt;
 
-        if (pending && interception.bestCandidate && interception.bestCandidate->qualityScore >= 6.0) {
-            const InterceptionCandidate candidate = *interception.bestCandidate;
+        if (pending && reachableCandidate) {
+            const InterceptionCandidate candidate = *reachableCandidate;
             const PlayerSimState* defender = findPlayerState(state, candidate.playerId);
             const PlayerSimState* attacker =
                 pending->targetPlayerId != 0
@@ -991,12 +1403,12 @@ namespace {
 
             if (defender != nullptr && attacker != nullptr) {
                 ContestResolverRequest request;
-                request.type = contestTypeFor(*pending);
+                request.type = contestTypeFor(*pending, trajectory);
                 request.contestPoint = candidate.interceptionPoint;
                 request.interceptionCandidate = candidate;
                 request.ballArrivalSecond = candidate.ballArrivalSecond;
-                request.pressure = 35.0;
-                request.executionQuality = 70.0;
+                request.pressure = std::max(35.0, pending->pressure);
+                request.executionQuality = pending->executionQuality;
                 request.seed = stepSeed(
                     baseSeed,
                     state,
@@ -1082,12 +1494,14 @@ namespace {
                         candidate.interceptionPoint,
                         state.ball.trajectory->actualTarget);
                     pending = PendingBallAction{
-                        pending->sourceTeamId,
-                        pending->sourcePlayerId,
+                        candidate.teamId,
+                        candidate.playerId,
                         0,
                         pending->actionType,
                         BallTrajectoryType::Deflection,
-                        pending->isShot
+                        50.0,
+                        0.0,
+                        false
                     };
                     return;
                 }
@@ -1110,24 +1524,38 @@ namespace {
                 }
 
                 if (contest.ballOutcome == ContestBallOutcome::ShotContinues) {
-                    setLooseBall(state, trajectory.actualTarget);
-                    appendTrace(
-                        result,
-                        input.options.detail,
+                    processShotAtGoal(
                         state,
-                        MatchTraceKind::LooseBall,
-                        pending->sourceTeamId,
-                        pending->sourcePlayerId,
-                        0,
-                        trajectory.actualTarget,
-                        trajectory.actualTarget);
-                    pending = std::nullopt;
+                        result,
+                        input,
+                        trajectoryBuilder,
+                        contestResolver,
+                        lastContestResult,
+                        pending,
+                        trajectory,
+                        *defendingTeam,
+                        baseSeed);
                     return;
                 }
             }
         }
 
         state.ball.position = PitchGeometry::clampToPitch(trajectory.actualTarget);
+        if (pending && pending->isShot) {
+            processShotAtGoal(
+                state,
+                result,
+                input,
+                trajectoryBuilder,
+                contestResolver,
+                lastContestResult,
+                pending,
+                trajectory,
+                *defendingTeam,
+                baseSeed);
+            return;
+        }
+
         if (pending
             && !pending->isShot
             && pending->targetPlayerId != 0) {

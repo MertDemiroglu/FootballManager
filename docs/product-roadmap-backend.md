@@ -180,7 +180,7 @@ Related documents:
 - Scope: add a Qt-free local contest outcome resolver with copied `ContestParticipant` inputs, deterministic attribute/timing/context scoring, weighted deterministic contest winner selection, explicit winner/loser and winning side output, and separate ball-outcome reporting for clean control, deflections, loose balls, and shot continuation.
 - Current behavior: runtime match behavior is unchanged. `ContestResolver` is not wired into `PlayMatchCommandHandler`, does not call `MatchEngine::simulate`, does not replace `MatchSimulation`, does not mutate player state, ball state, domain objects, fixtures, standings, reports, history, save/load state, or UI.
 - Semantics note: contest/action winner is separate from post-action ball control. Clean interceptions, deflections, loose balls, defender-won tackles with loose/deflected outcomes, and goalkeeper save-and-hold/save-and-parry outcomes are represented without assigning future recovery.
-- Goalkeeper note: `GoalkeeperSave` can save-and-hold, save-and-parry, leave a loose rebound, or be beaten, but goals and score/report application remain future shot/save/goal prototype work.
+- Goalkeeper note: `GoalkeeperSave` can save-and-hold, save-and-parry, leave a loose rebound, or be beaten. Local prototype goal/stat/trace handling now consumes this outcome later in `CoordinateSimulationPrototype`; report application remains future adapter/runtime work.
 - Future work: TacticalZone, DefensiveResponsibility, MovementResolver, PlayerIntentResolver, and deflected trajectory skeletons now exist; the next step is a minimal coordinate simulation prototype.
 - Do not mix in: movement resolution, player intent resolution, full coordinate engine implementation, tactical effects in current match flow, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
 
@@ -198,16 +198,23 @@ Related documents:
 - Status: implemented as a bounded non-runtime prototype.
 - Scope: add `CoordinateSimulationPrototype` behind valid `MatchEngine::simulate` input. The prototype initializes local `MatchSimulationState` from snapshots, places starters through `TeamShapeModel`, resolves intents and movement, selects controlled-ball actions, builds trajectories, handles minimal in-flight/deflected/loose ball outcomes, and returns prototype stats/traces through `MatchEngineResult`.
 - Current behavior: runtime match behavior is unchanged. The prototype is not wired into `PlayMatchCommandHandler`, does not replace `MatchSimulation`, does not create or apply `MatchReport`, does not call `League::applyMatchReport`, and does not mutate domain objects, fixtures, standings, reports, history, save/load state, or UI.
-- Future work: Shot / Save / Goal Local Prototype.
+- Future work: MatchEngineResult -> MatchReport Adapter after the shot/save/goal local prototype.
 - Do not mix in: report adapter work, runtime integration, mini-pitch UI, save/load schema changes, fixture/standing/report application changes, or final 90-minute match simulation tuning.
+
+### 23. Shot / Save / Goal Local Prototype + Ball Vertical Profile
+
+- Status: implemented as a bounded non-runtime prototype.
+- Scope: add `BallFlightProfile` and apex height to `BallTrajectory`, expose simple ball-height helpers, map trajectory types to ground/low/high/lofted/shot profiles, use temporary attribute-based reach checks for high balls and aerial situations, route high crosses/clearances toward aerial contest handling, and resolve on-target local prototype shots through `GoalkeeperSave`.
+- Current behavior: runtime match behavior is unchanged. Prototype saves, rebounds, and goals update only `MatchEngineResult` stats/traces; `report` remains empty, no `MatchReport` is created or applied, and no fixture, standing, history, save/load, domain event, or UI behavior changes.
+- Future work: MatchEngineResult -> MatchReport Adapter.
+- Do not mix in: runtime integration, `PlayMatchCommandHandler`, current `MatchSimulation` replacement, `League::applyMatchReport`, mini-pitch UI, save/load schema changes, fixture/standing/report application changes, or final 90-minute tuning.
 
 ## Next Backend Phases
 
-1. Shot / Save / Goal Local Prototype
-2. MatchEngineResult -> MatchReport Adapter
-3. Deterministic regression/smoke tests
-4. Feature-flagged runtime integration
-5. First playable coordinate match flow
+1. MatchEngineResult -> MatchReport Adapter
+2. Deterministic regression/smoke tests
+3. Feature-flagged runtime integration
+4. First playable coordinate match flow
 
 ## Deferred / Later Backend Work
 
