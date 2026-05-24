@@ -25,7 +25,7 @@ These are still foundation layers, not the runtime match system. A bounded proto
 
 The `MatchEngine` interface now exists as a compile-safe, Qt-free core boundary. It consumes `MatchEngineInput`, which is snapshot-based and uses value DTOs rather than mutable `Team`, `Footballer`, `League`, `World`, standing, fixture, or save-state references.
 
-`MatchEngineResult` is output-only. It can carry a future authoritative `MatchReport`, team/player simulation stats, and optional trace frames. The current prototype returns local team/player stats and optional trace frames from its bounded coordinate loop. It intentionally leaves `report` empty and does not apply that result anywhere.
+`MatchEngineResult` is output-only. It can carry a future authoritative `MatchReport`, team/player simulation stats, and optional trace frames. The current prototype returns local team/player stats and optional trace frames from its bounded coordinate loop. A focused `MatchEngineReportAdapter` now converts the prototype result metadata, score, lineup snapshots, player reports, and goal trace frames into the current narrow `MatchReport` shape. The report is still not applied anywhere.
 
 `MatchEngine` does not mutate domain objects and is not integrated into match playing yet. Existing match behavior remains unchanged: `PlayMatchCommandHandler` still uses the current lightweight match flow, and `League::applyMatchReport` remains the authoritative apply path.
 
@@ -65,9 +65,9 @@ The prototype initializes a local `MatchSimulationState` from `MatchEngineInput`
 
 Each bounded action step wires the existing helper layers in order: `TeamShapeModel`, `PlayerIntentResolver`, `MovementResolver`, `ActionCandidateGenerator`, `ActionSelector`, `BallTrajectoryBuilder`, `InterceptionResolver`, and `ContestResolver`. Controlled balls can hold, carry/dribble, pass/cross/clear, or shoot into a trajectory. In-flight balls can be intercepted, deflected, become loose, reach a nearby intended receiver, route high balls toward aerial/reach-aware contests, or resolve an on-target shot through a local goalkeeper-save contest. Loose balls can be recovered by a nearby player.
 
-Shot/save/goal handling now exists only inside this local prototype. Prototype goals update `MatchEngineResult` team/player stats and trace frames, then reset the local ball for a simple kickoff. They do not create `MatchReport`, do not call `League::applyMatchReport`, and do not update fixtures, standings, history, save/load state, or UI. Rebounds and deflections remain simplified local trajectories or loose balls.
+Shot/save/goal handling now exists only inside this local prototype. Prototype goals update `MatchEngineResult` team/player stats and trace frames, then reset the local ball for a simple kickoff. They may now also appear in the optional prototype `MatchReport` through the adapter. The report is not applied, does not call `League::applyMatchReport`, and does not update fixtures, standings, history, save/load state, or UI. Rebounds and deflections remain simplified local trajectories or loose balls.
 
-The prototype returns approximate possession, pass, shot, interception, and per-player stats plus watched/debug trace frames through `MatchEngineResult`. It does not create or apply `MatchReport`, does not call `League::applyMatchReport`, does not emit domain events, and does not mutate `Team`, `League`, `World`, fixtures, standings, reports, history, save/load, or UI state.
+The prototype returns approximate possession, pass, shot, interception, and per-player stats plus watched/debug trace frames through `MatchEngineResult`. The adapter deliberately maps only fields currently supported by `MatchReport`: metadata, score, lineups, player report basics, and goal events. It does not map shots, passes, interceptions, saves, expected goals, possession, or trace frames into `MatchReport` because the current report model has no safe fields for them. The prototype does not apply `MatchReport`, does not call `League::applyMatchReport`, does not emit domain events, and does not mutate `Team`, `League`, `World`, fixtures, standings, reports, history, save/load, or UI state.
 
 ## MatchEngineInputBuilder
 
@@ -498,6 +498,8 @@ The current `ContestResolver` skeleton separates the contest/action winner from 
 This distinction matters for interceptions and tackles. A defender can win a passing-lane interception cleanly and control the ball, deflect it away, or knock it loose. A defender can also win a tackle attempt while the ball pops loose or deflects away; that is still a successful defensive action, not a no-winner close contest. Close scores are no longer universally converted into loose or deflected balls.
 
 `GoalkeeperSave` can now represent save-and-hold, save-and-parry, loose rebound, or shot-beats-keeper outcomes. Inside the local prototype only, shot-beats-keeper on an on-target shot can increment prototype goals and append a `Goal` trace in `MatchEngineResult`. It still does not apply reports, assists, fixtures, standings, history, or runtime match completion. Deflected and loose-ball recovery remains simplified.
+
+`MatchEngineReportAdapter` is the conversion layer from prototype output into the current narrow `MatchReport` model. It is Qt-free, deterministic, and pure: it consumes only `MatchEngineInput`, `MatchEngineResult`, copied snapshots, and copied ids. It fills match metadata, season year from the input date, score from team stats, lineup snapshots from input team sheets, player report basics from player stats plus missing starters, and `Goal` events from `MatchTraceKind::Goal` frames. The score remains authoritative from result stats; complete event parity requires future richer goal metadata.
 
 ## 15. Example Scenario: CM -> Winger -> Cutback to Striker
 
