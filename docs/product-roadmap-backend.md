@@ -213,15 +213,23 @@ Related documents:
 
 - Status: implemented as a non-runtime conversion layer.
 - Scope: add a Qt-free pure adapter that builds the current narrow `MatchReport` shape from `MatchEngineInput` and `MatchEngineResult`. It maps match metadata, season year, score, lineup snapshots, player report basics, and goal trace frames.
-- Current behavior: runtime match behavior is unchanged. The adapter does not map unsupported prototype stats such as shots, passes, interceptions, saves, xG, possession, or trace frames into `MatchReport`, and it does not apply the report to `League`, game state, fixtures, standings, history, save/load, domain events, or UI.
-- Future work: deterministic regression/smoke tests before feature-flagged runtime integration.
+- Current behavior: default runtime match behavior is unchanged. The adapter does not map unsupported prototype stats such as shots, passes, interceptions, saves, xG, possession, or trace frames into `MatchReport`, and it does not apply the report to `League`, game state, fixtures, standings, history, save/load, domain events, or UI.
+- Future work: first playable coordinate match flow after feature-flagged integration prep.
 - Do not mix in: runtime integration, `PlayMatchCommandHandler`, current `MatchSimulation` replacement, `League::applyMatchReport`, mini-pitch UI, save/load schema changes, fixture/standing/report application changes, or final 90-minute tuning.
+
+### 25. Deterministic Smoke Tests + Feature-Flagged Integration Prep
+
+- Status: implemented / integration prep.
+- Scope: add `fm_match_engine_smoke` coverage for deterministic result/report behavior, report metadata consistency, starter player reports, invalid-input defaults, and background/watched/debug no-crash execution. Add `PlayMatchCommandHandler` engine selection with default `Lightweight` and opt-in `CoordinatePrototype`.
+- Current behavior: default runtime behavior is unchanged. Existing handler construction continues to use lightweight `MatchSimulation`. `CoordinatePrototype` mode builds input with `MatchEngineInputBuilder`, runs `MatchEngine`, uses `result.report` only when ids and metadata match the command, and falls back to lightweight simulation when unsafe.
+- Authoritative apply: `League::applyMatchReport` remains the only match application point, followed by condition effects and `MatchPlayedEvent` publication.
+- Do not mix in: UI settings, save/load schema changes, default coordinate-engine activation, new domain events, removal of `MatchSimulation`, or changes to `League::applyMatchReport` semantics.
 
 ## Next Backend Phases
 
-1. Deterministic regression/smoke tests
-2. Feature-flagged runtime integration
-3. First playable coordinate match flow
+1. First playable coordinate match flow
+2. Watched/background mode separation
+3. Tuning/stability pass
 
 ## Deferred / Later Backend Work
 

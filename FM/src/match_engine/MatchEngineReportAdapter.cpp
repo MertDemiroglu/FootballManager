@@ -100,11 +100,11 @@ MatchReport MatchEngineReportAdapter::buildReport(
     MatchReport report;
     report.matchId = input.matchId;
     report.leagueId = input.leagueId;
-    report.seasonYear = input.matchDate.getYear();
+    report.seasonYear = input.seasonYear;
     report.date = input.matchDate;
     report.homeId = input.homeTeam.teamId;
     report.awayId = input.awayTeam.teamId;
-    report.matchweek = 0;
+    report.matchweek = input.matchweek;
     report.homeGoals = result.homeStats.goals;
     report.awayGoals = result.awayStats.goals;
     report.homeLineup = buildLineupSnapshot(input.homeTeam);

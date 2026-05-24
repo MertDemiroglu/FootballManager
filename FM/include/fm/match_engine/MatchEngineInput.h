@@ -17,6 +17,8 @@ struct MatchEngineOptions {
 struct MatchEngineInput {
     MatchId matchId = 0;
     LeagueId leagueId = 0;
+    int seasonYear = 0;
+    int matchweek = 0;
     Date matchDate{ 1900, Month::January, 1 };
 
     MatchTeamSnapshot homeTeam;

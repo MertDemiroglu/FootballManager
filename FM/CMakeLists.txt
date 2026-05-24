@@ -90,6 +90,10 @@ add_executable(fm_sqlite_bootstrap_smoke
     apps/sqlite_bootstrap_smoke.cpp
 )
 
+add_executable(fm_match_engine_smoke
+    apps/match_engine_smoke.cpp
+)
+
 add_library(sqlite3 STATIC
     third_party/sqlite/sqlite3.c
 )
@@ -111,10 +115,12 @@ target_link_libraries(fm_core PUBLIC sqlite3)
 
 target_link_libraries(fm_runner PRIVATE fm_core)
 target_link_libraries(fm_sqlite_bootstrap_smoke PRIVATE fm_core)
+target_link_libraries(fm_match_engine_smoke PRIVATE fm_core)
 
 target_compile_features(fm_core PUBLIC cxx_std_17)
 target_compile_features(fm_runner PRIVATE cxx_std_17)
 target_compile_features(fm_sqlite_bootstrap_smoke PRIVATE cxx_std_17)
+target_compile_features(fm_match_engine_smoke PRIVATE cxx_std_17)
 
 target_include_directories(fm_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
