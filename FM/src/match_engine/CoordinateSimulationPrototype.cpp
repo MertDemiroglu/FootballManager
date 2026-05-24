@@ -570,8 +570,13 @@ namespace {
         const MovementResolver& resolver,
         TeamSimState& team,
         const std::vector<ResolvedPlayerIntent>& intents,
-        double deltaSeconds) {
+        double deltaSeconds,
+        PlayerId skipPlayerId = 0) {
         for (PlayerSimState& player : team.players) {
+            if (player.playerId == skipPlayerId) {
+                continue;
+            }
+
             const ResolvedPlayerIntent* resolved = resolvedIntentFor(intents, player.playerId);
             if (resolved == nullptr) {
                 continue;
@@ -1303,8 +1308,23 @@ MatchEngineResult CoordinateSimulationPrototype::run(const MatchEngineInput& inp
             input.homeTeam.teamSheet,
             stepSeed(baseSeed, state, 0x202ULL));
 
-        moveTeamPlayers(movementResolver, state.homeTeam, homeIntents, deltaSeconds);
-        moveTeamPlayers(movementResolver, state.awayTeam, awayIntents, deltaSeconds);
+        const PlayerId movementSkipPlayerId =
+            state.ball.controlState == BallControlState::Controlled
+                ? state.ball.carrierPlayerId
+                : 0;
+
+        moveTeamPlayers(
+            movementResolver,
+            state.homeTeam,
+            homeIntents,
+            deltaSeconds,
+            movementSkipPlayerId);
+        moveTeamPlayers(
+            movementResolver,
+            state.awayTeam,
+            awayIntents,
+            deltaSeconds,
+            movementSkipPlayerId);
 
         if (state.possession.teamInPossession == state.homeTeam.teamId) {
             state.homeTeam.possessionShareAccumulator += deltaSeconds;
