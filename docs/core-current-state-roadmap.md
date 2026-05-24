@@ -30,7 +30,7 @@ This living document describes the current core/backend shape and the next backe
 - Free agent pool persistence through `runtime_free_agents`.
 - Finance Foundation: `TeamFinance` owns cash balance, transfer budget, annual wage budget limit, `ClubFinancialStrategy`, and `ClubFinancialHealth`.
 - Player Attribute Model foundation: Technical, Mental, Physical, and Goalkeeper attributes, attribute-based base `totalPower()`, SQL `player_attributes` support, and deterministic legacy `s1..s5` fallback.
-- Match Engine Coordinate Simulation Design documented in `docs/match-engine-design.md`; the real match engine implementation remains future work.
+- Match Engine Coordinate Simulation Design documented in `docs/match-engine-design.md`; a bounded non-runtime prototype now exists, while the real runtime match engine remains future work.
 - Match Engine Core Types foundation: Qt-free pitch geometry, trace, trajectory, intent, action, and contest DTO/enums for future coordinate simulation.
 - TacticalSetup V1 Expansion: TeamSheet tactics now persist Mentality, Tempo, Width, DefensiveLine, PressingIntensity, MarkingStyle, and PassingDirectness. Current match behavior is unchanged and More Options UI exposure is future work.
 - MatchEngine interface/skeleton: Qt-free snapshot input DTOs, output-only result DTOs, and a non-integrated `MatchEngine::simulate` boundary exist for future coordinate simulation.
@@ -41,6 +41,7 @@ This living document describes the current core/backend shape and the next backe
 - ActionPlan / ActionCandidate / PlayerIntent skeleton: Qt-free planning helpers now represent ball-carrier plans, reassessment triggers, option perception, basic action candidate generation, and deterministic weighted action selection. They are not integrated into runtime match play yet.
 - ContestResolver skeleton: Qt-free helper layer now resolves local contest/action winners from copied participants and timing/context inputs using deterministic weighted selection, then separately reports the physical ball outcome, optional clean controller, possession-change, attacking/defending success, loose-ball/deflection information, margin, and score details without mutating player, ball, simulation, domain, save/load, report, fixture, standing, history, or UI state.
 - TacticalZone / DefensiveResponsibility / PlayerIntentResolver / MovementResolver skeleton: Qt-free helper layers now provide a 3x3 attacking-perspective tactical zone model, role-based defensive responsibility and press eligibility, deterministic role/zone/distance constrained intent resolution, non-mutating player movement toward intent targets, and deterministic deflected-ball trajectory creation. They are not integrated into runtime match play yet.
+- Minimal Coordinate Simulation Prototype: `MatchEngine::simulate` now delegates valid snapshot input to a bounded Qt-free prototype loop that initializes local `MatchSimulationState`, wires TeamShapeModel, PlayerIntentResolver, MovementResolver, ActionCandidateGenerator/Selector, BallTrajectoryBuilder, InterceptionResolver, and ContestResolver, and returns prototype stats/traces without creating `MatchReport` or mutating game state.
 - Manual save and autosave policy.
 - Managed-vs-AI `TeamSheet` reconciliation policy after roster restore/mutation.
 
@@ -81,11 +82,11 @@ This living document describes the current core/backend shape and the next backe
 
 ## Future Match Engine Design Status
 
-- The coordinate simulation design and initial skeleton boundary are documented and compile-safe. They do not change runtime match results, standings, save/load, or UI behavior.
-- The current implemented MatchEngine skeleton includes core type DTOs/enums, pitch helpers, snapshot-based input, output-only result DTOs, a non-integrated `MatchEngine::simulate` entry point, a read-only `MatchEngineInputBuilder` snapshot builder, in-memory simulation state containers, a non-integrated `TeamShapeModel` tactical target helper, non-mutating `BallTrajectoryBuilder` / `InterceptionResolver` / `ContestResolver` helper layers, non-integrated action-planning helpers, tactical zones, defensive responsibilities, player intent resolution, movement resolution, and deflected trajectory creation.
+- The coordinate simulation design, skeleton boundary, and minimal prototype are documented and compile-safe. They do not change runtime match results, standings, save/load, or UI behavior.
+- The current implemented MatchEngine foundation includes core type DTOs/enums, pitch helpers, snapshot-based input, output-only result DTOs, a non-runtime `MatchEngine::simulate` prototype entry point, a read-only `MatchEngineInputBuilder` snapshot builder, in-memory simulation state containers, `TeamShapeModel`, `BallTrajectoryBuilder` / `InterceptionResolver` / `ContestResolver`, action-planning helpers, tactical zones, defensive responsibilities, player intent resolution, movement resolution, deflected trajectory creation, and prototype stat/trace output.
 - The future V1 engine should use real pitch dimensions, tactical shape, action plan/reassessment, perception, ball trajectories, path interception, local contests, watched traces, and background summaries.
 - V1 tactical inputs needed by the future engine are Mentality, Tempo, Width, DefensiveLine, PressingIntensity, MarkingStyle, and PassingDirectness.
-- Runtime match behavior is unchanged. The next planned implementation phase should stay incremental: the first Minimal Coordinate Simulation Prototype.
+- Runtime match behavior is unchanged. The next planned implementation phase should stay incremental: Shot / Save / Goal Local Prototype.
 
 ## Known Not-Yet-Supported Core Scenarios
 
@@ -118,9 +119,13 @@ This living document describes the current core/backend shape and the next backe
 10. ActionPlan / ActionCandidate / PlayerIntent skeleton (implemented)
 11. ContestResolver skeleton (implemented)
 12. TacticalZone / DefensiveResponsibility / PlayerIntentResolver / MovementResolver / DeflectedTrajectory skeleton (implemented)
-13. Minimal Coordinate Simulation Prototype
-14. Automated regression tests when stable enough
-15. Multi-league expansion preparation
+13. Minimal Coordinate Simulation Prototype (implemented as a non-runtime prototype)
+14. Shot / Save / Goal Local Prototype
+15. MatchEngineResult -> MatchReport Adapter
+16. Deterministic regression/smoke tests
+17. Feature-flagged runtime integration
+18. First playable coordinate match flow
+19. Multi-league expansion preparation
 
 ## Deferred / Later Core Work
 

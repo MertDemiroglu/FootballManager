@@ -1,5 +1,7 @@
 #include"fm/match_engine/MatchEngine.h"
 
+#include"fm/match_engine/CoordinateSimulationPrototype.h"
+
 bool hasValidTeams(const MatchEngineInput& input) {
     return input.matchId != 0
         && input.homeTeam.teamId != 0
@@ -8,15 +10,9 @@ bool hasValidTeams(const MatchEngineInput& input) {
 }
 
 MatchEngineResult MatchEngine::simulate(const MatchEngineInput& input) const {
-    MatchEngineResult result;
-
-    // Skeleton only. Later phases will build a MatchReport and optional trace data
-    // from snapshot input, without mutating domain objects or applying results.
     if (!hasValidTeams(input)) {
-        return result;
+        return {};
     }
 
-    result.homeStats.teamId = input.homeTeam.teamId;
-    result.awayStats.teamId = input.awayTeam.teamId;
-    return result;
+    return CoordinateSimulationPrototype{}.run(input);
 }
