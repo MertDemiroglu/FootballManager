@@ -15,8 +15,9 @@ The first compile-time core type layer for the future engine includes:
 - `ActionPlan`, reassessment triggers, `PerceptionModel`, `ActionCandidateGenerator`, and `ActionSelector`
 - `ContestResolver`
 - `TacticalZone`, `DefensiveResponsibility`, `PlayerIntentResolver`, and `MovementResolver`
+- a minimal non-runtime coordinate simulation prototype
 
-These are skeleton types only. No full simulation loop, action execution, match integration, UI rendering, or save/load behavior exists yet.
+These are still foundation layers, not the runtime match system. A bounded prototype loop now wires the helpers together inside `MatchEngine::simulate`, but no full match simulation, match integration, UI rendering, report application, or save/load behavior exists yet.
 
 `TacticalSetup` V1 now provides the tactical input fields needed by the future engine, but these fields do not affect current match results.
 
@@ -24,7 +25,7 @@ These are skeleton types only. No full simulation loop, action execution, match 
 
 The `MatchEngine` interface now exists as a compile-safe, Qt-free core boundary. It consumes `MatchEngineInput`, which is snapshot-based and uses value DTOs rather than mutable `Team`, `Footballer`, `League`, `World`, standing, fixture, or save-state references.
 
-`MatchEngineResult` is output-only. It can carry a future authoritative `MatchReport`, team/player simulation stats, and optional trace frames. The current skeleton implementation returns an empty/default result and does not apply that result anywhere.
+`MatchEngineResult` is output-only. It can carry a future authoritative `MatchReport`, team/player simulation stats, and optional trace frames. The current prototype returns local team/player stats and optional trace frames from its bounded coordinate loop. It intentionally leaves `report` empty and does not apply that result anywhere.
 
 `MatchEngine` does not mutate domain objects and is not integrated into match playing yet. Existing match behavior remains unchanged: `PlayMatchCommandHandler` still uses the current lightweight match flow, and `League::applyMatchReport` remains the authoritative apply path.
 
@@ -54,7 +55,17 @@ The shape model creates a base position from formation slot layout on the 105m x
 
 `BallTrajectoryBuilder` also exposes a deterministic deflected-ball trajectory helper. It creates a short `BallTrajectoryType::Deflection` path from contact point, incoming path, strength, start second, and seed. It only produces a future trajectory DTO; it does not apply `BallState`, decide recovery, or change possession.
 
-These planning helpers, contest resolver, intent resolver, movement resolver, tactical-zone layers, and deflection helper are not integrated into live match play. They do not call `MatchEngine::simulate`, replace `MatchSimulation`, mutate match state, produce reports, update fixtures, standings, history, save/load, or UI state. Existing match behavior remains unchanged.
+These planning helpers, contest resolver, intent resolver, movement resolver, tactical-zone layers, and deflection helper are now wired by the minimal coordinate simulation prototype. They remain outside live match play: the prototype does not replace `MatchSimulation`, produce reports, update fixtures, standings, history, save/load, or UI state. Existing match behavior remains unchanged.
+
+## Minimal Coordinate Simulation Prototype
+
+`CoordinateSimulationPrototype` is the first small non-runtime loop behind `MatchEngine::simulate`. For valid snapshot input, `MatchEngine::simulate` delegates to the prototype; invalid input still returns a default result.
+
+The prototype initializes a local `MatchSimulationState` from `MatchEngineInput`: match id, league id, first-half phase, local home/away `TeamSimState`, starter `PlayerSimState` values from the snapshot/team sheet, ball state, and possession state. It uses `TeamShapeModel` to place starters at their initial shape targets, gives the home team deterministic kickoff possession, and mutates only that local state copy.
+
+Each bounded action step wires the existing helper layers in order: `TeamShapeModel`, `PlayerIntentResolver`, `MovementResolver`, `ActionCandidateGenerator`, `ActionSelector`, `BallTrajectoryBuilder`, `InterceptionResolver`, and `ContestResolver`. Controlled balls can hold, carry/dribble, pass/cross/clear, or shoot into a trajectory. In-flight balls can be intercepted, deflected, become loose, or reach a nearby intended receiver. Loose balls can be recovered by a nearby player. Shot/save/goal finalization remains future work, so shots create local trace/stat output without changing score.
+
+The prototype returns approximate possession, pass, shot, interception, and per-player stats plus watched/debug trace frames through `MatchEngineResult`. It does not create or apply `MatchReport`, does not call `League::applyMatchReport`, does not emit domain events, and does not mutate `Team`, `League`, `World`, fixtures, standings, reports, history, save/load, or UI state.
 
 ## MatchEngineInputBuilder
 

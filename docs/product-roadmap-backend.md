@@ -193,13 +193,21 @@ Related documents:
 - Future work: implement the Minimal Coordinate Simulation Prototype.
 - Do not mix in: full coordinate engine implementation, tactical effects in current match flow, mini-pitch UI, live playback, shots/goals/cards/injuries/reports, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.
 
+### 22. Minimal Coordinate Simulation Prototype
+
+- Status: implemented as a bounded non-runtime prototype.
+- Scope: add `CoordinateSimulationPrototype` behind valid `MatchEngine::simulate` input. The prototype initializes local `MatchSimulationState` from snapshots, places starters through `TeamShapeModel`, resolves intents and movement, selects controlled-ball actions, builds trajectories, handles minimal in-flight/deflected/loose ball outcomes, and returns prototype stats/traces through `MatchEngineResult`.
+- Current behavior: runtime match behavior is unchanged. The prototype is not wired into `PlayMatchCommandHandler`, does not replace `MatchSimulation`, does not create or apply `MatchReport`, does not call `League::applyMatchReport`, and does not mutate domain objects, fixtures, standings, reports, history, save/load state, or UI.
+- Future work: Shot / Save / Goal Local Prototype.
+- Do not mix in: report adapter work, runtime integration, mini-pitch UI, save/load schema changes, fixture/standing/report application changes, or final 90-minute match simulation tuning.
+
 ## Next Backend Phases
 
-1. Minimal Coordinate Simulation Prototype
-2. Transfer World design
-3. Automated regression tests when stable enough
-4. Team screen / Transfer room / Finance UI rework
-5. Multi-league expansion preparation
+1. Shot / Save / Goal Local Prototype
+2. MatchEngineResult -> MatchReport Adapter
+3. Deterministic regression/smoke tests
+4. Feature-flagged runtime integration
+5. First playable coordinate match flow
 
 ## Deferred / Later Backend Work
 
