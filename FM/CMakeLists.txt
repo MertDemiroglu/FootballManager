@@ -34,6 +34,7 @@ add_library(fm_core STATIC
     src/match_engine/MatchEngineInputBuilder.cpp
     src/match_engine/BallTrajectoryBuilder.cpp
     src/match_engine/InterceptionResolver.cpp
+    src/match_engine/ContestResolver.cpp
     src/match_engine/TeamShapeModel.cpp
     src/match_engine/ActionPlan.cpp
     src/match_engine/ActionCandidateGenerator.cpp

@@ -13,6 +13,7 @@ The first compile-time core type layer for the future engine includes:
 - `BallTrajectory`
 - intent, action, and contest enums
 - `ActionPlan`, reassessment triggers, `PerceptionModel`, `ActionCandidateGenerator`, and `ActionSelector`
+- `ContestResolver`
 
 These are skeleton types only. No simulation behavior, player movement, action resolution, match integration, UI rendering, or save/load behavior exists yet.
 
@@ -32,7 +33,9 @@ The shape model creates a base position from formation slot layout on the 105m x
 
 `BallTrajectoryBuilder` now exists as a Qt-free helper layer for constructing deterministic `BallTrajectory` values from an intended target. The skeleton clamps safe pitch coordinates, keeps `intendedTarget` and `actualTarget` distinct, applies a simple target-error model from execution quality, pressure, and seed, reports target error as the final post-clamp deviation from intended to actual target, and computes a basic speed and arrival time by trajectory type. It also provides linear trajectory sampling for future path checks. It does not model real ball physics, decide action outcomes, mutate match state, or affect current runtime match results.
 
-`InterceptionResolver` now exists as a Qt-free helper layer for finding possible path-interception candidates along a sampled ball trajectory. It compares defender ETA from `PlayerSimState::position` with ball arrival at each sample, records candidate margins and simple quality scores, and exposes an optional best candidate. It does not decide final interception success or failure, mutate player or ball state, emit match events, or apply results. A future `ContestResolver` will consume these candidates to resolve contest outcomes.
+`InterceptionResolver` now exists as a Qt-free helper layer for finding possible path-interception candidates along a sampled ball trajectory. It compares defender ETA from `PlayerSimState::position` with ball arrival at each sample, records candidate margins and simple quality scores, and exposes an optional best candidate. It does not decide final interception success or failure, mutate player or ball state, emit match events, or apply results.
+
+`ContestResolver` now exists as the first local outcome resolver. It consumes copied contest participants, contest type, contest point, optional interception candidate data, timing/context values, and a deterministic seed, then returns the contest/action winner, loser, winning side, resolution type, physical ball outcome, optional clean post-contest controller, possession-change flag, attacking-success flag, defending-action-success flag, loose-ball/deflection flags, winning margin, and per-contestant score details. Its deterministic contest score uses attributes, base overall fallback, timing/arrival context, distance, fatigue, pressure on the same 0-100 convention as the rest of the skeleton, and execution quality. Winner selection then converts those non-random scores into weighted deterministic selection weights: the better contestant is more likely to win, but is not guaranteed to win, and the same seed/input gives the same selected winner. Randomness is not added to the score. It does not mutate player state, ball state, simulation state, domain objects, reports, fixtures, standings, history, save/load state, or UI state.
 
 `ActionPlan` now exists as the first ball-carrier planning skeleton. It stores the current plan type, objective target, start time, duration limit, periodic reassessment interval, and last scan time. The reassessment helper represents both event-triggered scans, such as receiving the ball, entering a new zone, pressure changes, tackle-range danger, passing or shooting windows, dangerous teammate runs, and control worsening, plus periodic scans and max-duration expiry.
 
@@ -40,7 +43,7 @@ The shape model creates a base position from formation slot layout on the 105m x
 
 `ActionCandidateGenerator` now produces a small, deterministic candidate list from broad pitch context: hold, back pass, short pass, carry, low cross, shoot, and clear where appropriate. It uses `PitchGeometry` for rough areas and only light `TacticalSetup` hints for safe, direct, or attacking options. `ActionSelector` ranks candidates by score and chooses through weighted deterministic selection, with higher Decisions sharpening the choice toward stronger candidates and lower Decisions allowing more variance.
 
-These planning helpers are not integrated into live match play. They do not call `MatchEngine::simulate`, replace `MatchSimulation`, mutate match state, produce reports, update fixtures, standings, history, save/load, or UI state. Existing match behavior remains unchanged.
+These planning helpers and the contest resolver are not integrated into live match play. They do not call `MatchEngine::simulate`, replace `MatchSimulation`, mutate match state, produce reports, update fixtures, standings, history, save/load, or UI state. Existing match behavior remains unchanged.
 
 ## MatchEngineInputBuilder
 
@@ -406,7 +409,7 @@ Defenders can cut the ball before it reaches the target. The defender does not h
 
 The engine samples or evaluates points along the trajectory. Defender ETA to an interception point is compared with ball ETA to that point.
 
-The current `InterceptionResolver` skeleton performs this path sampling and ETA comparison. It returns candidates and a best candidate for later contest resolution, but it does not yet decide whether a pass, cross, shot, or clearance is successfully intercepted.
+The current `InterceptionResolver` skeleton performs this path sampling and ETA comparison. It returns candidates and a best candidate for contest resolution, but it does not decide whether a pass, cross, shot, or clearance is successfully intercepted. `ContestResolver` consumes local participants and optional interception candidate data to decide the local contest outcome.
 
 Interception should consider:
 
@@ -448,7 +451,13 @@ V1 contest types:
 
 Only relevant players enter detailed contests. All players still move by shape and intent.
 
-Contest outcome uses ETA, position, role fit, attributes, condition, context, and deterministic randomness.
+Contest action winner selection uses ETA, position, role fit, attributes, condition, context, and deterministic weighted selection. The score remains deterministic; the deterministic seed is used only to roll against selection weights, so a stronger contestant has a higher chance without becoming an automatic winner.
+
+The current `ContestResolver` skeleton separates the contest/action winner from the ball outcome after the winning action. `winner` means the player who won the contest action. `ballOutcome` describes what physically happened to the ball, and `cleanController` is set only when a player actually controls it after the contest. `possessionChanges` is true only when clean control changes side. `ballDeflected` means the ball was touched or redirected without an assigned clean controller. `ballBecomesLoose` means no clean controller exists and the outcome is not specifically a deflection.
+
+This distinction matters for interceptions and tackles. A defender can win a passing-lane interception cleanly and control the ball, deflect it away, or knock it loose. A defender can also win a tackle attempt while the ball pops loose or deflects away; that is still a successful defensive action, not a no-winner close contest. Close scores are no longer universally converted into loose or deflected balls.
+
+`GoalkeeperSave` can now represent save-and-hold, save-and-parry, loose rebound, or shot-beats-keeper outcomes. It still does not apply goals, assists, score updates, report entries, or rebound recovery. Deflected and loose-ball recovery remains future MovementResolver / simulation-loop work.
 
 ## 15. Example Scenario: CM -> Winger -> Cutback to Striker
 
