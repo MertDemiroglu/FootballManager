@@ -33,7 +33,7 @@ The `MatchEngine` interface now exists as a compile-safe, Qt-free core boundary.
 
 The shape model creates a base position from formation slot layout on the 105m x 68m pitch, applies small tactical adjustments for mentality, width, and defensive line, and returns `PlayerShapeTarget` values containing base, tactical, and final target positions. Defensive line affects only defensive-line and screen roles: out of possession it represents defensive block height, during defensive transition it represents recovery line height, in possession it represents rest-defense/back-line support height, and during attacking transition it represents how aggressively the back line follows the attack. For now, `finalTarget` equals the tactical target because local intent adjustments are a later phase.
 
-`BallTrajectoryBuilder` now exists as a Qt-free helper layer for constructing deterministic `BallTrajectory` values from an intended target. The skeleton clamps safe pitch coordinates, keeps `intendedTarget` and `actualTarget` distinct, applies a simple target-error model from execution quality, pressure, and seed, reports target error as the final post-clamp deviation from intended to actual target, and computes a basic speed and arrival time by trajectory type. It also provides linear trajectory sampling for future path checks. It does not model real ball physics, decide action outcomes, mutate match state, or affect current runtime match results.
+`BallTrajectoryBuilder` now exists as a Qt-free helper layer for constructing deterministic `BallTrajectory` values from an intended target. The skeleton clamps safe pitch coordinates, keeps `intendedTarget` and `actualTarget` distinct, applies a simple target-error model from execution quality, pressure, and seed, reports target error as the final post-clamp deviation from intended to actual target, computes a basic speed and arrival time by trajectory type, and assigns a simple vertical flight profile plus apex height. Height is still a skeleton-level parabolic profile, not real ball physics. It also provides trajectory sampling and height-at-time helpers for future path checks. It does not model full ball physics, decide action outcomes, mutate match state, or affect current runtime match results.
 
 `InterceptionResolver` now exists as a Qt-free helper layer for finding possible path-interception candidates along a sampled ball trajectory. It compares defender ETA from `PlayerSimState::position` with ball arrival at each sample, records candidate margins and simple quality scores, and exposes an optional best candidate. It does not decide final interception success or failure, mutate player or ball state, emit match events, or apply results.
 
@@ -53,7 +53,7 @@ The shape model creates a base position from formation slot layout on the 105m x
 
 `ActionCandidateGenerator` now produces a small, deterministic `BallCarrierActionType` candidate list from broad pitch context: hold, back pass, short pass, carry, low cross, shoot, and clear where appropriate. `BallCarrierActionType` represents only the decision made by the player currently controlling the ball. `PlayerIntentType` represents off-ball movement, defensive shape, pressing/marking, loose-ball reaction, or emergency intent. The generator uses `PitchGeometry` for rough areas and only light `TacticalSetup` hints for safe, direct, or attacking options. `ActionSelector` ranks candidates by score and chooses through weighted deterministic selection, with higher Decisions sharpening the choice toward stronger candidates and lower Decisions allowing more variance.
 
-`BallTrajectoryBuilder` also exposes a deterministic deflected-ball trajectory helper. It creates a short `BallTrajectoryType::Deflection` path from contact point, incoming path, strength, start second, and seed. It only produces a future trajectory DTO; it does not apply `BallState`, decide recovery, or change possession.
+`BallTrajectoryBuilder` also exposes a deterministic deflected-ball trajectory helper. It creates a short `BallTrajectoryType::Deflection` path from contact point, incoming path, strength, start second, and seed, with a low or medium vertical profile based on deflection strength. It only produces a future trajectory DTO; it does not apply `BallState`, decide recovery, or change possession.
 
 These planning helpers, contest resolver, intent resolver, movement resolver, tactical-zone layers, and deflection helper are now wired by the minimal coordinate simulation prototype. They remain outside live match play: the prototype does not replace `MatchSimulation`, produce reports, update fixtures, standings, history, save/load, or UI state. Existing match behavior remains unchanged.
 
@@ -63,7 +63,9 @@ These planning helpers, contest resolver, intent resolver, movement resolver, ta
 
 The prototype initializes a local `MatchSimulationState` from `MatchEngineInput`: match id, league id, first-half phase, local home/away `TeamSimState`, starter `PlayerSimState` values from the snapshot/team sheet, ball state, and possession state. It uses `TeamShapeModel` to place starters at their initial shape targets, gives the home team deterministic kickoff possession, and mutates only that local state copy.
 
-Each bounded action step wires the existing helper layers in order: `TeamShapeModel`, `PlayerIntentResolver`, `MovementResolver`, `ActionCandidateGenerator`, `ActionSelector`, `BallTrajectoryBuilder`, `InterceptionResolver`, and `ContestResolver`. Controlled balls can hold, carry/dribble, pass/cross/clear, or shoot into a trajectory. In-flight balls can be intercepted, deflected, become loose, or reach a nearby intended receiver. Loose balls can be recovered by a nearby player. Shot/save/goal finalization remains future work, so shots create local trace/stat output without changing score.
+Each bounded action step wires the existing helper layers in order: `TeamShapeModel`, `PlayerIntentResolver`, `MovementResolver`, `ActionCandidateGenerator`, `ActionSelector`, `BallTrajectoryBuilder`, `InterceptionResolver`, and `ContestResolver`. Controlled balls can hold, carry/dribble, pass/cross/clear, or shoot into a trajectory. In-flight balls can be intercepted, deflected, become loose, reach a nearby intended receiver, route high balls toward aerial/reach-aware contests, or resolve an on-target shot through a local goalkeeper-save contest. Loose balls can be recovered by a nearby player.
+
+Shot/save/goal handling now exists only inside this local prototype. Prototype goals update `MatchEngineResult` team/player stats and trace frames, then reset the local ball for a simple kickoff. They do not create `MatchReport`, do not call `League::applyMatchReport`, and do not update fixtures, standings, history, save/load state, or UI. Rebounds and deflections remain simplified local trajectories or loose balls.
 
 The prototype returns approximate possession, pass, shot, interception, and per-player stats plus watched/debug trace frames through `MatchEngineResult`. It does not create or apply `MatchReport`, does not call `League::applyMatchReport`, does not emit domain events, and does not mutate `Team`, `League`, `World`, fixtures, standings, reports, history, save/load, or UI state.
 
@@ -416,11 +418,11 @@ Every pass, cross, and shot should create a `BallTrajectory` with:
 - speed
 - travel time
 - trajectory type
-- optional height profile
+- vertical flight profile and apex height
 
 The intended target is what the player tried. The actual target is produced by execution quality, pressure, and deterministic randomness.
 
-The current `BallTrajectoryBuilder` skeleton represents this principle in code. Its error model is intentionally simple: lower execution quality and higher pressure increase the possible deviation from the intended target, while a deterministic seed keeps repeat runs stable. The reported `targetErrorMeters` diagnostic is the actual final post-clamp distance between intended target and actual target. The produced actual target remains a helper result for future simulation layers and is not connected to current match playback or results.
+The current `BallTrajectoryBuilder` skeleton represents this principle in code. Its error model is intentionally simple: lower execution quality and higher pressure increase the possible deviation from the intended target, while a deterministic seed keeps repeat runs stable. Each trajectory also has a simple `BallFlightProfile` and `apexHeightMeters`; `ballHeightAtProgress` / `ballHeightAtSecond` use a parabolic placeholder so high crosses, clearances, lofted balls, shots, and low/ground balls no longer all behave as purely 2D path checks. The reported `targetErrorMeters` diagnostic is the actual final post-clamp distance between intended target and actual target.
 
 Poor players or pressured players can underhit, overhit, misdirect, or play the ball behind the runner.
 
@@ -433,6 +435,9 @@ Trajectory types:
 - `Cutback`
 - `Shot`
 - `Clearance`
+- `Deflection`
+
+Current flight profiles are deliberately coarse: ground passes stay near the pitch, low crosses and through balls stay low, high crosses and clearances become reachable only by plausible aerial reach, shots use a simple medium-low placeholder, and deflections choose low/medium height from deflection strength. Because player height is not modeled yet, reach checks use temporary attribute-only formulas from Jumping Reach, Heading, Agility, Tackling, and goalkeeper Aerial Ability.
 
 ## 13. Path Interception and Arrival Contest
 
@@ -444,7 +449,7 @@ Defenders can cut the ball before it reaches the target. The defender does not h
 
 The engine samples or evaluates points along the trajectory. Defender ETA to an interception point is compared with ball ETA to that point.
 
-The current `InterceptionResolver` skeleton performs this path sampling and ETA comparison. It returns candidates and a best candidate for contest resolution, but it does not decide whether a pass, cross, shot, or clearance is successfully intercepted. `ContestResolver` consumes local participants and optional interception candidate data to decide the local contest outcome.
+The current `InterceptionResolver` skeleton performs this path sampling and ETA comparison. It returns candidates and a best candidate for contest resolution, but it does not decide whether a pass, cross, shot, or clearance is successfully intercepted. `CoordinateSimulationPrototype` now filters those local candidates against the trajectory height before creating a contest, so an avoidably unreachable high ball is not treated exactly like a ground pass. `ContestResolver` consumes local participants and optional interception candidate data to decide the local contest outcome.
 
 Interception should consider:
 
@@ -492,7 +497,7 @@ The current `ContestResolver` skeleton separates the contest/action winner from 
 
 This distinction matters for interceptions and tackles. A defender can win a passing-lane interception cleanly and control the ball, deflect it away, or knock it loose. A defender can also win a tackle attempt while the ball pops loose or deflects away; that is still a successful defensive action, not a no-winner close contest. Close scores are no longer universally converted into loose or deflected balls.
 
-`GoalkeeperSave` can now represent save-and-hold, save-and-parry, loose rebound, or shot-beats-keeper outcomes. It still does not apply goals, assists, score updates, report entries, or rebound recovery. Deflected and loose-ball recovery remains future MovementResolver / simulation-loop work.
+`GoalkeeperSave` can now represent save-and-hold, save-and-parry, loose rebound, or shot-beats-keeper outcomes. Inside the local prototype only, shot-beats-keeper on an on-target shot can increment prototype goals and append a `Goal` trace in `MatchEngineResult`. It still does not apply reports, assists, fixtures, standings, history, or runtime match completion. Deflected and loose-ball recovery remains simplified.
 
 ## 15. Example Scenario: CM -> Winger -> Cutback to Striker
 

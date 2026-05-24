@@ -50,3 +50,6 @@ public:
 std::vector<BallTrajectorySample> sampleTrajectory(
     const BallTrajectory& trajectory,
     int sampleCount);
+
+double ballHeightAtProgress(const BallTrajectory& trajectory, double progress);
+double ballHeightAtSecond(const BallTrajectory& trajectory, double second);
