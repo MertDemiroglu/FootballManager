@@ -35,6 +35,10 @@ add_library(fm_core STATIC
     src/match_engine/BallTrajectoryBuilder.cpp
     src/match_engine/InterceptionResolver.cpp
     src/match_engine/ContestResolver.cpp
+    src/match_engine/TacticalZone.cpp
+    src/match_engine/DefensiveResponsibility.cpp
+    src/match_engine/PlayerIntentResolver.cpp
+    src/match_engine/MovementResolver.cpp
     src/match_engine/TeamShapeModel.cpp
     src/match_engine/ActionPlan.cpp
     src/match_engine/ActionCandidateGenerator.cpp

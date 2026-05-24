@@ -14,8 +14,9 @@ The first compile-time core type layer for the future engine includes:
 - intent, action, and contest enums
 - `ActionPlan`, reassessment triggers, `PerceptionModel`, `ActionCandidateGenerator`, and `ActionSelector`
 - `ContestResolver`
+- `TacticalZone`, `DefensiveResponsibility`, `PlayerIntentResolver`, and `MovementResolver`
 
-These are skeleton types only. No simulation behavior, player movement, action resolution, match integration, UI rendering, or save/load behavior exists yet.
+These are skeleton types only. No full simulation loop, action execution, match integration, UI rendering, or save/load behavior exists yet.
 
 `TacticalSetup` V1 now provides the tactical input fields needed by the future engine, but these fields do not affect current match results.
 
@@ -37,13 +38,23 @@ The shape model creates a base position from formation slot layout on the 105m x
 
 `ContestResolver` now exists as the first local outcome resolver. It consumes copied contest participants, contest type, contest point, optional interception candidate data, timing/context values, and a deterministic seed, then returns the contest/action winner, loser, winning side, resolution type, physical ball outcome, optional clean post-contest controller, possession-change flag, attacking-success flag, defending-action-success flag, loose-ball/deflection flags, winning margin, and per-contestant score details. Its deterministic contest score uses attributes, base overall fallback, timing/arrival context, distance, fatigue, pressure on the same 0-100 convention as the rest of the skeleton, and execution quality. Winner selection then converts those non-random scores into weighted deterministic selection weights: the better contestant is more likely to win, but is not guaranteed to win, and the same seed/input gives the same selected winner. Randomness is not added to the score. It does not mutate player state, ball state, simulation state, domain objects, reports, fixtures, standings, history, save/load state, or UI state.
 
+`TacticalZone` now exists as a simple 3x3 model from a team's attacking perspective: defensive/middle/attacking thirds crossed with left/center/right lanes. It uses `PitchGeometry` dimensions, mirrors `AwayToHome` correctly, and exposes lane/third helpers for intent and pressing decisions.
+
+`DefensiveResponsibility` now maps a player id and `FormationSlotRole` to a primary zone, secondary zones, and naturally pressable opponent roles. It is deliberately small: zone or same/adjacent-lane relevance is required before pressing can even be considered, and `MarkingStyle` can adjust willingness without making an impossible role/zone mismatch valid.
+
+`PlayerIntentResolver` now produces `ResolvedPlayerIntent` DTOs from copied player state, tactical setup, team shape targets, ball state, optional contest outcome, tactical zones, and role assignments. It chooses stable highest-score intents, not weighted random intents. Loose or deflected balls assign `RecoverLooseBall` only to the top few relevant nearby players; attacking teams choose off-ball support/run/shape intents by role; defending teams choose hold, cover, mark, contain, press, tackle, block, protect, or recover intents with role/zone/distance constraints. It does not mutate `MatchSimulationState`, domain objects, reports, fixtures, standings, history, save/load, or UI state.
+
+`MovementResolver` now exists as a non-mutating movement helper. Given a copied `PlayerSimState`, `PlayerIntent`, target, and `deltaSeconds`, it returns the previous position, target, clamped new position, distance before movement, distance moved, and whether the target was reached. Speed uses `effectivePace` when available, a safe 6.0 m/s fallback otherwise, fatigue penalty, and an urgency multiplier.
+
 `ActionPlan` now exists as the first ball-carrier planning skeleton. It stores the current plan type, objective target, start time, duration limit, periodic reassessment interval, and last scan time. The reassessment helper represents both event-triggered scans, such as receiving the ball, entering a new zone, pressure changes, tackle-range danger, passing or shooting windows, dangerous teammate runs, and control worsening, plus periodic scans and max-duration expiry.
 
 `PerceptionModel` now separates option existence from option awareness. It uses Vision, Decisions, Composure, Teamwork, pressure, ball-control difficulty, option quality, and a deterministic seed influence to answer whether the player notices an available option. The scoring is intentionally simple and is not tuned as real football behavior yet.
 
-`ActionCandidateGenerator` now produces a small, deterministic candidate list from broad pitch context: hold, back pass, short pass, carry, low cross, shoot, and clear where appropriate. It uses `PitchGeometry` for rough areas and only light `TacticalSetup` hints for safe, direct, or attacking options. `ActionSelector` ranks candidates by score and chooses through weighted deterministic selection, with higher Decisions sharpening the choice toward stronger candidates and lower Decisions allowing more variance.
+`ActionCandidateGenerator` now produces a small, deterministic `BallCarrierActionType` candidate list from broad pitch context: hold, back pass, short pass, carry, low cross, shoot, and clear where appropriate. `BallCarrierActionType` represents only the decision made by the player currently controlling the ball. `PlayerIntentType` represents off-ball movement, defensive shape, pressing/marking, loose-ball reaction, or emergency intent. The generator uses `PitchGeometry` for rough areas and only light `TacticalSetup` hints for safe, direct, or attacking options. `ActionSelector` ranks candidates by score and chooses through weighted deterministic selection, with higher Decisions sharpening the choice toward stronger candidates and lower Decisions allowing more variance.
 
-These planning helpers and the contest resolver are not integrated into live match play. They do not call `MatchEngine::simulate`, replace `MatchSimulation`, mutate match state, produce reports, update fixtures, standings, history, save/load, or UI state. Existing match behavior remains unchanged.
+`BallTrajectoryBuilder` also exposes a deterministic deflected-ball trajectory helper. It creates a short `BallTrajectoryType::Deflection` path from contact point, incoming path, strength, start second, and seed. It only produces a future trajectory DTO; it does not apply `BallState`, decide recovery, or change possession.
+
+These planning helpers, contest resolver, intent resolver, movement resolver, tactical-zone layers, and deflection helper are not integrated into live match play. They do not call `MatchEngine::simulate`, replace `MatchSimulation`, mutate match state, produce reports, update fixtures, standings, history, save/load, or UI state. Existing match behavior remains unchanged.
 
 ## MatchEngineInputBuilder
 
@@ -234,18 +245,28 @@ Marking style affects:
 
 Every player gets an intent each step, but only relevant players enter detailed contests.
 
+`PlayerIntentType` is one enum for now, grouped by meaning:
+
+- Neutral/fallback: `None`
+- Attacking off-ball: `HoldAttackingShape`, `MoveToSupport`, `DropForPass`, `MakeRunBehind`, `AttackNearPost`, `AttackFarPost`, `AttackCutbackZone`, `OccupyWidth`, `OccupyHalfSpace`
+- Defensive: `HoldDefensiveShape`, `CoverSpace`, `MarkOpponent`, `PressBallCarrier`, `ContainBallCarrier`, `BlockPassingLane`, `InterceptBallPath`, `AttemptTackle`, `RecoverToGoal`, `ProtectGoalZone`
+- Loose/deflected reaction: `RecoverLooseBall`
+- Emergency: `ClearDanger`
+
 Intent examples:
 
-- `HoldShape`
+- `HoldAttackingShape`
+- `HoldDefensiveShape`
 - `MoveToSupport`
 - `MakeRunBehind`
 - `AttackNearPost`
 - `AttackFarPost`
 - `AttackCutbackZone`
 - `DropForPass`
+- `OccupyWidth`
+- `OccupyHalfSpace`
 - `PressBallCarrier`
 - `ContainBallCarrier`
-- `TrackRunner`
 - `MarkOpponent`
 - `CoverSpace`
 - `ProtectGoalZone`
@@ -253,9 +274,12 @@ Intent examples:
 - `InterceptBallPath`
 - `AttemptTackle`
 - `RecoverToGoal`
+- `RecoverLooseBall`
 - `ClearDanger`
 
 Off-ball players still act. Nearby or relevant players make richer decisions, while distant players mostly follow tactical shape, rest defense, or support positions.
+
+The current `PlayerIntentResolver` skeleton applies this grouping without running a full simulation loop. It uses team mode, role, ball zone, shape target, distance, `DefensiveResponsibility`, `MarkingStyle`, `PressingIntensity`, and optional contest outcome to choose an intent and final target. It returns DTOs only and leaves recovery application, ball state updates, reports, and trace generation to future phases.
 
 ## 8. Action Plan and Decision Trigger Model
 
@@ -313,9 +337,9 @@ The current `PerceptionModel` is a small deterministic skeleton. It keeps the op
 
 ## 10. Action Candidate Model
 
-At each decision or reassessment point, the engine generates possible actions.
+At each decision or reassessment point, the engine generates possible ball-carrier actions.
 
-Candidate examples:
+`BallCarrierActionType` candidate examples:
 
 - `ShortPass`
 - `BackPass`

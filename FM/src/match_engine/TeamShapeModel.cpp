@@ -144,7 +144,7 @@ namespace {
         }
 
         // PressingIntensity and MarkingStyle will affect local intents such as
-        // PressBallCarrier, TrackRunner, CoverSpace, and InterceptBallPath.
+        // PressBallCarrier, MarkOpponent, CoverSpace, and InterceptBallPath.
         // PassingDirectness will affect future ActionCandidate scoring.
         return PitchGeometry::clampToPitch(adjusted);
     }
