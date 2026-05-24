@@ -1,14 +1,87 @@
 #include"fm/match/PlayMatchCommandHandler.h"
 
 #include<stdexcept>
+#include<optional>
 
+#include"fm/match_engine/MatchEngine.h"
+#include"fm/match_engine/MatchEngineInputBuilder.h"
 #include"fm/match/MatchSimulation.h"
 #include"fm/match/TeamSelectionService.h"
 #include"fm/match/TeamSheet.h"
 #include"fm/roster/Team.h"
 #include"fm/match/PlayerConditionService.h"
 
-PlayMatchCommandHandler::PlayMatchCommandHandler(DomainEventPublisher& publisher)   : publisher(publisher) {}
+namespace {
+    MatchReport buildLightweightReport(
+        const PlayMatchCommand& command,
+        const Team& homeTeam,
+        const Team& awayTeam,
+        const TeamSheet& homeSheet,
+        const TeamSheet& awaySheet) {
+        return MatchSimulation::buildStrengthBasedReport(
+            command.matchId,
+            command.leagueId,
+            command.seasonYear,
+            command.matchweek,
+            homeTeam,
+            awayTeam,
+            homeSheet,
+            awaySheet,
+            command.date);
+    }
+
+    bool isSafeCoordinateReport(const MatchReport& report, const PlayMatchCommand& command) {
+        return report.matchId == command.matchId
+            && report.leagueId == command.leagueId
+            && report.seasonYear == command.seasonYear
+            && report.matchweek == command.matchweek
+            && report.homeId == command.homeId
+            && report.awayId == command.awayId;
+    }
+
+    std::optional<MatchReport> tryBuildCoordinatePrototypeReport(
+        const PlayMatchCommand& command,
+        const Team& homeTeam,
+        const Team& awayTeam,
+        const TeamSheet& homeSheet,
+        const TeamSheet& awaySheet) {
+        try {
+            MatchEngineOptions engineOptions;
+            engineOptions.detail = MatchSimulationDetail::BackgroundSummary;
+
+            const MatchEngineInput input = MatchEngineInputBuilder{}.build(
+                command.matchId,
+                command.leagueId,
+                command.seasonYear,
+                command.matchweek,
+                command.date,
+                homeTeam,
+                awayTeam,
+                homeSheet,
+                awaySheet,
+                engineOptions);
+
+            const MatchEngineResult result = MatchEngine{}.simulate(input);
+            if (!result.report.has_value()) {
+                return std::nullopt;
+            }
+
+            if (!isSafeCoordinateReport(*result.report, command)) {
+                return std::nullopt;
+            }
+
+            return result.report;
+        }
+        catch (const std::exception&) {
+            return std::nullopt;
+        }
+    }
+}
+
+PlayMatchCommandHandler::PlayMatchCommandHandler(
+    DomainEventPublisher& publisher,
+    PlayMatchCommandHandlerOptions options)
+    : publisher(publisher), options(options) {}
 
 void PlayMatchCommandHandler::handle(League& league, const PlayMatchCommand& command) {
     if (command.matchId == 0) {
@@ -88,16 +161,16 @@ void PlayMatchCommandHandler::handle(League& league,
     validateTeamSheetForTeam(homeSheet, *homeTeam);
     validateTeamSheetForTeam(awaySheet, *awayTeam);
 
-    const MatchReport report = MatchSimulation::buildStrengthBasedReport(
-        command.matchId,
-        command.leagueId,
-        command.seasonYear,
-        command.matchweek,
-        *homeTeam,
-        *awayTeam,
-        homeSheet,
-        awaySheet,
-        command.date);
+    MatchReport report;
+    if (options.engineMode == MatchSimulationEngineMode::CoordinatePrototype) {
+        std::optional<MatchReport> coordinateReport =
+            tryBuildCoordinatePrototypeReport(command, *homeTeam, *awayTeam, homeSheet, awaySheet);
+        report = coordinateReport.has_value()
+            ? *coordinateReport
+            : buildLightweightReport(command, *homeTeam, *awayTeam, homeSheet, awaySheet);
+    } else {
+        report = buildLightweightReport(command, *homeTeam, *awayTeam, homeSheet, awaySheet);
+    }
 
     league.applyMatchReport(report);
 

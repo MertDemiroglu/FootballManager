@@ -17,7 +17,7 @@ The first compile-time core type layer for the future engine includes:
 - `TacticalZone`, `DefensiveResponsibility`, `PlayerIntentResolver`, and `MovementResolver`
 - a minimal non-runtime coordinate simulation prototype
 
-These are still foundation layers, not the runtime match system. A bounded prototype loop now wires the helpers together inside `MatchEngine::simulate`, but no full match simulation, match integration, UI rendering, report application, or save/load behavior exists yet.
+These are still foundation layers, not the default runtime match system. A bounded prototype loop now wires the helpers together inside `MatchEngine::simulate`, and `PlayMatchCommandHandler` has an explicit feature-flagged path that can select it. The default runtime path remains the existing lightweight `MatchSimulation`; there is still no UI rendering, save/load behavior change, or automatic coordinate-engine activation.
 
 `TacticalSetup` V1 now provides the tactical input fields needed by the future engine, but these fields do not affect current match results.
 
@@ -25,9 +25,9 @@ These are still foundation layers, not the runtime match system. A bounded proto
 
 The `MatchEngine` interface now exists as a compile-safe, Qt-free core boundary. It consumes `MatchEngineInput`, which is snapshot-based and uses value DTOs rather than mutable `Team`, `Footballer`, `League`, `World`, standing, fixture, or save-state references.
 
-`MatchEngineResult` is output-only. It can carry a future authoritative `MatchReport`, team/player simulation stats, and optional trace frames. The current prototype returns local team/player stats and optional trace frames from its bounded coordinate loop. A focused `MatchEngineReportAdapter` now converts the prototype result metadata, score, lineup snapshots, player reports, and goal trace frames into the current narrow `MatchReport` shape. The report is still not applied anywhere.
+`MatchEngineResult` is output-only. It can carry a future authoritative `MatchReport`, team/player simulation stats, and optional trace frames. The current prototype returns local team/player stats and optional trace frames from its bounded coordinate loop. A focused `MatchEngineReportAdapter` now converts the prototype result metadata, score, lineup snapshots, player reports, and goal trace frames into the current narrow `MatchReport` shape.
 
-`MatchEngine` does not mutate domain objects and is not integrated into match playing yet. Existing match behavior remains unchanged: `PlayMatchCommandHandler` still uses the current lightweight match flow, and `League::applyMatchReport` remains the authoritative apply path.
+`MatchEngine` does not mutate domain objects. Existing match behavior remains unchanged by default: `PlayMatchCommandHandler` still defaults to the current lightweight match flow, and `League::applyMatchReport` remains the authoritative apply path. When `PlayMatchCommandHandler` is explicitly constructed with `CoordinatePrototype` mode, it builds `MatchEngineInput` through `MatchEngineInputBuilder`, runs `MatchEngine::simulate`, and uses `result.report` only after validating the report ids and metadata against the command. Any unsafe build, missing report, or mismatched report falls back to the lightweight `MatchSimulation` report.
 
 `TeamShapeModel` now exists as the first tactical-positioning helper. It is a Qt-free, read-only model layer that converts `TeamSheet`, `TacticalSetup`, pitch context, and attacking direction into per-player target positions. It does not mutate teams, players, leagues, fixtures, standings, reports, history, save state, or UI state, and it is not wired into current live match play.
 
@@ -67,7 +67,7 @@ Each bounded action step wires the existing helper layers in order: `TeamShapeMo
 
 Shot/save/goal handling now exists only inside this local prototype. Prototype goals update `MatchEngineResult` team/player stats and trace frames, then reset the local ball for a simple kickoff. They may now also appear in the optional prototype `MatchReport` through the adapter. The report is not applied, does not call `League::applyMatchReport`, and does not update fixtures, standings, history, save/load state, or UI. Rebounds and deflections remain simplified local trajectories or loose balls.
 
-The prototype returns approximate possession, pass, shot, interception, and per-player stats plus watched/debug trace frames through `MatchEngineResult`. The adapter deliberately maps only fields currently supported by `MatchReport`: metadata, score, lineups, player report basics, and goal events. It does not map shots, passes, interceptions, saves, expected goals, possession, or trace frames into `MatchReport` because the current report model has no safe fields for them. The prototype does not apply `MatchReport`, does not call `League::applyMatchReport`, does not emit domain events, and does not mutate `Team`, `League`, `World`, fixtures, standings, reports, history, save/load, or UI state.
+The prototype returns approximate possession, pass, shot, interception, and per-player stats plus watched/debug trace frames through `MatchEngineResult`. The adapter deliberately maps only fields currently supported by `MatchReport`: metadata, score, lineups, player report basics, and goal events. It does not map shots, passes, interceptions, saves, expected goals, possession, or trace frames into `MatchReport` because the current report model has no safe fields for them. The prototype itself does not apply `MatchReport`, does not call `League::applyMatchReport`, does not emit domain events, and does not mutate `Team`, `League`, `World`, fixtures, standings, reports, history, save/load, or UI state. In the opt-in runtime prototype path, `PlayMatchCommandHandler` remains responsible for passing a validated report to `League::applyMatchReport`.
 
 ## MatchEngineInputBuilder
 
@@ -75,7 +75,7 @@ The prototype returns approximate possession, pass, shot, interception, and per-
 
 The builder creates `MatchTeamSnapshot` and `MatchPlayerSnapshot` values from the current team rosters and the provided team sheets. `TeamSheet.tacticalSetup` is the tactical source of truth for the snapshot. The builder does not read UI state, save metadata, standings, fixtures, or league history.
 
-The builder is intentionally not a simulation entry point. It does not call `MatchEngine::simulate`, does not produce or apply match reports, does not publish events, and does not mutate teams, players, team sheets, leagues, world state, fixtures, standings, history, or save state. Current runtime match behavior remains unchanged.
+The builder is intentionally not a simulation entry point. It does not call `MatchEngine::simulate`, does not produce or apply match reports, does not publish events, and does not mutate teams, players, team sheets, leagues, world state, fixtures, standings, history, or save state. Current runtime match behavior remains unchanged by default.
 
 When the caller leaves `MatchEngineOptions::deterministicSeed` as zero, the builder fills it with a stable deterministic seed derived from match id, league id, match date, and home/away team ids. It does not depend on wall-clock time.
 
@@ -95,11 +95,19 @@ Future integration path:
 
 ```text
 PlayMatchCommandHandler
+  -> explicit CoordinatePrototype mode only
   -> MatchEngineInputBuilder::build
   -> MatchEngine::simulate
-  -> MatchReport
+  -> validate result.report
+  -> MatchReport or lightweight fallback
   -> League::applyMatchReport
 ```
+
+## Deterministic Smoke Coverage
+
+`fm_match_engine_smoke` covers the current prototype boundary without requiring a full realistic score. It verifies deterministic goals/report goals for repeated input and seed, report presence for valid input, report score/id/metadata consistency, starter player reports, safe default output for invalid input, and no-crash execution for `BackgroundSummary`, `WatchedMatch`, and `DebugFullTrace`.
+
+This coverage is intentionally small and regression-oriented. It does not assert detailed trace contents or exact scorelines because the coordinate prototype remains under active tuning.
 
 ## 1. Vision
 
@@ -499,7 +507,7 @@ This distinction matters for interceptions and tackles. A defender can win a pas
 
 `GoalkeeperSave` can now represent save-and-hold, save-and-parry, loose rebound, or shot-beats-keeper outcomes. Inside the local prototype only, shot-beats-keeper on an on-target shot can increment prototype goals and append a `Goal` trace in `MatchEngineResult`. It still does not apply reports, assists, fixtures, standings, history, or runtime match completion. Deflected and loose-ball recovery remains simplified.
 
-`MatchEngineReportAdapter` is the conversion layer from prototype output into the current narrow `MatchReport` model. It is Qt-free, deterministic, and pure: it consumes only `MatchEngineInput`, `MatchEngineResult`, copied snapshots, and copied ids. It fills match metadata, season year from the input date, score from team stats, lineup snapshots from input team sheets, player report basics from player stats plus missing starters, and `Goal` events from `MatchTraceKind::Goal` frames. The score remains authoritative from result stats; complete event parity requires future richer goal metadata.
+`MatchEngineReportAdapter` is the conversion layer from prototype output into the current narrow `MatchReport` model. It is Qt-free, deterministic, and pure: it consumes only `MatchEngineInput`, `MatchEngineResult`, copied snapshots, and copied ids. It fills match metadata, season year and matchweek from the input metadata, score from team stats, lineup snapshots from input team sheets, player report basics from player stats plus missing starters, and `Goal` events from `MatchTraceKind::Goal` frames. The score remains authoritative from result stats; complete event parity requires future richer goal metadata.
 
 ## 15. Example Scenario: CM -> Winger -> Cutback to Striker
 

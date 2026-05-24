@@ -51,6 +51,15 @@ namespace {
         }
     }
 
+    void validateMatchMetadata(int seasonYear, int matchweek) {
+        if (seasonYear < 0) {
+            throw buildValidationError("season year cannot be negative");
+        }
+        if (matchweek < 0) {
+            throw buildValidationError("matchweek cannot be negative");
+        }
+    }
+
     MatchPlayerSnapshot buildPlayerSnapshot(const Footballer& player, TeamId expectedTeamId) {
         if (player.getId() == 0) {
             throw buildValidationError("team roster contains player id zero");
@@ -155,6 +164,8 @@ std::uint64_t buildDeterministicMatchSeed(
 MatchEngineInput MatchEngineInputBuilder::build(
     MatchId matchId,
     LeagueId leagueId,
+    int seasonYear,
+    int matchweek,
     const Date& matchDate,
     const Team& homeTeam,
     const Team& awayTeam,
@@ -162,6 +173,7 @@ MatchEngineInput MatchEngineInputBuilder::build(
     const TeamSheet& awaySheet,
     MatchEngineOptions options) const {
     validateNonZeroIds(matchId, leagueId, homeTeam.getId(), awayTeam.getId());
+    validateMatchMetadata(seasonYear, matchweek);
 
     if (options.deterministicSeed == 0) {
         options.deterministicSeed = buildDeterministicMatchSeed(
@@ -175,6 +187,8 @@ MatchEngineInput MatchEngineInputBuilder::build(
     MatchEngineInput input;
     input.matchId = matchId;
     input.leagueId = leagueId;
+    input.seasonYear = seasonYear;
+    input.matchweek = matchweek;
     input.matchDate = matchDate;
     input.homeTeam = buildTeamSnapshot(leagueId, homeTeam, homeSheet);
     input.awayTeam = buildTeamSnapshot(leagueId, awayTeam, awaySheet);
@@ -183,4 +197,26 @@ MatchEngineInput MatchEngineInputBuilder::build(
     validateDisjointSnapshots(input.homeTeam, input.awayTeam);
 
     return input;
+}
+
+MatchEngineInput MatchEngineInputBuilder::build(
+    MatchId matchId,
+    LeagueId leagueId,
+    const Date& matchDate,
+    const Team& homeTeam,
+    const Team& awayTeam,
+    const TeamSheet& homeSheet,
+    const TeamSheet& awaySheet,
+    MatchEngineOptions options) const {
+    return build(
+        matchId,
+        leagueId,
+        matchDate.getYear(),
+        0,
+        matchDate,
+        homeTeam,
+        awayTeam,
+        homeSheet,
+        awaySheet,
+        options);
 }

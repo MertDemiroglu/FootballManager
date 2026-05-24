@@ -11,6 +11,18 @@ public:
     MatchEngineInput build(
         MatchId matchId,
         LeagueId leagueId,
+        int seasonYear,
+        int matchweek,
+        const Date& matchDate,
+        const Team& homeTeam,
+        const Team& awayTeam,
+        const TeamSheet& homeSheet,
+        const TeamSheet& awaySheet,
+        MatchEngineOptions options = {}) const;
+
+    MatchEngineInput build(
+        MatchId matchId,
+        LeagueId leagueId,
         const Date& matchDate,
         const Team& homeTeam,
         const Team& awayTeam,
