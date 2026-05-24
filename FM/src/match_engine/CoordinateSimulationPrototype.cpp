@@ -6,6 +6,7 @@
 #include"fm/match_engine/BallTrajectoryBuilder.h"
 #include"fm/match_engine/ContestResolver.h"
 #include"fm/match_engine/InterceptionResolver.h"
+#include"fm/match_engine/MatchEngineReportAdapter.h"
 #include"fm/match_engine/MovementResolver.h"
 #include"fm/match_engine/PitchGeometry.h"
 #include"fm/match_engine/PlayerIntentResolver.h"
@@ -438,6 +439,24 @@ namespace {
         const MatchTeamSnapshot* team = snapshotForPlayerTeam(input, teamId, playerId);
         return team != nullptr
             && assignedRoleFor(team->teamSheet, playerId) == FormationSlotRole::Goalkeeper;
+    }
+
+    std::vector<PlayerSimState> interceptionDefendersFor(
+        const MatchEngineInput& input,
+        const TeamSimState& defendingTeam,
+        const std::optional<PendingBallAction>& pending) {
+        if (!pending || !pending->isShot) {
+            return defendingTeam.players;
+        }
+
+        std::vector<PlayerSimState> defenders;
+        defenders.reserve(defendingTeam.players.size());
+        for (const PlayerSimState& player : defendingTeam.players) {
+            if (!isAssignedGoalkeeper(input, defendingTeam.teamId, player.playerId)) {
+                defenders.push_back(player);
+            }
+        }
+        return defenders;
     }
 
     int kickoffPriority(FormationSlotRole role) {
@@ -1376,10 +1395,12 @@ namespace {
             return;
         }
 
+        const std::vector<PlayerSimState> interceptionDefenders =
+            interceptionDefendersFor(input, *defendingTeam, pending);
         const InterceptionResolverResult interception = interceptionResolver.resolve(
             InterceptionResolverRequest{
                 trajectory,
-                defendingTeam->players,
+                interceptionDefenders,
                 7,
                 0.35
             });
@@ -1798,6 +1819,6 @@ MatchEngineResult CoordinateSimulationPrototype::run(const MatchEngineInput& inp
     }
 
     finalizePossessionShare(result, state);
-    result.report = std::nullopt;
+    result.report = MatchEngineReportAdapter{}.buildReport(input, result);
     return result;
 }

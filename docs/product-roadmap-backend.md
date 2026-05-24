@@ -198,23 +198,30 @@ Related documents:
 - Status: implemented as a bounded non-runtime prototype.
 - Scope: add `CoordinateSimulationPrototype` behind valid `MatchEngine::simulate` input. The prototype initializes local `MatchSimulationState` from snapshots, places starters through `TeamShapeModel`, resolves intents and movement, selects controlled-ball actions, builds trajectories, handles minimal in-flight/deflected/loose ball outcomes, and returns prototype stats/traces through `MatchEngineResult`.
 - Current behavior: runtime match behavior is unchanged. The prototype is not wired into `PlayMatchCommandHandler`, does not replace `MatchSimulation`, does not create or apply `MatchReport`, does not call `League::applyMatchReport`, and does not mutate domain objects, fixtures, standings, reports, history, save/load state, or UI.
-- Future work: MatchEngineResult -> MatchReport Adapter after the shot/save/goal local prototype.
-- Do not mix in: report adapter work, runtime integration, mini-pitch UI, save/load schema changes, fixture/standing/report application changes, or final 90-minute match simulation tuning.
+- Future work: deterministic regression/smoke tests after the report adapter.
+- Do not mix in: runtime integration, mini-pitch UI, save/load schema changes, fixture/standing/report application changes, or final 90-minute match simulation tuning.
 
 ### 23. Shot / Save / Goal Local Prototype + Ball Vertical Profile
 
 - Status: implemented as a bounded non-runtime prototype.
 - Scope: add `BallFlightProfile` and apex height to `BallTrajectory`, expose simple ball-height helpers, map trajectory types to ground/low/high/lofted/shot profiles, use temporary attribute-based reach checks for high balls and aerial situations, route high crosses/clearances toward aerial contest handling, and resolve on-target local prototype shots through `GoalkeeperSave`.
-- Current behavior: runtime match behavior is unchanged. Prototype saves, rebounds, and goals update only `MatchEngineResult` stats/traces; `report` remains empty, no `MatchReport` is created or applied, and no fixture, standing, history, save/load, domain event, or UI behavior changes.
-- Future work: MatchEngineResult -> MatchReport Adapter.
+- Current behavior: runtime match behavior is unchanged. Prototype saves, rebounds, and goals update only `MatchEngineResult` stats/traces; the follow-on adapter can now create an optional prototype `MatchReport`, but no report is applied and no fixture, standing, history, save/load, domain event, or UI behavior changes.
+- Future work: deterministic regression/smoke tests before runtime integration.
+- Do not mix in: runtime integration, `PlayMatchCommandHandler`, current `MatchSimulation` replacement, `League::applyMatchReport`, mini-pitch UI, save/load schema changes, fixture/standing/report application changes, or final 90-minute tuning.
+
+### 24. MatchEngineResult -> MatchReport Adapter
+
+- Status: implemented as a non-runtime conversion layer.
+- Scope: add a Qt-free pure adapter that builds the current narrow `MatchReport` shape from `MatchEngineInput` and `MatchEngineResult`. It maps match metadata, season year, score, lineup snapshots, player report basics, and goal trace frames.
+- Current behavior: runtime match behavior is unchanged. The adapter does not map unsupported prototype stats such as shots, passes, interceptions, saves, xG, possession, or trace frames into `MatchReport`, and it does not apply the report to `League`, game state, fixtures, standings, history, save/load, domain events, or UI.
+- Future work: deterministic regression/smoke tests before feature-flagged runtime integration.
 - Do not mix in: runtime integration, `PlayMatchCommandHandler`, current `MatchSimulation` replacement, `League::applyMatchReport`, mini-pitch UI, save/load schema changes, fixture/standing/report application changes, or final 90-minute tuning.
 
 ## Next Backend Phases
 
-1. MatchEngineResult -> MatchReport Adapter
-2. Deterministic regression/smoke tests
-3. Feature-flagged runtime integration
-4. First playable coordinate match flow
+1. Deterministic regression/smoke tests
+2. Feature-flagged runtime integration
+3. First playable coordinate match flow
 
 ## Deferred / Later Backend Work
 
