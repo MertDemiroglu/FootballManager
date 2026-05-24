@@ -1,5 +1,6 @@
 #include"fm/match_engine/PlayerIntentResolver.h"
 
+#include"fm/match_engine/BallTrajectoryBuilder.h"
 #include"fm/match_engine/DefensiveResponsibility.h"
 #include"fm/match_engine/PitchGeometry.h"
 
@@ -23,6 +24,13 @@ namespace {
 
     struct RecoveryCandidate {
         PlayerId playerId = 0;
+        double score = 0.0;
+    };
+
+    struct InterceptionIntentCandidate {
+        PlayerId playerId = 0;
+        PitchPoint target;
+        double distanceToPath = 0.0;
         double score = 0.0;
     };
 
@@ -246,6 +254,26 @@ namespace {
 
     bool isGoalkeeper(FormationSlotRole role) {
         return role == FormationSlotRole::Goalkeeper;
+    }
+
+    bool trajectoryEntersOwnBox(
+        const BallTrajectory& trajectory,
+        AttackingDirection direction) {
+        const std::vector<BallTrajectorySample> samples = sampleTrajectory(trajectory, 7);
+        for (const BallTrajectorySample& sample : samples) {
+            if (direction == AttackingDirection::HomeToAway
+                && PitchGeometry::isInsideHomePenaltyArea(sample.point)) {
+                return true;
+            }
+            if (direction == AttackingDirection::AwayToHome
+                && PitchGeometry::isInsideAwayPenaltyArea(sample.point)) {
+                return true;
+            }
+        }
+
+        return direction == AttackingDirection::HomeToAway
+            ? PitchGeometry::isInsideHomePenaltyArea(trajectory.actualTarget)
+            : PitchGeometry::isInsideAwayPenaltyArea(trajectory.actualTarget);
     }
 
     bool isCenterBackOrDm(FormationSlotRole role) {
@@ -661,6 +689,153 @@ namespace {
 
         return false;
     }
+
+    bool responsibilityLaneRelevant(
+        const DefensiveResponsibility& responsibility,
+        TacticalZone zone) {
+        if (responsibility.primaryZone != TacticalZone::Unknown
+            && sameOrAdjacentLane(responsibility.primaryZone, zone)) {
+            return true;
+        }
+
+        for (TacticalZone secondaryZone : responsibility.secondaryZones) {
+            if (secondaryZone != TacticalZone::Unknown
+                && sameOrAdjacentLane(secondaryZone, zone)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    double distanceToTrajectoryActualTarget(
+        const PlayerSimState& player,
+        const BallTrajectory& trajectory) {
+        return PitchGeometry::distance(player.position, trajectory.actualTarget);
+    }
+
+    InterceptionIntentCandidate interceptionCandidateFor(
+        const PlayerIntentResolutionContext& context,
+        const PlayerSimState& player,
+        FormationSlotRole role,
+        const std::vector<BallTrajectorySample>& samples,
+        bool keeperRelevant) {
+        InterceptionIntentCandidate candidate;
+        candidate.playerId = player.playerId;
+
+        if (samples.empty() || role == FormationSlotRole::Unknown) {
+            candidate.score = -100.0;
+            return candidate;
+        }
+
+        if (isGoalkeeper(role) && !keeperRelevant) {
+            candidate.score = -100.0;
+            return candidate;
+        }
+
+        PitchPoint bestPoint = samples.front().point;
+        double bestDistance = std::numeric_limits<double>::max();
+        for (const BallTrajectorySample& sample : samples) {
+            const double distance = PitchGeometry::distance(player.position, sample.point);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestPoint = sample.point;
+            }
+        }
+
+        const TacticalZone playerZone =
+            tacticalZoneForPoint(player.position, context.attackingDirection);
+        const TacticalZone sampleZone =
+            tacticalZoneForPoint(bestPoint, context.attackingDirection);
+        const DefensiveResponsibility responsibility = buildDefensiveResponsibility(
+            player.playerId,
+            role,
+            context.attackingDirection);
+        const bool zoneResponsible = isZoneInResponsibility(responsibility, sampleZone);
+        const bool laneRelevant =
+            sameOrAdjacentLane(playerZone, sampleZone)
+            || responsibilityLaneRelevant(responsibility, sampleZone);
+        const double pace = player.effectivePace > 0.0 ? player.effectivePace : 6.0;
+        const double targetDistance =
+            context.ballState.trajectory
+                ? distanceToTrajectoryActualTarget(player, *context.ballState.trajectory)
+                : bestDistance;
+
+        double score = 0.0;
+        score += std::max(0.0, 46.0 - (bestDistance * 4.5));
+        score += std::max(0.0, 18.0 - (targetDistance * 0.45));
+        score += sameVerticalLane(playerZone, sampleZone) ? 14.0 : 0.0;
+        score += adjacentLane(playerZone, sampleZone) ? 8.0 : 0.0;
+        score += zoneResponsible ? 15.0 : 0.0;
+        score += !zoneResponsible && responsibilityLaneRelevant(responsibility, sampleZone) ? 8.0 : 0.0;
+        score += laneRelevant ? 4.0 : -12.0;
+        score += std::clamp(pace * 1.8, 0.0, 16.0);
+        score += std::clamp(static_cast<double>(player.baseOverall), 0.0, 100.0) * 0.08;
+
+        if (bestDistance > 18.0) {
+            score -= 18.0;
+        }
+        if (isGoalkeeper(role)) {
+            score += keeperRelevant ? 10.0 : -100.0;
+        }
+
+        candidate.target = PitchGeometry::clampToPitch(bestPoint);
+        candidate.distanceToPath = bestDistance;
+        candidate.score = score;
+        return candidate;
+    }
+
+    std::vector<InterceptionIntentCandidate> interceptionCandidates(
+        const PlayerIntentResolutionContext& context) {
+        if (context.teamMode != IntentTeamMode::Defending
+            || context.ballState.controlState != BallControlState::InFlight
+            || !context.ballState.trajectory) {
+            return {};
+        }
+
+        const BallTrajectory& trajectory = *context.ballState.trajectory;
+        const std::vector<BallTrajectorySample> samples = sampleTrajectory(trajectory, 7);
+        const bool keeperRelevant =
+            trajectoryEntersOwnBox(trajectory, context.attackingDirection);
+        std::vector<InterceptionIntentCandidate> candidates;
+        candidates.reserve(context.teammates.size());
+
+        for (const PlayerSimState& player : context.teammates) {
+            candidates.push_back(interceptionCandidateFor(
+                context,
+                player,
+                roleFor(context, player.playerId),
+                samples,
+                keeperRelevant));
+        }
+
+        std::sort(
+            candidates.begin(),
+            candidates.end(),
+            [](const InterceptionIntentCandidate& lhs, const InterceptionIntentCandidate& rhs) {
+                if (lhs.score == rhs.score) {
+                    return lhs.playerId < rhs.playerId;
+                }
+                return lhs.score > rhs.score;
+            });
+
+        return candidates;
+    }
+
+    const InterceptionIntentCandidate* selectedInterceptionFor(
+        const std::vector<InterceptionIntentCandidate>& candidates,
+        PlayerId playerId) {
+        constexpr std::size_t MaxInterceptors = 3;
+        constexpr double MinimumInterceptionScore = 42.0;
+        for (std::size_t i = 0; i < candidates.size() && i < MaxInterceptors; ++i) {
+            if (candidates[i].playerId == playerId
+                && candidates[i].score >= MinimumInterceptionScore) {
+                return &candidates[i];
+            }
+        }
+
+        return nullptr;
+    }
 }
 
 std::vector<ResolvedPlayerIntent> PlayerIntentResolver::resolveTeamIntents(
@@ -672,6 +847,8 @@ std::vector<ResolvedPlayerIntent> PlayerIntentResolver::resolveTeamIntents(
     const std::vector<RecoveryCandidate> recoveries = looseOrDeflected
         ? recoveryCandidates(context)
         : std::vector<RecoveryCandidate>{};
+    const std::vector<InterceptionIntentCandidate> interceptions =
+        !looseOrDeflected ? interceptionCandidates(context) : std::vector<InterceptionIntentCandidate>{};
 
     for (const PlayerSimState& player : context.teammates) {
         const FormationSlotRole role = roleFor(context, player.playerId);
@@ -685,6 +862,15 @@ std::vector<ResolvedPlayerIntent> PlayerIntentResolver::resolveTeamIntents(
                 0,
                 distance <= PressRangeMeters ? 1.0 : 0.8,
                 72.0 - std::min(distance, 28.0)
+            };
+        } else if (const InterceptionIntentCandidate* interception =
+            selectedInterceptionFor(interceptions, player.playerId)) {
+            selected = IntentCandidate{
+                PlayerIntentType::InterceptBallPath,
+                interception->target,
+                0,
+                interception->distanceToPath <= PressRangeMeters ? 1.0 : 0.85,
+                interception->score
             };
         } else if (context.teamMode == IntentTeamMode::Attacking) {
             selected = attackingIntent(context, player, role);
