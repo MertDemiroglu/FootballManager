@@ -10,8 +10,25 @@
 #include<vector>
 
 namespace {
+    // ActionCandidate::finalScore is the cross-action selection contract used by
+    // ActionSelector, which raises scores with pow(finalScore, sharpness).
+    // Keep pass, carry, and shot candidates on the same scale:
+    // 10-20 weak/rare, 25-40 viable, 40-60 strong, 60+ very strong/uncommon.
     double clampScore(double value) {
         return std::clamp(value, 0.0, 100.0);
+    }
+
+    double clampCandidateScore(double value, double minimum, double maximum) {
+        return std::clamp(value, minimum, maximum);
+    }
+
+    double normalizeOptionScore(
+        double optionScore,
+        double base,
+        double factor,
+        double minimum,
+        double maximum) {
+        return clampCandidateScore(base + optionScore * factor, minimum, maximum);
     }
 
     double directionSign(AttackingDirection direction) {
@@ -72,6 +89,97 @@ namespace {
         return mentality == TeamMentality::Defensive ? 10.0 : 0.0;
     }
 
+    double progressionUrgency(const MatchSimulationState& state, const TacticalSetup& tactics) {
+        double urgency = std::clamp(static_cast<double>(state.possession.actionDepth) / 7.0, 0.0, 1.0);
+        if (tactics.mentality == TeamMentality::Defensive) {
+            urgency *= 0.70;
+        } else if (tactics.mentality == TeamMentality::Attacking) {
+            urgency *= 1.20;
+        }
+        if (tactics.tempo == TeamTempo::Low) {
+            urgency *= 0.75;
+        } else if (tactics.tempo == TeamTempo::High) {
+            urgency *= 1.15;
+        }
+        return std::clamp(urgency, 0.0, 1.25);
+    }
+
+    double contractClampFor(BallCarrierActionType type, double score) {
+        const double maximum = type == BallCarrierActionType::Clear ? 82.0 : 75.0;
+        return std::clamp(score, 0.0, maximum);
+    }
+
+    bool isProgressiveCarryCandidate(
+        const ActionCandidate& candidate,
+        PitchPoint carrierPosition,
+        AttackingDirection direction) {
+        return (candidate.type == BallCarrierActionType::Carry
+            || candidate.type == BallCarrierActionType::Dribble
+            || candidate.type == BallCarrierActionType::CutInside)
+            && ((candidate.intendedTarget.x - carrierPosition.x) * directionSign(direction)) > 8.0;
+    }
+
+    void applyPossessionUrgency(
+        std::vector<ActionCandidate>& candidates,
+        PitchPoint carrierPosition,
+        AttackingDirection direction,
+        double urgency) {
+        if (urgency <= 0.0) {
+            return;
+        }
+
+        for (ActionCandidate& candidate : candidates) {
+            double adjustment = 0.0;
+            switch (candidate.type) {
+            case BallCarrierActionType::Hold:
+                adjustment = -16.0 * urgency;
+                break;
+            case BallCarrierActionType::BackPass:
+                adjustment = -16.0 * urgency;
+                break;
+            case BallCarrierActionType::ShortPass:
+                adjustment = (((candidate.intendedTarget.x - carrierPosition.x) * directionSign(direction)) > 5.0
+                    ? 8.0
+                    : -16.0) * urgency;
+                break;
+            case BallCarrierActionType::SwitchPlay:
+                adjustment = 8.0 * urgency;
+                break;
+            case BallCarrierActionType::ThroughBall:
+                adjustment = 11.0 * urgency;
+                break;
+            case BallCarrierActionType::LowCross:
+            case BallCarrierActionType::HighCross:
+            case BallCarrierActionType::Cutback:
+                adjustment = 10.0 * urgency;
+                break;
+            case BallCarrierActionType::Carry:
+                adjustment = (isProgressiveCarryCandidate(candidate, carrierPosition, direction) ? 8.0 : -12.0)
+                    * urgency;
+                break;
+            case BallCarrierActionType::Dribble:
+            case BallCarrierActionType::CutInside:
+                adjustment = 7.0 * urgency;
+                break;
+            case BallCarrierActionType::Shoot:
+                adjustment = 0.0;
+                break;
+            case BallCarrierActionType::Clear:
+                break;
+            }
+            if (urgency >= 0.90
+                && (candidate.type == BallCarrierActionType::Hold
+                    || candidate.type == BallCarrierActionType::BackPass
+                    || (candidate.type == BallCarrierActionType::ShortPass
+                        && ((candidate.intendedTarget.x - carrierPosition.x) * directionSign(direction)) <= 5.0)
+                    || (candidate.type == BallCarrierActionType::Carry
+                        && !isProgressiveCarryCandidate(candidate, carrierPosition, direction)))) {
+                adjustment -= 8.0 * urgency;
+            }
+            candidate.finalScore = contractClampFor(candidate.type, candidate.finalScore + adjustment);
+        }
+    }
+
     ActionCandidate buildCandidate(
         BallCarrierActionType type,
         PitchPoint target,
@@ -104,13 +212,23 @@ namespace {
         candidate.mentalScore = 0.0;
         candidate.skillConfidenceScore = std::max(0.0, 22.0 - option.executionDifficulty * 0.20);
         candidate.pressurePenalty = option.laneRisk * 0.12 + option.receiverPressure * 0.08;
-        double selectionScore = option.score;
-        if (option.kind == PassOptionKind::SafePass || option.kind == PassOptionKind::BackPass) {
-            selectionScore *= 0.88;
-        } else {
-            selectionScore *= 1.08;
+        double selectionScore = 0.0;
+        switch (option.kind) {
+        case PassOptionKind::SafePass:
+        case PassOptionKind::BackPass:
+            selectionScore = normalizeOptionScore(option.score, 10.0, 0.52, 18.0, 58.0);
+            break;
+        case PassOptionKind::ProgressivePass:
+        case PassOptionKind::SwitchPlay:
+            selectionScore = normalizeOptionScore(option.score, 11.0, 0.58, 18.0, 65.0);
+            break;
+        case PassOptionKind::ThroughBall:
+        case PassOptionKind::Cross:
+        case PassOptionKind::Cutback:
+            selectionScore = normalizeOptionScore(option.score, 10.0, 0.62, 16.0, 70.0);
+            break;
         }
-        candidate.finalScore = clampScore(selectionScore);
+        candidate.finalScore = selectionScore;
         return candidate;
     }
 
@@ -124,7 +242,17 @@ namespace {
         candidate.mentalScore = 0.0;
         candidate.skillConfidenceScore = std::max(0.0, 20.0 - option.controlDifficulty * 0.16);
         candidate.pressurePenalty = option.pressureRisk * 0.14 + option.zoneLimitRisk * 0.16;
-        candidate.finalScore = clampScore(option.score);
+        switch (option.kind) {
+        case CarryOptionKind::SafeCarry:
+            candidate.finalScore = normalizeOptionScore(option.score, 8.0, 0.42, 16.0, 45.0);
+            break;
+        case CarryOptionKind::ProgressiveCarry:
+            candidate.finalScore = normalizeOptionScore(option.score, 8.0, 0.52, 16.0, 60.0);
+            break;
+        case CarryOptionKind::Dribble:
+            candidate.finalScore = normalizeOptionScore(option.score, 7.0, 0.50, 12.0, 55.0);
+            break;
+        }
         return candidate;
     }
 
@@ -139,7 +267,7 @@ namespace {
         candidate.mentalScore = 0.0;
         candidate.skillConfidenceScore = option.shooterConfidence * 0.10;
         candidate.pressurePenalty = option.pressurePenalty * 0.16;
-        candidate.finalScore = clampScore(option.score);
+        candidate.finalScore = clampCandidateScore(option.score, 0.0, 52.0);
         return candidate;
     }
 }
@@ -169,10 +297,11 @@ std::vector<ActionCandidate> ActionCandidateGenerator::generate(
         BallCarrierActionType::Hold,
         carrierPosition,
         0,
-        24.0 + mentalitySafeBonus(tacticalSetup.mentality),
+        18.0 + mentalitySafeBonus(tacticalSetup.mentality) * 0.5,
         controlledBall ? 12.0 : 4.0,
         8.0,
         pressurePenalty * 0.45));
+    candidates.back().finalScore = clampCandidateScore(candidates.back().finalScore, 12.0, 42.0);
 
     const std::vector<PassOption> passOptions = PassOptionEvaluator{}.evaluate(
         PassOptionEvaluationContext{
@@ -241,14 +370,16 @@ std::vector<ActionCandidate> ActionCandidateGenerator::generate(
             if (candidate.type == BallCarrierActionType::Carry
                 || candidate.type == BallCarrierActionType::ShortPass) {
                 candidate.contextScore += 4.0;
+                candidate.finalScore = clampScore(candidate.finalScore + 4.0);
             }
-            candidate.finalScore = clampScore(
-                candidate.tacticalScore
-                + candidate.contextScore
-                + candidate.skillConfidenceScore
-                - candidate.pressurePenalty);
         }
     }
+
+    applyPossessionUrgency(
+        candidates,
+        carrierPosition,
+        direction,
+        progressionUrgency(request.simulationState, tacticalSetup));
 
     return candidates;
 }

@@ -58,10 +58,10 @@ double ShotQualityModel::calculateOpenPlayXG(
     const double clampedPressure = clampDouble(pressure, 0.0, 100.0);
 
     const double logit =
-        -1.25
-        - (0.095 * distanceMeters)
-        + (1.65 * angleRadians)
-        - (0.010 * clampedPressure);
+        -2.65
+        - (0.125 * distanceMeters)
+        + (1.05 * angleRadians)
+        - (0.022 * clampedPressure);
     const double xg = 1.0 / (1.0 + std::exp(-logit));
-    return clampDouble(xg, 0.01, 0.55);
+    return clampDouble(xg, 0.005, 0.20);
 }

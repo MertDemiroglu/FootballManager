@@ -413,6 +413,27 @@ namespace {
         return best;
     }
 
+    double bestCandidateScoreForType(
+        const std::vector<ActionCandidate>& candidates,
+        BallCarrierActionType type) {
+        double best = 0.0;
+        for (const ActionCandidate& candidate : candidates) {
+            if (candidate.type == type) {
+                best = std::max(best, candidate.finalScore);
+            }
+        }
+        return best;
+    }
+
+    int traceCountFor(const MatchEngineResult& result, MatchTraceKind kind) {
+        return static_cast<int>(std::count_if(
+            result.traceFrames.begin(),
+            result.traceFrames.end(),
+            [kind](const MatchTraceFrame& frame) {
+                return frame.kind == kind;
+            }));
+    }
+
     int countKind(const std::vector<PassOption>& options, PassOptionKind kind) {
         return static_cast<int>(std::count_if(
             options.begin(),
@@ -490,7 +511,7 @@ namespace {
         require(closeCentral > pressured, "higher pressure should reduce xG");
         require(reverseDirection > farWide, "away-to-home xG should use the opposite goal");
         for (double xg : { closeCentral, farWide, pressured, reverseDirection }) {
-            require(xg >= 0.01 && xg <= 0.55, "open-play xG should stay within clamp range");
+            require(xg >= 0.005 && xg <= 0.42, "open-play xG should stay within clamp range");
         }
     }
 
@@ -1025,15 +1046,18 @@ namespace {
             FormationSlotRole::AttackingMidfielder,
             shotDecisionAttributes(76, 74, 76),
             TacticalSetup{},
-            PitchPoint{ 91.0, 34.0 });
+            PitchPoint{ 99.0, 34.0 });
         const PassDecisionFixture centerBack = buildPassDecisionFixture(
             FormationSlotRole::CenterBack,
             shotDecisionAttributes(76, 74, 76),
             TacticalSetup{},
-            PitchPoint{ 91.0, 34.0 });
-        require(bestShotScore(evaluateShotFixture(attackingMid))
-                > bestShotScore(evaluateShotFixture(centerBack)),
-            "attacking midfielder shot desire should exceed center back from same position");
+            PitchPoint{ 99.0, 34.0 });
+        const double attackingMidShotScore = bestShotScore(evaluateShotFixture(attackingMid));
+        const double centerBackShotScore = bestShotScore(evaluateShotFixture(centerBack));
+        require(attackingMidShotScore > 0.0,
+            "attacking midfielder should generate a shot option from a reasonable shooting position");
+        require(centerBackShotScore == 0.0 || attackingMidShotScore > centerBackShotScore,
+            "attacking midfielder shot desire should exceed or outlive center back from same position");
 
         TacticalSetup defensive;
         defensive.mentality = TeamMentality::Defensive;
@@ -1045,16 +1069,18 @@ namespace {
             FormationSlotRole::LeftWinger,
             shotDecisionAttributes(74, 72, 72),
             defensive,
-            PitchPoint{ 90.0, 18.0 });
+            PitchPoint{ 100.0, 24.0 });
         const PassDecisionFixture weakAttackingShot = buildPassDecisionFixture(
             FormationSlotRole::LeftWinger,
             shotDecisionAttributes(74, 72, 72),
             attacking,
-            PitchPoint{ 90.0, 18.0 });
+            PitchPoint{ 100.0, 24.0 });
         const double weakAttackingScore = bestShotScore(evaluateShotFixture(weakAttackingShot));
         const double weakDefensiveScore = bestShotScore(evaluateShotFixture(weakDefensiveShot));
-        require(weakAttackingScore > weakDefensiveScore,
-            "defensive mentality should lower weak shot desire");
+        require(weakAttackingScore > 0.0,
+            "attacking mentality should still be able to generate a weak shot option");
+        require(weakDefensiveScore == 0.0 || weakAttackingScore > weakDefensiveScore,
+            "defensive mentality should lower or suppress weak shot desire");
 
         const PassDecisionFixture clearDefensiveShot = buildPassDecisionFixture(
             FormationSlotRole::Striker,
@@ -1082,7 +1108,7 @@ namespace {
             FormationSlotRole::AttackingMidfielder,
             shotDecisionAttributes(80, 78, 78),
             tactics,
-            PitchPoint{ 86.0, 34.0 });
+            PitchPoint{ 102.0, 34.0 });
 
         MatchSimulationState state;
         state.homeTeam = fixture.teamState;
@@ -1132,6 +1158,20 @@ namespace {
             "generator should include carry options from CarryOptionEvaluator");
         require(hasCandidate(BallCarrierActionType::Shoot),
             "generator should include shot options from ShotDecisionEvaluator");
+
+        const double bestSafePass = bestCandidateScoreForType(candidates, BallCarrierActionType::ShortPass);
+        const double bestCarry = std::max(
+            bestCandidateScoreForType(candidates, BallCarrierActionType::Carry),
+            bestCandidateScoreForType(candidates, BallCarrierActionType::Dribble));
+        const double bestShot = bestCandidateScoreForType(candidates, BallCarrierActionType::Shoot);
+        require(bestSafePass <= 70.0,
+            "pass candidate normalization should keep safe/common passes off runaway scores");
+        require(bestCarry <= 60.0,
+            "carry candidate normalization should keep carry options on the common score scale");
+        require(bestShot >= 25.0 && bestShot <= 75.0,
+            "good shot candidate should compete on the common score scale");
+        require(bestShot + 15.0 >= bestSafePass && bestShot + 15.0 >= bestCarry,
+            "good shot candidate should be able to compete with pass/carry candidates");
     }
 
     void runPassSelectionDeterminismSmoke() {
@@ -1201,42 +1241,100 @@ namespace {
     void runDetailedCoordinateBalanceSmoke() {
         int assistedGoalSamples = 0;
         int goalScorerRatingSamples = 0;
+        int highPossessionSamples = 0;
+        int highPassTeamSamples = 0;
+        int highXgTeamSamples = 0;
+        int highAverageXgSamples = 0;
+        int totalShots = 0;
+        int totalPasses = 0;
+        int totalCarryTraces = 0;
+        int totalShotTraces = 0;
+        std::uint64_t firstHighXgSeed = 0;
+        MatchTeamSimulationStats firstHighXgHomeStats;
+        MatchTeamSimulationStats firstHighXgAwayStats;
         for (std::uint64_t seed = 1; seed <= 8; ++seed) {
             const MatchEngineInput input =
                 buildInput(MatchSimulationDetail::WatchedMatch, 0x9300ULL + seed);
             const MatchEngineResult result = MatchEngine{}.simulate(input);
             assertResultReportConsistency(input, result);
 
+            const double maxPossession = std::max(
+                result.homeStats.possessionShare,
+                result.awayStats.possessionShare);
+            if (maxPossession >= 90.0) {
+                std::cerr << "detailed possession guardrail sample seed=" << (0x9300ULL + seed)
+                    << " homePossession=" << result.homeStats.possessionShare
+                    << " awayPossession=" << result.awayStats.possessionShare
+                    << " homePasses=" << result.homeStats.passesAttempted
+                    << " awayPasses=" << result.awayStats.passesAttempted
+                    << " homeShots=" << result.homeStats.shots
+                    << " awayShots=" << result.awayStats.shots
+                    << " homeXg=" << result.homeStats.expectedGoals
+                    << " awayXg=" << result.awayStats.expectedGoals
+                    << '\n';
+            }
+            require(maxPossession < 90.0,
+                "detailed coordinate possession should not hit 90 percent dominance in smoke samples");
+            if (maxPossession > 85.0) {
+                ++highPossessionSamples;
+            }
+            const int combinedPasses =
+                result.homeStats.passesAttempted + result.awayStats.passesAttempted;
+            if (combinedPasses >= 1800) {
+                std::cerr << "detailed pass volume guardrail sample seed=" << (0x9300ULL + seed)
+                    << " combinedPasses=" << combinedPasses
+                    << " homePasses=" << result.homeStats.passesAttempted
+                    << " awayPasses=" << result.awayStats.passesAttempted
+                    << " homePossession=" << result.homeStats.possessionShare
+                    << " awayPossession=" << result.awayStats.possessionShare
+                    << " homeShots=" << result.homeStats.shots
+                    << " awayShots=" << result.awayStats.shots
+                    << '\n';
+            }
+            require(combinedPasses < 1800,
+                "detailed coordinate combined pass volume should stay playable");
+            totalCarryTraces += traceCountFor(result, MatchTraceKind::Carry);
+            totalShotTraces += traceCountFor(result, MatchTraceKind::Shot);
+
             for (const MatchTeamSimulationStats* stats : { &result.homeStats, &result.awayStats }) {
                 require(stats->passesAttempted > 0, "detailed coordinate match should attempt passes");
                 const double accuracy = passAccuracyFor(*stats);
-                require(accuracy >= 0.45 && accuracy <= 0.995,
-                    "detailed coordinate pass accuracy should stay in a broad sane range");
-                if (stats->expectedGoals > 14.0) {
-                    const auto traceCount = [&result](MatchTraceKind kind) {
-                        return std::count_if(
-                            result.traceFrames.begin(),
-                            result.traceFrames.end(),
-                            [kind](const MatchTraceFrame& frame) {
-                                return frame.kind == kind;
-                            });
-                    };
-                    std::cerr << "detailed xG guardrail sample seed=" << (0x9300ULL + seed)
-                        << " team=" << stats->teamId
-                        << " xg=" << stats->expectedGoals
-                        << " shots=" << stats->shots
-                        << " passes=" << stats->passesAttempted
-                        << " completed=" << stats->passesCompleted
-                        << " tracePass=" << traceCount(MatchTraceKind::Pass)
-                        << " traceThrough=" << traceCount(MatchTraceKind::ThroughBall)
-                        << " traceCross=" << traceCount(MatchTraceKind::LowCross)
-                        << " traceCutback=" << traceCount(MatchTraceKind::Cutback)
-                        << " traceCarry=" << traceCount(MatchTraceKind::Carry)
-                        << " traceShot=" << traceCount(MatchTraceKind::Shot)
+                if (accuracy < 0.45 || accuracy > 0.95) {
+                    std::cerr << "detailed pass accuracy guardrail sample seed=" << (0x9300ULL + seed)
+                        << " homePasses=" << result.homeStats.passesCompleted
+                        << "/" << result.homeStats.passesAttempted
+                        << " awayPasses=" << result.awayStats.passesCompleted
+                        << "/" << result.awayStats.passesAttempted
+                        << " homeAccuracy=" << passAccuracyFor(result.homeStats)
+                        << " awayAccuracy=" << passAccuracyFor(result.awayStats)
+                        << " homePossession=" << result.homeStats.possessionShare
+                        << " awayPossession=" << result.awayStats.possessionShare
+                        << " homeShots=" << result.homeStats.shots
+                        << " awayShots=" << result.awayStats.shots
+                        << " homeXg=" << result.homeStats.expectedGoals
+                        << " awayXg=" << result.awayStats.expectedGoals
                         << '\n';
                 }
-                require(stats->expectedGoals <= 14.0,
-                    "detailed coordinate team xG should not regularly reach extreme values");
+                require(accuracy >= 0.45 && accuracy <= 0.95,
+                    "detailed coordinate pass accuracy should stay in a broad sane range");
+                require(stats->passesAttempted < 1400,
+                    "detailed coordinate team pass volume should not reach runaway totals");
+                if (stats->passesAttempted > 900) {
+                    ++highPassTeamSamples;
+                }
+                if (stats->expectedGoals > 6.0) {
+                    if (highXgTeamSamples == 0) {
+                        firstHighXgSeed = 0x9300ULL + seed;
+                        firstHighXgHomeStats = result.homeStats;
+                        firstHighXgAwayStats = result.awayStats;
+                    }
+                    ++highXgTeamSamples;
+                }
+                if (stats->shots > 0 && stats->expectedGoals / static_cast<double>(stats->shots) > 0.25) {
+                    ++highAverageXgSamples;
+                }
+                totalShots += stats->shots;
+                totalPasses += stats->passesAttempted;
                 require(stats->fouls == 0 && stats->corners == 0,
                     "detailed coordinate fouls/corners should remain placeholders until modeled");
             }
@@ -1268,6 +1366,45 @@ namespace {
             "detailed coordinate possession-created goals should be able to record assists");
         require(goalScorerRatingSamples > 0,
             "detailed coordinate goal scorers should receive a visible rating lift");
+        require(highPossessionSamples <= 1,
+            "detailed coordinate possession should not commonly exceed 85 percent");
+        require(highPassTeamSamples <= 2,
+            "detailed coordinate pass volume above 900 should be rare in smoke samples");
+        if (highXgTeamSamples > 1) {
+            std::cerr << "detailed xG guardrail summary"
+                << " highXgTeamSamples=" << highXgTeamSamples
+                << " firstSeed=" << firstHighXgSeed
+                << " homeShots=" << firstHighXgHomeStats.shots
+                << " awayShots=" << firstHighXgAwayStats.shots
+                << " homeXg=" << firstHighXgHomeStats.expectedGoals
+                << " awayXg=" << firstHighXgAwayStats.expectedGoals
+                << " homeXgPerShot="
+                << (firstHighXgHomeStats.shots > 0
+                    ? firstHighXgHomeStats.expectedGoals / static_cast<double>(firstHighXgHomeStats.shots)
+                    : 0.0)
+                << " awayXgPerShot="
+                << (firstHighXgAwayStats.shots > 0
+                    ? firstHighXgAwayStats.expectedGoals / static_cast<double>(firstHighXgAwayStats.shots)
+                    : 0.0)
+                << " homePossession=" << firstHighXgHomeStats.possessionShare
+                << " awayPossession=" << firstHighXgAwayStats.possessionShare
+                << " homePasses=" << firstHighXgHomeStats.passesCompleted
+                << "/" << firstHighXgHomeStats.passesAttempted
+                << " awayPasses=" << firstHighXgAwayStats.passesCompleted
+                << "/" << firstHighXgAwayStats.passesAttempted
+                << " totalShots=" << totalShots
+                << '\n';
+        }
+        require(highXgTeamSamples <= 1,
+            "detailed coordinate team xG above 6 should be rare in smoke samples");
+        require(highAverageXgSamples <= 2,
+            "detailed coordinate average xG per shot should not commonly be inflated");
+        require(totalShots > 0 && totalShotTraces > 0,
+            "detailed coordinate samples should include terminal shot actions");
+        require(totalCarryTraces > 0,
+            "detailed coordinate samples should include carry actions without suppressing shots");
+        require(totalPasses > totalShots,
+            "detailed coordinate samples should retain passing without becoming only shots");
     }
 
     void runInvalidInputSmoke() {

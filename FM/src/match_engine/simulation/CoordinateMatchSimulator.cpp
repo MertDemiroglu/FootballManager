@@ -855,6 +855,7 @@ namespace {
         PlayerId playerId,
         TeamId teamId,
         PitchPoint position) {
+        const TeamId previousTeam = state.possession.teamInPossession;
         clearBallFlags(state);
 
         PlayerSimState* controller = findPlayerState(state, playerId);
@@ -871,8 +872,13 @@ namespace {
         state.ball.trajectory = std::nullopt;
         state.possession.teamInPossession = teamId;
         state.possession.ballCarrierId = playerId;
-        state.possession.possessionStartSecond = state.currentSecond;
-        state.possession.isTransition = true;
+        if (previousTeam != teamId) {
+            state.possession.possessionStartSecond = state.currentSecond;
+            state.possession.actionDepth = 0;
+            state.possession.isTransition = true;
+        } else {
+            state.possession.isTransition = false;
+        }
     }
 
     void setLooseBall(MatchSimulationState& state, PitchPoint position) {

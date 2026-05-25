@@ -344,13 +344,13 @@ namespace {
         if (role == FormationSlotRole::Striker && currentProgress < 0.42) {
             risk += profile.deepCarryPenalty;
         }
-        if (targetProgress > 0.86) {
-            double deepFinalThirdRisk = (targetProgress - 0.86) * 180.0;
+        if (targetProgress > 0.78) {
+            double deepFinalThirdRisk = (targetProgress - 0.78) * 260.0;
             if (role == FormationSlotRole::AttackingMidfielder
                 || role == FormationSlotRole::LeftWinger
                 || role == FormationSlotRole::RightWinger
                 || role == FormationSlotRole::Striker) {
-                deepFinalThirdRisk *= 0.62;
+                deepFinalThirdRisk *= 0.80;
             }
             risk += deepFinalThirdRisk;
         }

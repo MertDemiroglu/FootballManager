@@ -120,7 +120,13 @@ PR89 introduces `decision/CarryOptionEvaluator` and `decision/ShotDecisionEvalua
 
 `ShotDecisionEvaluator` evaluates open-play shot desire separately from shot conversion. It uses `ShotQualityModel` for estimated open-play xG and then scores whether the current player wants to shoot based on xG, distance, real goal angle, pressure, role, Shooting, Technique, Composure, Decisions, mentality, tempo, and pitch zone. `ShotQualityModel` remains the chance-quality model: it answers how valuable the shot location/context is. `ShotDecisionEvaluator` answers whether this player should select the shot as an action. Goal conversion remains in the simulator's shot/save flow.
 
-The selector remains weighted and deterministic. Evaluators only score options; `ActionSelector` still turns candidate scores into a deterministic weighted choice where higher scores are more likely, better Decisions sharpen selection, lower Decisions allow more variance, and the top score is not automatically chosen.
+Candidate scores now share a common action scale before reaching `ActionSelector`: 10-20 is a weak or rare option, 25-40 is viable, 40-60 is strong, and 60+ is very strong and should be uncommon. Evaluator-native scores are normalized inside `ActionCandidateGenerator` so safe passes, carries, and shots mean comparable things. This normalization matters because `ActionSelector` uses `pow(finalScore, sharpness)`: a safe pass sitting at 75 while a good shot sits at 20 turns into a huge selection mismatch after sharpness is applied.
+
+The generator also applies a small possession progression urgency from `PossessionState::actionDepth`. As a possession gets longer, hold, back pass, safe pass, and safe carry scores are nudged down, while valid progressive passes, wide/final-third passes, progressive carries, dribbles, and shots are nudged up. Defensive or low-tempo teams build this urgency more slowly; attacking or high-tempo teams build it faster. This remains a bias, not a forced shot or full `ActionPlan`.
+
+`ShotQualityModel` was made more conservative while remaining separate from shot desire. It now produces lower open-play xG for average shots, caps extreme open-play chances lower, and leaves `ShotDecisionEvaluator` to decide whether role, attributes, pressure, and tactics make the player want the shot.
+
+The selector remains weighted and deterministic. Evaluators only score options; `ActionSelector` still turns normalized candidate scores into a deterministic weighted choice where higher scores are more likely, better Decisions sharpen selection, lower Decisions allow more variance, and the top score is not automatically chosen.
 
 PR90 should deepen pressing and marking interaction around these option scores. PR91 should add full `ActionPlan` and reassessment behavior so carry plans can be revisited as the player enters new zones, pressure changes, or passing/shooting windows open.
 

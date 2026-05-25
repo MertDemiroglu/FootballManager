@@ -204,18 +204,18 @@ namespace {
 
     double xgDesire(double xg) {
         if (xg < 0.03) {
-            return 2.0 + xg * 80.0;
+            return 8.0 + xg * 300.0;
         }
         if (xg < 0.08) {
-            return 8.0 + (xg - 0.03) * 260.0;
+            return 14.0 + (xg - 0.03) * 220.0;
         }
         if (xg < 0.18) {
-            return 24.0 + (xg - 0.08) * 260.0;
+            return 25.0 + (xg - 0.08) * 155.0;
         }
         if (xg < 0.30) {
-            return 52.0 + (xg - 0.18) * 210.0;
+            return 43.0 + (xg - 0.18) * 135.0;
         }
-        return std::min(92.0, 78.0 + (xg - 0.30) * 130.0);
+        return std::min(72.0, 60.0 + (xg - 0.30) * 65.0);
     }
 
     bool isDefensiveRole(FormationSlotRole role) {
@@ -226,6 +226,15 @@ namespace {
             || role == FormationSlotRole::LeftWingBack
             || role == FormationSlotRole::RightWingBack
             || role == FormationSlotRole::DefensiveMidfielder;
+    }
+
+    bool isAttackingShotRole(FormationSlotRole role) {
+        return role == FormationSlotRole::AttackingMidfielder
+            || role == FormationSlotRole::LeftMidfielder
+            || role == FormationSlotRole::RightMidfielder
+            || role == FormationSlotRole::LeftWinger
+            || role == FormationSlotRole::RightWinger
+            || role == FormationSlotRole::Striker;
     }
 }
 
@@ -244,15 +253,20 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
         context.carrierPressure);
     const TacticalZone zone =
         tacticalZoneForPoint(context.ballPosition, context.attackingDirection);
+    const bool attackingThird = isAttackingThird(zone);
+    const bool weakShotAllowed =
+        xg >= 0.015
+        && attackingThird
+        && isAttackingShotRole(context.carrierRole)
+        && context.tacticalSetup.mentality == TeamMentality::Attacking;
 
-    const bool highValueChance = xg >= 0.18;
-    if (xg < 0.03 && !highValueChance) {
+    if (xg < 0.025 && !weakShotAllowed) {
         return output;
     }
-    if (!isAttackingThird(zone) && xg < 0.18) {
+    if (!attackingThird && xg < 0.18) {
         return output;
     }
-    if (isDefensiveRole(context.carrierRole) && xg < 0.12) {
+    if (isDefensiveRole(context.carrierRole) && xg < 0.10) {
         return output;
     }
 
@@ -267,50 +281,40 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
         std::clamp(context.carrierPressure * tuning.pressurePenaltyScale, 0.0, 100.0);
     const bool weakShot = xg < 0.08;
 
-    double score = 3.0 * tuning.openPlayShotBaseline
-        + xgDesire(xg) * 0.25
-        + distanceScore * 0.06
-        + angleScore * 0.04
-        + shooter * 0.04
-        - pressurePenalty * 0.32 / std::clamp(role.riskTolerance, 0.45, 1.35);
+    double score = xgDesire(xg) * tuning.openPlayShotBaseline
+        + (distanceScore - 50.0) * 0.05
+        + (angleScore - 20.0) * 0.04
+        + (shooter - 55.0) * 0.08
+        - pressurePenalty * 0.16 / std::clamp(role.riskTolerance, 0.45, 1.35);
 
-    score *= role.shotBias;
+    score *= std::clamp(1.0 + (role.shotBias - 1.0) * 0.38, 0.45, 1.18);
     if (distance > 24.0) {
-        score *= role.longShotBias;
+        score *= std::clamp(1.0 + (role.longShotBias - 1.0) * 0.50, 0.35, 1.08);
     }
-    score *= tactics.shotBias;
+    score *= std::clamp(1.0 + (tactics.shotBias - 1.0) * 0.45, 0.75, 1.16);
     if (weakShot) {
-        score *= tactics.weakShotBias;
-    }
-    if (isDefensiveRole(context.carrierRole) && distance > 18.0) {
-        score -= 18.0;
+        score *= std::clamp(1.0 + (tactics.weakShotBias - 1.0) * 0.65, 0.62, 1.18);
     }
     const bool defensiveShooter = isDefensiveRole(context.carrierRole);
-    if (xg >= 0.30) {
-        score = std::min(score, defensiveShooter ? 16.0 : 20.0);
-    } else if (xg >= 0.18) {
-        score = defensiveShooter
-            ? std::min(score, 15.0)
-            : std::clamp(score, 18.0, 24.0);
-    } else if (xg >= 0.08) {
-        score = defensiveShooter
-            ? std::min(score, 12.0)
-            : std::clamp(score, 16.0, 22.0);
-    } else {
-        score = std::min(score, 22.0);
+    if (defensiveShooter && distance > 22.0 && xg < 0.18) {
+        return output;
     }
+    if (defensiveShooter && xg < 0.20) {
+        score *= 0.58;
+    }
+
     ShotOption option;
     option.kind = ShotOptionKind::OpenPlayShot;
     option.actionType = BallCarrierActionType::Shoot;
     option.targetPoint = goalCenterFor(context.attackingDirection);
-    option.score = clampScore(score);
+    option.score = std::clamp(score, 0.0, 75.0);
     option.estimatedXG = xg;
     option.angleScore = angleScore;
     option.distanceScore = distanceScore;
     option.pressurePenalty = pressurePenalty;
     option.shooterConfidence = shooter;
 
-    if (option.score >= 5.0 || xg >= 0.18) {
+    if (option.score >= 8.0 || xg >= 0.18) {
         output.push_back(option);
     }
     return output;
