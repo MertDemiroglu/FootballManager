@@ -1364,6 +1364,8 @@ namespace {
 
         const std::vector<ActionCandidate> candidates = generator.generate(
             ActionCandidateGenerationRequest{
+                carrierSnapshot,
+                snapshotForTeam(input, opponentState->teamId),
                 *carrier,
                 state.ball,
                 state,

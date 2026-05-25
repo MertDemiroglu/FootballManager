@@ -1,5 +1,7 @@
 #include"fm/match_engine/decision/ActionCandidateGenerator.h"
 
+#include"fm/match_engine/decision/PassOptionEvaluator.h"
+
 #include<algorithm>
 #include<cmath>
 #include<limits>
@@ -12,14 +14,6 @@ namespace {
 
     double directionSign(AttackingDirection direction) {
         return direction == AttackingDirection::HomeToAway ? 1.0 : -1.0;
-    }
-
-    bool isAhead(PitchPoint from, PitchPoint to, AttackingDirection direction) {
-        return (to.x - from.x) * directionSign(direction) > 1.0;
-    }
-
-    bool isBehind(PitchPoint from, PitchPoint to, AttackingDirection direction) {
-        return (to.x - from.x) * directionSign(direction) < -1.0;
     }
 
     PitchPoint advanceTarget(PitchPoint position, AttackingDirection direction, double meters) {
@@ -35,25 +29,9 @@ namespace {
             : PitchGeometry::homeGoalCenter();
     }
 
-    PitchPoint lowCrossTarget(AttackingDirection direction) {
-        const double x = direction == AttackingDirection::HomeToAway
-            ? PitchGeometry::LengthMeters - 11.0
-            : 11.0;
-
-        return PitchPoint{ x, PitchGeometry::WidthMeters / 2.0 };
-    }
-
     bool isWide(PitchPoint point) {
         return point.y <= PitchGeometry::WidthMeters * 0.22
             || point.y >= PitchGeometry::WidthMeters * 0.78;
-    }
-
-    bool isFinalThird(PitchPoint point, AttackingDirection direction) {
-        if (direction == AttackingDirection::HomeToAway) {
-            return point.x >= PitchGeometry::LengthMeters * 0.66;
-        }
-
-        return point.x <= PitchGeometry::LengthMeters * 0.34;
     }
 
     bool isNearOpponentBox(PitchPoint point, AttackingDirection direction) {
@@ -106,119 +84,19 @@ namespace {
         return opponents.empty() ? 0.0 : 3.0;
     }
 
-    const PlayerSimState* nearestTeammate(
-        const ActionCandidateGenerationRequest& request,
-        bool requireBehind,
-        bool requireAhead) {
-        const PlayerSimState* best = nullptr;
-        double bestDistance = std::numeric_limits<double>::max();
+    FormationSlotRole assignedRoleFor(const MatchTeamSnapshot* teamSnapshot, PlayerId playerId) {
+        if (teamSnapshot == nullptr) {
+            return FormationSlotRole::Unknown;
+        }
 
-        for (const PlayerSimState& teammate : request.teammates) {
-            if (teammate.playerId == request.ballCarrier.playerId) {
-                continue;
-            }
-
-            if (requireBehind
-                && !isBehind(
-                    request.ballCarrier.position,
-                    teammate.position,
-                    request.teamShapeContext.attackingDirection)) {
-                continue;
-            }
-
-            if (requireAhead
-                && !isAhead(
-                    request.ballCarrier.position,
-                    teammate.position,
-                    request.teamShapeContext.attackingDirection)) {
-                continue;
-            }
-
-            const double distance =
-                PitchGeometry::distance(request.ballCarrier.position, teammate.position);
-            if (distance < bestDistance) {
-                best = &teammate;
-                bestDistance = distance;
+        for (const TeamSheetSlotAssignment& assignment : teamSnapshot->teamSheet.startingAssignments) {
+            if (assignment.playerId == playerId) {
+                return assignment.slotRole;
             }
         }
 
-        return best;
+        return FormationSlotRole::Unknown;
     }
-
-    double distancePointToSegment(PitchPoint point, PitchPoint a, PitchPoint b) {
-        const double dx = b.x - a.x;
-        const double dy = b.y - a.y;
-        const double lengthSquared = dx * dx + dy * dy;
-        if (lengthSquared <= 0.001) {
-            return PitchGeometry::distance(point, a);
-        }
-
-        const double t = std::clamp(
-            (((point.x - a.x) * dx) + ((point.y - a.y) * dy)) / lengthSquared,
-            0.0,
-            1.0);
-        return PitchGeometry::distance(point, PitchPoint{ a.x + dx * t, a.y + dy * t });
-    }
-
-    double laneRisk(
-        PitchPoint from,
-        PitchPoint to,
-        const std::vector<PlayerSimState>& opponents) {
-        double risk = 0.0;
-        for (const PlayerSimState& opponent : opponents) {
-            const double pathDistance = distancePointToSegment(opponent.position, from, to);
-            if (pathDistance <= 3.0) {
-                risk += 18.0;
-            } else if (pathDistance <= 5.0) {
-                risk += 9.0;
-            } else if (pathDistance <= 8.0) {
-                risk += 3.0;
-            }
-        }
-        return std::min(32.0, risk);
-    }
-
-    std::vector<const PlayerSimState*> rankedTeammates(
-        const ActionCandidateGenerationRequest& request,
-        bool requireBehind,
-        bool requireAhead,
-        std::size_t limit) {
-        std::vector<const PlayerSimState*> candidates;
-        for (const PlayerSimState& teammate : request.teammates) {
-            if (teammate.playerId == request.ballCarrier.playerId) {
-                continue;
-            }
-            if (requireBehind
-                && !isBehind(
-                    request.ballCarrier.position,
-                    teammate.position,
-                    request.teamShapeContext.attackingDirection)) {
-                continue;
-            }
-            if (requireAhead
-                && !isAhead(
-                    request.ballCarrier.position,
-                    teammate.position,
-                    request.teamShapeContext.attackingDirection)) {
-                continue;
-            }
-            candidates.push_back(&teammate);
-        }
-
-        std::sort(
-            candidates.begin(),
-            candidates.end(),
-            [&request](const PlayerSimState* lhs, const PlayerSimState* rhs) {
-                return PitchGeometry::distance(request.ballCarrier.position, lhs->position)
-                    < PitchGeometry::distance(request.ballCarrier.position, rhs->position);
-            });
-
-        if (candidates.size() > limit) {
-            candidates.resize(limit);
-        }
-        return candidates;
-    }
-
     double mentalitySafeBonus(TeamMentality mentality) {
         return mentality == TeamMentality::Defensive ? 10.0 : 0.0;
     }
@@ -236,17 +114,6 @@ namespace {
             bonus += 5.0;
         }
 
-        return bonus;
-    }
-
-    double shortPassingBonus(const TacticalSetup& tacticalSetup) {
-        double bonus = 0.0;
-        if (tacticalSetup.passingDirectness == PassingDirectness::Short) {
-            bonus += 8.0;
-        }
-        if (tacticalSetup.tempo == TeamTempo::Low) {
-            bonus += 4.0;
-        }
         return bonus;
     }
 
@@ -271,6 +138,20 @@ namespace {
             tacticalScore + contextScore + skillConfidenceScore - pressurePenalty);
         return candidate;
     }
+
+    ActionCandidate buildCandidateFromPassOption(const PassOption& option) {
+        ActionCandidate candidate;
+        candidate.type = option.actionType;
+        candidate.intendedTarget = PitchGeometry::clampToPitch(option.targetPoint);
+        candidate.targetPlayerId = option.targetPlayerId;
+        candidate.tacticalScore = option.score * 0.42;
+        candidate.contextScore = option.safetyScore * 0.22 + option.progressionScore * 0.18;
+        candidate.mentalScore = 0.0;
+        candidate.skillConfidenceScore = std::max(0.0, 22.0 - option.executionDifficulty * 0.20);
+        candidate.pressurePenalty = option.laneRisk * 0.12 + option.receiverPressure * 0.08;
+        candidate.finalScore = clampScore(option.score);
+        return candidate;
+    }
 }
 
 std::vector<ActionCandidate> ActionCandidateGenerator::generate(
@@ -281,6 +162,12 @@ std::vector<ActionCandidate> ActionCandidateGenerator::generate(
     const AttackingDirection direction = request.teamShapeContext.attackingDirection;
     const PitchPoint carrierPosition = request.ballCarrier.position;
     const double pressurePenalty = nearestOpponentPressure(carrierPosition, request.opponents);
+    const TeamSimState* requestTeamState =
+        findTeamState(request.simulationState, request.ballCarrier.teamId);
+    const TeamSimState* requestOpponentState =
+        request.simulationState.homeTeam.teamId == request.ballCarrier.teamId
+            ? &request.simulationState.awayTeam
+            : &request.simulationState.homeTeam;
     const bool controlledBall =
         request.ballState.controlState == BallControlState::Controlled
         && request.ballState.carrierPlayerId == request.ballCarrier.playerId;
@@ -294,54 +181,21 @@ std::vector<ActionCandidate> ActionCandidateGenerator::generate(
         8.0,
         pressurePenalty * 0.45));
 
-    if (const PlayerSimState* backTarget = nearestTeammate(request, true, false)) {
-        const double risk = laneRisk(carrierPosition, backTarget->position, request.opponents);
-        candidates.push_back(buildCandidate(
-            BallCarrierActionType::BackPass,
-            backTarget->position,
-            backTarget->playerId,
-            34.0 + mentalitySafeBonus(tacticalSetup.mentality) + shortPassingBonus(tacticalSetup),
-            18.0,
-            10.0,
-            pressurePenalty * 0.25 + risk * 0.35));
-    }
-
-    const std::vector<const PlayerSimState*> supportTargets =
-        rankedTeammates(request, false, false, tacticalSetup.passingDirectness == PassingDirectness::Short ? 4 : 3);
-    for (const PlayerSimState* shortTarget : supportTargets) {
-        const double targetDistance = PitchGeometry::distance(carrierPosition, shortTarget->position);
-        const double risk = laneRisk(carrierPosition, shortTarget->position, request.opponents);
-        const bool ahead = isAhead(carrierPosition, shortTarget->position, direction);
-        if (targetDistance > 26.0 && tacticalSetup.passingDirectness != PassingDirectness::Direct) {
-            continue;
-        }
-        candidates.push_back(buildCandidate(
-            BallCarrierActionType::ShortPass,
-            shortTarget->position,
-            shortTarget->playerId,
-            30.0 + shortPassingBonus(tacticalSetup),
-            ahead ? 19.0 : 16.0,
-            std::clamp(14.0 - targetDistance * 0.10, 7.0, 14.0),
-            pressurePenalty * 0.35 + risk * 0.55));
-    }
-
-    const std::vector<const PlayerSimState*> progressiveTargets =
-        rankedTeammates(request, false, true, tacticalSetup.passingDirectness == PassingDirectness::Direct ? 3 : 2);
-    for (const PlayerSimState* target : progressiveTargets) {
-        const double targetDistance = PitchGeometry::distance(carrierPosition, target->position);
-        if (targetDistance < 10.0 || targetDistance > 34.0) {
-            continue;
-        }
-        const double risk = laneRisk(carrierPosition, target->position, request.opponents);
-        const bool direct = tacticalSetup.passingDirectness == PassingDirectness::Direct;
-        candidates.push_back(buildCandidate(
-            direct ? BallCarrierActionType::ThroughBall : BallCarrierActionType::ShortPass,
-            target->position,
-            target->playerId,
-            direct ? 26.0 + directProgressionBonus(tacticalSetup) : 24.0,
-            18.0 + std::min(8.0, targetDistance * 0.18),
-            9.0,
-            pressurePenalty * 0.45 + risk * (direct ? 0.65 : 0.55)));
+    const std::vector<PassOption> passOptions = PassOptionEvaluator{}.evaluate(
+        PassOptionEvaluationContext{
+            request.teamSnapshot,
+            request.opponentSnapshot,
+            requestTeamState,
+            requestOpponentState,
+            &request.ballCarrier,
+            assignedRoleFor(request.teamSnapshot, request.ballCarrier.playerId),
+            tacticalSetup,
+            carrierPosition,
+            direction,
+            pressurePenalty
+        });
+    for (const PassOption& option : passOptions) {
+        candidates.push_back(buildCandidateFromPassOption(option));
     }
 
     candidates.push_back(buildCandidate(
@@ -352,17 +206,6 @@ std::vector<ActionCandidate> ActionCandidateGenerator::generate(
         18.0,
         8.0,
         pressurePenalty * 0.7));
-
-    if (isWide(carrierPosition) && isFinalThird(carrierPosition, direction)) {
-        candidates.push_back(buildCandidate(
-            BallCarrierActionType::LowCross,
-            lowCrossTarget(direction),
-            0,
-            28.0 + mentalityAttackBonus(tacticalSetup.mentality),
-            tacticalSetup.width == TeamWidth::Wide ? 22.0 : 16.0,
-            10.0,
-            pressurePenalty * 0.55));
-    }
 
     if (isNearOpponentBox(carrierPosition, direction)) {
         const double goalDistance = distanceToOpponentGoal(carrierPosition, direction);

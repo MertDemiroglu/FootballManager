@@ -60,7 +60,7 @@ The first compile-time core type layer for the future engine includes:
 - the default playable coordinate match simulator
 - `FastMatchSummarySimulator` for scalable background fixtures
 
-These layers now power the default runtime match flow. `MatchEngine::simulate` uses copied snapshots and routes by `MatchSimulationDetail`: `BackgroundSummary` runs the fast aggregate coordinate summary, while `WatchedMatch` and `DebugFullTrace` run the full coordinate loop. The caller owns the detail policy: AI/background fixtures use `BackgroundSummary`; managed/user-visible matches, including fast-forwarded user matches, use `WatchedMatch`; developer diagnostics use `DebugFullTrace`. `PlayMatchCommandHandler` validates the returned `MatchReport` before passing it to `League::applyMatchReport`. If the coordinate report is missing or unsafe, the handler falls back to the lightweight `MatchSimulation`.
+These layers now power the default runtime match flow. `MatchEngine::simulate` uses copied snapshots and routes by `MatchSimulationDetail`: `BackgroundSummary` runs the fast aggregate summary runner, while `WatchedMatch` and `DebugFullTrace` run the full coordinate loop. Background and watched/debug share the same input contract and report contract, but they do not share the same internal runner or cost profile. The caller owns the detail policy: AI/background fixtures use `BackgroundSummary`; managed/user-visible matches, including fast-forwarded user matches, use `WatchedMatch`; developer diagnostics use `DebugFullTrace`. `PlayMatchCommandHandler` validates the returned `MatchReport` before passing it to `League::applyMatchReport`. If the coordinate report is missing or unsafe, the handler falls back to the lightweight `MatchSimulation`.
 
 `TacticalSetup` V1 now provides tactical input to both coordinate paths. Mentality, tempo, width, defensive line, and passing directness are used as first-pass inputs; tuning remains ongoing.
 
@@ -94,7 +94,19 @@ The shape model creates a base position from formation slot layout on the 105m x
 
 `PerceptionModel` now separates option existence from option awareness. It uses Vision, Decisions, Composure, Teamwork, pressure, ball-control difficulty, option quality, and a deterministic seed influence to answer whether the player notices an available option. The scoring is intentionally simple and is not tuned as real football behavior yet.
 
-`ActionCandidateGenerator` now produces a small, deterministic `BallCarrierActionType` candidate list from broad pitch context: hold, back pass, multiple support/progressive pass options, carry, low cross, shoot, and clear where appropriate. `BallCarrierActionType` represents only the decision made by the player currently controlling the ball. `PlayerIntentType` represents off-ball movement, pass reception, defensive shape, pressing/marking, loose-ball reaction, or emergency intent. The generator uses `PitchGeometry` for rough areas, lane-risk checks for obvious blocks, and light `TacticalSetup` hints for safe, direct, short, or attacking options. `ActionSelector` ranks candidates by score and chooses through weighted deterministic selection, with higher Decisions sharpening the choice toward stronger candidates, lower Decisions allowing more variance, and passing/shooting/carrying attributes nudging action choice without making outcomes deterministic.
+`ActionCandidateGenerator` now produces a small, deterministic `BallCarrierActionType` candidate list from broad pitch context: hold, multiple scored pass options, carry, shoot, and clear where appropriate. `BallCarrierActionType` represents only the decision made by the player currently controlling the ball. `PlayerIntentType` represents off-ball movement, pass reception, defensive shape, pressing/marking, loose-ball reaction, or emergency intent. Passing options are delegated to `PassOptionEvaluator`, while non-pass actions remain in the generator for now. `ActionSelector` ranks candidates by score and chooses through weighted deterministic selection, with higher Decisions sharpening the choice toward stronger candidates, lower Decisions allowing more variance, and passing/shooting/carrying attributes nudging action choice without making outcomes deterministic.
+
+## PR88 Passing Decision Layer
+
+PR88 introduces `decision/PassOptionEvaluator` as the first focused ball-carrier decision layer on top of the PR87 architecture. The evaluator creates scored pass options instead of relying on nearest-team-mate candidate generation inside `ActionCandidateGenerator`.
+
+The passing layer can evaluate safe passes, back passes, progressive passes, switches, through balls, crosses, and cutbacks when the pitch context supports them. Not every kind exists in every possession: crosses and cutbacks require suitable wide/final-third contexts, switches need a meaningful wide-side target, and through balls need a plausible receiver/run/space.
+
+Option scoring is influenced by passer Passing, Vision, Decisions, Technique, and Composure; the carrier's formation role and risk profile; tactical mentality, tempo, passing directness, and width; pressure on the carrier; receiver pressure; pass distance; lane risk; progression value; receiver role/zone; and the current pitch zone. Defensive and low-tempo setups increase safety and support circulation without forbidding progression. Attacking, direct, high-tempo, or wide setups raise progressive, through, switch, cross, and cutback desire without forcing low-quality choices every time.
+
+`ActionCandidateGenerator` now converts `PassOption` values into `ActionCandidate` values, while `ActionSelector` keeps the existing weighted deterministic selection model. Higher-scored pass options are more likely, but the best score is not guaranteed. Better Decisions sharpen the choice toward stronger options; lower Decisions leave more variance. Same input and same seed still produce the same selected behavior.
+
+The evaluator includes simple lane-risk and receiver-pressure estimates. Lane risk checks defenders near the segment from ball to target and accounts for distance/pass kind; receiver pressure checks nearest and nearby opponents. This is deliberately not a full pressing or marking overhaul. PR89 should move Carry and Shot decisions into comparable focused layers, and PR90 should deepen pressing/marking interaction.
 
 `BallTrajectoryBuilder` also exposes a deterministic deflected-ball trajectory helper. It creates a short `BallTrajectoryType::Deflection` path from contact point, incoming path, strength, start second, and seed, with a low or medium vertical profile based on deflection strength. It only produces a future trajectory DTO; it does not apply `BallState`, decide recovery, or change possession.
 
@@ -122,7 +134,7 @@ The simulator returns approximate possession, pass, shot, interception, expected
 
 The summary computes directional team strengths for attack, chance creation, finishing, defending, goalkeeper prevention, possession, tempo, pass volume, pass accuracy, corners, volatility, and risk. It then produces bounded deterministic shots, shots on target, expected goals, goals, possession, passing, corners, fouls, official goal events, scorer/assist player stats, minutes, and ratings. It does not emit marker trace or run the full movement/trajectory/contest loop, which keeps AI and multi-league fixtures cheap while preserving the same report schema as detailed coordinate matches.
 
-Background and watched modes therefore share the same input contract and report contract, but not the same cost profile. Watched/debug detail remains available for user-managed or explicitly watched matches; background runtime remains scalable by default.
+Background and watched/debug modes therefore share the same input contract and report contract, but not the same internal runner or cost profile. `BackgroundSummary` is the fast aggregate AI/background path. `WatchedMatch` and `DebugFullTrace` use the detailed coordinate simulator. User-managed, watched, or fast-forwarded matches should remain detailed coordinate unless a future explicit Instant Result option chooses summary.
 
 Fast summary tactical sensitivity is intentionally bounded but visible:
 
@@ -302,7 +314,7 @@ These fields are persisted with selected `TeamSheet` runtime state and now feed 
 
 `MarkingStyle` is intentionally not target selection yet. It will later influence whether defenders protect zones, combine zone and runner tracking, or follow opponents more tightly.
 
-`PassingDirectness` is intentionally not action scoring yet. It will later influence `ActionCandidate` generation and weighting for shorter support play, balanced progression, or more direct forward passes.
+`PassingDirectness` now influences pass option scoring through `PassOptionEvaluator`: short passing boosts safe support and back-pass circulation, balanced remains neutral, and direct passing raises progressive, through-ball, and switch-play desire while accepting more risk. It is still a first-pass decision weight, not a full tactical possession model.
 
 ## 6. Marking Style
 
