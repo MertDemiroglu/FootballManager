@@ -2,6 +2,9 @@
 #include"fm/match_engine/MatchEngineInputBuilder.h"
 #include"fm/match_engine/geometry/PitchGeometry.h"
 #include"fm/match_engine/ball/ShotQualityModel.h"
+#include"fm/match_engine/decision/ActionCandidateGenerator.h"
+#include"fm/match_engine/decision/ActionSelector.h"
+#include"fm/match_engine/decision/PassOptionEvaluator.h"
 #include"fm/competition/League.h"
 #include"fm/data/SqliteGameStateRepository.h"
 #include"fm/events/DomainEventPublisher.h"
@@ -174,6 +177,210 @@ namespace {
 
     bool containsPlayerId(const std::vector<PlayerId>& ids, PlayerId playerId) {
         return std::find(ids.begin(), ids.end(), playerId) != ids.end();
+    }
+
+    PlayerAttributes passDecisionAttributes(int passing, int vision, int decisions) {
+        PlayerAttributes attributes;
+        attributes.technical.passing = passing;
+        attributes.technical.technique = std::max(35, passing - 4);
+        attributes.technical.crossing = std::max(30, passing - 6);
+        attributes.technical.dribbling = 55;
+        attributes.technical.shooting = 50;
+        attributes.mental.vision = vision;
+        attributes.mental.decisions = decisions;
+        attributes.mental.composure = std::max(35, decisions - 2);
+        attributes.mental.offTheBall = 58;
+        attributes.physical.pace = 62;
+        attributes.physical.acceleration = 62;
+        attributes.physical.agility = 58;
+        return attributes;
+    }
+
+    struct PassDecisionFixture {
+        MatchTeamSnapshot teamSnapshot;
+        MatchTeamSnapshot opponentSnapshot;
+        TeamSimState teamState;
+        TeamSimState opponentState;
+        PlayerSimState carrier;
+        TacticalSetup tactics;
+        FormationSlotRole carrierRole = FormationSlotRole::CentralMidfielder;
+        AttackingDirection direction = AttackingDirection::HomeToAway;
+    };
+
+    void addPassDecisionPlayer(
+        PassDecisionFixture& fixture,
+        PlayerId playerId,
+        PitchPoint position,
+        FormationSlotRole role,
+        const PlayerAttributes& attributes) {
+        fixture.teamState.players.push_back(PlayerSimState{
+            playerId,
+            fixture.teamState.teamId,
+            TeamSide::Home,
+            position,
+            position,
+            PlayerIntent{},
+            playerId == fixture.carrier.playerId,
+            0.0,
+            6.8,
+            7.1,
+            65
+        });
+        fixture.teamSnapshot.players.push_back(MatchPlayerSnapshot{
+            playerId,
+            fixture.teamState.teamId,
+            PlayerPosition::Unknown,
+            attributes,
+            PlayerConditionState{},
+            65,
+            65
+        });
+        fixture.teamSnapshot.teamSheet.startingAssignments.push_back(TeamSheetSlotAssignment{
+            fixture.teamSnapshot.teamSheet.startingAssignments.size(),
+            role,
+            playerId
+        });
+    }
+
+    void addPassDecisionOpponent(
+        PassDecisionFixture& fixture,
+        PlayerId playerId,
+        PitchPoint position) {
+        fixture.opponentState.players.push_back(PlayerSimState{
+            playerId,
+            fixture.opponentState.teamId,
+            TeamSide::Away,
+            position,
+            position,
+            PlayerIntent{},
+            false,
+            0.0,
+            6.8,
+            7.1,
+            64
+        });
+        fixture.opponentSnapshot.players.push_back(MatchPlayerSnapshot{
+            playerId,
+            fixture.opponentState.teamId,
+            PlayerPosition::Unknown,
+            passDecisionAttributes(55, 55, 55),
+            PlayerConditionState{},
+            64,
+            64
+        });
+    }
+
+    PassDecisionFixture buildPassDecisionFixture(
+        FormationSlotRole carrierRole,
+        PlayerAttributes carrierAttributes,
+        TacticalSetup tactics = TacticalSetup{},
+        PitchPoint carrierPosition = PitchPoint{ 35.0, 34.0 }) {
+        PassDecisionFixture fixture;
+        fixture.teamSnapshot.teamId = 501;
+        fixture.teamSnapshot.teamName = "Pass Decision Home";
+        fixture.teamSnapshot.tacticalSetup = tactics;
+        fixture.teamSnapshot.teamSheet.teamId = 501;
+        fixture.teamSnapshot.teamSheet.tacticalSetup = tactics;
+        fixture.opponentSnapshot.teamId = 502;
+        fixture.opponentSnapshot.teamName = "Pass Decision Away";
+        fixture.opponentSnapshot.teamSheet.teamId = 502;
+        fixture.teamState.teamId = 501;
+        fixture.teamState.side = TeamSide::Home;
+        fixture.teamState.tacticalSetup = tactics;
+        fixture.opponentState.teamId = 502;
+        fixture.opponentState.side = TeamSide::Away;
+        fixture.carrierRole = carrierRole;
+        fixture.tactics = tactics;
+        fixture.carrier = PlayerSimState{
+            1,
+            501,
+            TeamSide::Home,
+            carrierPosition,
+            carrierPosition,
+            PlayerIntent{},
+            true,
+            0.0,
+            6.8,
+            7.1,
+            66
+        };
+
+        addPassDecisionPlayer(fixture, 1, carrierPosition, carrierRole, carrierAttributes);
+        addPassDecisionPlayer(
+            fixture,
+            2,
+            PitchPoint{ carrierPosition.x - 7.0, carrierPosition.y - 8.0 },
+            FormationSlotRole::DefensiveMidfielder,
+            passDecisionAttributes(62, 58, 60));
+        addPassDecisionPlayer(
+            fixture,
+            3,
+            PitchPoint{ carrierPosition.x + 30.0, carrierPosition.y },
+            FormationSlotRole::AttackingMidfielder,
+            passDecisionAttributes(66, 64, 63));
+        addPassDecisionPlayer(
+            fixture,
+            4,
+            PitchPoint{ carrierPosition.x + 18.0, 60.0 },
+            FormationSlotRole::RightWinger,
+            passDecisionAttributes(66, 63, 62));
+        addPassDecisionPlayer(
+            fixture,
+            5,
+            PitchPoint{ carrierPosition.x + 36.0, 33.0 },
+            FormationSlotRole::Striker,
+            passDecisionAttributes(60, 58, 60));
+
+        addPassDecisionOpponent(fixture, 101, PitchPoint{ carrierPosition.x + 8.0, carrierPosition.y + 12.0 });
+        addPassDecisionOpponent(fixture, 102, PitchPoint{ carrierPosition.x + 19.0, carrierPosition.y - 13.0 });
+        addPassDecisionOpponent(fixture, 103, PitchPoint{ carrierPosition.x + 38.0, carrierPosition.y + 10.0 });
+        return fixture;
+    }
+
+    std::vector<PassOption> evaluatePassFixture(const PassDecisionFixture& fixture) {
+        return PassOptionEvaluator{}.evaluate(PassOptionEvaluationContext{
+            &fixture.teamSnapshot,
+            &fixture.opponentSnapshot,
+            &fixture.teamState,
+            &fixture.opponentState,
+            &fixture.carrier,
+            fixture.carrierRole,
+            fixture.tactics,
+            fixture.carrier.position,
+            fixture.direction,
+            8.0
+        });
+    }
+
+    double bestScoreForKind(const std::vector<PassOption>& options, PassOptionKind kind) {
+        double best = 0.0;
+        for (const PassOption& option : options) {
+            if (option.kind == kind) {
+                best = std::max(best, option.score);
+            }
+        }
+        return best;
+    }
+
+    int countKind(const std::vector<PassOption>& options, PassOptionKind kind) {
+        return static_cast<int>(std::count_if(
+            options.begin(),
+            options.end(),
+            [kind](const PassOption& option) {
+                return option.kind == kind;
+            }));
+    }
+
+    const PassOption* findOptionForTarget(
+        const std::vector<PassOption>& options,
+        PassOptionKind kind,
+        PlayerId targetPlayerId) {
+        for (const PassOption& option : options) {
+            if (option.kind == kind && option.targetPlayerId == targetPlayerId) {
+                return &option;
+            }
+        }
+        return nullptr;
     }
 
     void runShotQualityModelSmoke() {
@@ -463,6 +670,215 @@ namespace {
             "stronger team should usually show better possession or chance control");
     }
 
+    void runPassOptionEvaluatorSmoke() {
+        TacticalSetup defensive;
+        defensive.mentality = TeamMentality::Defensive;
+        defensive.passingDirectness = PassingDirectness::Short;
+        defensive.tempo = TeamTempo::Low;
+        const PassDecisionFixture defenderFixture = buildPassDecisionFixture(
+            FormationSlotRole::CenterBack,
+            passDecisionAttributes(68, 64, 66),
+            defensive);
+        const std::vector<PassOption> defenderOptions = evaluatePassFixture(defenderFixture);
+        require(!defenderOptions.empty(), "pass evaluator should create options for a center back");
+        const double defenderSafe =
+            std::max(bestScoreForKind(defenderOptions, PassOptionKind::SafePass),
+                bestScoreForKind(defenderOptions, PassOptionKind::BackPass));
+        const double defenderProgressive =
+            std::max(bestScoreForKind(defenderOptions, PassOptionKind::ProgressivePass),
+                bestScoreForKind(defenderOptions, PassOptionKind::ThroughBall));
+        require(defenderSafe > defenderProgressive,
+            "defensive center back should prefer safe/support pass options");
+        require(defenderProgressive > 0.0,
+            "defensive center back should still retain a progressive pass chance");
+
+        const PassDecisionFixture goodMidfielder = buildPassDecisionFixture(
+            FormationSlotRole::CentralMidfielder,
+            passDecisionAttributes(82, 84, 80));
+        const PassDecisionFixture poorMidfielder = buildPassDecisionFixture(
+            FormationSlotRole::CentralMidfielder,
+            passDecisionAttributes(28, 26, 30));
+        const std::vector<PassOption> goodOptions = evaluatePassFixture(goodMidfielder);
+        const std::vector<PassOption> poorOptions = evaluatePassFixture(poorMidfielder);
+        require(countKind(goodOptions, PassOptionKind::ProgressivePass)
+                >= countKind(poorOptions, PassOptionKind::ProgressivePass),
+            "good passer should identify at least as many progressive options as poor passer");
+        require(bestScoreForKind(goodOptions, PassOptionKind::ProgressivePass)
+                > bestScoreForKind(poorOptions, PassOptionKind::ProgressivePass),
+            "good passer should score progressive options above poor passer");
+
+        TacticalSetup shortLow;
+        shortLow.passingDirectness = PassingDirectness::Short;
+        shortLow.tempo = TeamTempo::Low;
+        TacticalSetup directHigh;
+        directHigh.passingDirectness = PassingDirectness::Direct;
+        directHigh.tempo = TeamTempo::High;
+        const std::vector<PassOption> shortLowOptions = evaluatePassFixture(buildPassDecisionFixture(
+            FormationSlotRole::CentralMidfielder,
+            passDecisionAttributes(74, 76, 74),
+            shortLow));
+        const std::vector<PassOption> directHighOptions = evaluatePassFixture(buildPassDecisionFixture(
+            FormationSlotRole::CentralMidfielder,
+            passDecisionAttributes(74, 76, 74),
+            directHigh));
+        const double shortSafe =
+            bestScoreForKind(shortLowOptions, PassOptionKind::SafePass)
+            + bestScoreForKind(shortLowOptions, PassOptionKind::BackPass);
+        const double directSafe =
+            bestScoreForKind(directHighOptions, PassOptionKind::SafePass)
+            + bestScoreForKind(directHighOptions, PassOptionKind::BackPass);
+        const double shortProgressive =
+            bestScoreForKind(shortLowOptions, PassOptionKind::ProgressivePass)
+            + bestScoreForKind(shortLowOptions, PassOptionKind::ThroughBall)
+            + bestScoreForKind(shortLowOptions, PassOptionKind::SwitchPlay);
+        const double directProgressive =
+            bestScoreForKind(directHighOptions, PassOptionKind::ProgressivePass)
+            + bestScoreForKind(directHighOptions, PassOptionKind::ThroughBall)
+            + bestScoreForKind(directHighOptions, PassOptionKind::SwitchPlay);
+        require(shortSafe > directSafe,
+            "short low-tempo tactics should increase safe/support pass preference");
+        require(directProgressive > shortProgressive,
+            "direct high-tempo tactics should increase progressive/through/switch preference");
+
+        TacticalSetup attackingWide;
+        attackingWide.mentality = TeamMentality::Attacking;
+        attackingWide.width = TeamWidth::Wide;
+        TacticalSetup defensiveWide = attackingWide;
+        defensiveWide.mentality = TeamMentality::Defensive;
+        defensiveWide.passingDirectness = PassingDirectness::Short;
+        PassDecisionFixture attackingFinalThird = buildPassDecisionFixture(
+            FormationSlotRole::RightWinger,
+            passDecisionAttributes(76, 74, 72),
+            attackingWide,
+            PitchPoint{ 82.0, 8.0 });
+        PassDecisionFixture defensiveFinalThird = buildPassDecisionFixture(
+            FormationSlotRole::RightWinger,
+            passDecisionAttributes(76, 74, 72),
+            defensiveWide,
+            PitchPoint{ 82.0, 8.0 });
+        addPassDecisionPlayer(
+            attackingFinalThird,
+            6,
+            PitchPoint{ 94.0, 34.0 },
+            FormationSlotRole::Striker,
+            passDecisionAttributes(66, 60, 62));
+        addPassDecisionPlayer(
+            attackingFinalThird,
+            7,
+            PitchPoint{ 76.0, 35.0 },
+            FormationSlotRole::AttackingMidfielder,
+            passDecisionAttributes(70, 72, 70));
+        addPassDecisionPlayer(
+            defensiveFinalThird,
+            6,
+            PitchPoint{ 94.0, 34.0 },
+            FormationSlotRole::Striker,
+            passDecisionAttributes(66, 60, 62));
+        addPassDecisionPlayer(
+            defensiveFinalThird,
+            7,
+            PitchPoint{ 76.0, 35.0 },
+            FormationSlotRole::AttackingMidfielder,
+            passDecisionAttributes(70, 72, 70));
+        const double attackingWideRisk =
+            bestScoreForKind(evaluatePassFixture(attackingFinalThird), PassOptionKind::Cross)
+            + bestScoreForKind(evaluatePassFixture(attackingFinalThird), PassOptionKind::Cutback);
+        const double defensiveWideRisk =
+            bestScoreForKind(evaluatePassFixture(defensiveFinalThird), PassOptionKind::Cross)
+            + bestScoreForKind(evaluatePassFixture(defensiveFinalThird), PassOptionKind::Cutback);
+        require(attackingWideRisk > defensiveWideRisk,
+            "attacking wide tactics should increase cross/cutback desire");
+    }
+
+    void runPassLaneRiskSmoke() {
+        PassDecisionFixture openLane = buildPassDecisionFixture(
+            FormationSlotRole::CentralMidfielder,
+            passDecisionAttributes(78, 80, 76));
+        PassDecisionFixture blockedLane = buildPassDecisionFixture(
+            FormationSlotRole::CentralMidfielder,
+            passDecisionAttributes(78, 80, 76));
+        addPassDecisionOpponent(blockedLane, 199, PitchPoint{ 50.0, 34.0 });
+
+        const std::vector<PassOption> openOptions = evaluatePassFixture(openLane);
+        const std::vector<PassOption> blockedOptions = evaluatePassFixture(blockedLane);
+        const PassOption* openProgressive =
+            findOptionForTarget(openOptions, PassOptionKind::ProgressivePass, 3);
+        const PassOption* blockedProgressive =
+            findOptionForTarget(blockedOptions, PassOptionKind::ProgressivePass, 3);
+        require(openProgressive != nullptr && blockedProgressive != nullptr,
+            "lane risk smoke should have a comparable progressive pass");
+        require(blockedProgressive->laneRisk > openProgressive->laneRisk,
+            "blocked lane should report higher lane risk");
+        require(blockedProgressive->score < openProgressive->score,
+            "blocked lane should score lower than open lane");
+        require(bestScoreForKind(blockedOptions, PassOptionKind::SafePass) > 0.0,
+            "safe short support option should remain viable when one lane is blocked");
+    }
+
+    void runPassSelectionDeterminismSmoke() {
+        const PassDecisionFixture fixture = buildPassDecisionFixture(
+            FormationSlotRole::CentralMidfielder,
+            passDecisionAttributes(76, 78, 74));
+        MatchSimulationState state;
+        state.homeTeam = fixture.teamState;
+        state.awayTeam = fixture.opponentState;
+        state.ball.controlState = BallControlState::Controlled;
+        state.ball.carrierPlayerId = fixture.carrier.playerId;
+        state.ball.carrierTeamId = fixture.carrier.teamId;
+        state.ball.position = fixture.carrier.position;
+        state.possession.teamInPossession = fixture.carrier.teamId;
+        state.possession.ballCarrierId = fixture.carrier.playerId;
+
+        TeamShapeContext shapeContext;
+        shapeContext.teamId = fixture.teamState.teamId;
+        shapeContext.isHomeTeam = true;
+        shapeContext.hasPossession = true;
+        shapeContext.phase = TeamShapePhase::InPossession;
+        shapeContext.attackingDirection = AttackingDirection::HomeToAway;
+        shapeContext.tacticalSetup = fixture.tactics;
+        shapeContext.ballPosition = fixture.carrier.position;
+
+        const ActionCandidateGenerator generator;
+        const std::vector<ActionCandidate> firstCandidates = generator.generate(
+            ActionCandidateGenerationRequest{
+                &fixture.teamSnapshot,
+                &fixture.opponentSnapshot,
+                fixture.carrier,
+                state.ball,
+                state,
+                shapeContext,
+                fixture.teamState.players,
+                fixture.opponentState.players
+            });
+        const std::vector<ActionCandidate> secondCandidates = generator.generate(
+            ActionCandidateGenerationRequest{
+                &fixture.teamSnapshot,
+                &fixture.opponentSnapshot,
+                fixture.carrier,
+                state.ball,
+                state,
+                shapeContext,
+                fixture.teamState.players,
+                fixture.opponentState.players
+            });
+        const ActionSelector selector;
+        const ActionSelectionResult first = selector.select(ActionSelectionRequest{
+            firstCandidates,
+            passDecisionAttributes(76, 78, 74),
+            0x55aa11ULL
+        });
+        const ActionSelectionResult second = selector.select(ActionSelectionRequest{
+            secondCandidates,
+            passDecisionAttributes(76, 78, 74),
+            0x55aa11ULL
+        });
+        require(first.selected.has_value() && second.selected.has_value(),
+            "pass selection determinism smoke should select an action");
+        require(first.selected->type == second.selected->type
+                && first.selected->targetPlayerId == second.selected->targetPlayerId,
+            "same pass candidates and seed should select the same behavior");
+    }
+
     void runDetailedCoordinateBalanceSmoke() {
         int assistedGoalSamples = 0;
         int goalScorerRatingSamples = 0;
@@ -477,6 +893,29 @@ namespace {
                 const double accuracy = passAccuracyFor(*stats);
                 require(accuracy >= 0.45 && accuracy <= 0.93,
                     "detailed coordinate pass accuracy should stay in a broad sane range");
+                if (stats->expectedGoals > 6.0) {
+                    const auto traceCount = [&result](MatchTraceKind kind) {
+                        return std::count_if(
+                            result.traceFrames.begin(),
+                            result.traceFrames.end(),
+                            [kind](const MatchTraceFrame& frame) {
+                                return frame.kind == kind;
+                            });
+                    };
+                    std::cerr << "detailed xG guardrail sample seed=" << (0x9300ULL + seed)
+                        << " team=" << stats->teamId
+                        << " xg=" << stats->expectedGoals
+                        << " shots=" << stats->shots
+                        << " passes=" << stats->passesAttempted
+                        << " completed=" << stats->passesCompleted
+                        << " tracePass=" << traceCount(MatchTraceKind::Pass)
+                        << " traceThrough=" << traceCount(MatchTraceKind::ThroughBall)
+                        << " traceCross=" << traceCount(MatchTraceKind::LowCross)
+                        << " traceCutback=" << traceCount(MatchTraceKind::Cutback)
+                        << " traceCarry=" << traceCount(MatchTraceKind::Carry)
+                        << " traceShot=" << traceCount(MatchTraceKind::Shot)
+                        << '\n';
+                }
                 require(stats->expectedGoals <= 6.0,
                     "detailed coordinate team xG should not regularly reach extreme values");
                 require(stats->fouls == 0 && stats->corners == 0,
@@ -717,6 +1156,9 @@ int main() {
         runGoalkeeperScorerSafetySmoke();
         runFastSummaryTacticalSensitivitySmoke();
         runFastSummaryQualitySensitivitySmoke();
+        runPassOptionEvaluatorSmoke();
+        runPassLaneRiskSmoke();
+        runPassSelectionDeterminismSmoke();
         runDetailedCoordinateBalanceSmoke();
         runHandlerIntegrationSmoke();
         runPlayerAttributesPersistenceSmoke();
