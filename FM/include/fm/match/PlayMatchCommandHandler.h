@@ -4,6 +4,7 @@
 #include"fm/competition/League.h"
 #include"fm/match/PlayMatchCommand.h"
 #include"fm/match/TeamSheet.h"
+#include"fm/match_engine/MatchEngineTypes.h"
 
 enum class MatchSimulationEngineMode {
     Lightweight,
@@ -12,6 +13,7 @@ enum class MatchSimulationEngineMode {
 
 struct PlayMatchCommandHandlerOptions {
     MatchSimulationEngineMode engineMode = MatchSimulationEngineMode::Coordinate;
+    MatchSimulationDetail coordinateDetail = MatchSimulationDetail::BackgroundSummary;
 };
 
 class PlayMatchCommandHandler {

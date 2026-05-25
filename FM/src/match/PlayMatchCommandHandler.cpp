@@ -65,10 +65,11 @@ namespace {
         const Team& homeTeam,
         const Team& awayTeam,
         const TeamSheet& homeSheet,
-        const TeamSheet& awaySheet) {
+        const TeamSheet& awaySheet,
+        MatchSimulationDetail detail) {
         try {
             MatchEngineOptions engineOptions;
-            engineOptions.detail = MatchSimulationDetail::BackgroundSummary;
+            engineOptions.detail = detail;
 
             const MatchEngineInput input = MatchEngineInputBuilder{}.build(
                 command.matchId,
@@ -185,7 +186,13 @@ void PlayMatchCommandHandler::handle(League& league,
     MatchReport report;
     if (options.engineMode == MatchSimulationEngineMode::Coordinate) {
         std::optional<MatchReport> coordinateReport =
-            tryBuildCoordinateReport(command, *homeTeam, *awayTeam, homeSheet, awaySheet);
+            tryBuildCoordinateReport(
+                command,
+                *homeTeam,
+                *awayTeam,
+                homeSheet,
+                awaySheet,
+                options.coordinateDetail);
         report = coordinateReport.has_value()
             ? *coordinateReport
             : buildLightweightReport(command, *homeTeam, *awayTeam, homeSheet, awaySheet);

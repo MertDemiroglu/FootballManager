@@ -21,6 +21,7 @@ struct MatchPlayerReport {
     int assists = 0;
     int yellowCards = 0;
     int redCards = 0;
+    double rating = 6.0;
 };
 
 struct MatchEventRecord {

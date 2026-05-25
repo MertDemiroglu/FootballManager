@@ -197,8 +197,8 @@ Related documents:
 
 - Status: implemented as a matchSecond/action-duration coordinate simulator.
 - Scope: add `CoordinateMatchSimulator` behind valid `MatchEngine::simulate` input. The simulator initializes local `MatchSimulationState` from snapshots, places starters through `TeamShapeModel`, resolves intents and movement, selects controlled-ball actions, builds trajectories, handles minimal in-flight/deflected/loose ball outcomes, advances the match clock by action/trajectory/race/restart durations until regulation time, and returns simulation stats/events/traces through `MatchEngineResult`.
-- Current behavior: the simulator now powers the default coordinate path through `MatchEngine::simulate`. It creates an optional `MatchReport` but still does not apply it, call `League::applyMatchReport`, or mutate domain objects, fixtures, standings, reports, history, save/load state, or UI.
-- Future work: watched/background mode separation and tuning.
+- Current behavior: the simulator powers watched/debug coordinate detail through `MatchEngine::simulate`; `BackgroundSummary` is routed to the fast aggregate coordinate summary. It creates an optional `MatchReport` but still does not apply it, call `League::applyMatchReport`, or mutate domain objects, fixtures, standings, reports, history, save/load state, or UI.
+- Future work: deeper tuning and UI playback preparation.
 - Do not mix in: mini-pitch UI, fixture/standing/report application changes, or final tuning.
 
 ### 23. Shot / Save / Goal local simulator + Ball Vertical Profile
@@ -206,13 +206,13 @@ Related documents:
 - Status: implemented as a matchSecond/action-duration coordinate simulator.
 - Scope: add `BallFlightProfile` and apex height to `BallTrajectory`, expose simple ball-height helpers, map trajectory types to ground/low/high/lofted/shot profiles, use temporary attribute-based reach checks for high balls and aerial situations, route high crosses/clearances toward aerial contest handling, and resolve on-target local simulator shots through `GoalkeeperSave`.
 - Current behavior: simulator saves, rebounds, and goals update `MatchEngineResult` stats and official events, with watched/debug trace markers kept separate. Report application still happens only in `PlayMatchCommandHandler` via `League::applyMatchReport`.
-- Future work: event richness, assist metadata, and UI playback preparation.
+- Future work: richer event metadata and UI playback preparation.
 - Do not mix in: `League::applyMatchReport` changes, mini-pitch UI, fixture/standing/report application changes, or final tuning.
 
 ### 24. MatchEngineResult -> MatchReport Adapter
 
 - Status: implemented as a non-runtime conversion layer.
-- Scope: add a Qt-free pure adapter that builds `MatchReport` from `MatchEngineInput` and `MatchEngineResult`. It maps match metadata, season year, score, lineup snapshots, player report basics, official events, and basic home/away team stats.
+- Scope: add a Qt-free pure adapter that builds `MatchReport` from `MatchEngineInput` and `MatchEngineResult`. It maps match metadata, season year, score, lineup snapshots, player report basics including ratings, official events including assists, and basic home/away team stats.
 - Current behavior: the adapter feeds the default coordinate match flow. Trace frames are presentation/debug data and are no longer the authoritative source for official report events. The adapter does not apply the report to `League`, game state, fixtures, standings, history, save/load, domain events, or UI.
 - Future work: richer official event metadata and UI playback preparation.
 - Do not mix in: `League::applyMatchReport` changes, mini-pitch UI, or fixture/standing/report application changes.
@@ -230,14 +230,21 @@ Related documents:
 
 - Status: implemented.
 - Scope: replace the temporary fixed action-count coordinate loop with a regulation match clock. Controlled actions, in-flight balls, loose-ball races, and goal restarts now return elapsed simulated seconds. Official match events are stored separately from debug trace, and `MatchReport` now carries basic team stats.
-- Current behavior: `BackgroundSummary`, `WatchedMatch`, and `DebugFullTrace` share the same outcome logic; detail mode affects trace verbosity. Goal scorers are available in background reports, post-match statistics read from `MatchReport`, and saved reports persist basic team stats while old saves without those columns remain safe.
+- Current behavior: `WatchedMatch` and `DebugFullTrace` use the full action-duration coordinate simulator. Goal scorers are official events rather than trace-derived, post-match statistics read from `MatchReport`, and saved reports persist basic team stats while old saves without those columns remain safe.
 - Do not mix in: full real-time physics, stoppage time, live QML playback, lightweight removal, or changes to `League::applyMatchReport` semantics.
+
+### 27. Fast Background Summary + First Tuning Guardrails
+
+- Status: implemented as a PR86 follow-up.
+- Scope: route `BackgroundSummary` to `FastMatchSummarySimulator`, keep `WatchedMatch`/`DebugFullTrace` on the full `CoordinateMatchSimulator`, add first-pass shot/scoring guardrails to the detailed loop, track simple assists, carry player match ratings into `MatchReport` and UI-facing lineup data, and expand smoke/calibration checks.
+- Current behavior: background fixtures use a deterministic aggregate coordinate summary based on the same snapshots, detailed attributes, starting XI roles/formation, and tactical setup. It emits official events, team stats, player goals/assists/minutes/ratings, and no marker trace. Watched/debug matches remain available through the full coordinate action-duration loop.
+- Do not mix in: QML redesign, lightweight removal, final tuning, or changes to `League::applyMatchReport` semantics.
 
 ## Next Backend Phases
 
-1. Watched/background mode separation
-2. Tuning/stability pass
-3. Match event richness and UI playback preparation
+1. Tuning/stability pass
+2. Match event richness and UI playback preparation
+3. Managed-match watched-mode policy refinement
 4. Eventual lightweight deprecation/cleanup after confidence
 
 ## Deferred / Later Backend Work

@@ -379,8 +379,10 @@ namespace {
             "assists INTEGER NOT NULL,"
             "yellow_cards INTEGER NOT NULL,"
             "red_cards INTEGER NOT NULL,"
+            "rating REAL NOT NULL DEFAULT 6.0,"
             "PRIMARY KEY (match_id, player_id)"
             ");");
+        addColumnIfMissing(database, "runtime_match_player_reports", "rating REAL NOT NULL DEFAULT 6.0");
         database.execute(
             "CREATE TABLE IF NOT EXISTS runtime_match_events ("
             "match_id INTEGER NOT NULL,"
@@ -742,9 +744,14 @@ std::vector<MatchReport> SqliteGameStateRepository::loadMatchReports() const {
     }
 
     for (MatchReport& report : reports) {
+        const bool hasPlayerRatings =
+            columnExists(database, "runtime_match_player_reports", "rating");
         SqliteStatement playerStatement = database.prepare(
-            "SELECT player_id, team_id, started, minutes_played, goals, assists, yellow_cards, red_cards "
-            "FROM runtime_match_player_reports WHERE match_id = ? ORDER BY player_id");
+            hasPlayerRatings
+                ? "SELECT player_id, team_id, started, minutes_played, goals, assists, yellow_cards, red_cards, rating "
+                    "FROM runtime_match_player_reports WHERE match_id = ? ORDER BY player_id"
+                : "SELECT player_id, team_id, started, minutes_played, goals, assists, yellow_cards, red_cards "
+                    "FROM runtime_match_player_reports WHERE match_id = ? ORDER BY player_id");
         playerStatement.bindInt64(1, static_cast<std::int64_t>(report.matchId));
         while (playerStatement.stepRow()) {
             MatchPlayerReport playerReport;
@@ -756,6 +763,7 @@ std::vector<MatchReport> SqliteGameStateRepository::loadMatchReports() const {
             playerReport.assists = playerStatement.columnInt(5);
             playerReport.yellowCards = playerStatement.columnInt(6);
             playerReport.redCards = playerStatement.columnInt(7);
+            playerReport.rating = hasPlayerRatings ? playerStatement.columnDouble(8) : 6.0;
             report.playerReports.push_back(playerReport);
         }
 
@@ -1244,8 +1252,8 @@ void SqliteGameStateRepository::saveRuntimeState(
             for (const MatchPlayerReport& playerReport : report.playerReports) {
                 SqliteStatement playerStatement = database.prepare(
                     "INSERT INTO runtime_match_player_reports ("
-                    "match_id, player_id, team_id, started, minutes_played, goals, assists, yellow_cards, red_cards"
-                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    "match_id, player_id, team_id, started, minutes_played, goals, assists, yellow_cards, red_cards, rating"
+                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 playerStatement.bindInt64(1, static_cast<std::int64_t>(report.matchId));
                 playerStatement.bindInt(2, static_cast<int>(playerReport.playerId));
                 playerStatement.bindInt(3, static_cast<int>(playerReport.teamId));
@@ -1255,6 +1263,7 @@ void SqliteGameStateRepository::saveRuntimeState(
                 playerStatement.bindInt(7, playerReport.assists);
                 playerStatement.bindInt(8, playerReport.yellowCards);
                 playerStatement.bindInt(9, playerReport.redCards);
+                playerStatement.bindDouble(10, playerReport.rating);
                 playerStatement.stepDone();
             }
 

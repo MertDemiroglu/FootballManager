@@ -145,6 +145,7 @@ MatchReport MatchEngineReportAdapter::buildReport(
         playerReport.assists = stats.assists;
         playerReport.yellowCards = stats.yellowCards;
         playerReport.redCards = stats.redCards;
+        playerReport.rating = stats.rating;
     }
 
     appendStarterReports(report, report.homeLineup);

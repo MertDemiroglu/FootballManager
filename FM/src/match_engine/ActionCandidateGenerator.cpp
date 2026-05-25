@@ -1,6 +1,7 @@
 #include"fm/match_engine/ActionCandidateGenerator.h"
 
 #include<algorithm>
+#include<cmath>
 #include<limits>
 
 namespace {
@@ -61,6 +62,17 @@ namespace {
         }
 
         return point.x <= 24.0 || PitchGeometry::isInsideHomePenaltyArea(point);
+    }
+
+    double distanceToOpponentGoal(PitchPoint point, AttackingDirection direction) {
+        return PitchGeometry::distance(point, goalCenterFor(direction));
+    }
+
+    double centrality(PitchPoint point) {
+        return 1.0 - std::min(
+            1.0,
+            std::abs(point.y - (PitchGeometry::WidthMeters / 2.0))
+                / (PitchGeometry::WidthMeters / 2.0));
     }
 
     bool isOwnDefensiveDanger(PitchPoint point, AttackingDirection direction) {
@@ -239,14 +251,28 @@ std::vector<ActionCandidate> ActionCandidateGenerator::generate(
     }
 
     if (isNearOpponentBox(carrierPosition, direction)) {
-        candidates.push_back(buildCandidate(
-            BallCarrierActionType::Shoot,
-            goalCenterFor(direction),
-            0,
-            24.0 + mentalityAttackBonus(tacticalSetup.mentality),
-            26.0,
-            10.0,
-            pressurePenalty * 0.45));
+        const double goalDistance = distanceToOpponentGoal(carrierPosition, direction);
+        const double central = centrality(carrierPosition);
+        const bool goodAngle = central >= 0.42 && goalDistance <= 24.0;
+        const bool lowPressure = pressurePenalty <= 12.0;
+        const bool attackingIntent = tacticalSetup.mentality == TeamMentality::Attacking;
+        const bool wideLowValue = isWide(carrierPosition) && central < 0.30 && goalDistance > 11.0;
+        if ((goodAngle || lowPressure || attackingIntent) && !(wideLowValue && !attackingIntent)) {
+            const double contextScore = 14.0
+                + std::max(0.0, 24.0 - goalDistance) * 0.55
+                + central * 7.0
+                + (lowPressure ? 4.0 : 0.0);
+            const double tacticalScore = 18.0 + mentalityAttackBonus(tacticalSetup.mentality);
+            const double widePenalty = wideLowValue ? 7.0 : 0.0;
+            candidates.push_back(buildCandidate(
+                BallCarrierActionType::Shoot,
+                goalCenterFor(direction),
+                0,
+                tacticalScore,
+                contextScore,
+                7.0,
+                pressurePenalty * 0.65 + widePenalty));
+        }
     }
 
     if (isOwnDefensiveDanger(carrierPosition, direction)) {

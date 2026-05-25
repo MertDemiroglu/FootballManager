@@ -42,7 +42,17 @@ namespace {
         double executionQuality = 70.0;
         double pressure = 0.0;
         bool isShot = false;
+        double shotQuality = 0.0;
     };
+
+    struct AssistTracker {
+        PlayerId passerPlayerId = 0;
+        PlayerId receiverPlayerId = 0;
+        TeamId teamId = 0;
+        int second = 0;
+    };
+
+    bool isPassLike(BallCarrierActionType type);
 
     PitchPoint pitchCenter() {
         return PitchPoint{
@@ -67,6 +77,10 @@ namespace {
 
     double clampedAttribute(int value) {
         return std::clamp(static_cast<double>(value), 0.0, 100.0);
+    }
+
+    void clearAssist(AssistTracker& assistTracker) {
+        assistTracker = AssistTracker{};
     }
 
     // Temporary attribute-only reach model until player height is modeled.
@@ -873,6 +887,64 @@ namespace {
         return trajectory.actualTarget.x <= 1.0;
     }
 
+    double shotQualityFor(
+        const MatchPlayerSnapshot* shooter,
+        PitchPoint shotLocation,
+        AttackingDirection direction,
+        double pressure) {
+        const PitchPoint goalCenter = opponentGoalCenter(direction);
+        const double distance = PitchGeometry::distance(shotLocation, goalCenter);
+        const double centrality =
+            1.0 - std::min(1.0, std::abs(shotLocation.y - (PitchGeometry::WidthMeters / 2.0))
+                / (PitchGeometry::WidthMeters / 2.0));
+        const double distanceQuality = clampDouble(1.0 - ((distance - 8.0) / 28.0), 0.15, 1.0);
+        const double angleQuality = clampDouble(0.35 + centrality * 0.75, 0.35, 1.0);
+        const double skillQuality = shooter == nullptr
+            ? 0.85
+            : clampDouble(
+                0.76
+                    + (clampedAttribute(shooter->attributes.technical.shooting) - 60.0) / 260.0
+                    + (clampedAttribute(shooter->attributes.mental.composure) - 60.0) / 320.0,
+                0.72,
+                1.18);
+        const double pressureQuality = clampDouble(1.0 - (pressure / 180.0), 0.72, 1.0);
+
+        const double rawQuality =
+            (0.04 + distanceQuality * 0.17 + angleQuality * 0.08)
+            * skillQuality
+            * pressureQuality;
+        return clampDouble(rawQuality, 0.02, 0.45);
+    }
+
+    double goalkeeperStrengthFor(const MatchEngineInput& input, const PlayerSimState* goalkeeper) {
+        if (goalkeeper == nullptr) {
+            return 45.0;
+        }
+        const MatchPlayerSnapshot* snapshot = findSnapshotForPlayer(input, goalkeeper->playerId);
+        if (snapshot == nullptr) {
+            return static_cast<double>(goalkeeper->baseOverall);
+        }
+
+        return clampDouble(
+            snapshot->attributes.goalkeeper.shotStopping * 0.36
+                + snapshot->attributes.goalkeeper.oneOnOnes * 0.22
+                + snapshot->attributes.goalkeeper.handling * 0.18
+                + snapshot->attributes.goalkeeper.aerialAbility * 0.10
+                + snapshot->attributes.mental.concentration * 0.08
+                + snapshot->baseOverall * 0.06,
+            25.0,
+            95.0);
+    }
+
+    double goalProbabilityForShot(
+        const MatchEngineInput& input,
+        const PendingBallAction& pending,
+        const PlayerSimState* goalkeeper) {
+        const double goalkeeperStrength = goalkeeperStrengthFor(input, goalkeeper);
+        const double goalkeeperModifier = clampDouble(1.04 - ((goalkeeperStrength - 60.0) / 190.0), 0.76, 1.22);
+        return clampDouble(pending.shotQuality * goalkeeperModifier, 0.015, 0.38);
+    }
+
     bool isHighBallTrajectory(const BallTrajectory& trajectory) {
         return trajectory.type == BallTrajectoryType::HighCross
             || trajectory.type == BallTrajectoryType::Clearance
@@ -978,14 +1050,46 @@ namespace {
     void appendOfficialGoalEvent(
         MatchEngineResult& result,
         const MatchSimulationState& state,
-        const PendingBallAction& pending) {
+        const PendingBallAction& pending,
+        PlayerId assistPlayerId) {
         result.events.push_back(MatchEventRecord{
             eventMinuteForSecond(state.currentSecond),
             MatchEventKind::Goal,
             pending.sourceTeamId,
             pending.sourcePlayerId,
-            0
+            assistPlayerId
         });
+    }
+
+    PlayerId assistForGoal(
+        const MatchSimulationState& state,
+        const PendingBallAction& pending,
+        const AssistTracker& assistTracker) {
+        if (assistTracker.teamId != pending.sourceTeamId
+            || assistTracker.passerPlayerId == 0
+            || assistTracker.passerPlayerId == pending.sourcePlayerId
+            || state.currentSecond - assistTracker.second > 15) {
+            return 0;
+        }
+        return assistTracker.passerPlayerId;
+    }
+
+    void rememberCompletedPass(
+        AssistTracker& assistTracker,
+        const MatchSimulationState& state,
+        const PendingBallAction& pending,
+        PlayerId receiverPlayerId) {
+        if (!isPassLike(pending.actionType)
+            || pending.sourceTeamId == 0
+            || pending.sourcePlayerId == 0
+            || receiverPlayerId == 0) {
+            return;
+        }
+
+        assistTracker.passerPlayerId = pending.sourcePlayerId;
+        assistTracker.receiverPlayerId = receiverPlayerId;
+        assistTracker.teamId = pending.sourceTeamId;
+        assistTracker.second = state.currentSecond;
     }
 
     double trajectoryElapsedSeconds(const BallTrajectory& trajectory) {
@@ -1012,10 +1116,16 @@ namespace {
         const MatchEngineInput& input,
         const PendingBallAction& pending,
         const BallTrajectory& trajectory,
-        TeamId concedingTeamId) {
+        TeamId concedingTeamId,
+        AssistTracker& assistTracker) {
+        const PlayerId assistPlayerId = assistForGoal(state, pending, assistTracker);
         ++teamStatsFor(result, pending.sourceTeamId).goals;
         ++playerStatsFor(result, pending.sourcePlayerId, pending.sourceTeamId).goals;
-        appendOfficialGoalEvent(result, state, pending);
+        if (assistPlayerId != 0) {
+            ++playerStatsFor(result, assistPlayerId, pending.sourceTeamId).assists;
+        }
+        appendOfficialGoalEvent(result, state, pending, assistPlayerId);
+        clearAssist(assistTracker);
 
         if (TeamSimState* scoringTeam = findTeamState(state, pending.sourceTeamId)) {
             ++scoringTeam->goals;
@@ -1168,12 +1278,18 @@ namespace {
                     ^ (static_cast<std::uint64_t>(actionType) << 32))
         });
 
+        double shotQuality = 0.0;
         if (isPassLike(actionType)) {
             ++teamStatsFor(result, carrier->teamId).passesAttempted;
             ++playerStatsFor(result, carrier->playerId, carrier->teamId).passesAttempted;
         } else if (actionType == BallCarrierActionType::Shoot) {
+            shotQuality = shotQualityFor(
+                playerSnapshot,
+                state.ball.position,
+                carrierShapeContext.attackingDirection,
+                action.pressurePenalty);
             ++teamStatsFor(result, carrier->teamId).shots;
-            teamStatsFor(result, carrier->teamId).expectedGoals += 0.08;
+            teamStatsFor(result, carrier->teamId).expectedGoals += shotQuality;
             ++playerStatsFor(result, carrier->playerId, carrier->teamId).shots;
         }
 
@@ -1194,7 +1310,8 @@ namespace {
             trajectoryType,
             executionQuality,
             action.pressurePenalty,
-            actionType == BallCarrierActionType::Shoot
+            actionType == BallCarrierActionType::Shoot,
+            shotQuality
         };
 
         appendTrace(
@@ -1258,7 +1375,8 @@ namespace {
         std::optional<PendingBallAction>& pending,
         const BallTrajectory& trajectory,
         const TeamSimState& defendingTeam,
-        std::uint64_t baseSeed) {
+        std::uint64_t baseSeed,
+        AssistTracker& assistTracker) {
         const double elapsedToShot = remainingTrajectorySeconds(state, trajectory);
         if (!pending || !pending->isShot) {
             return SimulationStepResult{ elapsedToShot };
@@ -1267,6 +1385,7 @@ namespace {
         const TeamSimState* attackingTeam = findTeamState(state, pending->sourceTeamId);
         if (attackingTeam == nullptr) {
             setLooseBall(state, trajectory.actualTarget);
+            clearAssist(assistTracker);
             pending = std::nullopt;
             return SimulationStepResult{ elapsedToShot };
         }
@@ -1275,6 +1394,7 @@ namespace {
         const bool onTarget = shotCrossesGoalMouth(trajectory, direction);
         if (!onTarget) {
             setLooseBall(state, trajectory.actualTarget);
+            clearAssist(assistTracker);
             appendTrace(
                 result,
                 input.options.detail,
@@ -1294,15 +1414,26 @@ namespace {
         const PlayerSimState* goalkeeper = findGoalkeeperOrNearestOwnGoal(input, defendingTeam);
         const PlayerSimState* shooter = findPlayerState(state, pending->sourcePlayerId);
         if (goalkeeper == nullptr || shooter == nullptr) {
-            const SimulationStepResult goalStep = applyLocalGoal(
-                state,
-                result,
-                input,
-                *pending,
-                trajectory,
-                defendingTeam.teamId);
+            const double goalProbability = goalProbabilityForShot(input, *pending, nullptr);
+            const bool converted =
+                matchEngineDeterministicUnitInterval(
+                    stepSeed(baseSeed, state, pending->sourcePlayerId ^ 0x9010ULL)) < goalProbability;
+            if (converted) {
+                const SimulationStepResult goalStep = applyLocalGoal(
+                    state,
+                    result,
+                    input,
+                    *pending,
+                    trajectory,
+                    defendingTeam.teamId,
+                    assistTracker);
+                pending = std::nullopt;
+                return SimulationStepResult{ elapsedToShot + goalStep.elapsedSeconds };
+            }
+            setLooseBall(state, trajectory.actualTarget);
+            clearAssist(assistTracker);
             pending = std::nullopt;
-            return SimulationStepResult{ elapsedToShot + goalStep.elapsedSeconds };
+            return SimulationStepResult{ elapsedToShot };
         }
 
         const PitchPoint savePoint = trajectory.actualTarget;
@@ -1333,11 +1464,21 @@ namespace {
 
         const ContestResolverResult contest = contestResolver.resolve(request);
         lastContestResult = contest;
+        const double goalProbability = goalProbabilityForShot(input, *pending, goalkeeper);
+        const bool converted =
+            matchEngineDeterministicUnitInterval(
+                stepSeed(
+                    baseSeed,
+                    state,
+                    static_cast<std::uint64_t>(pending->sourcePlayerId)
+                        ^ (static_cast<std::uint64_t>(goalkeeper->playerId) << 32)
+                        ^ 0x9011ULL)) < goalProbability;
 
         if (contest.ballOutcome == ContestBallOutcome::KeeperControls
             || (contest.cleanController
                 && contest.cleanController->playerId == goalkeeper->playerId)) {
             setControlledBy(state, goalkeeper->playerId, goalkeeper->teamId, savePoint);
+            clearAssist(assistTracker);
             appendTrace(
                 result,
                 input.options.detail,
@@ -1386,11 +1527,13 @@ namespace {
                 0.0,
                 false
             };
+            clearAssist(assistTracker);
             return SimulationStepResult{ elapsedToShot };
         }
 
         if (contest.ballOutcome == ContestBallOutcome::BallLoose || contest.ballBecomesLoose) {
             setLooseBall(state, savePoint);
+            clearAssist(assistTracker);
             appendTrace(
                 result,
                 input.options.detail,
@@ -1415,15 +1558,33 @@ namespace {
             return SimulationStepResult{ elapsedToShot };
         }
 
-        const SimulationStepResult goalStep = applyLocalGoal(
-            state,
+        if (converted) {
+            const SimulationStepResult goalStep = applyLocalGoal(
+                state,
+                result,
+                input,
+                *pending,
+                trajectory,
+                defendingTeam.teamId,
+                assistTracker);
+            pending = std::nullopt;
+            return SimulationStepResult{ elapsedToShot + goalStep.elapsedSeconds };
+        }
+
+        setControlledBy(state, goalkeeper->playerId, goalkeeper->teamId, savePoint);
+        clearAssist(assistTracker);
+        appendTrace(
             result,
-            input,
-            *pending,
-            trajectory,
-            defendingTeam.teamId);
+            input.options.detail,
+            state,
+            MatchTraceKind::Save,
+            goalkeeper->teamId,
+            goalkeeper->playerId,
+            pending->sourcePlayerId,
+            savePoint,
+            savePoint);
         pending = std::nullopt;
-        return SimulationStepResult{ elapsedToShot + goalStep.elapsedSeconds };
+        return SimulationStepResult{ elapsedToShot };
     }
 
     SimulationStepResult processInFlightBall(
@@ -1435,7 +1596,8 @@ namespace {
         const ContestResolver& contestResolver,
         std::optional<ContestResolverResult>& lastContestResult,
         std::optional<PendingBallAction>& pending,
-        std::uint64_t baseSeed) {
+        std::uint64_t baseSeed,
+        AssistTracker& assistTracker) {
         if (!state.ball.trajectory) {
             setLooseBall(state, state.ball.position);
             pending = std::nullopt;
@@ -1517,6 +1679,7 @@ namespace {
                         candidate.interceptionPoint);
 
                     if (contest.cleanController->teamId != previousTeam) {
+                        clearAssist(assistTracker);
                         ++teamStatsFor(result, contest.cleanController->teamId).interceptions;
                         ++playerStatsFor(
                             result,
@@ -1583,6 +1746,7 @@ namespace {
                         0.0,
                         false
                     };
+                    clearAssist(assistTracker);
                     return SimulationStepResult{
                         clampElapsedSeconds(
                             candidate.ballArrivalSecond - static_cast<double>(state.currentSecond))
@@ -1592,6 +1756,7 @@ namespace {
                 if (contest.ballBecomesLoose
                     || contest.ballOutcome == ContestBallOutcome::BallLoose) {
                     setLooseBall(state, candidate.interceptionPoint);
+                    clearAssist(assistTracker);
                     appendTrace(
                         result,
                         input.options.detail,
@@ -1620,7 +1785,8 @@ namespace {
                         pending,
                         trajectory,
                         *defendingTeam,
-                        baseSeed);
+                        baseSeed,
+                        assistTracker);
                 }
             }
         }
@@ -1637,7 +1803,8 @@ namespace {
                 pending,
                 trajectory,
                 *defendingTeam,
-                baseSeed);
+                baseSeed,
+                assistTracker);
         }
 
         if (pending
@@ -1658,6 +1825,9 @@ namespace {
                         result,
                         pending->sourcePlayerId,
                         pending->sourceTeamId).passesCompleted;
+                    rememberCompletedPass(assistTracker, state, *pending, target->playerId);
+                } else {
+                    clearAssist(assistTracker);
                 }
                 pending = std::nullopt;
                 return SimulationStepResult{ elapsedToArrival };
@@ -1665,6 +1835,7 @@ namespace {
         }
 
         setLooseBall(state, state.ball.position);
+        clearAssist(assistTracker);
         appendTrace(
             result,
             input.options.detail,
@@ -1682,7 +1853,8 @@ namespace {
     SimulationStepResult processLooseBall(
         MatchSimulationState& state,
         MatchEngineResult& result,
-        const MatchEngineInput& input) {
+        const MatchEngineInput& input,
+        AssistTracker& assistTracker) {
         PlayerSimState* best = nullptr;
         double bestDistance = std::numeric_limits<double>::max();
 
@@ -1716,6 +1888,9 @@ namespace {
             movementDurationSeconds(best->position, state.ball.position, best->effectivePace, 0.5, 4.0);
         const TeamId previousTeam = state.possession.teamInPossession;
         setControlledBy(state, best->playerId, best->teamId, state.ball.position);
+        if (previousTeam != 0 && previousTeam != best->teamId) {
+            clearAssist(assistTracker);
+        }
         appendTrace(
             result,
             input.options.detail,
@@ -1770,6 +1945,20 @@ namespace {
             stats.minutesPlayed = std::max(stats.minutesPlayed, minutes);
         }
     }
+
+    void finalizePlayerRatings(MatchEngineResult& result) {
+        for (MatchPlayerSimulationStats& stats : result.playerStats) {
+            const double rating = 6.0
+                + static_cast<double>(stats.goals) * 0.7
+                + static_cast<double>(stats.assists) * 0.4
+                + static_cast<double>(stats.shots) * 0.03
+                + static_cast<double>(stats.interceptions) * 0.10
+                + static_cast<double>(stats.passesCompleted) * 0.002
+                - static_cast<double>(stats.yellowCards) * 0.1
+                - static_cast<double>(stats.redCards) * 0.8;
+            stats.rating = clampDouble(rating, 4.0, 10.0);
+        }
+    }
 }
 
 MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) const {
@@ -1794,6 +1983,7 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
 
     std::optional<ContestResolverResult> lastContestResult;
     std::optional<PendingBallAction> pending;
+    AssistTracker assistTracker;
 
     appendTrace(
         result,
@@ -1890,9 +2080,10 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
                 contestResolver,
                 lastContestResult,
                 pending,
-                baseSeed);
+                baseSeed,
+                assistTracker);
         } else if (state.ball.controlState == BallControlState::Loose) {
-            step = processLooseBall(state, result, input);
+            step = processLooseBall(state, result, input, assistTracker);
         } else if (state.ball.controlState == BallControlState::OutOfPlay) {
             step = processOutOfPlay(state);
         }
@@ -1916,6 +2107,7 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
     result.simulatedSeconds = state.currentSecond;
     finalizePlayerMinutes(result, state.currentSecond);
     finalizePossessionShare(result, state);
+    finalizePlayerRatings(result);
     result.report = MatchEngineReportAdapter{}.buildReport(input, result);
     return result;
 }

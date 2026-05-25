@@ -564,7 +564,9 @@ namespace {
                     || playerReport.goals < 0
                     || playerReport.assists < 0
                     || playerReport.yellowCards < 0
-                    || playerReport.redCards < 0) {
+                    || playerReport.redCards < 0
+                    || playerReport.rating < 0.0
+                    || playerReport.rating > 10.0) {
                     return invalid("runtime match player report has invalid stat values");
                 }
             }

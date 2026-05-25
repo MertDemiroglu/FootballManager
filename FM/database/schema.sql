@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS runtime_match_player_reports (
     assists INTEGER NOT NULL,
     yellow_cards INTEGER NOT NULL,
     red_cards INTEGER NOT NULL,
+    rating REAL NOT NULL DEFAULT 6.0,
     PRIMARY KEY (match_id, player_id),
     FOREIGN KEY (match_id) REFERENCES runtime_match_reports(match_id),
     FOREIGN KEY (player_id) REFERENCES players(id),

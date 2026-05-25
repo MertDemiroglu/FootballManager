@@ -159,13 +159,14 @@ Stores match report header data for played matches: match id, league id, season 
 
 ### `runtime_match_player_reports`
 
-Stores per-player match report details: player id, team id, started flag, minutes, goals, assists, yellow cards, and red cards.
+Stores per-player match report details: player id, team id, started flag, minutes, goals, assists, yellow cards, red cards, and match rating.
 
 - Writer: `SqliteGameStateRepository::saveRuntimeState`.
 - Reader/restorer: `SqliteGameStateRepository::loadMatchReports`.
 - Saved when: match reports are persisted.
 - Authority: authoritative persisted player report details for played matches.
 - Multi-league implication: player ids must resolve inside the restored world, not only the managed team.
+- Compatibility: old saves without the `rating` column load with the default 6.0 match rating.
 
 ### `runtime_match_events`
 

@@ -179,6 +179,10 @@ namespace {
             "possession shares should be populated");
         require(report.homeStats.possessionShare + report.awayStats.possessionShare > 99.0,
             "possession shares should represent the match");
+        for (const MatchPlayerReport& playerReport : report.playerReports) {
+            require(playerReport.rating >= 0.0 && playerReport.rating <= 10.0,
+                "player report ratings should be present and bounded");
+        }
     }
 
     void runDeterministicRegression() {
@@ -244,6 +248,56 @@ namespace {
         throw std::runtime_error("goal event smoke could not find a deterministic goal sample");
     }
 
+    void runBackgroundSummaryCalibrationSmoke() {
+        const MatchEngineInput input = buildInput(MatchSimulationDetail::BackgroundSummary, 0x778899ULL);
+        const MatchEngineResult first = MatchEngine{}.simulate(input);
+        const MatchEngineResult second = MatchEngine{}.simulate(input);
+
+        assertResultReportConsistency(input, first);
+        assertResultReportConsistency(input, second);
+        require(first.traceFrames.empty(), "background summary should not emit marker trace");
+        require(first.homeStats.goals == second.homeStats.goals
+            && first.awayStats.goals == second.awayStats.goals,
+            "background summary score should be deterministic");
+        require(first.homeStats.shots == second.homeStats.shots
+            && first.awayStats.shots == second.awayStats.shots,
+            "background summary shot volume should be deterministic");
+        require(first.events.size() == second.events.size(),
+            "background summary official events should be deterministic");
+
+        int extremeGoalMatches = 0;
+        int assistedGoalSamples = 0;
+        for (std::uint64_t seed = 1; seed <= 24; ++seed) {
+            const MatchEngineInput sampleInput =
+                buildInput(MatchSimulationDetail::BackgroundSummary, seed + 0x9000ULL);
+            const MatchEngineResult sample = MatchEngine{}.simulate(sampleInput);
+            assertResultReportConsistency(sampleInput, sample);
+            const int combinedGoals = sample.homeStats.goals + sample.awayStats.goals;
+            const int combinedShots = sample.homeStats.shots + sample.awayStats.shots;
+            const double combinedXg =
+                sample.homeStats.expectedGoals + sample.awayStats.expectedGoals;
+            require(combinedShots >= 12 && combinedShots <= 40,
+                "background summary combined shots should stay in a playable range");
+            require(combinedXg >= 0.4 && combinedXg <= 6.5,
+                "background summary xG should stay in a playable range");
+            require(combinedGoals <= static_cast<int>(std::ceil(combinedXg)) + 5,
+                "background summary goals should stay directionally consistent with xG");
+            if (combinedGoals >= 8) {
+                ++extremeGoalMatches;
+            }
+            assistedGoalSamples += static_cast<int>(std::count_if(
+                sample.report->events.begin(),
+                sample.report->events.end(),
+                [](const MatchEventRecord& event) {
+                    return event.kind == MatchEventKind::Goal && event.secondaryPlayerId != 0;
+                }));
+        }
+        require(extremeGoalMatches <= 1,
+            "background summary should not regularly produce extreme scorelines");
+        require(assistedGoalSamples > 0,
+            "background summary should produce assisted goals across deterministic samples");
+    }
+
     void runInvalidInputSmoke() {
         const MatchEngineResult result = MatchEngine{}.simulate(MatchEngineInput{});
         require(!result.report.has_value(), "invalid input should not produce a report");
@@ -264,7 +318,9 @@ namespace {
         };
     }
 
-    void runHandlerSmoke(MatchSimulationEngineMode engineMode) {
+    void runHandlerSmoke(
+        MatchSimulationEngineMode engineMode,
+        MatchSimulationDetail coordinateDetail = MatchSimulationDetail::BackgroundSummary) {
         const Date matchDate{ 2026, Month::March, 14 };
         League league("Handler Smoke", 909);
         league.addTeam(std::make_unique<Team>(makeTeam(501, "Handler Home", 3)));
@@ -287,6 +343,7 @@ namespace {
 
         PlayMatchCommandHandlerOptions options;
         options.engineMode = engineMode;
+        options.coordinateDetail = coordinateDetail;
         PlayMatchCommandHandler handler(publisher, options);
         handler.handle(league, buildCommand(league, *match, matchDate));
 
@@ -307,7 +364,10 @@ namespace {
         PlayMatchCommandHandlerOptions defaultOptions;
         require(defaultOptions.engineMode == MatchSimulationEngineMode::Coordinate,
             "default handler engine mode should be coordinate");
+        require(defaultOptions.coordinateDetail == MatchSimulationDetail::BackgroundSummary,
+            "default coordinate handler detail should remain scalable background summary");
         runHandlerSmoke(MatchSimulationEngineMode::Coordinate);
+        runHandlerSmoke(MatchSimulationEngineMode::Coordinate, MatchSimulationDetail::WatchedMatch);
         runHandlerSmoke(MatchSimulationEngineMode::Lightweight);
     }
 
@@ -382,6 +442,17 @@ namespace {
         report.awayStats.passesCompleted = 231;
         report.awayStats.possessionShare = 44.0;
         report.awayStats.expectedGoals = 0.81;
+        report.playerReports.push_back(MatchPlayerReport{
+            8001,
+            report.homeId,
+            true,
+            90,
+            1,
+            1,
+            0,
+            0,
+            8.2
+        });
 
         {
             SqliteGameStateRepository repository(dbPath.string());
@@ -411,6 +482,9 @@ namespace {
             "loaded home report stats should match score");
         require(loadedReports.front().awayStats.goals == loadedReports.front().awayGoals,
             "loaded away report stats should match score");
+        require(!loadedReports.front().playerReports.empty()
+            && loadedReports.front().playerReports.front().rating == 8.2,
+            "loaded match player report should preserve rating");
 
         std::filesystem::remove(dbPath, removeError);
     }
@@ -424,6 +498,7 @@ int main() {
         runDetailSmoke(MatchSimulationDetail::WatchedMatch);
         runDetailSmoke(MatchSimulationDetail::DebugFullTrace);
         runOfficialGoalEventSmoke();
+        runBackgroundSummaryCalibrationSmoke();
         runHandlerIntegrationSmoke();
         runPlayerAttributesPersistenceSmoke();
         runMatchReportStatsPersistenceSmoke();
