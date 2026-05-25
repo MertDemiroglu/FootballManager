@@ -94,7 +94,7 @@ The shape model creates a base position from formation slot layout on the 105m x
 
 `PerceptionModel` now separates option existence from option awareness. It uses Vision, Decisions, Composure, Teamwork, pressure, ball-control difficulty, option quality, and a deterministic seed influence to answer whether the player notices an available option. The scoring is intentionally simple and is not tuned as real football behavior yet.
 
-`ActionCandidateGenerator` now produces a small, deterministic `BallCarrierActionType` candidate list from broad pitch context: hold, multiple scored pass options, carry, shoot, and clear where appropriate. `BallCarrierActionType` represents only the decision made by the player currently controlling the ball. `PlayerIntentType` represents off-ball movement, pass reception, defensive shape, pressing/marking, loose-ball reaction, or emergency intent. Passing options are delegated to `PassOptionEvaluator`, while non-pass actions remain in the generator for now. `ActionSelector` ranks candidates by score and chooses through weighted deterministic selection, with higher Decisions sharpening the choice toward stronger candidates, lower Decisions allowing more variance, and passing/shooting/carrying attributes nudging action choice without making outcomes deterministic.
+`ActionCandidateGenerator` now produces a small, deterministic `BallCarrierActionType` candidate list from broad pitch context: hold, multiple scored pass options, carry, shoot, and clear where appropriate. `BallCarrierActionType` represents only the decision made by the player currently controlling the ball. `PlayerIntentType` represents off-ball movement, pass reception, defensive shape, pressing/marking, loose-ball reaction, or emergency intent. Pass, carry, and shot scoring are delegated to focused decision evaluators; the generator mostly converts scored options into candidates and adds hold/clear safety actions. `ActionSelector` ranks candidates by score and chooses through weighted deterministic selection, with higher Decisions sharpening the choice toward stronger candidates, lower Decisions allowing more variance, and passing/shooting/carrying attributes nudging action choice without making outcomes deterministic.
 
 ## PR88 Passing Decision Layer
 
@@ -111,6 +111,18 @@ The evaluator includes simple lane-risk and receiver-pressure estimates. Lane ri
 `BallTrajectoryBuilder` also exposes a deterministic deflected-ball trajectory helper. It creates a short `BallTrajectoryType::Deflection` path from contact point, incoming path, strength, start second, and seed, with a low or medium vertical profile based on deflection strength. It only produces a future trajectory DTO; it does not apply `BallState`, decide recovery, or change possession.
 
 These planning helpers, contest resolver, intent resolver, movement resolver, tactical-zone layers, and deflection helper are wired by the coordinate match simulator. The simulator itself still does not update fixtures, standings, history, save/load, or UI state; the handler applies a validated report through `League::applyMatchReport`.
+
+## PR89 Carry + Shot Decision Layer
+
+PR89 introduces `decision/CarryOptionEvaluator` and `decision/ShotDecisionEvaluator` so the three ball-carrier action categories now have focused decision-layer components. `ActionCandidateGenerator` delegates pass scoring to `PassOptionEvaluator`, carry scoring to `CarryOptionEvaluator`, and shot scoring to `ShotDecisionEvaluator`, then converts those scored options into `ActionCandidate` values while still adding hold and emergency clear candidates where appropriate.
+
+`CarryOptionEvaluator` evaluates safe carry, progressive carry, and dribble options. Carry scoring depends on formation role, current zone, target zone, available space, nearest-opponent pressure, control difficulty, Dribbling, Technique, Decisions, Pace, Acceleration, Composure, mentality, tempo, and passing directness. Role/zone limits are soft decision biases rather than hard action-plan locks: defenders are penalized for carrying too far beyond their reasonable build-up zones, midfielders can progress through midfield, wide defenders and wide attackers are rewarded for wide-lane carries, and attacking midfielders/wingers/strikers can carry more aggressively in advanced areas.
+
+`ShotDecisionEvaluator` evaluates open-play shot desire separately from shot conversion. It uses `ShotQualityModel` for estimated open-play xG and then scores whether the current player wants to shoot based on xG, distance, real goal angle, pressure, role, Shooting, Technique, Composure, Decisions, mentality, tempo, and pitch zone. `ShotQualityModel` remains the chance-quality model: it answers how valuable the shot location/context is. `ShotDecisionEvaluator` answers whether this player should select the shot as an action. Goal conversion remains in the simulator's shot/save flow.
+
+The selector remains weighted and deterministic. Evaluators only score options; `ActionSelector` still turns candidate scores into a deterministic weighted choice where higher scores are more likely, better Decisions sharpen selection, lower Decisions allow more variance, and the top score is not automatically chosen.
+
+PR90 should deepen pressing and marking interaction around these option scores. PR91 should add full `ActionPlan` and reassessment behavior so carry plans can be revisited as the player enters new zones, pressure changes, or passing/shooting windows open.
 
 ## Coordinate Match Simulator
 

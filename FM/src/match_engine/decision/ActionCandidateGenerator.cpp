@@ -1,6 +1,8 @@
 #include"fm/match_engine/decision/ActionCandidateGenerator.h"
 
+#include"fm/match_engine/decision/CarryOptionEvaluator.h"
 #include"fm/match_engine/decision/PassOptionEvaluator.h"
+#include"fm/match_engine/decision/ShotDecisionEvaluator.h"
 
 #include<algorithm>
 #include<cmath>
@@ -21,37 +23,6 @@ namespace {
             position.x + directionSign(direction) * meters,
             position.y
         });
-    }
-
-    PitchPoint goalCenterFor(AttackingDirection direction) {
-        return direction == AttackingDirection::HomeToAway
-            ? PitchGeometry::awayGoalCenter()
-            : PitchGeometry::homeGoalCenter();
-    }
-
-    bool isWide(PitchPoint point) {
-        return point.y <= PitchGeometry::WidthMeters * 0.22
-            || point.y >= PitchGeometry::WidthMeters * 0.78;
-    }
-
-    bool isNearOpponentBox(PitchPoint point, AttackingDirection direction) {
-        if (direction == AttackingDirection::HomeToAway) {
-            return point.x >= PitchGeometry::LengthMeters - 24.0
-                || PitchGeometry::isInsideAwayPenaltyArea(point);
-        }
-
-        return point.x <= 24.0 || PitchGeometry::isInsideHomePenaltyArea(point);
-    }
-
-    double distanceToOpponentGoal(PitchPoint point, AttackingDirection direction) {
-        return PitchGeometry::distance(point, goalCenterFor(direction));
-    }
-
-    double centrality(PitchPoint point) {
-        return 1.0 - std::min(
-            1.0,
-            std::abs(point.y - (PitchGeometry::WidthMeters / 2.0))
-                / (PitchGeometry::WidthMeters / 2.0));
     }
 
     bool isOwnDefensiveDanger(PitchPoint point, AttackingDirection direction) {
@@ -101,22 +72,6 @@ namespace {
         return mentality == TeamMentality::Defensive ? 10.0 : 0.0;
     }
 
-    double mentalityAttackBonus(TeamMentality mentality) {
-        return mentality == TeamMentality::Attacking ? 10.0 : 0.0;
-    }
-
-    double directProgressionBonus(const TacticalSetup& tacticalSetup) {
-        double bonus = 0.0;
-        if (tacticalSetup.tempo == TeamTempo::High) {
-            bonus += 5.0;
-        }
-        if (tacticalSetup.passingDirectness == PassingDirectness::Direct) {
-            bonus += 5.0;
-        }
-
-        return bonus;
-    }
-
     ActionCandidate buildCandidate(
         BallCarrierActionType type,
         PitchPoint target,
@@ -149,6 +104,41 @@ namespace {
         candidate.mentalScore = 0.0;
         candidate.skillConfidenceScore = std::max(0.0, 22.0 - option.executionDifficulty * 0.20);
         candidate.pressurePenalty = option.laneRisk * 0.12 + option.receiverPressure * 0.08;
+        double selectionScore = option.score;
+        if (option.kind == PassOptionKind::SafePass || option.kind == PassOptionKind::BackPass) {
+            selectionScore *= 0.88;
+        } else {
+            selectionScore *= 1.08;
+        }
+        candidate.finalScore = clampScore(selectionScore);
+        return candidate;
+    }
+
+    ActionCandidate buildCandidateFromCarryOption(const CarryOption& option) {
+        ActionCandidate candidate;
+        candidate.type = option.actionType;
+        candidate.intendedTarget = PitchGeometry::clampToPitch(option.targetPoint);
+        candidate.targetPlayerId = 0;
+        candidate.tacticalScore = option.score * 0.40;
+        candidate.contextScore = option.spaceScore * 0.18 + option.progressionScore * 0.20;
+        candidate.mentalScore = 0.0;
+        candidate.skillConfidenceScore = std::max(0.0, 20.0 - option.controlDifficulty * 0.16);
+        candidate.pressurePenalty = option.pressureRisk * 0.14 + option.zoneLimitRisk * 0.16;
+        candidate.finalScore = clampScore(option.score);
+        return candidate;
+    }
+
+    ActionCandidate buildCandidateFromShotOption(const ShotOption& option) {
+        ActionCandidate candidate;
+        candidate.type = option.actionType;
+        candidate.intendedTarget = PitchGeometry::clampToPitch(option.targetPoint);
+        candidate.targetPlayerId = 0;
+        candidate.tacticalScore = option.score * 0.46;
+        candidate.contextScore =
+            option.estimatedXG * 80.0 + option.angleScore * 0.08 + option.distanceScore * 0.08;
+        candidate.mentalScore = 0.0;
+        candidate.skillConfidenceScore = option.shooterConfidence * 0.10;
+        candidate.pressurePenalty = option.pressurePenalty * 0.16;
         candidate.finalScore = clampScore(option.score);
         return candidate;
     }
@@ -171,6 +161,9 @@ std::vector<ActionCandidate> ActionCandidateGenerator::generate(
     const bool controlledBall =
         request.ballState.controlState == BallControlState::Controlled
         && request.ballState.carrierPlayerId == request.ballCarrier.playerId;
+    const FormationSlotRole carrierRole = assignedRoleFor(
+        request.teamSnapshot,
+        request.ballCarrier.playerId);
 
     candidates.push_back(buildCandidate(
         BallCarrierActionType::Hold,
@@ -188,7 +181,7 @@ std::vector<ActionCandidate> ActionCandidateGenerator::generate(
             requestTeamState,
             requestOpponentState,
             &request.ballCarrier,
-            assignedRoleFor(request.teamSnapshot, request.ballCarrier.playerId),
+            carrierRole,
             tacticalSetup,
             carrierPosition,
             direction,
@@ -198,38 +191,38 @@ std::vector<ActionCandidate> ActionCandidateGenerator::generate(
         candidates.push_back(buildCandidateFromPassOption(option));
     }
 
-    candidates.push_back(buildCandidate(
-        BallCarrierActionType::Carry,
-        advanceTarget(carrierPosition, direction, 12.0),
-        0,
-        26.0 + directProgressionBonus(tacticalSetup),
-        18.0,
-        8.0,
-        pressurePenalty * 0.7));
+    const std::vector<CarryOption> carryOptions = CarryOptionEvaluator{}.evaluate(
+        CarryOptionEvaluationContext{
+            request.teamSnapshot,
+            request.opponentSnapshot,
+            requestTeamState,
+            requestOpponentState,
+            &request.ballCarrier,
+            carrierRole,
+            tacticalSetup,
+            carrierPosition,
+            direction,
+            pressurePenalty
+        });
+    for (const CarryOption& option : carryOptions) {
+        candidates.push_back(buildCandidateFromCarryOption(option));
+    }
 
-    if (isNearOpponentBox(carrierPosition, direction)) {
-        const double goalDistance = distanceToOpponentGoal(carrierPosition, direction);
-        const double central = centrality(carrierPosition);
-        const bool goodAngle = central >= 0.42 && goalDistance <= 24.0;
-        const bool lowPressure = pressurePenalty <= 12.0;
-        const bool attackingIntent = tacticalSetup.mentality == TeamMentality::Attacking;
-        const bool wideLowValue = isWide(carrierPosition) && central < 0.30 && goalDistance > 11.0;
-        if ((goodAngle || lowPressure || attackingIntent) && !(wideLowValue && !attackingIntent)) {
-            const double contextScore = 14.0
-                + std::max(0.0, 24.0 - goalDistance) * 0.55
-                + central * 7.0
-                + (lowPressure ? 4.0 : 0.0);
-            const double tacticalScore = 18.0 + mentalityAttackBonus(tacticalSetup.mentality);
-            const double widePenalty = wideLowValue ? 7.0 : 0.0;
-            candidates.push_back(buildCandidate(
-                BallCarrierActionType::Shoot,
-                goalCenterFor(direction),
-                0,
-                tacticalScore,
-                contextScore,
-                7.0,
-                pressurePenalty * 0.65 + widePenalty));
-        }
+    const std::vector<ShotOption> shotOptions = ShotDecisionEvaluator{}.evaluate(
+        ShotOptionEvaluationContext{
+            request.teamSnapshot,
+            request.opponentSnapshot,
+            requestTeamState,
+            requestOpponentState,
+            &request.ballCarrier,
+            carrierRole,
+            tacticalSetup,
+            carrierPosition,
+            direction,
+            pressurePenalty
+        });
+    for (const ShotOption& option : shotOptions) {
+        candidates.push_back(buildCandidateFromShotOption(option));
     }
 
     if (isOwnDefensiveDanger(carrierPosition, direction)) {

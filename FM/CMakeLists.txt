@@ -46,6 +46,8 @@ add_library(fm_core STATIC
     src/match_engine/movement/TeamShapeModel.cpp
     src/match_engine/decision/ActionPlan.cpp
     src/match_engine/decision/PassOptionEvaluator.cpp
+    src/match_engine/decision/CarryOptionEvaluator.cpp
+    src/match_engine/decision/ShotDecisionEvaluator.cpp
     src/match_engine/decision/ActionCandidateGenerator.cpp
     src/match_engine/decision/ActionSelector.cpp
     src/match_engine/tuning/MatchEngineTuningProfile.cpp
