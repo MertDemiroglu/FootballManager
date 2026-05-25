@@ -23,6 +23,15 @@
 namespace {
     constexpr double LooseBallControlRangeMeters = 1.5;
     constexpr double ReceptionControlRangeMeters = 2.5;
+    constexpr int RegulationMatchSeconds = 90 * 60;
+    constexpr int MaxSafetyActions = 8000;
+    constexpr double MinimumStepSeconds = 0.5;
+    constexpr double MaximumNormalStepSeconds = 15.0;
+    constexpr double RestartAfterGoalSeconds = 20.0;
+
+    struct SimulationStepResult {
+        double elapsedSeconds = 1.0;
+    };
 
     struct PendingBallAction {
         TeamId sourceTeamId = 0;
@@ -44,6 +53,16 @@ namespace {
 
     double clampDouble(double value, double minimum, double maximum) {
         return std::clamp(value, minimum, maximum);
+    }
+
+    double clampElapsedSeconds(
+        double value,
+        double minimum = MinimumStepSeconds,
+        double maximum = MaximumNormalStepSeconds) {
+        if (!std::isfinite(value) || value <= 0.0) {
+            return minimum;
+        }
+        return clampDouble(value, minimum, maximum);
     }
 
     double clampedAttribute(int value) {
@@ -105,19 +124,6 @@ namespace {
             ? input.options.backgroundStepSeconds
             : input.options.watchedStepSeconds;
         return clampDouble(requested, 0.25, 5.0);
-    }
-
-    int maxActionsFor(MatchSimulationDetail detail) {
-        switch (detail) {
-        case MatchSimulationDetail::BackgroundSummary:
-            return 12;
-        case MatchSimulationDetail::WatchedMatch:
-            return 20;
-        case MatchSimulationDetail::DebugFullTrace:
-            return 30;
-        }
-
-        return 12;
     }
 
     bool shouldTrace(MatchSimulationDetail detail) {
@@ -965,7 +971,42 @@ namespace {
         state.possession.isTransition = false;
     }
 
-    void applyLocalPrototypeGoal(
+    int eventMinuteForSecond(int second) {
+        return std::max(1, (second / 60) + 1);
+    }
+
+    void appendOfficialGoalEvent(
+        MatchEngineResult& result,
+        const MatchSimulationState& state,
+        const PendingBallAction& pending) {
+        result.events.push_back(MatchEventRecord{
+            eventMinuteForSecond(state.currentSecond),
+            MatchEventKind::Goal,
+            pending.sourceTeamId,
+            pending.sourcePlayerId,
+            0
+        });
+    }
+
+    double trajectoryElapsedSeconds(const BallTrajectory& trajectory) {
+        return clampElapsedSeconds(trajectory.arrivalSecond - trajectory.startSecond);
+    }
+
+    double remainingTrajectorySeconds(const MatchSimulationState& state, const BallTrajectory& trajectory) {
+        return clampElapsedSeconds(trajectory.arrivalSecond - static_cast<double>(state.currentSecond));
+    }
+
+    double movementDurationSeconds(
+        PitchPoint start,
+        PitchPoint target,
+        double effectivePace,
+        double minimum,
+        double maximum) {
+        const double speed = std::max(1.0, effectivePace);
+        return clampElapsedSeconds(PitchGeometry::distance(start, target) / speed, minimum, maximum);
+    }
+
+    SimulationStepResult applyLocalGoal(
         MatchSimulationState& state,
         MatchEngineResult& result,
         const MatchEngineInput& input,
@@ -974,6 +1015,7 @@ namespace {
         TeamId concedingTeamId) {
         ++teamStatsFor(result, pending.sourceTeamId).goals;
         ++playerStatsFor(result, pending.sourcePlayerId, pending.sourceTeamId).goals;
+        appendOfficialGoalEvent(result, state, pending);
 
         if (TeamSimState* scoringTeam = findTeamState(state, pending.sourceTeamId)) {
             ++scoringTeam->goals;
@@ -1005,9 +1047,10 @@ namespace {
             0,
             state.ball.position,
             state.ball.position);
+        return SimulationStepResult{ RestartAfterGoalSeconds };
     }
 
-    void executeControlledAction(
+    SimulationStepResult executeControlledAction(
         MatchSimulationState& state,
         MatchEngineResult& result,
         const MatchEngineInput& input,
@@ -1021,7 +1064,7 @@ namespace {
         PlayerSimState* carrier = findPlayerState(state, state.ball.carrierPlayerId);
         if (carrier == nullptr) {
             setLooseBall(state, state.ball.position);
-            return;
+            return SimulationStepResult{ 1.0 };
         }
 
         state.ball.position = carrier->position;
@@ -1031,7 +1074,7 @@ namespace {
         const TeamSimState* carrierTeamState = findTeamState(state, carrier->teamId);
         const TeamSimState* opponentState = opponentTeam(state, carrier->teamId);
         if (carrierSnapshot == nullptr || carrierTeamState == nullptr || opponentState == nullptr) {
-            return;
+            return SimulationStepResult{ 1.0 };
         }
 
         const std::vector<ActionCandidate> candidates = generator.generate(
@@ -1060,7 +1103,7 @@ namespace {
                 0,
                 state.ball.position,
                 state.ball.position);
-            return;
+            return SimulationStepResult{ 1.0 };
         }
 
         const ActionCandidate action = *selection.selected;
@@ -1076,17 +1119,26 @@ namespace {
                 0,
                 state.ball.position,
                 state.ball.position);
-            return;
+            const double holdSeconds = 1.0
+                + matchEngineDeterministicUnitInterval(
+                    stepSeed(baseSeed, state, carrier->playerId ^ 0x681dULL)) * 2.0;
+            return SimulationStepResult{ clampElapsedSeconds(holdSeconds, 1.0, 3.0) };
         }
 
         if (actionType == BallCarrierActionType::Carry
             || actionType == BallCarrierActionType::Dribble
             || actionType == BallCarrierActionType::CutInside) {
+            const double elapsedSeconds = movementDurationSeconds(
+                carrier->position,
+                action.intendedTarget,
+                carrier->effectivePace,
+                2.0,
+                actionType == BallCarrierActionType::Carry ? 6.0 : 5.0);
             moveControlledBall(
                 state,
                 *carrier,
                 action.intendedTarget,
-                (actionType == BallCarrierActionType::Carry ? 5.5 : 4.0) * deltaSeconds);
+                (actionType == BallCarrierActionType::Carry ? 5.5 : 4.0) * elapsedSeconds);
             appendTrace(
                 result,
                 input.options.detail,
@@ -1097,7 +1149,7 @@ namespace {
                 0,
                 state.ball.position,
                 action.intendedTarget);
-            return;
+            return SimulationStepResult{ elapsedSeconds };
         }
 
         const BallTrajectoryType trajectoryType = trajectoryTypeFor(actionType);
@@ -1121,6 +1173,7 @@ namespace {
             ++playerStatsFor(result, carrier->playerId, carrier->teamId).passesAttempted;
         } else if (actionType == BallCarrierActionType::Shoot) {
             ++teamStatsFor(result, carrier->teamId).shots;
+            teamStatsFor(result, carrier->teamId).expectedGoals += 0.08;
             ++playerStatsFor(result, carrier->playerId, carrier->teamId).shots;
         }
 
@@ -1154,6 +1207,7 @@ namespace {
             action.targetPlayerId,
             trajectory.trajectory.start,
             trajectory.trajectory.actualTarget);
+        return SimulationStepResult{ trajectoryElapsedSeconds(trajectory.trajectory) };
     }
 
     ContestType contestTypeFor(
@@ -1194,7 +1248,7 @@ namespace {
         return participant;
     }
 
-    bool processShotAtGoal(
+    SimulationStepResult processShotAtGoal(
         MatchSimulationState& state,
         MatchEngineResult& result,
         const MatchEngineInput& input,
@@ -1205,15 +1259,16 @@ namespace {
         const BallTrajectory& trajectory,
         const TeamSimState& defendingTeam,
         std::uint64_t baseSeed) {
+        const double elapsedToShot = remainingTrajectorySeconds(state, trajectory);
         if (!pending || !pending->isShot) {
-            return false;
+            return SimulationStepResult{ elapsedToShot };
         }
 
         const TeamSimState* attackingTeam = findTeamState(state, pending->sourceTeamId);
         if (attackingTeam == nullptr) {
             setLooseBall(state, trajectory.actualTarget);
             pending = std::nullopt;
-            return true;
+            return SimulationStepResult{ elapsedToShot };
         }
 
         const AttackingDirection direction = attackingDirectionForTeam(*attackingTeam);
@@ -1231,7 +1286,7 @@ namespace {
                 trajectory.actualTarget,
                 trajectory.actualTarget);
             pending = std::nullopt;
-            return true;
+            return SimulationStepResult{ elapsedToShot };
         }
 
         ++teamStatsFor(result, pending->sourceTeamId).shotsOnTarget;
@@ -1239,7 +1294,7 @@ namespace {
         const PlayerSimState* goalkeeper = findGoalkeeperOrNearestOwnGoal(input, defendingTeam);
         const PlayerSimState* shooter = findPlayerState(state, pending->sourcePlayerId);
         if (goalkeeper == nullptr || shooter == nullptr) {
-            applyLocalPrototypeGoal(
+            const SimulationStepResult goalStep = applyLocalGoal(
                 state,
                 result,
                 input,
@@ -1247,7 +1302,7 @@ namespace {
                 trajectory,
                 defendingTeam.teamId);
             pending = std::nullopt;
-            return true;
+            return SimulationStepResult{ elapsedToShot + goalStep.elapsedSeconds };
         }
 
         const PitchPoint savePoint = trajectory.actualTarget;
@@ -1294,7 +1349,7 @@ namespace {
                 savePoint,
                 savePoint);
             pending = std::nullopt;
-            return true;
+            return SimulationStepResult{ elapsedToShot };
         }
 
         if (contest.ballOutcome == ContestBallOutcome::BallDeflected || contest.ballDeflected) {
@@ -1331,7 +1386,7 @@ namespace {
                 0.0,
                 false
             };
-            return true;
+            return SimulationStepResult{ elapsedToShot };
         }
 
         if (contest.ballOutcome == ContestBallOutcome::BallLoose || contest.ballBecomesLoose) {
@@ -1357,10 +1412,10 @@ namespace {
                 savePoint,
                 savePoint);
             pending = std::nullopt;
-            return true;
+            return SimulationStepResult{ elapsedToShot };
         }
 
-        applyLocalPrototypeGoal(
+        const SimulationStepResult goalStep = applyLocalGoal(
             state,
             result,
             input,
@@ -1368,10 +1423,10 @@ namespace {
             trajectory,
             defendingTeam.teamId);
         pending = std::nullopt;
-        return true;
+        return SimulationStepResult{ elapsedToShot + goalStep.elapsedSeconds };
     }
 
-    void processInFlightBall(
+    SimulationStepResult processInFlightBall(
         MatchSimulationState& state,
         MatchEngineResult& result,
         const MatchEngineInput& input,
@@ -1384,15 +1439,16 @@ namespace {
         if (!state.ball.trajectory) {
             setLooseBall(state, state.ball.position);
             pending = std::nullopt;
-            return;
+            return SimulationStepResult{ 1.0 };
         }
 
         const BallTrajectory trajectory = *state.ball.trajectory;
+        const double elapsedToArrival = remainingTrajectorySeconds(state, trajectory);
         TeamSimState* defendingTeam = opponentTeam(state, state.possession.teamInPossession);
         if (defendingTeam == nullptr) {
             setLooseBall(state, trajectory.actualTarget);
             pending = std::nullopt;
-            return;
+            return SimulationStepResult{ elapsedToArrival };
         }
 
         const std::vector<PlayerSimState> interceptionDefenders =
@@ -1489,7 +1545,10 @@ namespace {
                         candidate.interceptionPoint,
                         candidate.interceptionPoint);
                     pending = std::nullopt;
-                    return;
+                    return SimulationStepResult{
+                        clampElapsedSeconds(
+                            candidate.ballArrivalSecond - static_cast<double>(state.currentSecond))
+                    };
                 }
 
                 if (contest.ballDeflected) {
@@ -1524,7 +1583,10 @@ namespace {
                         0.0,
                         false
                     };
-                    return;
+                    return SimulationStepResult{
+                        clampElapsedSeconds(
+                            candidate.ballArrivalSecond - static_cast<double>(state.currentSecond))
+                    };
                 }
 
                 if (contest.ballBecomesLoose
@@ -1541,11 +1603,14 @@ namespace {
                         candidate.interceptionPoint,
                         candidate.interceptionPoint);
                     pending = std::nullopt;
-                    return;
+                    return SimulationStepResult{
+                        clampElapsedSeconds(
+                            candidate.ballArrivalSecond - static_cast<double>(state.currentSecond))
+                    };
                 }
 
                 if (contest.ballOutcome == ContestBallOutcome::ShotContinues) {
-                    processShotAtGoal(
+                    return processShotAtGoal(
                         state,
                         result,
                         input,
@@ -1556,14 +1621,13 @@ namespace {
                         trajectory,
                         *defendingTeam,
                         baseSeed);
-                    return;
                 }
             }
         }
 
         state.ball.position = PitchGeometry::clampToPitch(trajectory.actualTarget);
         if (pending && pending->isShot) {
-            processShotAtGoal(
+            return processShotAtGoal(
                 state,
                 result,
                 input,
@@ -1574,7 +1638,6 @@ namespace {
                 trajectory,
                 *defendingTeam,
                 baseSeed);
-            return;
         }
 
         if (pending
@@ -1597,7 +1660,7 @@ namespace {
                         pending->sourceTeamId).passesCompleted;
                 }
                 pending = std::nullopt;
-                return;
+                return SimulationStepResult{ elapsedToArrival };
             }
         }
 
@@ -1613,9 +1676,10 @@ namespace {
             state.ball.position,
             state.ball.position);
         pending = std::nullopt;
+        return SimulationStepResult{ elapsedToArrival };
     }
 
-    void processLooseBall(
+    SimulationStepResult processLooseBall(
         MatchSimulationState& state,
         MatchEngineResult& result,
         const MatchEngineInput& input) {
@@ -1638,9 +1702,18 @@ namespace {
         }
 
         if (best == nullptr || bestDistance > LooseBallControlRangeMeters) {
-            return;
+            return SimulationStepResult{ best != nullptr
+                ? movementDurationSeconds(
+                    best->position,
+                    state.ball.position,
+                    best->effectivePace,
+                    0.5,
+                    4.0)
+                : 1.0 };
         }
 
+        const double raceSeconds =
+            movementDurationSeconds(best->position, state.ball.position, best->effectivePace, 0.5, 4.0);
         const TeamId previousTeam = state.possession.teamInPossession;
         setControlledBy(state, best->playerId, best->teamId, state.ball.position);
         appendTrace(
@@ -1655,10 +1728,12 @@ namespace {
             0,
             state.ball.position,
             state.ball.position);
+        return SimulationStepResult{ raceSeconds };
     }
 
-    void processOutOfPlay(MatchSimulationState& state) {
+    SimulationStepResult processOutOfPlay(MatchSimulationState& state) {
         setLooseBall(state, pitchCenter());
+        return SimulationStepResult{ 1.0 };
     }
 
     void addInitialPlayerStats(MatchEngineResult& result, const MatchSimulationState& state) {
@@ -1685,6 +1760,16 @@ namespace {
         result.awayStats.possessionShare =
             (state.awayTeam.possessionShareAccumulator / total) * 100.0;
     }
+
+    void finalizePlayerMinutes(MatchEngineResult& result, int simulatedSeconds) {
+        const int minutes = std::clamp(
+            static_cast<int>(std::ceil(static_cast<double>(simulatedSeconds) / 60.0)),
+            0,
+            90);
+        for (MatchPlayerSimulationStats& stats : result.playerStats) {
+            stats.minutesPlayed = std::max(stats.minutesPlayed, minutes);
+        }
+    }
 }
 
 MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) const {
@@ -1697,7 +1782,6 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
 
     const std::uint64_t baseSeed = baseSeedFor(input);
     const double deltaSeconds = deltaSecondsFor(input);
-    const int maxActions = maxActionsFor(input.options.detail);
 
     TeamShapeModel shapeModel;
     PlayerIntentResolver intentResolver;
@@ -1722,7 +1806,10 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
         state.ball.position,
         state.ball.position);
 
-    for (int actionIndex = 0; actionIndex < maxActions; ++actionIndex) {
+    int safetyCounter = 0;
+    while (state.currentSecond < RegulationMatchSeconds
+        && safetyCounter < MaxSafetyActions) {
+        ++safetyCounter;
         const TeamShapeContext homeShapeContext = shapeContextFor(state.homeTeam, state);
         const TeamShapeContext awayShapeContext = shapeContextFor(state.awayTeam, state);
         const std::vector<PlayerShapeTarget> homeTargets = buildTargetsSafely(
@@ -1775,18 +1862,14 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
             deltaSeconds,
             movementSkipPlayerId);
 
-        if (state.possession.teamInPossession == state.homeTeam.teamId) {
-            state.homeTeam.possessionShareAccumulator += deltaSeconds;
-        } else if (state.possession.teamInPossession == state.awayTeam.teamId) {
-            state.awayTeam.possessionShareAccumulator += deltaSeconds;
-        }
+        SimulationStepResult step;
 
         if (state.ball.controlState == BallControlState::Controlled) {
             const TeamShapeContext& carrierContext =
                 state.ball.carrierTeamId == state.homeTeam.teamId
                     ? homeShapeContext
                     : awayShapeContext;
-            executeControlledAction(
+            step = executeControlledAction(
                 state,
                 result,
                 input,
@@ -1798,7 +1881,7 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
                 baseSeed,
                 deltaSeconds);
         } else if (state.ball.controlState == BallControlState::InFlight) {
-            processInFlightBall(
+            step = processInFlightBall(
                 state,
                 result,
                 input,
@@ -1809,15 +1892,29 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
                 pending,
                 baseSeed);
         } else if (state.ball.controlState == BallControlState::Loose) {
-            processLooseBall(state, result, input);
+            step = processLooseBall(state, result, input);
         } else if (state.ball.controlState == BallControlState::OutOfPlay) {
-            processOutOfPlay(state);
+            step = processOutOfPlay(state);
+        }
+
+        const double elapsedSeconds = clampElapsedSeconds(
+            step.elapsedSeconds,
+            MinimumStepSeconds,
+            RestartAfterGoalSeconds + MaximumNormalStepSeconds);
+        if (state.possession.teamInPossession == state.homeTeam.teamId) {
+            state.homeTeam.possessionShareAccumulator += elapsedSeconds;
+        } else if (state.possession.teamInPossession == state.awayTeam.teamId) {
+            state.awayTeam.possessionShareAccumulator += elapsedSeconds;
         }
 
         ++state.possession.actionDepth;
-        state.currentSecond += static_cast<int>(std::ceil(deltaSeconds));
+        state.currentSecond = std::min(
+            RegulationMatchSeconds,
+            state.currentSecond + static_cast<int>(std::ceil(elapsedSeconds)));
     }
 
+    result.simulatedSeconds = state.currentSecond;
+    finalizePlayerMinutes(result, state.currentSecond);
     finalizePossessionShare(result, state);
     result.report = MatchEngineReportAdapter{}.buildReport(input, result);
     return result;

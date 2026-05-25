@@ -36,6 +36,7 @@ class PostMatchInteractionObject : public QObject {
     Q_PROPERTY(QString awayAverageOverallText READ awayAverageOverallText NOTIFY changed)
     Q_PROPERTY(QVariantList homeLineup READ homeLineup NOTIFY changed)
     Q_PROPERTY(QVariantList awayLineup READ awayLineup NOTIFY changed)
+    Q_PROPERTY(QVariantList statRows READ statRows NOTIFY changed)
 
 public:
     explicit PostMatchInteractionObject(QObject* parent = nullptr);
@@ -68,6 +69,7 @@ public:
     QString awayAverageOverallText() const;
     QVariantList homeLineup() const;
     QVariantList awayLineup() const;
+    QVariantList statRows() const;
 
     void setFromValues(qulonglong matchId,
         const QString& dateText,
@@ -94,7 +96,8 @@ public:
         const QString& homeAverageOverallText,
         const QString& awayAverageOverallText,
         const QVariantList& homeLineup,
-        const QVariantList& awayLineup);
+        const QVariantList& awayLineup,
+        const QVariantList& statRows);
     void clear();
 
 signals:
@@ -128,4 +131,5 @@ private:
     QString awayAverageOverallTextValue = QStringLiteral("--");
     QVariantList homeLineupValue;
     QVariantList awayLineupValue;
+    QVariantList statRowsValue;
 };

@@ -13,6 +13,7 @@
 #include<filesystem>
 #include<iostream>
 #include<memory>
+#include<numeric>
 #include<stdexcept>
 #include<string>
 #include<vector>
@@ -120,7 +121,9 @@ namespace {
         return true;
     }
 
-    MatchEngineInput buildInput(MatchSimulationDetail detail) {
+    MatchEngineInput buildInput(
+        MatchSimulationDetail detail,
+        std::uint64_t deterministicSeed = 0x51f0c0deULL) {
         Team homeTeam = makeTeam(101, "Home Smoke", 4);
         Team awayTeam = makeTeam(202, "Away Smoke", 0);
 
@@ -130,7 +133,7 @@ namespace {
 
         MatchEngineOptions options;
         options.detail = detail;
-        options.deterministicSeed = 0x51f0c0deULL;
+        options.deterministicSeed = deterministicSeed;
 
         return MatchEngineInputBuilder{}.build(
             303,
@@ -153,6 +156,8 @@ namespace {
         const MatchReport& report = *result.report;
         require(report.homeGoals == result.homeStats.goals, "home report goals should match result stats");
         require(report.awayGoals == result.awayStats.goals, "away report goals should match result stats");
+        require(report.homeStats.goals == report.homeGoals, "home report team stats should match score");
+        require(report.awayStats.goals == report.awayGoals, "away report team stats should match score");
         require(report.homeId == input.homeTeam.teamId, "home report team id should match input");
         require(report.awayId == input.awayTeam.teamId, "away report team id should match input");
         require(report.matchId == input.matchId, "report match id should match input");
@@ -161,6 +166,19 @@ namespace {
         require(report.matchweek == input.matchweek, "report matchweek should match input");
         require(hasStarterReports(report, input.homeTeam.teamSheet, input.awayTeam.teamSheet),
             "report should contain started player reports for starters");
+        require(result.simulatedSeconds >= 5400, "coordinate match should simulate regulation time");
+        require(report.homeStats.shots >= report.homeStats.shotsOnTarget,
+            "home shots should cover shots on target");
+        require(report.awayStats.shots >= report.awayStats.shotsOnTarget,
+            "away shots should cover shots on target");
+        require(report.homeStats.passesAttempted >= report.homeStats.passesCompleted,
+            "home passes attempted should cover completed passes");
+        require(report.awayStats.passesAttempted >= report.awayStats.passesCompleted,
+            "away passes attempted should cover completed passes");
+        require(report.homeStats.possessionShare >= 0.0 && report.awayStats.possessionShare >= 0.0,
+            "possession shares should be populated");
+        require(report.homeStats.possessionShare + report.awayStats.possessionShare > 99.0,
+            "possession shares should represent the match");
     }
 
     void runDeterministicRegression() {
@@ -184,6 +202,46 @@ namespace {
         const MatchEngineInput input = buildInput(detail);
         const MatchEngineResult result = MatchEngine{}.simulate(input);
         assertResultReportConsistency(input, result);
+    }
+
+    void runOfficialGoalEventSmoke() {
+        for (std::uint64_t seed = 1; seed <= 40; ++seed) {
+            const MatchEngineInput input = buildInput(MatchSimulationDetail::BackgroundSummary, seed);
+            const MatchEngineResult result = MatchEngine{}.simulate(input);
+            assertResultReportConsistency(input, result);
+
+            const int totalGoals = result.homeStats.goals + result.awayStats.goals;
+            if (totalGoals <= 0) {
+                continue;
+            }
+
+            const auto goalEventCount = [](const std::vector<MatchEventRecord>& events) {
+                return static_cast<int>(std::count_if(
+                    events.begin(),
+                    events.end(),
+                    [](const MatchEventRecord& event) {
+                        return event.kind == MatchEventKind::Goal;
+                    }));
+            };
+            const int playerReportGoals = std::accumulate(
+                result.report->playerReports.begin(),
+                result.report->playerReports.end(),
+                0,
+                [](int total, const MatchPlayerReport& report) {
+                    return total + report.goals;
+                });
+
+            require(goalEventCount(result.events) == totalGoals,
+                "official result goal events should match score in background mode");
+            require(goalEventCount(result.report->events) == totalGoals,
+                "report goal events should match score in background mode");
+            require(playerReportGoals == totalGoals,
+                "player report goals should match score when goals are scored");
+            require(result.traceFrames.empty(), "background summary should not need debug trace for goal events");
+            return;
+        }
+
+        throw std::runtime_error("goal event smoke could not find a deterministic goal sample");
     }
 
     void runInvalidInputSmoke() {
@@ -291,6 +349,71 @@ namespace {
 
         std::filesystem::remove(dbPath, removeError);
     }
+
+    void runMatchReportStatsPersistenceSmoke() {
+        const std::filesystem::path dbPath =
+            std::filesystem::temp_directory_path() / "fm_match_engine_report_stats_smoke.db";
+        std::error_code removeError;
+        std::filesystem::remove(dbPath, removeError);
+
+        MatchReport report;
+        report.matchId = 3030;
+        report.leagueId = 4040;
+        report.seasonYear = 2026;
+        report.date = Date{ 2026, Month::March, 14 };
+        report.homeId = 7001;
+        report.awayId = 7002;
+        report.matchweek = 3;
+        report.homeGoals = 2;
+        report.awayGoals = 1;
+        report.homeLineup.teamId = report.homeId;
+        report.awayLineup.teamId = report.awayId;
+        report.homeStats.goals = report.homeGoals;
+        report.homeStats.shots = 11;
+        report.homeStats.shotsOnTarget = 5;
+        report.homeStats.passesAttempted = 420;
+        report.homeStats.passesCompleted = 338;
+        report.homeStats.possessionShare = 56.0;
+        report.homeStats.expectedGoals = 1.42;
+        report.awayStats.goals = report.awayGoals;
+        report.awayStats.shots = 7;
+        report.awayStats.shotsOnTarget = 2;
+        report.awayStats.passesAttempted = 310;
+        report.awayStats.passesCompleted = 231;
+        report.awayStats.possessionShare = 44.0;
+        report.awayStats.expectedGoals = 0.81;
+
+        {
+            SqliteGameStateRepository repository(dbPath.string());
+            repository.saveRuntimeState(
+                Date{ 2026, Month::March, 14 },
+                0,
+                {},
+                {},
+                { report },
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {});
+        }
+
+        SqliteGameStateRepository repository(dbPath.string(), GameStateRepositoryMode::ReadExisting);
+        const std::vector<MatchReport> loadedReports = repository.loadMatchReports();
+        require(loadedReports.size() == 1, "runtime save should persist one match report");
+        require(loadedReports.front().homeStats.shots == 11,
+            "loaded match report should preserve home team shots");
+        require(loadedReports.front().awayStats.passesCompleted == 231,
+            "loaded match report should preserve away team passes");
+        require(loadedReports.front().homeStats.goals == loadedReports.front().homeGoals,
+            "loaded home report stats should match score");
+        require(loadedReports.front().awayStats.goals == loadedReports.front().awayGoals,
+            "loaded away report stats should match score");
+
+        std::filesystem::remove(dbPath, removeError);
+    }
 }
 
 int main() {
@@ -300,8 +423,10 @@ int main() {
         runDetailSmoke(MatchSimulationDetail::BackgroundSummary);
         runDetailSmoke(MatchSimulationDetail::WatchedMatch);
         runDetailSmoke(MatchSimulationDetail::DebugFullTrace);
+        runOfficialGoalEventSmoke();
         runHandlerIntegrationSmoke();
         runPlayerAttributesPersistenceSmoke();
+        runMatchReportStatsPersistenceSmoke();
     }
     catch (const std::exception& ex) {
         std::cerr << "fm_match_engine_smoke failed: " << ex.what() << '\n';

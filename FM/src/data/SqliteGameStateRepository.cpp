@@ -235,6 +235,16 @@ namespace {
         return false;
     }
 
+    void addColumnIfMissing(
+        const SqliteDatabase& database,
+        const std::string& tableName,
+        const std::string& columnDefinition) {
+        const std::string columnName = columnDefinition.substr(0, columnDefinition.find(' '));
+        if (tableExists(database, tableName) && !columnExists(database, tableName, columnName)) {
+            database.execute("ALTER TABLE " + tableName + " ADD COLUMN " + columnDefinition + ";");
+        }
+    }
+
     void requireRuntimeTeamSheetsTacticalSetupV1Schema(const SqliteDatabase& database) {
         const std::vector<std::string> requiredColumns{
             "width",
@@ -304,8 +314,60 @@ namespace {
             "home_starting_player_ids TEXT NOT NULL,"
             "away_coach_id INTEGER NOT NULL,"
             "away_formation INTEGER NOT NULL,"
-            "away_starting_player_ids TEXT NOT NULL"
+            "away_starting_player_ids TEXT NOT NULL,"
+            "home_shots INTEGER NOT NULL DEFAULT 0,"
+            "home_shots_on_target INTEGER NOT NULL DEFAULT 0,"
+            "home_passes_attempted INTEGER NOT NULL DEFAULT 0,"
+            "home_passes_completed INTEGER NOT NULL DEFAULT 0,"
+            "home_tackles_attempted INTEGER NOT NULL DEFAULT 0,"
+            "home_tackles_won INTEGER NOT NULL DEFAULT 0,"
+            "home_interceptions INTEGER NOT NULL DEFAULT 0,"
+            "home_fouls INTEGER NOT NULL DEFAULT 0,"
+            "home_corners INTEGER NOT NULL DEFAULT 0,"
+            "home_yellow_cards INTEGER NOT NULL DEFAULT 0,"
+            "home_red_cards INTEGER NOT NULL DEFAULT 0,"
+            "home_possession_share REAL NOT NULL DEFAULT 0.0,"
+            "home_expected_goals REAL NOT NULL DEFAULT 0.0,"
+            "away_shots INTEGER NOT NULL DEFAULT 0,"
+            "away_shots_on_target INTEGER NOT NULL DEFAULT 0,"
+            "away_passes_attempted INTEGER NOT NULL DEFAULT 0,"
+            "away_passes_completed INTEGER NOT NULL DEFAULT 0,"
+            "away_tackles_attempted INTEGER NOT NULL DEFAULT 0,"
+            "away_tackles_won INTEGER NOT NULL DEFAULT 0,"
+            "away_interceptions INTEGER NOT NULL DEFAULT 0,"
+            "away_fouls INTEGER NOT NULL DEFAULT 0,"
+            "away_corners INTEGER NOT NULL DEFAULT 0,"
+            "away_yellow_cards INTEGER NOT NULL DEFAULT 0,"
+            "away_red_cards INTEGER NOT NULL DEFAULT 0,"
+            "away_possession_share REAL NOT NULL DEFAULT 0.0,"
+            "away_expected_goals REAL NOT NULL DEFAULT 0.0"
             ");");
+        addColumnIfMissing(database, "runtime_match_reports", "home_shots INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "home_shots_on_target INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "home_passes_attempted INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "home_passes_completed INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "home_tackles_attempted INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "home_tackles_won INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "home_interceptions INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "home_fouls INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "home_corners INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "home_yellow_cards INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "home_red_cards INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "home_possession_share REAL NOT NULL DEFAULT 0.0");
+        addColumnIfMissing(database, "runtime_match_reports", "home_expected_goals REAL NOT NULL DEFAULT 0.0");
+        addColumnIfMissing(database, "runtime_match_reports", "away_shots INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "away_shots_on_target INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "away_passes_attempted INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "away_passes_completed INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "away_tackles_attempted INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "away_tackles_won INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "away_interceptions INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "away_fouls INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "away_corners INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "away_yellow_cards INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "away_red_cards INTEGER NOT NULL DEFAULT 0");
+        addColumnIfMissing(database, "runtime_match_reports", "away_possession_share REAL NOT NULL DEFAULT 0.0");
+        addColumnIfMissing(database, "runtime_match_reports", "away_expected_goals REAL NOT NULL DEFAULT 0.0");
         database.execute(
             "CREATE TABLE IF NOT EXISTS runtime_match_player_reports ("
             "match_id INTEGER NOT NULL,"
@@ -531,6 +593,40 @@ namespace {
         report.awayLineup.coachId = static_cast<CoachId>(statement.columnInt(12));
         report.awayLineup.formation = static_cast<FormationId>(statement.columnInt(13));
         report.awayLineup.startingPlayerIds = splitIds(statement.columnText(14));
+        report.homeStats.goals = report.homeGoals;
+        report.awayStats.goals = report.awayGoals;
+        return report;
+    }
+
+    MatchReport readReportRowWithStats(SqliteStatement& statement) {
+        MatchReport report = readReportRow(statement);
+        int column = 15;
+        report.homeStats.shots = statement.columnInt(column++);
+        report.homeStats.shotsOnTarget = statement.columnInt(column++);
+        report.homeStats.passesAttempted = statement.columnInt(column++);
+        report.homeStats.passesCompleted = statement.columnInt(column++);
+        report.homeStats.tacklesAttempted = statement.columnInt(column++);
+        report.homeStats.tacklesWon = statement.columnInt(column++);
+        report.homeStats.interceptions = statement.columnInt(column++);
+        report.homeStats.fouls = statement.columnInt(column++);
+        report.homeStats.corners = statement.columnInt(column++);
+        report.homeStats.yellowCards = statement.columnInt(column++);
+        report.homeStats.redCards = statement.columnInt(column++);
+        report.homeStats.possessionShare = statement.columnDouble(column++);
+        report.homeStats.expectedGoals = statement.columnDouble(column++);
+        report.awayStats.shots = statement.columnInt(column++);
+        report.awayStats.shotsOnTarget = statement.columnInt(column++);
+        report.awayStats.passesAttempted = statement.columnInt(column++);
+        report.awayStats.passesCompleted = statement.columnInt(column++);
+        report.awayStats.tacklesAttempted = statement.columnInt(column++);
+        report.awayStats.tacklesWon = statement.columnInt(column++);
+        report.awayStats.interceptions = statement.columnInt(column++);
+        report.awayStats.fouls = statement.columnInt(column++);
+        report.awayStats.corners = statement.columnInt(column++);
+        report.awayStats.yellowCards = statement.columnInt(column++);
+        report.awayStats.redCards = statement.columnInt(column++);
+        report.awayStats.possessionShare = statement.columnDouble(column++);
+        report.awayStats.expectedGoals = statement.columnDouble(column++);
         return report;
     }
 }
@@ -615,13 +711,33 @@ std::vector<PersistedFixtureState> SqliteGameStateRepository::loadFixtures() con
 std::vector<MatchReport> SqliteGameStateRepository::loadMatchReports() const {
     std::vector<MatchReport> reports;
     {
-        SqliteStatement statement = database.prepare(
-            "SELECT match_id, league_id, season_year, match_date, home_team_id, away_team_id, matchweek, "
-            "home_goals, away_goals, home_coach_id, home_formation, home_starting_player_ids, "
-            "away_coach_id, away_formation, away_starting_player_ids "
-            "FROM runtime_match_reports ORDER BY league_id, match_date, match_id");
-        while (statement.stepRow()) {
-            reports.push_back(readReportRow(statement));
+        const bool hasTeamStats =
+            columnExists(database, "runtime_match_reports", "home_shots")
+            && columnExists(database, "runtime_match_reports", "away_expected_goals");
+        if (hasTeamStats) {
+            SqliteStatement statement = database.prepare(
+                "SELECT match_id, league_id, season_year, match_date, home_team_id, away_team_id, matchweek, "
+                "home_goals, away_goals, home_coach_id, home_formation, home_starting_player_ids, "
+                "away_coach_id, away_formation, away_starting_player_ids, "
+                "home_shots, home_shots_on_target, home_passes_attempted, home_passes_completed, "
+                "home_tackles_attempted, home_tackles_won, home_interceptions, home_fouls, home_corners, "
+                "home_yellow_cards, home_red_cards, home_possession_share, home_expected_goals, "
+                "away_shots, away_shots_on_target, away_passes_attempted, away_passes_completed, "
+                "away_tackles_attempted, away_tackles_won, away_interceptions, away_fouls, away_corners, "
+                "away_yellow_cards, away_red_cards, away_possession_share, away_expected_goals "
+                "FROM runtime_match_reports ORDER BY league_id, match_date, match_id");
+            while (statement.stepRow()) {
+                reports.push_back(readReportRowWithStats(statement));
+            }
+        } else {
+            SqliteStatement statement = database.prepare(
+                "SELECT match_id, league_id, season_year, match_date, home_team_id, away_team_id, matchweek, "
+                "home_goals, away_goals, home_coach_id, home_formation, home_starting_player_ids, "
+                "away_coach_id, away_formation, away_starting_player_ids "
+                "FROM runtime_match_reports ORDER BY league_id, match_date, match_id");
+            while (statement.stepRow()) {
+                reports.push_back(readReportRow(statement));
+            }
         }
     }
 
@@ -1074,8 +1190,14 @@ void SqliteGameStateRepository::saveRuntimeState(
                 "INSERT INTO runtime_match_reports ("
                 "match_id, league_id, season_year, match_date, home_team_id, away_team_id, matchweek, "
                 "home_goals, away_goals, home_coach_id, home_formation, home_starting_player_ids, "
-                "away_coach_id, away_formation, away_starting_player_ids"
-                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                "away_coach_id, away_formation, away_starting_player_ids, "
+                "home_shots, home_shots_on_target, home_passes_attempted, home_passes_completed, "
+                "home_tackles_attempted, home_tackles_won, home_interceptions, home_fouls, home_corners, "
+                "home_yellow_cards, home_red_cards, home_possession_share, home_expected_goals, "
+                "away_shots, away_shots_on_target, away_passes_attempted, away_passes_completed, "
+                "away_tackles_attempted, away_tackles_won, away_interceptions, away_fouls, away_corners, "
+                "away_yellow_cards, away_red_cards, away_possession_share, away_expected_goals"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.bindInt64(1, static_cast<std::int64_t>(report.matchId));
             statement.bindInt(2, static_cast<int>(report.leagueId));
             statement.bindInt(3, report.seasonYear);
@@ -1091,6 +1213,32 @@ void SqliteGameStateRepository::saveRuntimeState(
             statement.bindInt(13, static_cast<int>(report.awayLineup.coachId));
             statement.bindInt(14, static_cast<int>(report.awayLineup.formation));
             statement.bindText(15, joinIds(report.awayLineup.startingPlayerIds));
+            statement.bindInt(16, report.homeStats.shots);
+            statement.bindInt(17, report.homeStats.shotsOnTarget);
+            statement.bindInt(18, report.homeStats.passesAttempted);
+            statement.bindInt(19, report.homeStats.passesCompleted);
+            statement.bindInt(20, report.homeStats.tacklesAttempted);
+            statement.bindInt(21, report.homeStats.tacklesWon);
+            statement.bindInt(22, report.homeStats.interceptions);
+            statement.bindInt(23, report.homeStats.fouls);
+            statement.bindInt(24, report.homeStats.corners);
+            statement.bindInt(25, report.homeStats.yellowCards);
+            statement.bindInt(26, report.homeStats.redCards);
+            statement.bindDouble(27, report.homeStats.possessionShare);
+            statement.bindDouble(28, report.homeStats.expectedGoals);
+            statement.bindInt(29, report.awayStats.shots);
+            statement.bindInt(30, report.awayStats.shotsOnTarget);
+            statement.bindInt(31, report.awayStats.passesAttempted);
+            statement.bindInt(32, report.awayStats.passesCompleted);
+            statement.bindInt(33, report.awayStats.tacklesAttempted);
+            statement.bindInt(34, report.awayStats.tacklesWon);
+            statement.bindInt(35, report.awayStats.interceptions);
+            statement.bindInt(36, report.awayStats.fouls);
+            statement.bindInt(37, report.awayStats.corners);
+            statement.bindInt(38, report.awayStats.yellowCards);
+            statement.bindInt(39, report.awayStats.redCards);
+            statement.bindDouble(40, report.awayStats.possessionShare);
+            statement.bindDouble(41, report.awayStats.expectedGoals);
             statement.stepDone();
 
             for (const MatchPlayerReport& playerReport : report.playerReports) {

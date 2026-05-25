@@ -509,6 +509,9 @@ namespace {
             if (report.homeGoals < 0 || report.awayGoals < 0) {
                 return invalid("runtime match report has negative goals");
             }
+            if (report.homeStats.goals != report.homeGoals || report.awayStats.goals != report.awayGoals) {
+                return invalid("runtime match report stats do not match score");
+            }
 
             const auto fixtureIt = fixtureById.find(report.matchId);
             if (fixtureIt == fixtureById.end()) {

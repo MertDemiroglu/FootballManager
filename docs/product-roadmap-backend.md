@@ -106,8 +106,8 @@ Related documents:
 - Status: documented.
 - Scope: define the future lightweight real-football simulation model: real pitch dimensions, possession-based simulation steps, tactical shape, action plans, perception, action candidates, intended-vs-actual ball trajectories, path interception, arrival contests, local contests, watched traces, and background summaries.
 - V1 tactical inputs needed by the future engine: Mentality, Tempo, Width, DefensiveLine, PressingIntensity, MarkingStyle, and PassingDirectness.
-- Current behavior: no runtime engine implementation was added; current match result behavior, save/load behavior, and UI behavior remain unchanged.
-- Next step: create the `MatchEngine` interface/skeleton and output contracts before implementing the full simulation engine.
+- Current behavior: the coordinate engine is now the default playable runtime path; lightweight simulation remains as fallback/compatibility.
+- Next step: watched/background mode separation, tuning/stability, event richness, and UI playback preparation.
 - Do not mix in: full coordinate engine implementation, mini-pitch UI, tactical UI, substitutions, injuries, save/load schema changes, or match result behavior changes.
 
 ### 12. Match Engine Core Types
@@ -195,27 +195,27 @@ Related documents:
 
 ### 22. Minimal coordinate match simulator
 
-- Status: implemented as a bounded coordinate simulator.
-- Scope: add `CoordinateMatchSimulator` behind valid `MatchEngine::simulate` input. The simulator initializes local `MatchSimulationState` from snapshots, places starters through `TeamShapeModel`, resolves intents and movement, selects controlled-ball actions, builds trajectories, handles minimal in-flight/deflected/loose ball outcomes, and returns simulation stats/traces through `MatchEngineResult`.
+- Status: implemented as a matchSecond/action-duration coordinate simulator.
+- Scope: add `CoordinateMatchSimulator` behind valid `MatchEngine::simulate` input. The simulator initializes local `MatchSimulationState` from snapshots, places starters through `TeamShapeModel`, resolves intents and movement, selects controlled-ball actions, builds trajectories, handles minimal in-flight/deflected/loose ball outcomes, advances the match clock by action/trajectory/race/restart durations until regulation time, and returns simulation stats/events/traces through `MatchEngineResult`.
 - Current behavior: the simulator now powers the default coordinate path through `MatchEngine::simulate`. It creates an optional `MatchReport` but still does not apply it, call `League::applyMatchReport`, or mutate domain objects, fixtures, standings, reports, history, save/load state, or UI.
-- Future work: deterministic regression/smoke tests after the report adapter.
-- Do not mix in: runtime integration, mini-pitch UI, save/load schema changes, fixture/standing/report application changes, or final 90-minute match simulation tuning.
+- Future work: watched/background mode separation and tuning.
+- Do not mix in: mini-pitch UI, fixture/standing/report application changes, or final tuning.
 
 ### 23. Shot / Save / Goal local simulator + Ball Vertical Profile
 
-- Status: implemented as a bounded coordinate simulator.
+- Status: implemented as a matchSecond/action-duration coordinate simulator.
 - Scope: add `BallFlightProfile` and apex height to `BallTrajectory`, expose simple ball-height helpers, map trajectory types to ground/low/high/lofted/shot profiles, use temporary attribute-based reach checks for high balls and aerial situations, route high crosses/clearances toward aerial contest handling, and resolve on-target local simulator shots through `GoalkeeperSave`.
-- Current behavior: simulator saves, rebounds, and goals update `MatchEngineResult` stats/traces and the adapted simulator `MatchReport`. Report application still happens only in `PlayMatchCommandHandler` via `League::applyMatchReport`.
-- Future work: deterministic regression/smoke tests before runtime integration.
-- Do not mix in: runtime integration, `PlayMatchCommandHandler`, current `MatchSimulation` replacement, `League::applyMatchReport`, mini-pitch UI, save/load schema changes, fixture/standing/report application changes, or final 90-minute tuning.
+- Current behavior: simulator saves, rebounds, and goals update `MatchEngineResult` stats and official events, with watched/debug trace markers kept separate. Report application still happens only in `PlayMatchCommandHandler` via `League::applyMatchReport`.
+- Future work: event richness, assist metadata, and UI playback preparation.
+- Do not mix in: `League::applyMatchReport` changes, mini-pitch UI, fixture/standing/report application changes, or final tuning.
 
 ### 24. MatchEngineResult -> MatchReport Adapter
 
 - Status: implemented as a non-runtime conversion layer.
-- Scope: add a Qt-free pure adapter that builds the current narrow `MatchReport` shape from `MatchEngineInput` and `MatchEngineResult`. It maps match metadata, season year, score, lineup snapshots, player report basics, and goal trace frames.
-- Current behavior: the adapter feeds the default coordinate match flow. It does not map unsupported simulator stats such as shots, passes, interceptions, saves, xG, possession, or trace frames into `MatchReport`, and it does not apply the report to `League`, game state, fixtures, standings, history, save/load, domain events, or UI.
-- Future work: first playable coordinate match flow after feature-flagged integration prep.
-- Do not mix in: runtime integration, `PlayMatchCommandHandler`, current `MatchSimulation` replacement, `League::applyMatchReport`, mini-pitch UI, save/load schema changes, fixture/standing/report application changes, or final 90-minute tuning.
+- Scope: add a Qt-free pure adapter that builds `MatchReport` from `MatchEngineInput` and `MatchEngineResult`. It maps match metadata, season year, score, lineup snapshots, player report basics, official events, and basic home/away team stats.
+- Current behavior: the adapter feeds the default coordinate match flow. Trace frames are presentation/debug data and are no longer the authoritative source for official report events. The adapter does not apply the report to `League`, game state, fixtures, standings, history, save/load, domain events, or UI.
+- Future work: richer official event metadata and UI playback preparation.
+- Do not mix in: `League::applyMatchReport` changes, mini-pitch UI, or fixture/standing/report application changes.
 
 ### 25. First Playable Coordinate Match Flow
 
@@ -225,6 +225,13 @@ Related documents:
 - Authoritative apply: `League::applyMatchReport` remains the only match application point, followed by condition effects and `MatchPlayedEvent` publication.
 - Save/load: detailed `PlayerAttributes` are persisted in runtime saves for rostered players and free agents. Old saves without detailed runtime attributes still load and keep seed/bootstrap or legacy `s1..s5` fallback attributes.
 - Do not mix in: UI settings, new domain events, removal of `MatchSimulation`, or changes to `League::applyMatchReport` semantics.
+
+### 26. MatchSecond Coordinate Loop + Report Stats
+
+- Status: implemented.
+- Scope: replace the temporary fixed action-count coordinate loop with a regulation match clock. Controlled actions, in-flight balls, loose-ball races, and goal restarts now return elapsed simulated seconds. Official match events are stored separately from debug trace, and `MatchReport` now carries basic team stats.
+- Current behavior: `BackgroundSummary`, `WatchedMatch`, and `DebugFullTrace` share the same outcome logic; detail mode affects trace verbosity. Goal scorers are available in background reports, post-match statistics read from `MatchReport`, and saved reports persist basic team stats while old saves without those columns remain safe.
+- Do not mix in: full real-time physics, stoppage time, live QML playback, lightweight removal, or changes to `League::applyMatchReport` semantics.
 
 ## Next Backend Phases
 

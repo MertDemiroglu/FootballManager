@@ -18,6 +18,7 @@ struct MatchTeamSimulationStats {
     int tacklesWon = 0;
     int interceptions = 0;
     int fouls = 0;
+    int corners = 0;
     int yellowCards = 0;
     int redCards = 0;
     double possessionShare = 0.0;
@@ -46,5 +47,7 @@ struct MatchEngineResult {
     MatchTeamSimulationStats homeStats;
     MatchTeamSimulationStats awayStats;
     std::vector<MatchPlayerSimulationStats> playerStats;
+    std::vector<MatchEventRecord> events;
     std::vector<MatchTraceFrame> traceFrames;
+    int simulatedSeconds = 0;
 };

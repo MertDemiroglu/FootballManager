@@ -148,14 +148,14 @@ Stores generated fixtures and played/unplayed result state: match id, league id,
 
 ### `runtime_match_reports`
 
-Stores match report header data for played matches: match id, league id, season year, match date, teams, matchweek, goals, coaches, formations, and starting player ids.
+Stores match report header data for played matches: match id, league id, season year, match date, teams, matchweek, goals, coaches, formations, starting player ids, and basic home/away team match stats.
 
 - Writer: `Game::persistRuntimeState`.
 - Reader/restorer: `SqliteGameStateRepository::loadMatchReports`, then `League::restoreMatchReport`.
 - Saved when: played match reports exist and runtime state is persisted.
 - Authority: authoritative played match report summary for current visible save/load scope.
 - Multi-league implication: reports include `league_id` and must be restored into the correct league context.
-- Consistency rule: when present, a report must match a played fixture by match id, league id, teams, date, matchweek, and goals.
+- Consistency rule: when present, a report must match a played fixture by match id, league id, teams, date, matchweek, and goals. Team report stat goals must match the report score. Older saves without team stat columns still load with score-only stat defaults.
 
 ### `runtime_match_player_reports`
 

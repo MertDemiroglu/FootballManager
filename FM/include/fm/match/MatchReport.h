@@ -38,6 +38,23 @@ struct MatchLineupSnapshot {
     std::vector<PlayerId> startingPlayerIds;
 };
 
+struct MatchTeamReportStats {
+    int goals = 0;
+    int shots = 0;
+    int shotsOnTarget = 0;
+    int passesAttempted = 0;
+    int passesCompleted = 0;
+    int tacklesAttempted = 0;
+    int tacklesWon = 0;
+    int interceptions = 0;
+    int fouls = 0;
+    int corners = 0;
+    int yellowCards = 0;
+    int redCards = 0;
+    double possessionShare = 0.0;
+    double expectedGoals = 0.0;
+};
+
 struct MatchReport {
     MatchId matchId = 0;
     LeagueId leagueId = 0;
@@ -50,6 +67,8 @@ struct MatchReport {
     int awayGoals = 0;
     MatchLineupSnapshot homeLineup;
     MatchLineupSnapshot awayLineup;
+    MatchTeamReportStats homeStats;
+    MatchTeamReportStats awayStats;
     std::vector<MatchPlayerReport> playerReports;
     std::vector<MatchEventRecord> events;
 };

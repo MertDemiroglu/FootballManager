@@ -120,6 +120,10 @@ QVariantList PostMatchInteractionObject::awayLineup() const {
     return awayLineupValue;
 }
 
+QVariantList PostMatchInteractionObject::statRows() const {
+    return statRowsValue;
+}
+
 void PostMatchInteractionObject::setFromValues(qulonglong newMatchId,
     const QString& newDateText,
     int newMatchweek,
@@ -145,7 +149,8 @@ void PostMatchInteractionObject::setFromValues(qulonglong newMatchId,
     const QString& newHomeAverageOverallText,
     const QString& newAwayAverageOverallText,
     const QVariantList& newHomeLineup,
-    const QVariantList& newAwayLineup) {
+    const QVariantList& newAwayLineup,
+    const QVariantList& newStatRows) {
     if (hasDataValue
         && matchIdValue == newMatchId
         && dateTextValue == newDateText
@@ -172,7 +177,8 @@ void PostMatchInteractionObject::setFromValues(qulonglong newMatchId,
         && homeAverageOverallTextValue == newHomeAverageOverallText
         && awayAverageOverallTextValue == newAwayAverageOverallText
         && homeLineupValue == newHomeLineup
-        && awayLineupValue == newAwayLineup) {
+        && awayLineupValue == newAwayLineup
+        && statRowsValue == newStatRows) {
         return;
     }
 
@@ -203,6 +209,7 @@ void PostMatchInteractionObject::setFromValues(qulonglong newMatchId,
     awayAverageOverallTextValue = newAwayAverageOverallText;
     homeLineupValue = newHomeLineup;
     awayLineupValue = newAwayLineup;
+    statRowsValue = newStatRows;
     emit changed();
 }
 
@@ -233,7 +240,8 @@ void PostMatchInteractionObject::clear() {
         && homeAverageOverallTextValue == QStringLiteral("--")
         && awayAverageOverallTextValue == QStringLiteral("--")
         && homeLineupValue.isEmpty()
-        && awayLineupValue.isEmpty()) {
+        && awayLineupValue.isEmpty()
+        && statRowsValue.isEmpty()) {
         return;
     }
 
@@ -264,5 +272,6 @@ void PostMatchInteractionObject::clear() {
     awayAverageOverallTextValue = QStringLiteral("--");
     homeLineupValue.clear();
     awayLineupValue.clear();
+    statRowsValue.clear();
     emit changed();
 }

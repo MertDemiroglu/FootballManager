@@ -49,6 +49,7 @@
 
 #include<algorithm>
 #include<cctype>
+#include<cmath>
 #include<cstdlib>
 #include<exception>
 #include<array>
@@ -483,6 +484,65 @@ namespace {
         }
         lines.sort();
         return joinSummaryLines(lines, QStringLiteral("No cards recorded."));
+    }
+
+    int passAccuracyPercent(const MatchTeamReportStats& stats) {
+        if (stats.passesAttempted <= 0) {
+            return 0;
+        }
+        return static_cast<int>(
+            std::round(
+                static_cast<double>(stats.passesCompleted) * 100.0
+                / static_cast<double>(stats.passesAttempted)));
+    }
+
+    QVariantMap buildStatRow(const QString& label, const QString& homeValue, const QString& awayValue) {
+        QVariantMap row;
+        row.insert(QStringLiteral("label"), label);
+        row.insert(QStringLiteral("homeValue"), homeValue);
+        row.insert(QStringLiteral("awayValue"), awayValue);
+        return row;
+    }
+
+    QVariantList buildMatchStatRows(const MatchReport& report) {
+        QVariantList rows;
+        rows.push_back(buildStatRow(
+            QStringLiteral("Possession"),
+            QStringLiteral("%1%").arg(static_cast<int>(std::round(report.homeStats.possessionShare))),
+            QStringLiteral("%1%").arg(static_cast<int>(std::round(report.awayStats.possessionShare)))));
+        rows.push_back(buildStatRow(
+            QStringLiteral("Expected Goals (xG)"),
+            QString::number(report.homeStats.expectedGoals, 'f', 2),
+            QString::number(report.awayStats.expectedGoals, 'f', 2)));
+        rows.push_back(buildStatRow(
+            QStringLiteral("Total Shots"),
+            QString::number(report.homeStats.shots),
+            QString::number(report.awayStats.shots)));
+        rows.push_back(buildStatRow(
+            QStringLiteral("Shots on Target"),
+            QString::number(report.homeStats.shotsOnTarget),
+            QString::number(report.awayStats.shotsOnTarget)));
+        rows.push_back(buildStatRow(
+            QStringLiteral("Passes"),
+            QString::number(report.homeStats.passesCompleted)
+                + QStringLiteral("/")
+                + QString::number(report.homeStats.passesAttempted),
+            QString::number(report.awayStats.passesCompleted)
+                + QStringLiteral("/")
+                + QString::number(report.awayStats.passesAttempted)));
+        rows.push_back(buildStatRow(
+            QStringLiteral("Pass Accuracy"),
+            QStringLiteral("%1%").arg(passAccuracyPercent(report.homeStats)),
+            QStringLiteral("%1%").arg(passAccuracyPercent(report.awayStats))));
+        rows.push_back(buildStatRow(
+            QStringLiteral("Fouls"),
+            QString::number(report.homeStats.fouls),
+            QString::number(report.awayStats.fouls)));
+        rows.push_back(buildStatRow(
+            QStringLiteral("Corners"),
+            QString::number(report.homeStats.corners),
+            QString::number(report.awayStats.corners)));
+        return rows;
     }
 
     QString eventKindText(MatchEventKind kind) {
@@ -2588,6 +2648,7 @@ void GameFacade::refreshInteractionStateObject() {
         QString scorerSummary = QStringLiteral("No goals recorded.");
         QString assistSummary = QStringLiteral("No assists recorded.");
         QString cardSummary = QStringLiteral("No cards recorded.");
+        QVariantList statRows;
         TeamPresentationBuilder teamBuilder;
         TeamSheetPresentationBuilder sheetBuilder(teamBuilder);
         MatchPresentationBuilder matchBuilder(sheetBuilder);
@@ -2599,6 +2660,7 @@ void GameFacade::refreshInteractionStateObject() {
                 scorerSummary = formatScorerSummary(*report, homeTeam, awayTeam);
                 assistSummary = formatAssistSummary(*report, homeTeam, awayTeam);
                 cardSummary = formatCardSummary(*report, homeTeam, awayTeam);
+                statRows = buildMatchStatRows(*report);
             }
         }
         interactionStateObject.postMatch()->setFromValues(
@@ -2627,7 +2689,8 @@ void GameFacade::refreshInteractionStateObject() {
             fromStd(view.home.summary.averageOverallText),
             fromStd(view.away.summary.averageOverallText),
             toLineupVariantList(view.home, selectedTeamId),
-            toLineupVariantList(view.away, selectedTeamId)
+            toLineupVariantList(view.away, selectedTeamId),
+            statRows
         );
         interactionStateObject.preMatch()->clear();
         interactionStateObject.transferOffer()->clear();
@@ -3323,6 +3386,7 @@ QVariantMap GameFacade::toMatchReportDetailsMap(const MatchReport& report, const
     map.insert(QStringLiteral("scorers"), formatScorerSummary(report, homeTeam, awayTeam));
     map.insert(QStringLiteral("assists"), formatAssistSummary(report, homeTeam, awayTeam));
     map.insert(QStringLiteral("cards"), formatCardSummary(report, homeTeam, awayTeam));
+    map.insert(QStringLiteral("statRows"), buildMatchStatRows(report));
 
     std::vector<MatchEventRecord> orderedEvents = report.events;
     std::stable_sort(
@@ -3437,6 +3501,7 @@ QVariantMap GameFacade::toPostMatchInteractionMap(const PostMatchInteraction& in
             map.insert(QStringLiteral("scorerSummary"), formatScorerSummary(*report, homeTeam, awayTeam));
             map.insert(QStringLiteral("assistSummary"), formatAssistSummary(*report, homeTeam, awayTeam));
             map.insert(QStringLiteral("cardSummary"), formatCardSummary(*report, homeTeam, awayTeam));
+            map.insert(QStringLiteral("statRows"), buildMatchStatRows(*report));
         }
     }
     return map;
