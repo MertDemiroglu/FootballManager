@@ -99,38 +99,38 @@ namespace {
         ShotRoleProfile profile;
         switch (role) {
         case FormationSlotRole::Goalkeeper:
-            profile.shotBias = 0.01;
-            profile.longShotBias = 0.01;
+            profile.shotBias = 0.12;
+            profile.longShotBias = 0.08;
             profile.riskTolerance = 0.45;
             break;
         case FormationSlotRole::CenterBack:
-            profile.shotBias = 0.12;
-            profile.longShotBias = 0.05;
-            profile.riskTolerance = 0.55;
+            profile.shotBias = 0.34;
+            profile.longShotBias = 0.22;
+            profile.riskTolerance = 0.58;
             break;
         case FormationSlotRole::LeftBack:
         case FormationSlotRole::RightBack:
         case FormationSlotRole::LeftWingBack:
         case FormationSlotRole::RightWingBack:
-            profile.shotBias = 0.32;
-            profile.longShotBias = 0.22;
+            profile.shotBias = 0.58;
+            profile.longShotBias = 0.46;
             profile.riskTolerance = 0.72;
             break;
         case FormationSlotRole::DefensiveMidfielder:
-            profile.shotBias = 0.40;
-            profile.longShotBias = 0.32;
+            profile.shotBias = 0.66;
+            profile.longShotBias = 0.56;
             profile.riskTolerance = 0.74;
             break;
         case FormationSlotRole::CentralMidfielder:
         case FormationSlotRole::LeftMidfielder:
         case FormationSlotRole::RightMidfielder:
-            profile.shotBias = 0.58;
-            profile.longShotBias = 0.62;
+            profile.shotBias = 0.88;
+            profile.longShotBias = 0.88;
             profile.riskTolerance = 0.92;
             break;
         case FormationSlotRole::AttackingMidfielder:
-            profile.shotBias = 1.06;
-            profile.longShotBias = 1.04;
+            profile.shotBias = 1.08;
+            profile.longShotBias = 1.02;
             profile.riskTolerance = 1.10;
             break;
         case FormationSlotRole::LeftWinger:
@@ -203,19 +203,22 @@ namespace {
     }
 
     double xgDesire(double xg) {
-        if (xg < 0.03) {
-            return 8.0 + xg * 300.0;
+        if (xg < 0.02) {
+            return 4.0 + xg * 300.0;
+        }
+        if (xg < 0.05) {
+            return 10.0 + (xg - 0.02) * 300.0;
         }
         if (xg < 0.08) {
-            return 14.0 + (xg - 0.03) * 220.0;
+            return 19.0 + (xg - 0.05) * 230.0;
         }
         if (xg < 0.18) {
-            return 25.0 + (xg - 0.08) * 155.0;
+            return 28.0 + (xg - 0.08) * 170.0;
         }
         if (xg < 0.30) {
-            return 43.0 + (xg - 0.18) * 135.0;
+            return 46.0 + (xg - 0.18) * 135.0;
         }
-        return std::min(72.0, 60.0 + (xg - 0.30) * 65.0);
+        return std::min(82.0, 62.0 + (xg - 0.30) * 70.0);
     }
 
     bool isDefensiveRole(FormationSlotRole role) {
@@ -228,14 +231,6 @@ namespace {
             || role == FormationSlotRole::DefensiveMidfielder;
     }
 
-    bool isAttackingShotRole(FormationSlotRole role) {
-        return role == FormationSlotRole::AttackingMidfielder
-            || role == FormationSlotRole::LeftMidfielder
-            || role == FormationSlotRole::RightMidfielder
-            || role == FormationSlotRole::LeftWinger
-            || role == FormationSlotRole::RightWinger
-            || role == FormationSlotRole::Striker;
-    }
 }
 
 std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
@@ -254,19 +249,17 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     const TacticalZone zone =
         tacticalZoneForPoint(context.ballPosition, context.attackingDirection);
     const bool attackingThird = isAttackingThird(zone);
-    const bool weakShotAllowed =
-        xg >= 0.015
-        && attackingThird
-        && isAttackingShotRole(context.carrierRole)
-        && context.tacticalSetup.mentality == TeamMentality::Attacking;
 
-    if (xg < 0.025 && !weakShotAllowed) {
+    if (xg < 0.012) {
         return output;
     }
-    if (!attackingThird && xg < 0.18) {
+    if (!attackingThird && xg < 0.06) {
         return output;
     }
-    if (isDefensiveRole(context.carrierRole) && xg < 0.10) {
+    if (context.carrierRole == FormationSlotRole::Goalkeeper && xg < 0.30) {
+        return output;
+    }
+    if (context.carrierRole == FormationSlotRole::CenterBack && distance > 28.0 && xg < 0.20) {
         return output;
     }
 
@@ -287,34 +280,30 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
         + (shooter - 55.0) * 0.08
         - pressurePenalty * 0.16 / std::clamp(role.riskTolerance, 0.45, 1.35);
 
-    score *= std::clamp(1.0 + (role.shotBias - 1.0) * 0.38, 0.45, 1.18);
+    score *= std::clamp(1.0 + (role.shotBias - 1.0) * 0.34, 0.58, 1.20);
     if (distance > 24.0) {
-        score *= std::clamp(1.0 + (role.longShotBias - 1.0) * 0.50, 0.35, 1.08);
+        score *= std::clamp(1.0 + (role.longShotBias - 1.0) * 0.40, 0.55, 1.10);
     }
     score *= std::clamp(1.0 + (tactics.shotBias - 1.0) * 0.45, 0.75, 1.16);
     if (weakShot) {
         score *= std::clamp(1.0 + (tactics.weakShotBias - 1.0) * 0.65, 0.62, 1.18);
     }
-    const bool defensiveShooter = isDefensiveRole(context.carrierRole);
-    if (defensiveShooter && distance > 22.0 && xg < 0.18) {
-        return output;
-    }
-    if (defensiveShooter && xg < 0.20) {
-        score *= 0.58;
+    if (isDefensiveRole(context.carrierRole) && xg < 0.12) {
+        score *= 0.78;
     }
 
     ShotOption option;
     option.kind = ShotOptionKind::OpenPlayShot;
     option.actionType = BallCarrierActionType::Shoot;
     option.targetPoint = goalCenterFor(context.attackingDirection);
-    option.score = std::clamp(score, 0.0, 75.0);
+    option.score = std::clamp(score, 0.0, 100.0);
     option.estimatedXG = xg;
     option.angleScore = angleScore;
     option.distanceScore = distanceScore;
     option.pressurePenalty = pressurePenalty;
     option.shooterConfidence = shooter;
 
-    if (option.score >= 8.0 || xg >= 0.18) {
+    if (option.score >= 6.0 || xg >= 0.16) {
         output.push_back(option);
     }
     return output;
