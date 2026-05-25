@@ -29,24 +29,25 @@ add_library(fm_core STATIC
     src/core/LeagueContext.cpp
     src/competition/LeagueRules.cpp
     src/competition/MatchScheduler.cpp
-    src/match_engine/PitchGeometry.cpp
+    src/match_engine/geometry/PitchGeometry.cpp
     src/match_engine/MatchEngine.cpp
-    src/match_engine/MatchEngineReportAdapter.cpp
-    src/match_engine/CoordinateMatchSimulator.cpp
-    src/match_engine/FastMatchSummarySimulator.cpp
-    src/match_engine/ShotQualityModel.cpp
+    src/match_engine/reporting/MatchEngineReportAdapter.cpp
+    src/match_engine/simulation/CoordinateMatchSimulator.cpp
+    src/match_engine/simulation/FastMatchSummarySimulator.cpp
+    src/match_engine/ball/ShotQualityModel.cpp
     src/match_engine/MatchEngineInputBuilder.cpp
-    src/match_engine/BallTrajectoryBuilder.cpp
-    src/match_engine/InterceptionResolver.cpp
-    src/match_engine/ContestResolver.cpp
-    src/match_engine/TacticalZone.cpp
-    src/match_engine/DefensiveResponsibility.cpp
-    src/match_engine/PlayerIntentResolver.cpp
-    src/match_engine/MovementResolver.cpp
-    src/match_engine/TeamShapeModel.cpp
-    src/match_engine/ActionPlan.cpp
-    src/match_engine/ActionCandidateGenerator.cpp
-    src/match_engine/ActionSelector.cpp
+    src/match_engine/ball/BallTrajectoryBuilder.cpp
+    src/match_engine/contest/InterceptionResolver.cpp
+    src/match_engine/contest/ContestResolver.cpp
+    src/match_engine/geometry/TacticalZones.cpp
+    src/match_engine/decision/DefensiveResponsibility.cpp
+    src/match_engine/decision/PlayerIntentResolver.cpp
+    src/match_engine/movement/MovementResolver.cpp
+    src/match_engine/movement/TeamShapeModel.cpp
+    src/match_engine/decision/ActionPlan.cpp
+    src/match_engine/decision/ActionCandidateGenerator.cpp
+    src/match_engine/decision/ActionSelector.cpp
+    src/match_engine/tuning/MatchEngineTuningProfile.cpp
     src/match/MatchSimulation.cpp
     src/match/PlayerConditionState.cpp
     src/match/PlayerConditionService.cpp
