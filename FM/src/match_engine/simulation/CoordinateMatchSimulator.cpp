@@ -4,6 +4,7 @@
 #include"fm/match_engine/decision/ActionSelector.h"
 #include"fm/match_engine/decision/BallCarrierDecisionModel.h"
 #include"fm/match_engine/ball/BallTrajectoryBuilder.h"
+#include"fm/match_engine/ball/ShotOutcomeResolver.h"
 #include"fm/match_engine/contest/ContestResolver.h"
 #include"fm/match_engine/contest/InterceptionResolver.h"
 #include"fm/match_engine/reporting/MatchEngineReportAdapter.h"
@@ -620,6 +621,9 @@ namespace {
         state.possession.phase = PossessionPhase::BuildUp;
         state.possession.possessionStartSecond = 0;
         state.possession.actionDepth = 0;
+        state.possession.possessionStartPoint = state.ball.position;
+        state.possession.lastMeaningfulProgressionPoint = state.ball.position;
+        state.possession.lastMeaningfulProgressionSecond = 0;
         state.possession.isTransition = false;
 
         return state;
@@ -645,6 +649,12 @@ namespace {
         return IntentTeamMode::NeutralBall;
     }
 
+    DefensiveContext buildDefensiveContextForTeam(
+        const MatchSimulationState& state,
+        const TeamSimState& defendingTeam,
+        const TeamSimState& opponentTeam,
+        AttackingDirection defendingDirection);
+
     std::vector<ResolvedPlayerIntent> resolveTeamIntents(
         const PlayerIntentResolver& resolver,
         const TeamSimState& team,
@@ -668,6 +678,11 @@ namespace {
         context.opponents = opponent.players;
         context.teamAssignments = teamSheet.startingAssignments;
         context.opponentAssignments = opponentSheet.startingAssignments;
+        context.defensiveContext = buildDefensiveContextForTeam(
+            state,
+            team,
+            opponent,
+            shapeContext.attackingDirection);
         context.seed = seed;
         return resolver.resolveTeamIntents(context);
     }
@@ -876,6 +891,9 @@ namespace {
         if (previousTeam != teamId) {
             state.possession.possessionStartSecond = state.currentSecond;
             state.possession.actionDepth = 0;
+            state.possession.possessionStartPoint = state.ball.position;
+            state.possession.lastMeaningfulProgressionPoint = state.ball.position;
+            state.possession.lastMeaningfulProgressionSecond = state.currentSecond;
             state.possession.isTransition = true;
         } else {
             state.possession.isTransition = false;
@@ -884,10 +902,28 @@ namespace {
 
     double nearestOpponentPressure(PitchPoint position, const std::vector<PlayerSimState>& opponents);
     double ballProgression(PitchPoint point, AttackingDirection direction);
+    AttackingDirection attackingDirectionForTeam(const TeamSimState& team);
     DecisionMatchPhase decisionPhaseFor(
         PitchPoint ballPosition,
         AttackingDirection direction,
         bool transition);
+    double opponentBlockCompactness(PitchPoint ballPosition, const std::vector<PlayerSimState>& opponents);
+    bool safeCirculationAvailable(
+        const PlayerSimState& carrier,
+        const std::vector<PlayerSimState>& teammates,
+        const std::vector<PlayerSimState>& opponents);
+    bool progressionLaneAvailable(
+        const PlayerSimState& carrier,
+        const std::vector<PlayerSimState>& teammates,
+        const std::vector<PlayerSimState>& opponents,
+        AttackingDirection direction,
+        double requiredForwardMeters);
+    bool entryAvailable(
+        const PlayerSimState& carrier,
+        const std::vector<PlayerSimState>& teammates,
+        const std::vector<PlayerSimState>& opponents,
+        AttackingDirection direction,
+        double entryProgress);
 
     void setLooseBall(MatchSimulationState& state, PitchPoint position) {
         clearBallFlags(state);
@@ -900,14 +936,39 @@ namespace {
         state.possession.isTransition = true;
     }
 
+    struct ContextProfile {
+        double safePassDistance = 20.0;
+        double safeReceiverPressureLimit = 16.0;
+        double forwardLaneMeters = 8.0;
+        double boxEntryProgress = 0.78;
+        double compactBlockRadius = 22.0;
+        double pressureBlockActionCount = 8.0;
+        double staleProgressionSeconds = 35.0;
+        double meaningfulProgressMeters = 6.0;
+    };
+
     PlayerDecisionContext buildPlayerDecisionContext(
         const MatchSimulationState& state,
         const TeamShapeContext& shapeContext,
         const PlayerSimState& carrier,
         FormationSlotRole role,
+        const std::vector<PlayerSimState>& teammates,
         const std::vector<PlayerSimState>& opponents) {
-        const double pressure = nearestOpponentPressure(carrier.position, opponents);
+        const ContextProfile profile;
+        const double blockCompactness = opponentBlockCompactness(carrier.position, opponents);
+        const double pressure = std::clamp(
+            nearestOpponentPressure(carrier.position, opponents) + blockCompactness * 0.16,
+            0.0,
+            100.0);
         const double progress = ballProgression(carrier.position, shapeContext.attackingDirection);
+        const double startProgress = ballProgression(
+            state.possession.possessionStartPoint,
+            shapeContext.attackingDirection);
+        const double lastMeaningfulProgress = ballProgression(
+            state.possession.lastMeaningfulProgressionPoint,
+            shapeContext.attackingDirection);
+        const double secondsSinceProgression = static_cast<double>(
+            std::max(0, state.currentSecond - state.possession.lastMeaningfulProgressionSecond));
         const DecisionMatchPhase phase = decisionPhaseFor(
             carrier.position,
             shapeContext.attackingDirection,
@@ -923,25 +984,51 @@ namespace {
         possession.possessionActionCount = state.possession.actionDepth;
         possession.secondsInPossession = static_cast<double>(
             std::max(0, state.currentSecond - state.possession.possessionStartSecond));
+        possession.secondsSinceLastMeaningfulProgression = secondsSinceProgression;
         possession.currentPhase = phase;
         possession.ballPosition = carrier.position;
         possession.ballProgression = progress;
-        possession.recentProgression = 0.0;
-        possession.progressionAvailable = progress < 0.86;
-        possession.safeCirculationAvailable = true;
-        possession.finalThirdEntryAvailable = progress >= 0.55 && progress < 0.70;
-        possession.boxEntryAvailable = progress >= 0.68 && progress < 0.84;
-        possession.opponentBlockCompactness = 0.0;
+        possession.recentProgression = progress - std::max(startProgress, lastMeaningfulProgress);
+        possession.progressionAvailable = progressionLaneAvailable(
+            carrier,
+            teammates,
+            opponents,
+            shapeContext.attackingDirection,
+            profile.forwardLaneMeters);
+        possession.safeCirculationAvailable = safeCirculationAvailable(carrier, teammates, opponents);
+        possession.finalThirdEntryAvailable = entryAvailable(
+            carrier,
+            teammates,
+            opponents,
+            shapeContext.attackingDirection,
+            0.66);
+        possession.boxEntryAvailable = entryAvailable(
+            carrier,
+            teammates,
+            opponents,
+            shapeContext.attackingDirection,
+            profile.boxEntryProgress);
+        possession.opponentBlockCompactness = blockCompactness;
         possession.localPressure = pressure;
 
         DefensiveContext defensive;
         defensive.defendingTeamId = shapeContext.teamId;
         defensive.opponentTeamId = state.possession.teamInPossession;
+        defensive.secondsOutOfPossession = possession.secondsInPossession;
         defensive.opponentPossessionActionCount = state.possession.actionDepth;
         defensive.opponentPhase = phase;
         defensive.ballPosition = carrier.position;
         defensive.threatLevel = progress;
         defensive.localPressOpportunity = pressure;
+        defensive.blockCompactness = blockCompactness;
+        defensive.lineIntegrity = std::clamp(100.0 - blockCompactness * 0.35, 0.0, 100.0);
+        defensive.pressTriggerActive =
+            (secondsSinceProgression >= profile.staleProgressionSeconds
+                && possession.safeCirculationAvailable)
+            || (progress >= 0.66 && pressure >= 14.0)
+            || state.possession.actionDepth >= static_cast<int>(profile.pressureBlockActionCount);
+        defensive.counterPressAvailable = state.possession.isTransition;
+        defensive.dangerInAssignedZone = progress >= 0.66;
 
         return PlayerDecisionContext{
             carrier.playerId,
@@ -955,6 +1042,55 @@ namespace {
             defensive,
             pressure
         };
+    }
+
+    DefensiveContext buildDefensiveContextForTeam(
+        const MatchSimulationState& state,
+        const TeamSimState& defendingTeam,
+        const TeamSimState& opponentTeam,
+        AttackingDirection defendingDirection) {
+        DefensiveContext context;
+        context.defendingTeamId = defendingTeam.teamId;
+        context.opponentTeamId = opponentTeam.teamId;
+        context.ballPosition = state.ball.position;
+        context.opponentPossessionActionCount =
+            state.possession.teamInPossession == opponentTeam.teamId
+                ? state.possession.actionDepth
+                : 0;
+        context.secondsOutOfPossession =
+            state.possession.teamInPossession == opponentTeam.teamId
+                ? static_cast<double>(std::max(0, state.currentSecond - state.possession.possessionStartSecond))
+                : 0.0;
+
+        const AttackingDirection opponentDirection = attackingDirectionForTeam(opponentTeam);
+        const double progress = ballProgression(state.ball.position, opponentDirection);
+        const double lastProgress =
+            ballProgression(state.possession.lastMeaningfulProgressionPoint, opponentDirection);
+        const double secondsSinceProgression = static_cast<double>(
+            std::max(0, state.currentSecond - state.possession.lastMeaningfulProgressionSecond));
+        context.opponentPhase = decisionPhaseFor(
+            state.ball.position,
+            opponentDirection,
+            state.possession.isTransition);
+        context.threatLevel = progress * 100.0;
+        context.localPressOpportunity = nearestOpponentPressure(state.ball.position, defendingTeam.players);
+        context.blockCompactness = opponentBlockCompactness(state.ball.position, defendingTeam.players);
+        context.lineIntegrity = std::clamp(100.0 - context.blockCompactness * 0.35, 0.0, 100.0);
+        context.dangerInAssignedZone = progress >= 0.66;
+        context.counterPressAvailable = state.possession.isTransition;
+
+        const ContextProfile profile;
+        const bool stalePossession =
+            state.possession.teamInPossession == opponentTeam.teamId
+            && context.opponentPossessionActionCount >= static_cast<int>(profile.pressureBlockActionCount)
+            && secondsSinceProgression >= profile.staleProgressionSeconds
+            && progress - lastProgress < 0.04;
+        const bool dangerousPossession =
+            state.possession.teamInPossession == opponentTeam.teamId
+            && (progress >= 0.66 || context.localPressOpportunity >= 14.0);
+        context.pressTriggerActive = stalePossession || dangerousPossession;
+        (void)defendingDirection;
+        return context;
     }
 
     AttackingDirection attackingDirectionForTeam(const TeamSimState& team) {
@@ -1024,6 +1160,152 @@ namespace {
         return DecisionMatchPhase::BuildUp;
     }
 
+    double distancePointToSegment(PitchPoint point, PitchPoint start, PitchPoint end) {
+        const double vx = end.x - start.x;
+        const double vy = end.y - start.y;
+        const double wx = point.x - start.x;
+        const double wy = point.y - start.y;
+        const double lengthSquared = vx * vx + vy * vy;
+        if (lengthSquared <= 0.001) {
+            return PitchGeometry::distance(point, start);
+        }
+
+        const double t = std::clamp(((wx * vx) + (wy * vy)) / lengthSquared, 0.0, 1.0);
+        return PitchGeometry::distance(point, PitchPoint{ start.x + t * vx, start.y + t * vy });
+    }
+
+    double lanePressure(PitchPoint start, PitchPoint end, const std::vector<PlayerSimState>& opponents) {
+        double pressure = 0.0;
+        for (const PlayerSimState& opponent : opponents) {
+            const double distance = distancePointToSegment(opponent.position, start, end);
+            if (distance <= 3.0) {
+                pressure += 24.0;
+            } else if (distance <= 6.0) {
+                pressure += 12.0;
+            } else if (distance <= 9.0) {
+                pressure += 5.0;
+            }
+        }
+        return std::clamp(pressure, 0.0, 100.0);
+    }
+
+    double opponentBlockCompactness(
+        PitchPoint ballPosition,
+        const std::vector<PlayerSimState>& opponents) {
+        const ContextProfile profile;
+        if (opponents.empty()) {
+            return 0.0;
+        }
+
+        int nearby = 0;
+        double lateralSpread = 0.0;
+        double averageY = 0.0;
+        for (const PlayerSimState& opponent : opponents) {
+            if (PitchGeometry::distance(ballPosition, opponent.position) <= profile.compactBlockRadius) {
+                ++nearby;
+                averageY += opponent.position.y;
+            }
+        }
+        if (nearby == 0) {
+            return 0.0;
+        }
+
+        averageY /= static_cast<double>(nearby);
+        for (const PlayerSimState& opponent : opponents) {
+            if (PitchGeometry::distance(ballPosition, opponent.position) <= profile.compactBlockRadius) {
+                lateralSpread += std::abs(opponent.position.y - averageY);
+            }
+        }
+        lateralSpread /= static_cast<double>(nearby);
+
+        const double density = std::clamp(static_cast<double>(nearby) / 7.0, 0.0, 1.0);
+        const double compactness = std::clamp(1.0 - (lateralSpread / 18.0), 0.0, 1.0);
+        return std::clamp((density * 0.65 + compactness * 0.35) * 100.0, 0.0, 100.0);
+    }
+
+    bool safeCirculationAvailable(
+        const PlayerSimState& carrier,
+        const std::vector<PlayerSimState>& teammates,
+        const std::vector<PlayerSimState>& opponents) {
+        const ContextProfile profile;
+        for (const PlayerSimState& teammate : teammates) {
+            if (teammate.playerId == carrier.playerId) {
+                continue;
+            }
+            if (PitchGeometry::distance(carrier.position, teammate.position) > profile.safePassDistance) {
+                continue;
+            }
+            if (nearestOpponentPressure(teammate.position, opponents) <= profile.safeReceiverPressureLimit
+                && lanePressure(carrier.position, teammate.position, opponents) <= 36.0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool progressionLaneAvailable(
+        const PlayerSimState& carrier,
+        const std::vector<PlayerSimState>& teammates,
+        const std::vector<PlayerSimState>& opponents,
+        AttackingDirection direction,
+        double requiredForwardMeters) {
+        for (const PlayerSimState& teammate : teammates) {
+            if (teammate.playerId == carrier.playerId) {
+                continue;
+            }
+            const double forward =
+                (teammate.position.x - carrier.position.x)
+                * (direction == AttackingDirection::HomeToAway ? 1.0 : -1.0);
+            if (forward < requiredForwardMeters) {
+                continue;
+            }
+            if (lanePressure(carrier.position, teammate.position, opponents) <= 44.0) {
+                return true;
+            }
+        }
+
+        const PitchPoint carryProbe = PitchGeometry::clampToPitch(PitchPoint{
+            carrier.position.x + (direction == AttackingDirection::HomeToAway ? requiredForwardMeters : -requiredForwardMeters),
+            carrier.position.y
+        });
+        return nearestOpponentPressure(carryProbe, opponents) <= 14.0;
+    }
+
+    bool entryAvailable(
+        const PlayerSimState& carrier,
+        const std::vector<PlayerSimState>& teammates,
+        const std::vector<PlayerSimState>& opponents,
+        AttackingDirection direction,
+        double entryProgress) {
+        for (const PlayerSimState& teammate : teammates) {
+            if (teammate.playerId == carrier.playerId) {
+                continue;
+            }
+            if (ballProgression(teammate.position, direction) >= entryProgress
+                && lanePressure(carrier.position, teammate.position, opponents) <= 48.0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void updateMeaningfulProgression(MatchSimulationState& state) {
+        const TeamSimState* team = findTeamState(state, state.possession.teamInPossession);
+        if (team == nullptr) {
+            return;
+        }
+
+        const ContextProfile profile;
+        const AttackingDirection direction = attackingDirectionForTeam(*team);
+        const double currentProgress = ballProgression(state.ball.position, direction);
+        const double lastProgress =
+            ballProgression(state.possession.lastMeaningfulProgressionPoint, direction);
+        if ((currentProgress - lastProgress) * PitchGeometry::LengthMeters >= profile.meaningfulProgressMeters) {
+            state.possession.lastMeaningfulProgressionPoint = state.ball.position;
+            state.possession.lastMeaningfulProgressionSecond = state.currentSecond;
+        }
+    }
+
     bool isInsideGoalMouthY(double y) {
         const double halfGoalWidth = PitchGeometry::GoalWidthMeters / 2.0;
         const double centerY = PitchGeometry::WidthMeters / 2.0;
@@ -1071,23 +1353,22 @@ namespace {
             95.0);
     }
 
-    double goalProbabilityForShot(
+    ShotOutcomeResult shotOutcomeFor(
         const MatchEngineInput& input,
         const PendingBallAction& pending,
-        const PlayerSimState* goalkeeper) {
+        const PlayerSimState* goalkeeper,
+        std::uint64_t seed) {
         const MatchPlayerSnapshot* shooter = findSnapshotForPlayer(input, pending.sourcePlayerId);
-        const double shooterModifier = shooter == nullptr
-            ? 1.0
-            : clampDouble(
-                0.98
-                    + (clampedAttribute(shooter->attributes.technical.shooting) - 60.0) / 260.0
-                    + (clampedAttribute(shooter->attributes.mental.composure) - 60.0) / 330.0,
-                0.85,
-                1.18);
-        const double goalkeeperStrength = goalkeeperStrengthFor(input, goalkeeper);
-        const double goalkeeperModifier = clampDouble(1.02 - ((goalkeeperStrength - 60.0) / 230.0), 0.78, 1.16);
-        const double pressureModifier = clampDouble(1.0 - (pending.pressure / 650.0), 0.88, 1.0);
-        return clampDouble(pending.shotXG * shooterModifier * goalkeeperModifier * pressureModifier, 0.008, 0.42);
+        return ShotOutcomeResolver{}.resolve(ShotOutcomeContext{
+            pending.shotXG,
+            pending.executionQuality,
+            pending.pressure,
+            shooter != nullptr ? static_cast<double>(clampedAttribute(shooter->attributes.technical.shooting)) : 60.0,
+            shooter != nullptr ? static_cast<double>(clampedAttribute(shooter->attributes.mental.composure)) : 60.0,
+            goalkeeperStrengthFor(input, goalkeeper),
+            pending.pressure,
+            seed
+        });
     }
 
     bool isHighBallTrajectory(const BallTrajectory& trajectory) {
@@ -1492,6 +1773,7 @@ namespace {
             carrierShapeContext,
             *carrier,
             carrierRole,
+            carrierTeamState->players,
             opponentState->players);
         const std::vector<ActionCandidate> candidates = decisionModel.evaluate(
             BallCarrierDecisionModelContext{
@@ -1720,11 +2002,12 @@ namespace {
         const PlayerSimState* goalkeeper = findGoalkeeperOrNearestOwnGoal(input, defendingTeam);
         const PlayerSimState* shooter = findPlayerState(state, pending->sourcePlayerId);
         if (goalkeeper == nullptr || shooter == nullptr) {
-            const double goalProbability = goalProbabilityForShot(input, *pending, nullptr);
-            const bool converted =
-                matchEngineDeterministicUnitInterval(
-                    stepSeed(baseSeed, state, pending->sourcePlayerId ^ 0x9010ULL)) < goalProbability;
-            if (converted) {
+            const ShotOutcomeResult outcome = shotOutcomeFor(
+                input,
+                *pending,
+                nullptr,
+                stepSeed(baseSeed, state, pending->sourcePlayerId ^ 0x9010ULL));
+            if (outcome.goal) {
                 const SimulationStepResult goalStep = applyLocalGoal(
                     state,
                     result,
@@ -1770,15 +2053,16 @@ namespace {
 
         const ContestResolverResult contest = contestResolver.resolve(request);
         lastContestResult = contest;
-        const double goalProbability = goalProbabilityForShot(input, *pending, goalkeeper);
-        const bool converted =
-            matchEngineDeterministicUnitInterval(
-                stepSeed(
-                    baseSeed,
-                    state,
-                    static_cast<std::uint64_t>(pending->sourcePlayerId)
-                        ^ (static_cast<std::uint64_t>(goalkeeper->playerId) << 32)
-                        ^ 0x9011ULL)) < goalProbability;
+        const ShotOutcomeResult outcome = shotOutcomeFor(
+            input,
+            *pending,
+            goalkeeper,
+            stepSeed(
+                baseSeed,
+                state,
+                static_cast<std::uint64_t>(pending->sourcePlayerId)
+                    ^ (static_cast<std::uint64_t>(goalkeeper->playerId) << 32)
+                    ^ 0x9011ULL));
 
         if (contest.ballOutcome == ContestBallOutcome::KeeperControls
             || (contest.cleanController
@@ -1864,7 +2148,7 @@ namespace {
             return SimulationStepResult{ elapsedToShot };
         }
 
-        if (converted) {
+        if (outcome.goal) {
             const SimulationStepResult goalStep = applyLocalGoal(
                 state,
                 result,
@@ -2464,6 +2748,7 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
             state.awayTeam.possessionShareAccumulator += elapsedSeconds;
         }
 
+        updateMeaningfulProgression(state);
         ++state.possession.actionDepth;
         state.currentSecond = std::min(
             RegulationMatchSeconds,

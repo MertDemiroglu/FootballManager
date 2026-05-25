@@ -72,17 +72,34 @@ namespace {
         CategorySuitability suitability;
         const double pressure = std::clamp(context.localPressure / 100.0, 0.0, 1.0);
         const double progression = std::clamp(context.possession.ballProgression, 0.0, 1.0);
+        const double compactness = std::clamp(context.possession.opponentBlockCompactness / 100.0, 0.0, 1.0);
+        const bool stalledPossession =
+            context.possession.secondsSinceLastMeaningfulProgression > 30.0
+            && context.possession.recentProgression < 0.03;
 
-        suitability.pass = 1.0 + pressure * 0.18;
+        suitability.pass = 1.0 + pressure * 0.12 - compactness * 0.08;
         suitability.carry = 1.0 - pressure * 0.22;
         suitability.shoot = (0.72 + progression * 0.48)
             * roleShotBias(context.role)
             * tacticShotBias(context.tacticalSetup);
 
+        if (!context.possession.safeCirculationAvailable) {
+            suitability.pass *= 0.86;
+        }
+        if (!context.possession.progressionAvailable) {
+            suitability.carry *= 0.82;
+        }
+        if (stalledPossession && context.possession.progressionAvailable) {
+            suitability.carry *= 1.08;
+        }
+
         if (context.phase == DecisionMatchPhase::BoxEntry
             || context.phase == DecisionMatchPhase::ChanceCreation) {
             suitability.shoot *= 1.18;
             suitability.carry *= 0.96;
+        } else if (context.phase == DecisionMatchPhase::FinalThird
+            && (context.possession.boxEntryAvailable || context.possession.finalThirdEntryAvailable)) {
+            suitability.shoot *= 1.08;
         }
         if (context.phase == DecisionMatchPhase::BuildUp) {
             suitability.shoot *= 0.62;

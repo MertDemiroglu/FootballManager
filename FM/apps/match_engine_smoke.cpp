@@ -1278,6 +1278,26 @@ namespace {
             const MatchEngineResult result = MatchEngine{}.simulate(input);
             assertResultReportConsistency(input, result);
 
+            const double maxPossession = std::max(
+                result.homeStats.possessionShare,
+                result.awayStats.possessionShare);
+            const int combinedPasses =
+                result.homeStats.passesAttempted + result.awayStats.passesAttempted;
+            const int combinedShots = result.homeStats.shots + result.awayStats.shots;
+            if (maxPossession > 90.0 && combinedPasses > 1500 && combinedShots == 0) {
+                std::cerr << "anti-loop guardrail seed=" << (0x9300ULL + seed)
+                    << " maxPossession=" << maxPossession
+                    << " combinedPasses=" << combinedPasses
+                    << " combinedShots=" << combinedShots
+                    << " homePossession=" << result.homeStats.possessionShare
+                    << " awayPossession=" << result.awayStats.possessionShare
+                    << " homePasses=" << result.homeStats.passesAttempted
+                    << " awayPasses=" << result.awayStats.passesAttempted
+                    << '\n';
+            }
+            require(!(maxPossession > 90.0 && combinedPasses > 1500 && combinedShots == 0),
+                "detailed coordinate match should not fall into extreme no-shot short-pass loop");
+
             totalCarryTraces += traceCountFor(result, MatchTraceKind::Carry);
             totalShotTraces += traceCountFor(result, MatchTraceKind::Shot);
 

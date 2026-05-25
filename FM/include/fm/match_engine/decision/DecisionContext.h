@@ -38,6 +38,7 @@ struct PossessionContext {
     std::optional<PlayerId> ballCarrierId;
     int possessionActionCount = 0;
     double secondsInPossession = 0.0;
+    double secondsSinceLastMeaningfulProgression = 0.0;
     DecisionMatchPhase currentPhase = DecisionMatchPhase::BuildUp;
     PitchPoint ballPosition;
     double ballProgression = 0.0;
