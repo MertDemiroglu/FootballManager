@@ -1,12 +1,13 @@
 #include"fm/match_engine/simulation/CoordinateMatchSimulator.h"
 
 #include"../DeterministicRandom.h"
-#include"fm/match_engine/decision/ActionCandidateGenerator.h"
 #include"fm/match_engine/decision/ActionSelector.h"
+#include"fm/match_engine/decision/BallCarrierDecisionModel.h"
 #include"fm/match_engine/ball/BallTrajectoryBuilder.h"
 #include"fm/match_engine/contest/ContestResolver.h"
 #include"fm/match_engine/contest/InterceptionResolver.h"
 #include"fm/match_engine/reporting/MatchEngineReportAdapter.h"
+#include"fm/match_engine/reporting/PlayerRatingModel.h"
 #include"fm/match_engine/movement/MovementResolver.h"
 #include"fm/match_engine/geometry/PitchGeometry.h"
 #include"fm/match_engine/decision/PlayerIntentResolver.h"
@@ -881,6 +882,13 @@ namespace {
         }
     }
 
+    double nearestOpponentPressure(PitchPoint position, const std::vector<PlayerSimState>& opponents);
+    double ballProgression(PitchPoint point, AttackingDirection direction);
+    DecisionMatchPhase decisionPhaseFor(
+        PitchPoint ballPosition,
+        AttackingDirection direction,
+        bool transition);
+
     void setLooseBall(MatchSimulationState& state, PitchPoint position) {
         clearBallFlags(state);
         state.ball.controlState = BallControlState::Loose;
@@ -890,6 +898,63 @@ namespace {
         state.ball.trajectory = std::nullopt;
         state.possession.ballCarrierId = 0;
         state.possession.isTransition = true;
+    }
+
+    PlayerDecisionContext buildPlayerDecisionContext(
+        const MatchSimulationState& state,
+        const TeamShapeContext& shapeContext,
+        const PlayerSimState& carrier,
+        FormationSlotRole role,
+        const std::vector<PlayerSimState>& opponents) {
+        const double pressure = nearestOpponentPressure(carrier.position, opponents);
+        const double progress = ballProgression(carrier.position, shapeContext.attackingDirection);
+        const DecisionMatchPhase phase = decisionPhaseFor(
+            carrier.position,
+            shapeContext.attackingDirection,
+            state.possession.isTransition);
+
+        PossessionContext possession;
+        if (state.possession.teamInPossession != 0) {
+            possession.teamInPossession = state.possession.teamInPossession;
+        }
+        if (state.possession.ballCarrierId != 0) {
+            possession.ballCarrierId = state.possession.ballCarrierId;
+        }
+        possession.possessionActionCount = state.possession.actionDepth;
+        possession.secondsInPossession = static_cast<double>(
+            std::max(0, state.currentSecond - state.possession.possessionStartSecond));
+        possession.currentPhase = phase;
+        possession.ballPosition = carrier.position;
+        possession.ballProgression = progress;
+        possession.recentProgression = 0.0;
+        possession.progressionAvailable = progress < 0.86;
+        possession.safeCirculationAvailable = true;
+        possession.finalThirdEntryAvailable = progress >= 0.55 && progress < 0.70;
+        possession.boxEntryAvailable = progress >= 0.68 && progress < 0.84;
+        possession.opponentBlockCompactness = 0.0;
+        possession.localPressure = pressure;
+
+        DefensiveContext defensive;
+        defensive.defendingTeamId = shapeContext.teamId;
+        defensive.opponentTeamId = state.possession.teamInPossession;
+        defensive.opponentPossessionActionCount = state.possession.actionDepth;
+        defensive.opponentPhase = phase;
+        defensive.ballPosition = carrier.position;
+        defensive.threatLevel = progress;
+        defensive.localPressOpportunity = pressure;
+
+        return PlayerDecisionContext{
+            carrier.playerId,
+            carrier.teamId,
+            role,
+            carrier.position,
+            carrier.position,
+            shapeContext.tacticalSetup,
+            phase,
+            possession,
+            defensive,
+            pressure
+        };
     }
 
     AttackingDirection attackingDirectionForTeam(const TeamSimState& team) {
@@ -906,6 +971,57 @@ namespace {
         return team.side == TeamSide::Home
             ? PitchGeometry::homeGoalCenter()
             : PitchGeometry::awayGoalCenter();
+    }
+
+    double nearestOpponentPressure(
+        PitchPoint position,
+        const std::vector<PlayerSimState>& opponents) {
+        double nearest = std::numeric_limits<double>::max();
+        for (const PlayerSimState& opponent : opponents) {
+            nearest = std::min(nearest, PitchGeometry::distance(position, opponent.position));
+        }
+
+        if (nearest <= 4.0) {
+            return 35.0;
+        }
+        if (nearest <= 8.0) {
+            return 22.0;
+        }
+        if (nearest <= 14.0) {
+            return 10.0;
+        }
+        return opponents.empty() ? 0.0 : 3.0;
+    }
+
+    double ballProgression(PitchPoint point, AttackingDirection direction) {
+        const double xProgress = direction == AttackingDirection::HomeToAway
+            ? point.x / PitchGeometry::LengthMeters
+            : (PitchGeometry::LengthMeters - point.x) / PitchGeometry::LengthMeters;
+        return std::clamp(xProgress, 0.0, 1.0);
+    }
+
+    DecisionMatchPhase decisionPhaseFor(
+        PitchPoint ballPosition,
+        AttackingDirection direction,
+        bool transition) {
+        if (transition) {
+            return DecisionMatchPhase::AttackingTransition;
+        }
+
+        const double progress = ballProgression(ballPosition, direction);
+        if (progress >= 0.88) {
+            return DecisionMatchPhase::ChanceCreation;
+        }
+        if (progress >= 0.78) {
+            return DecisionMatchPhase::BoxEntry;
+        }
+        if (progress >= 0.66) {
+            return DecisionMatchPhase::FinalThird;
+        }
+        if (progress >= 0.38) {
+            return DecisionMatchPhase::MiddleThirdCirculation;
+        }
+        return DecisionMatchPhase::BuildUp;
     }
 
     bool isInsideGoalMouthY(double y) {
@@ -1347,7 +1463,7 @@ namespace {
         const MatchEngineInput& input,
         const TeamShapeContext& carrierShapeContext,
         const BallTrajectoryBuilder& trajectoryBuilder,
-        const ActionCandidateGenerator& generator,
+        const BallCarrierDecisionModel& decisionModel,
         const ActionSelector& selector,
         std::optional<PendingBallAction>& pending,
         std::uint64_t baseSeed,
@@ -1368,16 +1484,24 @@ namespace {
             return SimulationStepResult{ 1.0 };
         }
 
-        const std::vector<ActionCandidate> candidates = generator.generate(
-            ActionCandidateGenerationRequest{
+        const FormationSlotRole carrierRole = assignedRoleFor(
+            carrierSnapshot->teamSheet,
+            carrier->playerId);
+        const PlayerDecisionContext playerDecisionContext = buildPlayerDecisionContext(
+            state,
+            carrierShapeContext,
+            *carrier,
+            carrierRole,
+            opponentState->players);
+        const std::vector<ActionCandidate> candidates = decisionModel.evaluate(
+            BallCarrierDecisionModelContext{
                 carrierSnapshot,
                 snapshotForTeam(input, opponentState->teamId),
-                *carrier,
-                state.ball,
-                state,
-                carrierShapeContext,
-                carrierTeamState->players,
-                opponentState->players
+                carrierTeamState,
+                opponentState,
+                carrier,
+                carrierShapeContext.attackingDirection,
+                playerDecisionContext
             });
         const ActionSelectionResult selection = selector.select(ActionSelectionRequest{
             candidates,
@@ -2155,30 +2279,6 @@ namespace {
         }
     }
 
-    bool isDefensiveRatingRole(FormationSlotRole role) {
-        switch (role) {
-        case FormationSlotRole::Goalkeeper:
-        case FormationSlotRole::CenterBack:
-        case FormationSlotRole::LeftBack:
-        case FormationSlotRole::RightBack:
-        case FormationSlotRole::LeftWingBack:
-        case FormationSlotRole::RightWingBack:
-        case FormationSlotRole::DefensiveMidfielder:
-            return true;
-        case FormationSlotRole::Unknown:
-        case FormationSlotRole::CentralMidfielder:
-        case FormationSlotRole::LeftMidfielder:
-        case FormationSlotRole::RightMidfielder:
-        case FormationSlotRole::AttackingMidfielder:
-        case FormationSlotRole::LeftWinger:
-        case FormationSlotRole::RightWinger:
-        case FormationSlotRole::Striker:
-            return false;
-        }
-
-        return false;
-    }
-
     int goalsForTeam(const MatchEngineResult& result, TeamId teamId) {
         if (result.homeStats.teamId == teamId) {
             return result.homeStats.goals;
@@ -2212,41 +2312,17 @@ namespace {
     }
 
     void finalizePlayerRatings(MatchEngineResult& result, const MatchEngineInput& input) {
+        const PlayerRatingModel ratingModel;
         for (MatchPlayerSimulationStats& stats : result.playerStats) {
             const MatchTeamSnapshot* snapshot = teamSnapshotForPlayerReport(input, stats);
             const FormationSlotRole role =
                 snapshot != nullptr ? assignedRoleFor(snapshot->teamSheet, stats.playerId) : FormationSlotRole::Unknown;
-            const int goalsFor = goalsForTeam(result, stats.teamId);
-            const int goalsAgainst = goalsAgainstTeam(result, stats.teamId);
-
-            double rating = 6.0
-                + static_cast<double>(stats.goals) * 0.75
-                + static_cast<double>(stats.assists) * 0.45
-                + static_cast<double>(stats.shots) * 0.01
-                + static_cast<double>(stats.interceptions) * 0.05
-                + std::min(0.25, static_cast<double>(stats.passesCompleted) * 0.001)
-                - static_cast<double>(stats.yellowCards) * 0.15
-                - static_cast<double>(stats.redCards) * 1.0;
-
-            if (goalsFor > goalsAgainst) {
-                rating += 0.15;
-            } else if (goalsFor < goalsAgainst) {
-                rating -= 0.15;
-            }
-
-            if (isDefensiveRatingRole(role)) {
-                if (goalsAgainst == 0) {
-                    rating += 0.18;
-                } else {
-                    rating -= std::min(0.60, static_cast<double>(goalsAgainst) * 0.10);
-                }
-            }
-
-            const bool exceptional =
-                stats.goals >= 3
-                || (stats.goals >= 2 && stats.assists >= 1)
-                || stats.assists >= 3;
-            stats.rating = clampDouble(rating, 4.5, exceptional ? 10.0 : 9.8);
+            stats.rating = ratingModel.calculate(PlayerRatingContext{
+                stats,
+                role,
+                goalsForTeam(result, stats.teamId),
+                goalsAgainstTeam(result, stats.teamId)
+            });
         }
     }
 }
@@ -2265,7 +2341,7 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
     TeamShapeModel shapeModel;
     PlayerIntentResolver intentResolver;
     MovementResolver movementResolver;
-    ActionCandidateGenerator actionGenerator;
+    BallCarrierDecisionModel ballCarrierDecisionModel;
     ActionSelector actionSelector;
     BallTrajectoryBuilder trajectoryBuilder;
     InterceptionResolver interceptionResolver;
@@ -2355,7 +2431,7 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
                 input,
                 carrierContext,
                 trajectoryBuilder,
-                actionGenerator,
+                ballCarrierDecisionModel,
                 actionSelector,
                 pending,
                 baseSeed,

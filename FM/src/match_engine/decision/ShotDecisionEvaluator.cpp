@@ -1,6 +1,7 @@
 #include"fm/match_engine/decision/ShotDecisionEvaluator.h"
 
 #include"fm/match_engine/ball/ShotQualityModel.h"
+#include"fm/match_engine/ball/ShotTargetModel.h"
 #include"fm/match_engine/decision/DecisionTuningProfile.h"
 #include"fm/match_engine/geometry/TacticalZones.h"
 
@@ -256,13 +257,6 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     if (!attackingThird && xg < 0.06) {
         return output;
     }
-    if (context.carrierRole == FormationSlotRole::Goalkeeper && xg < 0.30) {
-        return output;
-    }
-    if (context.carrierRole == FormationSlotRole::CenterBack && distance > 28.0 && xg < 0.20) {
-        return output;
-    }
-
     const PlayerAttributes attributes = attributesFor(context.teamSnapshot, context.carrierState);
     const ShotRoleProfile role = roleProfile(context.carrierRole);
     const ShotTacticalProfile tactics = tacticalProfile(context.tacticalSetup);
@@ -273,6 +267,14 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     const double pressurePenalty =
         std::clamp(context.carrierPressure * tuning.pressurePenaltyScale, 0.0, 100.0);
     const bool weakShot = xg < 0.08;
+    const ShotTargetResult shotTarget = ShotTargetModel{}.chooseTarget(ShotTargetContext{
+        context.ballPosition,
+        context.attackingDirection,
+        static_cast<double>(attributes.technical.shooting),
+        static_cast<double>(attributes.technical.technique),
+        static_cast<double>(attributes.mental.composure),
+        context.carrierPressure
+    });
 
     double score = xgDesire(xg) * tuning.openPlayShotBaseline
         + (distanceScore - 50.0) * 0.05
@@ -295,7 +297,7 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     ShotOption option;
     option.kind = ShotOptionKind::OpenPlayShot;
     option.actionType = BallCarrierActionType::Shoot;
-    option.targetPoint = goalCenterFor(context.attackingDirection);
+    option.targetPoint = shotTarget.intendedTarget;
     option.score = std::clamp(score, 0.0, 100.0);
     option.estimatedXG = xg;
     option.angleScore = angleScore;

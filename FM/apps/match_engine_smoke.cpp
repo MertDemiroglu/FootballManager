@@ -2,7 +2,6 @@
 #include"fm/match_engine/MatchEngineInputBuilder.h"
 #include"fm/match_engine/geometry/PitchGeometry.h"
 #include"fm/match_engine/ball/ShotQualityModel.h"
-#include"fm/match_engine/decision/ActionCandidateGenerator.h"
 #include"fm/match_engine/decision/ActionSelector.h"
 #include"fm/match_engine/decision/BallCarrierDecisionModel.h"
 #include"fm/match_engine/decision/CarryOptionEvaluator.h"
@@ -1100,7 +1099,59 @@ namespace {
             "low-xG defensive long shots should not become common shot candidates");
     }
 
-    void runActionCandidateGeneratorDecisionLayerSmoke() {
+    PlayerDecisionContext playerDecisionContextFor(
+        const PassDecisionFixture& fixture,
+        const MatchSimulationState& state,
+        double pressure = 8.0) {
+        const double progress = fixture.direction == AttackingDirection::HomeToAway
+            ? fixture.carrier.position.x / PitchGeometry::LengthMeters
+            : (PitchGeometry::LengthMeters - fixture.carrier.position.x) / PitchGeometry::LengthMeters;
+        DecisionMatchPhase phase = DecisionMatchPhase::BuildUp;
+        if (progress >= 0.88) {
+            phase = DecisionMatchPhase::ChanceCreation;
+        } else if (progress >= 0.78) {
+            phase = DecisionMatchPhase::BoxEntry;
+        } else if (progress >= 0.66) {
+            phase = DecisionMatchPhase::FinalThird;
+        } else if (progress >= 0.38) {
+            phase = DecisionMatchPhase::MiddleThirdCirculation;
+        }
+
+        PossessionContext possession;
+        possession.teamInPossession = fixture.carrier.teamId;
+        possession.ballCarrierId = fixture.carrier.playerId;
+        possession.possessionActionCount = state.possession.actionDepth;
+        possession.currentPhase = phase;
+        possession.ballPosition = fixture.carrier.position;
+        possession.ballProgression = std::clamp(progress, 0.0, 1.0);
+        possession.progressionAvailable = progress < 0.86;
+        possession.safeCirculationAvailable = true;
+        possession.finalThirdEntryAvailable = progress >= 0.55 && progress < 0.70;
+        possession.boxEntryAvailable = progress >= 0.68 && progress < 0.84;
+        possession.localPressure = pressure;
+
+        DefensiveContext defensive;
+        defensive.defendingTeamId = fixture.carrier.teamId;
+        defensive.opponentTeamId = fixture.opponentState.teamId;
+        defensive.opponentPossessionActionCount = state.possession.actionDepth;
+        defensive.opponentPhase = phase;
+        defensive.ballPosition = fixture.carrier.position;
+
+        return PlayerDecisionContext{
+            fixture.carrier.playerId,
+            fixture.carrier.teamId,
+            fixture.carrierRole,
+            fixture.carrier.position,
+            fixture.carrier.position,
+            fixture.tactics,
+            phase,
+            possession,
+            defensive,
+            pressure
+        };
+    }
+
+    void runBallCarrierDecisionModelSmoke() {
         TacticalSetup tactics;
         tactics.mentality = TeamMentality::Attacking;
         tactics.tempo = TeamTempo::High;
@@ -1130,17 +1181,7 @@ namespace {
         shapeContext.tacticalSetup = tactics;
         shapeContext.ballPosition = fixture.carrier.position;
 
-        const std::vector<ActionCandidate> candidates = ActionCandidateGenerator{}.generate(
-            ActionCandidateGenerationRequest{
-                &fixture.teamSnapshot,
-                &fixture.opponentSnapshot,
-                fixture.carrier,
-                state.ball,
-                state,
-                shapeContext,
-                fixture.teamState.players,
-                fixture.opponentState.players
-            });
+        (void)shapeContext;
         const std::vector<ActionCandidate> modelCandidates = BallCarrierDecisionModel{}.evaluate(
             BallCarrierDecisionModelContext{
                 &fixture.teamSnapshot,
@@ -1148,22 +1189,9 @@ namespace {
                 &fixture.teamState,
                 &fixture.opponentState,
                 &fixture.carrier,
-                fixture.carrierRole,
-                tactics,
-                fixture.carrier.position,
                 AttackingDirection::HomeToAway,
-                8.0,
-                state.possession.actionDepth,
-                state.possession.isTransition
+                playerDecisionContextFor(fixture, state)
             });
-        const auto hasCandidate = [&candidates](BallCarrierActionType type) {
-            return std::any_of(
-                candidates.begin(),
-                candidates.end(),
-                [type](const ActionCandidate& candidate) {
-                    return candidate.type == type;
-                });
-        };
         const auto modelHasCandidate = [&modelCandidates](BallCarrierActionType type) {
             return std::any_of(
                 modelCandidates.begin(),
@@ -1172,16 +1200,6 @@ namespace {
                     return candidate.type == type;
                 });
         };
-        require(hasCandidate(BallCarrierActionType::ShortPass)
-                || hasCandidate(BallCarrierActionType::ThroughBall)
-                || hasCandidate(BallCarrierActionType::LowCross)
-                || hasCandidate(BallCarrierActionType::Cutback),
-            "generator should include pass options from PassOptionEvaluator");
-        require(hasCandidate(BallCarrierActionType::Carry)
-                || hasCandidate(BallCarrierActionType::Dribble),
-            "generator should include carry options from CarryOptionEvaluator");
-        require(hasCandidate(BallCarrierActionType::Shoot),
-            "generator should include shot options from ShotDecisionEvaluator");
         require(modelHasCandidate(BallCarrierActionType::ShortPass)
                 || modelHasCandidate(BallCarrierActionType::ThroughBall)
                 || modelHasCandidate(BallCarrierActionType::LowCross)
@@ -1208,37 +1226,26 @@ namespace {
         state.possession.teamInPossession = fixture.carrier.teamId;
         state.possession.ballCarrierId = fixture.carrier.playerId;
 
-        TeamShapeContext shapeContext;
-        shapeContext.teamId = fixture.teamState.teamId;
-        shapeContext.isHomeTeam = true;
-        shapeContext.hasPossession = true;
-        shapeContext.phase = TeamShapePhase::InPossession;
-        shapeContext.attackingDirection = AttackingDirection::HomeToAway;
-        shapeContext.tacticalSetup = fixture.tactics;
-        shapeContext.ballPosition = fixture.carrier.position;
-
-        const ActionCandidateGenerator generator;
-        const std::vector<ActionCandidate> firstCandidates = generator.generate(
-            ActionCandidateGenerationRequest{
+        const BallCarrierDecisionModel model;
+        const std::vector<ActionCandidate> firstCandidates = model.evaluate(
+            BallCarrierDecisionModelContext{
                 &fixture.teamSnapshot,
                 &fixture.opponentSnapshot,
-                fixture.carrier,
-                state.ball,
-                state,
-                shapeContext,
-                fixture.teamState.players,
-                fixture.opponentState.players
+                &fixture.teamState,
+                &fixture.opponentState,
+                &fixture.carrier,
+                fixture.direction,
+                playerDecisionContextFor(fixture, state)
             });
-        const std::vector<ActionCandidate> secondCandidates = generator.generate(
-            ActionCandidateGenerationRequest{
+        const std::vector<ActionCandidate> secondCandidates = model.evaluate(
+            BallCarrierDecisionModelContext{
                 &fixture.teamSnapshot,
                 &fixture.opponentSnapshot,
-                fixture.carrier,
-                state.ball,
-                state,
-                shapeContext,
-                fixture.teamState.players,
-                fixture.opponentState.players
+                &fixture.teamState,
+                &fixture.opponentState,
+                &fixture.carrier,
+                fixture.direction,
+                playerDecisionContextFor(fixture, state)
             });
         const ActionSelector selector;
         const ActionSelectionResult first = selector.select(ActionSelectionRequest{
@@ -1526,7 +1533,7 @@ int main() {
         runPassLaneRiskSmoke();
         runCarryOptionEvaluatorSmoke();
         runShotDecisionEvaluatorSmoke();
-        runActionCandidateGeneratorDecisionLayerSmoke();
+        runBallCarrierDecisionModelSmoke();
         runPassSelectionDeterminismSmoke();
         runDetailedCoordinateBalanceSmoke();
         runHandlerIntegrationSmoke();

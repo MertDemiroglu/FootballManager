@@ -32,9 +32,11 @@ add_library(fm_core STATIC
     src/match_engine/geometry/PitchGeometry.cpp
     src/match_engine/MatchEngine.cpp
     src/match_engine/reporting/MatchEngineReportAdapter.cpp
+    src/match_engine/reporting/PlayerRatingModel.cpp
     src/match_engine/simulation/CoordinateMatchSimulator.cpp
     src/match_engine/simulation/FastMatchSummarySimulator.cpp
     src/match_engine/ball/ShotQualityModel.cpp
+    src/match_engine/ball/ShotTargetModel.cpp
     src/match_engine/MatchEngineInputBuilder.cpp
     src/match_engine/ball/BallTrajectoryBuilder.cpp
     src/match_engine/contest/InterceptionResolver.cpp
@@ -49,7 +51,6 @@ add_library(fm_core STATIC
     src/match_engine/decision/CarryOptionEvaluator.cpp
     src/match_engine/decision/ShotDecisionEvaluator.cpp
     src/match_engine/decision/BallCarrierDecisionModel.cpp
-    src/match_engine/decision/ActionCandidateGenerator.cpp
     src/match_engine/decision/ActionSelector.cpp
     src/match_engine/tuning/MatchEngineTuningProfile.cpp
     src/match/MatchSimulation.cpp
