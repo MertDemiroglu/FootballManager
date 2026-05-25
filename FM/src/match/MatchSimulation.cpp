@@ -135,7 +135,8 @@ void ensurePlayerReport(MatchReport& report, TeamId teamId, const Footballer& pl
         0,
         0,
         0,
-        0
+        0,
+        6.0
         });
 }
 
@@ -309,6 +310,55 @@ MatchReport MatchSimulation::buildStrengthBasedReport(
     }
     if (redChance(rng)) {
         assignCards(1, awayTeam.getId(), awayStarters, MatchEventKind::RedCard);
+    }
+
+    auto populateTeamStats = [](MatchTeamReportStats& stats, int goals, double expectedGoals, int yellows) {
+        stats.goals = goals;
+        stats.expectedGoals = expectedGoals;
+        stats.shots = std::max(goals + 3, static_cast<int>(expectedGoals * 4.5));
+        stats.shotsOnTarget = std::clamp(goals + 1, 0, stats.shots);
+        stats.passesAttempted = 280 + static_cast<int>(expectedGoals * 35.0);
+        stats.passesCompleted = static_cast<int>(stats.passesAttempted * 0.78);
+        stats.tacklesAttempted = 16;
+        stats.tacklesWon = 10;
+        stats.interceptions = 8;
+        stats.fouls = yellows + 7;
+        stats.yellowCards = yellows;
+        stats.possessionShare = 50.0;
+    };
+
+    populateTeamStats(report.homeStats, report.homeGoals, homeExpectedGoals, homeYellows);
+    populateTeamStats(report.awayStats, report.awayGoals, awayExpectedGoals, awayYellows);
+    report.homeStats.possessionShare = std::clamp(
+        50.0 + static_cast<double>(ratingDiff) * 0.15,
+        38.0,
+        62.0);
+    report.awayStats.possessionShare = 100.0 - report.homeStats.possessionShare;
+    report.homeStats.redCards = std::count_if(
+        report.events.begin(),
+        report.events.end(),
+        [&](const MatchEventRecord& event) {
+            return event.kind == MatchEventKind::RedCard && event.teamId == homeTeam.getId();
+        });
+    report.awayStats.redCards = std::count_if(
+        report.events.begin(),
+        report.events.end(),
+        [&](const MatchEventRecord& event) {
+            return event.kind == MatchEventKind::RedCard && event.teamId == awayTeam.getId();
+        });
+
+    for (MatchPlayerReport& playerReport : report.playerReports) {
+        double rating = 6.0
+            + static_cast<double>(playerReport.goals) * 0.7
+            + static_cast<double>(playerReport.assists) * 0.4
+            - static_cast<double>(playerReport.yellowCards) * 0.1
+            - static_cast<double>(playerReport.redCards) * 0.8;
+        if (playerReport.teamId == homeTeam.getId()) {
+            rating += report.homeGoals > report.awayGoals ? 0.2 : report.homeGoals < report.awayGoals ? -0.15 : 0.05;
+        } else if (playerReport.teamId == awayTeam.getId()) {
+            rating += report.awayGoals > report.homeGoals ? 0.2 : report.awayGoals < report.homeGoals ? -0.15 : 0.05;
+        }
+        playerReport.rating = std::clamp(rating, 4.0, 10.0);
     }
 
     return report;

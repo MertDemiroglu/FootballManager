@@ -139,6 +139,13 @@ void SqliteStatement::bindInt64(int index, std::int64_t value) {
     }
 }
 
+void SqliteStatement::bindDouble(int index, double value) {
+    const int rc = sqlite3_bind_double(handle(), index, value);
+    if (rc != SQLITE_OK) {
+        throw std::runtime_error(makeStatementError(handle(), "failed to bind double at index " + std::to_string(index)));
+    }
+}
+
 void SqliteStatement::bindText(int index, const std::string& value) {
     const int rc = sqlite3_bind_text(handle(), index, value.c_str(), static_cast<int>(value.size()), SQLITE_TRANSIENT);
     if (rc != SQLITE_OK) {
@@ -190,6 +197,10 @@ int SqliteStatement::columnInt(int column) const {
 
 std::int64_t SqliteStatement::columnInt64(int column) const {
     return static_cast<std::int64_t>(sqlite3_column_int64(handle(), column));
+}
+
+double SqliteStatement::columnDouble(int column) const {
+    return sqlite3_column_double(handle(), column);
 }
 
 std::string SqliteStatement::columnText(int column) const {

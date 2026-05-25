@@ -95,6 +95,7 @@ enum class PlayerIntentType {
     AttackNearPost,
     AttackFarPost,
     AttackCutbackZone,
+    ReceivePass,
     OccupyWidth,
     OccupyHalfSpace,
 

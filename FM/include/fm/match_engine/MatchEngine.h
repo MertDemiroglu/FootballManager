@@ -5,8 +5,7 @@
 
 class MatchEngine {
 public:
-    // Skeleton only: the real coordinate simulation will arrive in later phases.
-    // This class is intentionally not wired into the game loop yet.
+    // Pure coordinate simulation entry point. World state is applied by callers.
     MatchEngineResult simulate(const MatchEngineInput& input) const;
 };
 

@@ -27,6 +27,17 @@ namespace {
             + std::to_string(date.getDay()) + ", "
             + std::to_string(date.getYear());
     }
+
+    void applyMatchRatings(TeamSheetViewDto& sheet, const MatchReport& report) {
+        for (LineupPlayerViewDto& player : sheet.players) {
+            for (const MatchPlayerReport& playerReport : report.playerReports) {
+                if (playerReport.playerId == player.playerId) {
+                    player.matchRating = playerReport.rating;
+                    break;
+                }
+            }
+        }
+    }
 }
 
 MatchPresentationBuilder::MatchPresentationBuilder(const TeamSheetPresentationBuilder& sheetBuilder)
@@ -79,6 +90,8 @@ PostMatchViewDto MatchPresentationBuilder::buildPostMatch(
         dto.awayTeamId = report->awayId;
         dto.home = sheetBuilder.buildFromMatchLineupSnapshot(report->homeLineup, homeTeam);
         dto.away = sheetBuilder.buildFromMatchLineupSnapshot(report->awayLineup, awayTeam);
+        applyMatchRatings(dto.home, *report);
+        applyMatchRatings(dto.away, *report);
         return dto;
     }
 

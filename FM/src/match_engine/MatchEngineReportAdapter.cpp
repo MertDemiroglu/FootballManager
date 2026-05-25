@@ -89,8 +89,23 @@ namespace {
         }
     }
 
-    int eventMinuteForSecond(int second) {
-        return std::max(1, (second / 60) + 1);
+    MatchTeamReportStats toReportStats(const MatchTeamSimulationStats& stats) {
+        MatchTeamReportStats reportStats;
+        reportStats.goals = stats.goals;
+        reportStats.shots = stats.shots;
+        reportStats.shotsOnTarget = stats.shotsOnTarget;
+        reportStats.passesAttempted = stats.passesAttempted;
+        reportStats.passesCompleted = stats.passesCompleted;
+        reportStats.tacklesAttempted = stats.tacklesAttempted;
+        reportStats.tacklesWon = stats.tacklesWon;
+        reportStats.interceptions = stats.interceptions;
+        reportStats.fouls = stats.fouls;
+        reportStats.corners = stats.corners;
+        reportStats.yellowCards = stats.yellowCards;
+        reportStats.redCards = stats.redCards;
+        reportStats.possessionShare = stats.possessionShare;
+        reportStats.expectedGoals = stats.expectedGoals;
+        return reportStats;
     }
 }
 
@@ -107,6 +122,8 @@ MatchReport MatchEngineReportAdapter::buildReport(
     report.matchweek = input.matchweek;
     report.homeGoals = result.homeStats.goals;
     report.awayGoals = result.awayStats.goals;
+    report.homeStats = toReportStats(result.homeStats);
+    report.awayStats = toReportStats(result.awayStats);
     report.homeLineup = buildLineupSnapshot(input.homeTeam);
     report.awayLineup = buildLineupSnapshot(input.awayTeam);
 
@@ -128,25 +145,13 @@ MatchReport MatchEngineReportAdapter::buildReport(
         playerReport.assists = stats.assists;
         playerReport.yellowCards = stats.yellowCards;
         playerReport.redCards = stats.redCards;
+        playerReport.rating = stats.rating;
     }
 
     appendStarterReports(report, report.homeLineup);
     appendStarterReports(report, report.awayLineup);
 
-    // Scores stay authoritative. Complete event parity needs richer future goal metadata.
-    for (const MatchTraceFrame& frame : result.traceFrames) {
-        if (frame.kind != MatchTraceKind::Goal) {
-            continue;
-        }
-
-        MatchEventRecord event;
-        event.minute = eventMinuteForSecond(frame.second);
-        event.kind = MatchEventKind::Goal;
-        event.teamId = frame.teamId;
-        event.primaryPlayerId = frame.primaryPlayerId;
-        event.secondaryPlayerId = frame.secondaryPlayerId;
-        report.events.push_back(event);
-    }
+    report.events = result.events;
 
     return report;
 }

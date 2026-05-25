@@ -31,23 +31,45 @@ namespace {
     }
 
     bool isSafeCoordinateReport(const MatchReport& report, const PlayMatchCommand& command) {
-        return report.matchId == command.matchId
-            && report.leagueId == command.leagueId
-            && report.seasonYear == command.seasonYear
-            && report.matchweek == command.matchweek
-            && report.homeId == command.homeId
-            && report.awayId == command.awayId;
+        if (report.matchId != command.matchId
+            || report.leagueId != command.leagueId
+            || report.seasonYear != command.seasonYear
+            || report.matchweek != command.matchweek
+            || report.homeId != command.homeId
+            || report.awayId != command.awayId
+            || report.homeGoals < 0
+            || report.awayGoals < 0) {
+            return false;
+        }
+
+        if (report.homeLineup.teamId != 0 && report.homeLineup.teamId != command.homeId) {
+            return false;
+        }
+        if (report.awayLineup.teamId != 0 && report.awayLineup.teamId != command.awayId) {
+            return false;
+        }
+
+        for (const MatchPlayerReport& playerReport : report.playerReports) {
+            if (playerReport.teamId != 0
+                && playerReport.teamId != command.homeId
+                && playerReport.teamId != command.awayId) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
-    std::optional<MatchReport> tryBuildCoordinatePrototypeReport(
+    std::optional<MatchReport> tryBuildCoordinateReport(
         const PlayMatchCommand& command,
         const Team& homeTeam,
         const Team& awayTeam,
         const TeamSheet& homeSheet,
-        const TeamSheet& awaySheet) {
+        const TeamSheet& awaySheet,
+        MatchSimulationDetail detail) {
         try {
             MatchEngineOptions engineOptions;
-            engineOptions.detail = MatchSimulationDetail::BackgroundSummary;
+            engineOptions.detail = detail;
 
             const MatchEngineInput input = MatchEngineInputBuilder{}.build(
                 command.matchId,
@@ -129,7 +151,8 @@ void PlayMatchCommandHandler::handle(League& league, const PlayMatchCommand& com
 void PlayMatchCommandHandler::handle(League& league,
     const PlayMatchCommand& command,
     const TeamSheet& homeSheet,
-    const TeamSheet& awaySheet) {
+    const TeamSheet& awaySheet,
+    std::optional<MatchSimulationDetail> coordinateDetailOverride) {
     if (command.matchId == 0) {
         throw std::invalid_argument("play command match id cannot be zero");
     }
@@ -162,9 +185,17 @@ void PlayMatchCommandHandler::handle(League& league,
     validateTeamSheetForTeam(awaySheet, *awayTeam);
 
     MatchReport report;
-    if (options.engineMode == MatchSimulationEngineMode::CoordinatePrototype) {
+    if (options.engineMode == MatchSimulationEngineMode::Coordinate) {
+        const MatchSimulationDetail coordinateDetail =
+            coordinateDetailOverride.value_or(options.coordinateDetail);
         std::optional<MatchReport> coordinateReport =
-            tryBuildCoordinatePrototypeReport(command, *homeTeam, *awayTeam, homeSheet, awaySheet);
+            tryBuildCoordinateReport(
+                command,
+                *homeTeam,
+                *awayTeam,
+                homeSheet,
+                awaySheet,
+                coordinateDetail);
         report = coordinateReport.has_value()
             ? *coordinateReport
             : buildLightweightReport(command, *homeTeam, *awayTeam, homeSheet, awaySheet);

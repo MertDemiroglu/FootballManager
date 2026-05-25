@@ -235,6 +235,7 @@ Item {
                     MatchStatsPanel {
                         Layout.preferredWidth: 430
                         Layout.fillHeight: true
+                        statRows: interactionData.statRows || []
                     }
 
                     PitchPanel {
@@ -390,6 +391,18 @@ Item {
     }
 
     component MatchStatsPanel: Rectangle {
+        property var statRows: []
+        readonly property var effectiveRows: statRows && statRows.length > 0 ? statRows : [
+            { "label": "Possession", "homeValue": "0%", "awayValue": "0%" },
+            { "label": "Expected Goals (xG)", "homeValue": "0.00", "awayValue": "0.00" },
+            { "label": "Total Shots", "homeValue": "0", "awayValue": "0" },
+            { "label": "Shots on Target", "homeValue": "0", "awayValue": "0" },
+            { "label": "Passes", "homeValue": "0", "awayValue": "0" },
+            { "label": "Pass Accuracy", "homeValue": "0%", "awayValue": "0%" },
+            { "label": "Fouls", "homeValue": "0", "awayValue": "0" },
+            { "label": "Corners", "homeValue": "0", "awayValue": "0" }
+        ]
+
         radius: 12
         color: root.panelColor
         border.color: root.borderColor
@@ -406,14 +419,14 @@ Item {
                 font.bold: true
             }
 
-            StatComparisonRow { label: "Possession"; homeValue: "0%"; awayValue: "0%" }
-            StatComparisonRow { label: "Expected Goals (xG)"; homeValue: "0.00"; awayValue: "0.00" }
-            StatComparisonRow { label: "Total Shots"; homeValue: "0"; awayValue: "0" }
-            StatComparisonRow { label: "Shots on Target"; homeValue: "0"; awayValue: "0" }
-            StatComparisonRow { label: "Passes"; homeValue: "0"; awayValue: "0" }
-            StatComparisonRow { label: "Pass Accuracy"; homeValue: "0%"; awayValue: "0%" }
-            StatComparisonRow { label: "Fouls"; homeValue: "0"; awayValue: "0" }
-            StatComparisonRow { label: "Corners"; homeValue: "0"; awayValue: "0" }
+            Repeater {
+                model: effectiveRows
+                delegate: StatComparisonRow {
+                    label: modelData.label || ""
+                    homeValue: modelData.homeValue || ""
+                    awayValue: modelData.awayValue || ""
+                }
+            }
 
             Item { Layout.fillHeight: true }
         }

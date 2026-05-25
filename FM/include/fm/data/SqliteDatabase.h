@@ -51,6 +51,7 @@ public:
 
     void bindInt(int index, int value);
     void bindInt64(int index, std::int64_t value);
+    void bindDouble(int index, double value);
     void bindText(int index, const std::string& value);
     void bindNull(int index);
 
@@ -60,6 +61,7 @@ public:
 
     int columnInt(int column) const;
     std::int64_t columnInt64(int column) const;
+    double columnDouble(int column) const;
     std::string columnText(int column) const;
     bool columnIsNull(int column) const;
 };

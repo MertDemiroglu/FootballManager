@@ -38,7 +38,7 @@ This document locks the current save/load ownership model after the save-slot wo
 - `PreMatchInteraction` should own match-specific frozen team sheets once active interaction persistence exists. Until then, `Game` may hold pending pre-match home/away snapshots as temporary orchestration state only.
 - `SaveMetadata` is display/cache state for save cards and identity. It must not drive gameplay or hold mutable world state.
 - Runtime DB tables are the source of persisted game runtime state. `game_state`, league runtime rows, fixtures, match reports, player runtime state, team-owned roster ownership, free agent ownership, team finances, transfer offers, and team-sheet tables restore the playable world.
-- Permanent player attributes come from seed/static player data. `player_attributes` is the preferred explicit source and legacy `players.s1..s5` remains a transitional fallback; runtime saves do not store permanent attributes or progression yet.
+- Permanent player attributes load from seed/static player data. `player_attributes` is the preferred explicit source and legacy `players.s1..s5` remains a transitional fallback. Runtime saves now store full detailed attributes in `runtime_player_attributes` for rostered players and free agents; old saves without that table keep bootstrap/fallback attributes and still load safely.
 - `runtime_save_settings` owns runtime/app save policy such as autosave frequency. Do not store autosave settings in `save_metadata`.
 - Runtime roster ownership, free agent ownership, and team finance snapshots are the source of truth for accepted transfer and free-agent effects after load. Resolved transfer offers are restored as offer state/history only; they are not replayed as commands.
 - QML is presentation only. It may hold transient UI selection/highlight state, but gameplay source of truth must come from `GameFacade`/core models and mutations must write back through backend methods.
@@ -148,24 +148,25 @@ Stores generated fixtures and played/unplayed result state: match id, league id,
 
 ### `runtime_match_reports`
 
-Stores match report header data for played matches: match id, league id, season year, match date, teams, matchweek, goals, coaches, formations, and starting player ids.
+Stores match report header data for played matches: match id, league id, season year, match date, teams, matchweek, goals, coaches, formations, starting player ids, and basic home/away team match stats.
 
 - Writer: `Game::persistRuntimeState`.
 - Reader/restorer: `SqliteGameStateRepository::loadMatchReports`, then `League::restoreMatchReport`.
 - Saved when: played match reports exist and runtime state is persisted.
 - Authority: authoritative played match report summary for current visible save/load scope.
 - Multi-league implication: reports include `league_id` and must be restored into the correct league context.
-- Consistency rule: when present, a report must match a played fixture by match id, league id, teams, date, matchweek, and goals.
+- Consistency rule: when present, a report must match a played fixture by match id, league id, teams, date, matchweek, and goals. Team report stat goals must match the report score. Older saves without team stat columns still load with score-only stat defaults.
 
 ### `runtime_match_player_reports`
 
-Stores per-player match report details: player id, team id, started flag, minutes, goals, assists, yellow cards, and red cards.
+Stores per-player match report details: player id, team id, started flag, minutes, goals, assists, yellow cards, red cards, and match rating.
 
 - Writer: `SqliteGameStateRepository::saveRuntimeState`.
 - Reader/restorer: `SqliteGameStateRepository::loadMatchReports`.
 - Saved when: match reports are persisted.
 - Authority: authoritative persisted player report details for played matches.
 - Multi-league implication: player ids must resolve inside the restored world, not only the managed team.
+- Compatibility: old saves without the `rating` column load with the default 6.0 match rating.
 
 ### `runtime_match_events`
 

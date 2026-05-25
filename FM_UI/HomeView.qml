@@ -87,7 +87,7 @@ Item {
                 }
 
                 Label {
-                    text: "Start a new career, choose your club, and manage the season from a clean prototype dashboard."
+                    text: "Start a new career, choose your club, and manage the season from a clean manager dashboard."
                     wrapMode: Text.WordWrap
                     horizontalAlignment: Text.AlignHCenter
                     color: "#526071"
