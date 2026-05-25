@@ -1,7 +1,7 @@
 #include"fm/match_engine/MatchEngine.h"
 
-#include"fm/match_engine/CoordinateMatchSimulator.h"
-#include"fm/match_engine/FastMatchSummarySimulator.h"
+#include"fm/match_engine/simulation/CoordinateMatchSimulator.h"
+#include"fm/match_engine/simulation/FastMatchSummarySimulator.h"
 
 bool hasValidTeams(const MatchEngineInput& input) {
     return input.matchId != 0

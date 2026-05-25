@@ -1,7 +1,9 @@
 #pragma once
 
 #include"fm/common/Types.h"
-#include"fm/match_engine/PitchGeometry.h"
+#include"fm/match_engine/ball/BallTrajectoryTypes.h"
+#include"fm/match_engine/contest/ContestTypes.h"
+#include"fm/match_engine/geometry/PitchGeometry.h"
 
 #include<vector>
 
@@ -49,38 +51,6 @@ struct MatchTraceFrame {
     PitchPoint ballPosition;
     PitchPoint ballTarget;
     std::vector<PlayerMarkerSnapshot> markers;
-};
-
-enum class BallTrajectoryType {
-    GroundPass,
-    ThroughBall,
-    LowCross,
-    HighCross,
-    Cutback,
-    Shot,
-    Clearance,
-    Deflection
-};
-
-enum class BallFlightProfile {
-    Ground,
-    Low,
-    Medium,
-    High,
-    Lofted,
-    Shot
-};
-
-struct BallTrajectory {
-    PitchPoint start;
-    PitchPoint intendedTarget;
-    PitchPoint actualTarget;
-    double startSecond = 0.0;
-    double arrivalSecond = 0.0;
-    double speedMetersPerSecond = 0.0;
-    BallTrajectoryType type = BallTrajectoryType::GroundPass;
-    BallFlightProfile flightProfile = BallFlightProfile::Ground;
-    double apexHeightMeters = 0.0;
 };
 
 enum class PlayerIntentType {
@@ -132,18 +102,6 @@ enum class BallCarrierActionType {
     Shoot,
     Hold,
     Clear
-};
-
-enum class ContestType {
-    PassingLaneInterception,
-    GroundCrossInterception,
-    ReceptionDuel,
-    DribbleDuel,
-    TackleAttempt,
-    ShotBlock,
-    GoalkeeperSave,
-    AerialDuel,
-    LooseBallRace
 };
 
 struct PlayerIntent {

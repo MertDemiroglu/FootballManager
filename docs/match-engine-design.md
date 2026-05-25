@@ -2,6 +2,48 @@
 
 This document captures the current architecture for the coordinate-based match engine. The coordinate engine is now the default playable match path, while the lightweight engine remains available as a fallback and compatibility mode.
 
+## PR87 Layered Architecture
+
+PR87 is a behavior-preserving architecture cleanup. It organizes the current coordinate match engine into clearer layers before future tactical and decision complexity is added. It should not be used for gameplay tuning unless a small compile fix requires it.
+
+### Public API
+
+The stable public entry point remains `MatchEngine::simulate`. Callers build `MatchEngineInput`, choose `MatchSimulationDetail` through the input options, and consume `MatchEngineResult`. `MatchEngine.h`, `MatchEngineInput.h`, `MatchEngineResult.h`, and core shared DTOs remain at the top of `fm/match_engine`.
+
+Routing remains unchanged:
+
+- `BackgroundSummary` delegates to `simulation/FastMatchSummarySimulator`.
+- `WatchedMatch` delegates to `simulation/CoordinateMatchSimulator`.
+- `DebugFullTrace` delegates to `simulation/CoordinateMatchSimulator`.
+
+Managed and user-visible matches should continue using the detailed coordinate path. Background AI fixtures should continue using the fast summary path. The lightweight fallback remains outside this engine as the compatibility safety path, and `League::applyMatchReport` remains the authoritative report application flow.
+
+### Runners
+
+`simulation/CoordinateMatchSimulator` owns the detailed user/watched/debug simulation loop. It wires the layer helpers together but should not become the home for every future constant or decision rule.
+
+`simulation/FastMatchSummarySimulator` owns the aggregate AI/background simulation path. It remains separate from the detailed simulator so background fixture processing stays cheap.
+
+### Layers
+
+- `decision`: ball-carrier candidate generation, action selection, player intent resolution, action planning, defensive responsibility, and future decision tuning DTOs.
+- `ball`: ball trajectory creation, trajectory DTOs, trajectory sampling, deflection helpers, and open-play shot quality/xG helpers.
+- `contest`: interception candidate resolution, duel/save/contest resolution, and contest type enums.
+- `geometry`: pitch dimensions, goal/box helpers, distance helpers, and tactical zone definitions.
+- `movement`: player movement resolution and team shape target modeling.
+- `reporting`: `MatchEngineResult` to `MatchReport` mapping, including team stats, player reports, and official event mapping.
+- `tuning`: a small initial `MatchEngineTuningProfile` home for future centralized constants.
+
+### Follow-Up Plan
+
+- PR88 Passing Decision Layer
+- PR89 Carry + Shot Decision Layer
+- PR90 Pressing & Marking Interaction
+- PR91 ActionPlan System
+- PR92 Detailed Coordinate Match Tuning
+
+Future PRs should move decision constants into the decision/tuning layers gradually instead of scattering unexplained magic numbers through simulation runner code.
+
 ## Current Status
 
 The first compile-time core type layer for the future engine includes:
