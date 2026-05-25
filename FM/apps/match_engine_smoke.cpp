@@ -1,5 +1,7 @@
 #include"fm/match_engine/MatchEngine.h"
 #include"fm/match_engine/MatchEngineInputBuilder.h"
+#include"fm/match_engine/PitchGeometry.h"
+#include"fm/match_engine/ShotQualityModel.h"
 #include"fm/competition/League.h"
 #include"fm/data/SqliteGameStateRepository.h"
 #include"fm/events/DomainEventPublisher.h"
@@ -172,6 +174,32 @@ namespace {
 
     bool containsPlayerId(const std::vector<PlayerId>& ids, PlayerId playerId) {
         return std::find(ids.begin(), ids.end(), playerId) != ids.end();
+    }
+
+    void runShotQualityModelSmoke() {
+        const double closeCentral = ShotQualityModel::calculateOpenPlayXG(
+            PitchPoint{ 97.0, PitchGeometry::WidthMeters / 2.0 },
+            AttackingDirection::HomeToAway,
+            8.0);
+        const double farWide = ShotQualityModel::calculateOpenPlayXG(
+            PitchPoint{ 70.0, 6.0 },
+            AttackingDirection::HomeToAway,
+            8.0);
+        const double pressured = ShotQualityModel::calculateOpenPlayXG(
+            PitchPoint{ 97.0, PitchGeometry::WidthMeters / 2.0 },
+            AttackingDirection::HomeToAway,
+            70.0);
+        const double reverseDirection = ShotQualityModel::calculateOpenPlayXG(
+            PitchPoint{ 8.0, PitchGeometry::WidthMeters / 2.0 },
+            AttackingDirection::AwayToHome,
+            8.0);
+
+        require(closeCentral > farWide, "close central xG should exceed far wide xG");
+        require(closeCentral > pressured, "higher pressure should reduce xG");
+        require(reverseDirection > farWide, "away-to-home xG should use the opposite goal");
+        for (double xg : { closeCentral, farWide, pressured, reverseDirection }) {
+            require(xg >= 0.01 && xg <= 0.55, "open-play xG should stay within clamp range");
+        }
     }
 
     void assertResultReportConsistency(
@@ -435,6 +463,55 @@ namespace {
             "stronger team should usually show better possession or chance control");
     }
 
+    void runDetailedCoordinateBalanceSmoke() {
+        int assistedGoalSamples = 0;
+        int goalScorerRatingSamples = 0;
+        for (std::uint64_t seed = 1; seed <= 8; ++seed) {
+            const MatchEngineInput input =
+                buildInput(MatchSimulationDetail::WatchedMatch, 0x9300ULL + seed);
+            const MatchEngineResult result = MatchEngine{}.simulate(input);
+            assertResultReportConsistency(input, result);
+
+            for (const MatchTeamSimulationStats* stats : { &result.homeStats, &result.awayStats }) {
+                require(stats->passesAttempted > 0, "detailed coordinate match should attempt passes");
+                const double accuracy = passAccuracyFor(*stats);
+                require(accuracy >= 0.45 && accuracy <= 0.93,
+                    "detailed coordinate pass accuracy should stay in a broad sane range");
+                require(stats->expectedGoals <= 6.0,
+                    "detailed coordinate team xG should not regularly reach extreme values");
+                require(stats->fouls == 0 && stats->corners == 0,
+                    "detailed coordinate fouls/corners should remain placeholders until modeled");
+            }
+
+            const int homeGoals = result.homeStats.goals;
+            const int awayGoals = result.awayStats.goals;
+            for (const MatchPlayerSimulationStats& stats : result.playerStats) {
+                const bool losingTeam =
+                    (stats.teamId == result.homeStats.teamId && homeGoals < awayGoals)
+                    || (stats.teamId == result.awayStats.teamId && awayGoals < homeGoals);
+                if (losingTeam && stats.goals == 0 && stats.assists == 0) {
+                    require(stats.rating < 9.8,
+                        "losing players without goals or assists should not inflate to 10.0 ratings");
+                }
+                if (stats.goals > 0 && stats.rating > 6.5) {
+                    ++goalScorerRatingSamples;
+                }
+            }
+
+            assistedGoalSamples += static_cast<int>(std::count_if(
+                result.events.begin(),
+                result.events.end(),
+                [](const MatchEventRecord& event) {
+                    return event.kind == MatchEventKind::Goal && event.secondaryPlayerId != 0;
+                }));
+        }
+
+        require(assistedGoalSamples > 0,
+            "detailed coordinate possession-created goals should be able to record assists");
+        require(goalScorerRatingSamples > 0,
+            "detailed coordinate goal scorers should receive a visible rating lift");
+    }
+
     void runInvalidInputSmoke() {
         const MatchEngineResult result = MatchEngine{}.simulate(MatchEngineInput{});
         require(!result.report.has_value(), "invalid input should not produce a report");
@@ -631,6 +708,7 @@ int main() {
     try {
         runDeterministicRegression();
         runInvalidInputSmoke();
+        runShotQualityModelSmoke();
         runDetailSmoke(MatchSimulationDetail::BackgroundSummary);
         runDetailSmoke(MatchSimulationDetail::WatchedMatch);
         runDetailSmoke(MatchSimulationDetail::DebugFullTrace);
@@ -639,6 +717,7 @@ int main() {
         runGoalkeeperScorerSafetySmoke();
         runFastSummaryTacticalSensitivitySmoke();
         runFastSummaryQualitySensitivitySmoke();
+        runDetailedCoordinateBalanceSmoke();
         runHandlerIntegrationSmoke();
         runPlayerAttributesPersistenceSmoke();
         runMatchReportStatsPersistenceSmoke();

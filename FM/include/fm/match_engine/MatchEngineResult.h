@@ -17,6 +17,10 @@ struct MatchTeamSimulationStats {
     int tacklesAttempted = 0;
     int tacklesWon = 0;
     int interceptions = 0;
+    int passesIntercepted = 0;
+    int passesDeflected = 0;
+    int passesLoose = 0;
+    int passesReceiverOutOfRange = 0;
     int fouls = 0;
     int corners = 0;
     int yellowCards = 0;

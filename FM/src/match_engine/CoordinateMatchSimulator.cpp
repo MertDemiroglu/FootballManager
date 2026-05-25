@@ -10,11 +10,13 @@
 #include"fm/match_engine/MovementResolver.h"
 #include"fm/match_engine/PitchGeometry.h"
 #include"fm/match_engine/PlayerIntentResolver.h"
+#include"fm/match_engine/ShotQualityModel.h"
 #include"fm/match_engine/TeamShapeModel.h"
 
 #include<algorithm>
 #include<cmath>
 #include<cstdint>
+#include<initializer_list>
 #include<limits>
 #include<optional>
 #include<stdexcept>
@@ -22,7 +24,6 @@
 
 namespace {
     constexpr double LooseBallControlRangeMeters = 1.5;
-    constexpr double ReceptionControlRangeMeters = 2.5;
     constexpr int RegulationMatchSeconds = 90 * 60;
     constexpr int MaxSafetyActions = 8000;
     constexpr double MinimumStepSeconds = 0.5;
@@ -42,7 +43,7 @@ namespace {
         double executionQuality = 70.0;
         double pressure = 0.0;
         bool isShot = false;
-        double shotQuality = 0.0;
+        double shotXG = 0.0;
     };
 
     struct AssistTracker {
@@ -77,6 +78,18 @@ namespace {
 
     double clampedAttribute(int value) {
         return std::clamp(static_cast<double>(value), 0.0, 100.0);
+    }
+
+    double attributeAverage(std::initializer_list<double> values) {
+        if (values.size() == 0) {
+            return 50.0;
+        }
+
+        double total = 0.0;
+        for (double value : values) {
+            total += value;
+        }
+        return total / static_cast<double>(values.size());
     }
 
     void clearAssist(AssistTracker& assistTracker) {
@@ -461,20 +474,42 @@ namespace {
             && assignedRoleFor(team->teamSheet, playerId) == FormationSlotRole::Goalkeeper;
     }
 
+    bool isInterceptionIntent(PlayerIntentType type) {
+        return type == PlayerIntentType::InterceptBallPath
+            || type == PlayerIntentType::BlockPassingLane
+            || type == PlayerIntentType::PressBallCarrier
+            || type == PlayerIntentType::MarkOpponent;
+    }
+
+    bool isRoutinePass(BallCarrierActionType type) {
+        return type == BallCarrierActionType::BackPass
+            || type == BallCarrierActionType::ShortPass
+            || type == BallCarrierActionType::SwitchPlay;
+    }
+
     std::vector<PlayerSimState> interceptionDefendersFor(
         const MatchEngineInput& input,
         const TeamSimState& defendingTeam,
-        const std::optional<PendingBallAction>& pending) {
-        if (!pending || !pending->isShot) {
-            return defendingTeam.players;
-        }
-
+        const std::optional<PendingBallAction>& pending,
+        const BallTrajectory& trajectory) {
         std::vector<PlayerSimState> defenders;
         defenders.reserve(defendingTeam.players.size());
         for (const PlayerSimState& player : defendingTeam.players) {
-            if (!isAssignedGoalkeeper(input, defendingTeam.teamId, player.playerId)) {
-                defenders.push_back(player);
+            if (pending && pending->isShot
+                && isAssignedGoalkeeper(input, defendingTeam.teamId, player.playerId)) {
+                continue;
             }
+
+            if (pending && !pending->isShot && isRoutinePass(pending->actionType)) {
+                const double distanceToStart = PitchGeometry::distance(player.position, trajectory.start);
+                const double distanceToEnd = PitchGeometry::distance(player.position, trajectory.actualTarget);
+                if (!isInterceptionIntent(player.currentIntent.type)
+                    && std::min(distanceToStart, distanceToEnd) > 8.0) {
+                    continue;
+                }
+            }
+
+            defenders.push_back(player);
         }
         return defenders;
     }
@@ -887,33 +922,11 @@ namespace {
         return trajectory.actualTarget.x <= 1.0;
     }
 
-    double shotQualityFor(
-        const MatchPlayerSnapshot* shooter,
+    double openPlayXGFor(
         PitchPoint shotLocation,
         AttackingDirection direction,
         double pressure) {
-        const PitchPoint goalCenter = opponentGoalCenter(direction);
-        const double distance = PitchGeometry::distance(shotLocation, goalCenter);
-        const double centrality =
-            1.0 - std::min(1.0, std::abs(shotLocation.y - (PitchGeometry::WidthMeters / 2.0))
-                / (PitchGeometry::WidthMeters / 2.0));
-        const double distanceQuality = clampDouble(1.0 - ((distance - 8.0) / 28.0), 0.15, 1.0);
-        const double angleQuality = clampDouble(0.35 + centrality * 0.75, 0.35, 1.0);
-        const double skillQuality = shooter == nullptr
-            ? 0.85
-            : clampDouble(
-                0.76
-                    + (clampedAttribute(shooter->attributes.technical.shooting) - 60.0) / 260.0
-                    + (clampedAttribute(shooter->attributes.mental.composure) - 60.0) / 320.0,
-                0.72,
-                1.18);
-        const double pressureQuality = clampDouble(1.0 - (pressure / 180.0), 0.72, 1.0);
-
-        const double rawQuality =
-            (0.04 + distanceQuality * 0.17 + angleQuality * 0.08)
-            * skillQuality
-            * pressureQuality;
-        return clampDouble(rawQuality, 0.02, 0.45);
+        return ShotQualityModel::calculateOpenPlayXG(shotLocation, direction, pressure);
     }
 
     double goalkeeperStrengthFor(const MatchEngineInput& input, const PlayerSimState* goalkeeper) {
@@ -940,9 +953,19 @@ namespace {
         const MatchEngineInput& input,
         const PendingBallAction& pending,
         const PlayerSimState* goalkeeper) {
+        const MatchPlayerSnapshot* shooter = findSnapshotForPlayer(input, pending.sourcePlayerId);
+        const double shooterModifier = shooter == nullptr
+            ? 1.0
+            : clampDouble(
+                0.98
+                    + (clampedAttribute(shooter->attributes.technical.shooting) - 60.0) / 260.0
+                    + (clampedAttribute(shooter->attributes.mental.composure) - 60.0) / 330.0,
+                0.85,
+                1.18);
         const double goalkeeperStrength = goalkeeperStrengthFor(input, goalkeeper);
-        const double goalkeeperModifier = clampDouble(1.04 - ((goalkeeperStrength - 60.0) / 190.0), 0.76, 1.22);
-        return clampDouble(pending.shotQuality * goalkeeperModifier, 0.015, 0.38);
+        const double goalkeeperModifier = clampDouble(1.02 - ((goalkeeperStrength - 60.0) / 230.0), 0.78, 1.16);
+        const double pressureModifier = clampDouble(1.0 - (pending.pressure / 650.0), 0.88, 1.0);
+        return clampDouble(pending.shotXG * shooterModifier * goalkeeperModifier * pressureModifier, 0.008, 0.42);
     }
 
     bool isHighBallTrajectory(const BallTrajectory& trajectory) {
@@ -1068,7 +1091,7 @@ namespace {
         if (assistTracker.teamId != pending.sourceTeamId
             || assistTracker.passerPlayerId == 0
             || assistTracker.passerPlayerId == pending.sourcePlayerId
-            || state.currentSecond - assistTracker.second > 15) {
+            || state.currentSecond - assistTracker.second > 20) {
             return 0;
         }
         return assistTracker.passerPlayerId;
@@ -1108,6 +1131,158 @@ namespace {
         double maximum) {
         const double speed = std::max(1.0, effectivePace);
         return clampElapsedSeconds(PitchGeometry::distance(start, target) / speed, minimum, maximum);
+    }
+
+    double receptionControlRange(
+        BallCarrierActionType passType,
+        double executionQuality,
+        const MatchPlayerSnapshot* receiver,
+        double pressure) {
+        double minimum = 3.0;
+        double maximum = 5.0;
+        switch (passType) {
+        case BallCarrierActionType::BackPass:
+        case BallCarrierActionType::ShortPass:
+            minimum = 3.5;
+            maximum = 5.5;
+            break;
+        case BallCarrierActionType::ThroughBall:
+            minimum = 2.5;
+            maximum = 4.0;
+            break;
+        case BallCarrierActionType::SwitchPlay:
+            minimum = 3.0;
+            maximum = 5.0;
+            break;
+        case BallCarrierActionType::LowCross:
+        case BallCarrierActionType::Cutback:
+        case BallCarrierActionType::HighCross:
+            minimum = 1.8;
+            maximum = 3.2;
+            break;
+        case BallCarrierActionType::Carry:
+        case BallCarrierActionType::Dribble:
+        case BallCarrierActionType::CutInside:
+        case BallCarrierActionType::Shoot:
+        case BallCarrierActionType::Hold:
+        case BallCarrierActionType::Clear:
+            break;
+        }
+
+        const PlayerAttributes attributes =
+            receiver != nullptr ? receiver->attributes : PlayerAttributes{};
+        const double receptionSkill = attributeAverage({
+            clampedAttribute(attributes.technical.firstTouch),
+            clampedAttribute(attributes.technical.technique),
+            clampedAttribute(attributes.mental.composure)
+        });
+        const double qualityAdjustment = (executionQuality - 60.0) / 30.0;
+        const double skillAdjustment = (receptionSkill - 60.0) / 28.0;
+        const double pressureAdjustment = -(clampDouble(pressure, 0.0, 100.0) / 45.0);
+        return clampDouble(
+            ((minimum + maximum) * 0.5) + qualityAdjustment + skillAdjustment + pressureAdjustment,
+            minimum,
+            maximum);
+    }
+
+    double interceptionQualityThresholdFor(BallCarrierActionType actionType) {
+        switch (actionType) {
+        case BallCarrierActionType::BackPass:
+            return 26.0;
+        case BallCarrierActionType::ShortPass:
+            return 22.0;
+        case BallCarrierActionType::SwitchPlay:
+            return 18.0;
+        case BallCarrierActionType::ThroughBall:
+            return 14.0;
+        case BallCarrierActionType::LowCross:
+        case BallCarrierActionType::Cutback:
+            return 12.0;
+        case BallCarrierActionType::HighCross:
+            return 11.0;
+        case BallCarrierActionType::Shoot:
+            return 8.0;
+        case BallCarrierActionType::Carry:
+        case BallCarrierActionType::Dribble:
+        case BallCarrierActionType::CutInside:
+        case BallCarrierActionType::Hold:
+        case BallCarrierActionType::Clear:
+            return 16.0;
+        }
+
+        return 16.0;
+    }
+
+    double interceptionReactionWindowFor(BallCarrierActionType actionType) {
+        switch (actionType) {
+        case BallCarrierActionType::BackPass:
+            return 0.10;
+        case BallCarrierActionType::ShortPass:
+            return 0.12;
+        case BallCarrierActionType::SwitchPlay:
+            return 0.22;
+        case BallCarrierActionType::ThroughBall:
+            return 0.35;
+        case BallCarrierActionType::LowCross:
+        case BallCarrierActionType::Cutback:
+        case BallCarrierActionType::HighCross:
+        case BallCarrierActionType::Shoot:
+            return 0.35;
+        case BallCarrierActionType::Carry:
+        case BallCarrierActionType::Dribble:
+        case BallCarrierActionType::CutInside:
+        case BallCarrierActionType::Hold:
+        case BallCarrierActionType::Clear:
+            return 0.25;
+        }
+
+        return 0.25;
+    }
+
+    void moveReceiverTowardPass(
+        MatchSimulationState& state,
+        const MatchEngineInput& input,
+        const PendingBallAction& pending,
+        const BallTrajectory& trajectory) {
+        if (!isPassLike(pending.actionType) || pending.targetPlayerId == 0) {
+            return;
+        }
+
+        PlayerSimState* receiver = findPlayerState(state, pending.targetPlayerId);
+        if (receiver == nullptr || receiver->teamId != pending.sourceTeamId) {
+            return;
+        }
+
+        const MatchPlayerSnapshot* receiverSnapshot =
+            findSnapshotForPlayer(input, receiver->playerId);
+        const PlayerAttributes attributes =
+            receiverSnapshot != nullptr ? receiverSnapshot->attributes : PlayerAttributes{};
+        const double receptionSkill = attributeAverage({
+            clampedAttribute(attributes.technical.firstTouch),
+            clampedAttribute(attributes.mental.offTheBall),
+            clampedAttribute(attributes.mental.decisions)
+        });
+        const double elapsedSeconds =
+            std::max(0.25, trajectory.arrivalSecond - static_cast<double>(state.currentSecond));
+        const double maxDistance =
+            receiver->effectivePace * elapsedSeconds * (1.05 + ((receptionSkill - 60.0) / 220.0));
+        const double distance = PitchGeometry::distance(receiver->position, trajectory.actualTarget);
+        if (distance <= 0.001) {
+            return;
+        }
+
+        const double ratio = std::min(1.0, maxDistance / distance);
+        receiver->position = PitchGeometry::clampToPitch(PitchPoint{
+            receiver->position.x + ((trajectory.actualTarget.x - receiver->position.x) * ratio),
+            receiver->position.y + ((trajectory.actualTarget.y - receiver->position.y) * ratio)
+        });
+        receiver->targetPosition = trajectory.actualTarget;
+        receiver->currentIntent = PlayerIntent{
+            PlayerIntentType::ReceivePass,
+            trajectory.actualTarget,
+            pending.sourcePlayerId,
+            1.0
+        };
     }
 
     SimulationStepResult applyLocalGoal(
@@ -1278,18 +1453,17 @@ namespace {
                     ^ (static_cast<std::uint64_t>(actionType) << 32))
         });
 
-        double shotQuality = 0.0;
+        double shotXG = 0.0;
         if (isPassLike(actionType)) {
             ++teamStatsFor(result, carrier->teamId).passesAttempted;
             ++playerStatsFor(result, carrier->playerId, carrier->teamId).passesAttempted;
         } else if (actionType == BallCarrierActionType::Shoot) {
-            shotQuality = shotQualityFor(
-                playerSnapshot,
+            shotXG = openPlayXGFor(
                 state.ball.position,
                 carrierShapeContext.attackingDirection,
                 action.pressurePenalty);
             ++teamStatsFor(result, carrier->teamId).shots;
-            teamStatsFor(result, carrier->teamId).expectedGoals += shotQuality;
+            teamStatsFor(result, carrier->teamId).expectedGoals += shotXG;
             ++playerStatsFor(result, carrier->playerId, carrier->teamId).shots;
         }
 
@@ -1311,7 +1485,7 @@ namespace {
             executionQuality,
             action.pressurePenalty,
             actionType == BallCarrierActionType::Shoot,
-            shotQuality
+            shotXG
         };
 
         appendTrace(
@@ -1613,14 +1787,18 @@ namespace {
             return SimulationStepResult{ elapsedToArrival };
         }
 
+        if (pending) {
+            moveReceiverTowardPass(state, input, *pending, trajectory);
+        }
+
         const std::vector<PlayerSimState> interceptionDefenders =
-            interceptionDefendersFor(input, *defendingTeam, pending);
+            interceptionDefendersFor(input, *defendingTeam, pending, trajectory);
         const InterceptionResolverResult interception = interceptionResolver.resolve(
             InterceptionResolverRequest{
                 trajectory,
                 interceptionDefenders,
                 7,
-                0.35
+                pending ? interceptionReactionWindowFor(pending->actionType) : 0.25
             });
         const std::optional<InterceptionCandidate> reachableCandidate =
             pending
@@ -1629,7 +1807,7 @@ namespace {
                     input,
                     trajectory,
                     interception,
-                    6.0)
+                    interceptionQualityThresholdFor(pending->actionType))
                 : std::nullopt;
 
         if (pending && reachableCandidate) {
@@ -1680,6 +1858,9 @@ namespace {
 
                     if (contest.cleanController->teamId != previousTeam) {
                         clearAssist(assistTracker);
+                        if (isPassLike(pending->actionType)) {
+                            ++teamStatsFor(result, pending->sourceTeamId).passesIntercepted;
+                        }
                         ++teamStatsFor(result, contest.cleanController->teamId).interceptions;
                         ++playerStatsFor(
                             result,
@@ -1715,6 +1896,9 @@ namespace {
                 }
 
                 if (contest.ballDeflected) {
+                    if (isPassLike(pending->actionType)) {
+                        ++teamStatsFor(result, pending->sourceTeamId).passesDeflected;
+                    }
                     state.ball.controlState = BallControlState::InFlight;
                     state.ball.position = candidate.interceptionPoint;
                     state.ball.trajectory = trajectoryBuilder.buildDeflectedTrajectory(
@@ -1755,6 +1939,9 @@ namespace {
 
                 if (contest.ballBecomesLoose
                     || contest.ballOutcome == ContestBallOutcome::BallLoose) {
+                    if (isPassLike(pending->actionType)) {
+                        ++teamStatsFor(result, pending->sourceTeamId).passesLoose;
+                    }
                     setLooseBall(state, candidate.interceptionPoint);
                     clearAssist(assistTracker);
                     appendTrace(
@@ -1811,9 +1998,16 @@ namespace {
             && !pending->isShot
             && pending->targetPlayerId != 0) {
             PlayerSimState* target = findPlayerState(state, pending->targetPlayerId);
+            const MatchPlayerSnapshot* targetSnapshot =
+                target != nullptr ? findSnapshotForPlayer(input, target->playerId) : nullptr;
+            const double controlRange = receptionControlRange(
+                pending->actionType,
+                pending->executionQuality,
+                targetSnapshot,
+                pending->pressure);
             if (target != nullptr
                 && PitchGeometry::distance(target->position, state.ball.position)
-                    <= ReceptionControlRangeMeters) {
+                    <= controlRange) {
                 setControlledBy(
                     state,
                     target->playerId,
@@ -1832,8 +2026,15 @@ namespace {
                 pending = std::nullopt;
                 return SimulationStepResult{ elapsedToArrival };
             }
+
+            if (isPassLike(pending->actionType)) {
+                ++teamStatsFor(result, pending->sourceTeamId).passesReceiverOutOfRange;
+            }
         }
 
+        if (pending && isPassLike(pending->actionType) && pending->targetPlayerId == 0) {
+            ++teamStatsFor(result, pending->sourceTeamId).passesLoose;
+        }
         setLooseBall(state, state.ball.position);
         clearAssist(assistTracker);
         appendTrace(
@@ -1946,17 +2147,98 @@ namespace {
         }
     }
 
-    void finalizePlayerRatings(MatchEngineResult& result) {
+    bool isDefensiveRatingRole(FormationSlotRole role) {
+        switch (role) {
+        case FormationSlotRole::Goalkeeper:
+        case FormationSlotRole::CenterBack:
+        case FormationSlotRole::LeftBack:
+        case FormationSlotRole::RightBack:
+        case FormationSlotRole::LeftWingBack:
+        case FormationSlotRole::RightWingBack:
+        case FormationSlotRole::DefensiveMidfielder:
+            return true;
+        case FormationSlotRole::Unknown:
+        case FormationSlotRole::CentralMidfielder:
+        case FormationSlotRole::LeftMidfielder:
+        case FormationSlotRole::RightMidfielder:
+        case FormationSlotRole::AttackingMidfielder:
+        case FormationSlotRole::LeftWinger:
+        case FormationSlotRole::RightWinger:
+        case FormationSlotRole::Striker:
+            return false;
+        }
+
+        return false;
+    }
+
+    int goalsForTeam(const MatchEngineResult& result, TeamId teamId) {
+        if (result.homeStats.teamId == teamId) {
+            return result.homeStats.goals;
+        }
+        if (result.awayStats.teamId == teamId) {
+            return result.awayStats.goals;
+        }
+        return 0;
+    }
+
+    int goalsAgainstTeam(const MatchEngineResult& result, TeamId teamId) {
+        if (result.homeStats.teamId == teamId) {
+            return result.awayStats.goals;
+        }
+        if (result.awayStats.teamId == teamId) {
+            return result.homeStats.goals;
+        }
+        return 0;
+    }
+
+    const MatchTeamSnapshot* teamSnapshotForPlayerReport(
+        const MatchEngineInput& input,
+        const MatchPlayerSimulationStats& stats) {
+        if (stats.teamId == input.homeTeam.teamId) {
+            return &input.homeTeam;
+        }
+        if (stats.teamId == input.awayTeam.teamId) {
+            return &input.awayTeam;
+        }
+        return nullptr;
+    }
+
+    void finalizePlayerRatings(MatchEngineResult& result, const MatchEngineInput& input) {
         for (MatchPlayerSimulationStats& stats : result.playerStats) {
-            const double rating = 6.0
-                + static_cast<double>(stats.goals) * 0.7
-                + static_cast<double>(stats.assists) * 0.4
-                + static_cast<double>(stats.shots) * 0.03
-                + static_cast<double>(stats.interceptions) * 0.10
-                + static_cast<double>(stats.passesCompleted) * 0.002
-                - static_cast<double>(stats.yellowCards) * 0.1
-                - static_cast<double>(stats.redCards) * 0.8;
-            stats.rating = clampDouble(rating, 4.0, 10.0);
+            const MatchTeamSnapshot* snapshot = teamSnapshotForPlayerReport(input, stats);
+            const FormationSlotRole role =
+                snapshot != nullptr ? assignedRoleFor(snapshot->teamSheet, stats.playerId) : FormationSlotRole::Unknown;
+            const int goalsFor = goalsForTeam(result, stats.teamId);
+            const int goalsAgainst = goalsAgainstTeam(result, stats.teamId);
+
+            double rating = 6.0
+                + static_cast<double>(stats.goals) * 0.75
+                + static_cast<double>(stats.assists) * 0.45
+                + static_cast<double>(stats.shots) * 0.01
+                + static_cast<double>(stats.interceptions) * 0.05
+                + std::min(0.25, static_cast<double>(stats.passesCompleted) * 0.001)
+                - static_cast<double>(stats.yellowCards) * 0.15
+                - static_cast<double>(stats.redCards) * 1.0;
+
+            if (goalsFor > goalsAgainst) {
+                rating += 0.15;
+            } else if (goalsFor < goalsAgainst) {
+                rating -= 0.15;
+            }
+
+            if (isDefensiveRatingRole(role)) {
+                if (goalsAgainst == 0) {
+                    rating += 0.18;
+                } else {
+                    rating -= std::min(0.60, static_cast<double>(goalsAgainst) * 0.10);
+                }
+            }
+
+            const bool exceptional =
+                stats.goals >= 3
+                || (stats.goals >= 2 && stats.assists >= 1)
+                || stats.assists >= 3;
+            stats.rating = clampDouble(rating, 4.5, exceptional ? 10.0 : 9.8);
         }
     }
 }
@@ -2107,7 +2389,7 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
     result.simulatedSeconds = state.currentSecond;
     finalizePlayerMinutes(result, state.currentSecond);
     finalizePossessionShare(result, state);
-    finalizePlayerRatings(result);
+    finalizePlayerRatings(result, input);
     result.report = MatchEngineReportAdapter{}.buildReport(input, result);
     return result;
 }

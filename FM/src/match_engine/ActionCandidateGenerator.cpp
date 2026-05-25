@@ -3,6 +3,7 @@
 #include<algorithm>
 #include<cmath>
 #include<limits>
+#include<vector>
 
 namespace {
     double clampScore(double value) {
@@ -144,6 +145,80 @@ namespace {
         return best;
     }
 
+    double distancePointToSegment(PitchPoint point, PitchPoint a, PitchPoint b) {
+        const double dx = b.x - a.x;
+        const double dy = b.y - a.y;
+        const double lengthSquared = dx * dx + dy * dy;
+        if (lengthSquared <= 0.001) {
+            return PitchGeometry::distance(point, a);
+        }
+
+        const double t = std::clamp(
+            (((point.x - a.x) * dx) + ((point.y - a.y) * dy)) / lengthSquared,
+            0.0,
+            1.0);
+        return PitchGeometry::distance(point, PitchPoint{ a.x + dx * t, a.y + dy * t });
+    }
+
+    double laneRisk(
+        PitchPoint from,
+        PitchPoint to,
+        const std::vector<PlayerSimState>& opponents) {
+        double risk = 0.0;
+        for (const PlayerSimState& opponent : opponents) {
+            const double pathDistance = distancePointToSegment(opponent.position, from, to);
+            if (pathDistance <= 3.0) {
+                risk += 18.0;
+            } else if (pathDistance <= 5.0) {
+                risk += 9.0;
+            } else if (pathDistance <= 8.0) {
+                risk += 3.0;
+            }
+        }
+        return std::min(32.0, risk);
+    }
+
+    std::vector<const PlayerSimState*> rankedTeammates(
+        const ActionCandidateGenerationRequest& request,
+        bool requireBehind,
+        bool requireAhead,
+        std::size_t limit) {
+        std::vector<const PlayerSimState*> candidates;
+        for (const PlayerSimState& teammate : request.teammates) {
+            if (teammate.playerId == request.ballCarrier.playerId) {
+                continue;
+            }
+            if (requireBehind
+                && !isBehind(
+                    request.ballCarrier.position,
+                    teammate.position,
+                    request.teamShapeContext.attackingDirection)) {
+                continue;
+            }
+            if (requireAhead
+                && !isAhead(
+                    request.ballCarrier.position,
+                    teammate.position,
+                    request.teamShapeContext.attackingDirection)) {
+                continue;
+            }
+            candidates.push_back(&teammate);
+        }
+
+        std::sort(
+            candidates.begin(),
+            candidates.end(),
+            [&request](const PlayerSimState* lhs, const PlayerSimState* rhs) {
+                return PitchGeometry::distance(request.ballCarrier.position, lhs->position)
+                    < PitchGeometry::distance(request.ballCarrier.position, rhs->position);
+            });
+
+        if (candidates.size() > limit) {
+            candidates.resize(limit);
+        }
+        return candidates;
+    }
+
     double mentalitySafeBonus(TeamMentality mentality) {
         return mentality == TeamMentality::Defensive ? 10.0 : 0.0;
     }
@@ -161,6 +236,17 @@ namespace {
             bonus += 5.0;
         }
 
+        return bonus;
+    }
+
+    double shortPassingBonus(const TacticalSetup& tacticalSetup) {
+        double bonus = 0.0;
+        if (tacticalSetup.passingDirectness == PassingDirectness::Short) {
+            bonus += 8.0;
+        }
+        if (tacticalSetup.tempo == TeamTempo::Low) {
+            bonus += 4.0;
+        }
         return bonus;
     }
 
@@ -209,25 +295,53 @@ std::vector<ActionCandidate> ActionCandidateGenerator::generate(
         pressurePenalty * 0.45));
 
     if (const PlayerSimState* backTarget = nearestTeammate(request, true, false)) {
+        const double risk = laneRisk(carrierPosition, backTarget->position, request.opponents);
         candidates.push_back(buildCandidate(
             BallCarrierActionType::BackPass,
             backTarget->position,
             backTarget->playerId,
-            30.0 + mentalitySafeBonus(tacticalSetup.mentality),
+            34.0 + mentalitySafeBonus(tacticalSetup.mentality) + shortPassingBonus(tacticalSetup),
             18.0,
             10.0,
-            pressurePenalty * 0.35));
+            pressurePenalty * 0.25 + risk * 0.35));
     }
 
-    if (const PlayerSimState* shortTarget = nearestTeammate(request, false, false)) {
+    const std::vector<const PlayerSimState*> supportTargets =
+        rankedTeammates(request, false, false, tacticalSetup.passingDirectness == PassingDirectness::Short ? 4 : 3);
+    for (const PlayerSimState* shortTarget : supportTargets) {
+        const double targetDistance = PitchGeometry::distance(carrierPosition, shortTarget->position);
+        const double risk = laneRisk(carrierPosition, shortTarget->position, request.opponents);
+        const bool ahead = isAhead(carrierPosition, shortTarget->position, direction);
+        if (targetDistance > 26.0 && tacticalSetup.passingDirectness != PassingDirectness::Direct) {
+            continue;
+        }
         candidates.push_back(buildCandidate(
             BallCarrierActionType::ShortPass,
             shortTarget->position,
             shortTarget->playerId,
-            28.0,
-            isAhead(carrierPosition, shortTarget->position, direction) ? 20.0 : 12.0,
-            10.0,
-            pressurePenalty * 0.4));
+            30.0 + shortPassingBonus(tacticalSetup),
+            ahead ? 19.0 : 16.0,
+            std::clamp(14.0 - targetDistance * 0.10, 7.0, 14.0),
+            pressurePenalty * 0.35 + risk * 0.55));
+    }
+
+    const std::vector<const PlayerSimState*> progressiveTargets =
+        rankedTeammates(request, false, true, tacticalSetup.passingDirectness == PassingDirectness::Direct ? 3 : 2);
+    for (const PlayerSimState* target : progressiveTargets) {
+        const double targetDistance = PitchGeometry::distance(carrierPosition, target->position);
+        if (targetDistance < 10.0 || targetDistance > 34.0) {
+            continue;
+        }
+        const double risk = laneRisk(carrierPosition, target->position, request.opponents);
+        const bool direct = tacticalSetup.passingDirectness == PassingDirectness::Direct;
+        candidates.push_back(buildCandidate(
+            direct ? BallCarrierActionType::ThroughBall : BallCarrierActionType::ShortPass,
+            target->position,
+            target->playerId,
+            direct ? 26.0 + directProgressionBonus(tacticalSetup) : 24.0,
+            18.0 + std::min(8.0, targetDistance * 0.18),
+            9.0,
+            pressurePenalty * 0.45 + risk * (direct ? 0.65 : 0.55)));
     }
 
     candidates.push_back(buildCandidate(
