@@ -28,6 +28,9 @@ namespace {
         double goalkeeperStrength = 60.0;
         double possessionStrength = 60.0;
         double shotVolumeFactor = 1.0;
+        double passVolumeFactor = 1.0;
+        double cornerFactor = 1.0;
+        double volatilityFactor = 1.0;
         double passAccuracy = 0.76;
         double riskFactor = 1.0;
         std::vector<StarterProfile> starters;
@@ -236,16 +239,21 @@ namespace {
             StarterProfile profile;
             profile.player = player;
             profile.role = role;
-            profile.scoringWeight = clampDouble(
-                playerFinishing(*player)
-                    * roleWeight(role, player->position, 0.25, 0.65, 1.35),
-                1.0,
-                140.0);
-            profile.assistWeight = clampDouble(
-                playerCreation(*player)
-                    * roleWeight(role, player->position, 0.30, 1.25, 1.05),
-                1.0,
-                140.0);
+            if (isGoalkeeperRole(role, player->position)) {
+                profile.scoringWeight = 0.0;
+                profile.assistWeight = 0.0;
+            } else {
+                const double scoringRoleWeight =
+                    isAttackingRole(role, player->position)
+                        ? 1.55
+                        : (isMidfieldRole(role, player->position) ? 0.55 : 0.08);
+                const double assistRoleWeight =
+                    isAttackingRole(role, player->position)
+                        ? 1.15
+                        : (isMidfieldRole(role, player->position) ? 1.35 : 0.32);
+                profile.scoringWeight = clampDouble(playerFinishing(*player) * scoringRoleWeight, 0.0, 150.0);
+                profile.assistWeight = clampDouble(playerCreation(*player) * assistRoleWeight, 0.0, 150.0);
+            }
             summary.starters.push_back(profile);
 
             const double attackW = roleWeight(role, player->position, 0.35, 0.85, 1.45);
@@ -283,53 +291,84 @@ namespace {
 
         const TacticalSetup& tactics = team.tacticalSetup;
         if (tactics.mentality == TeamMentality::Attacking) {
-            summary.attackStrength *= 1.06;
-            summary.chanceCreation *= 1.05;
-            summary.defensiveStrength *= 0.98;
-            summary.shotVolumeFactor *= 1.10;
-            summary.riskFactor *= 1.08;
+            summary.attackStrength *= 1.09;
+            summary.chanceCreation *= 1.08;
+            summary.defensiveStrength *= 0.95;
+            summary.shotVolumeFactor *= 1.18;
+            summary.passVolumeFactor *= 0.96;
+            summary.volatilityFactor *= 1.10;
+            summary.riskFactor *= 1.14;
         } else if (tactics.mentality == TeamMentality::Defensive) {
-            summary.attackStrength *= 0.94;
-            summary.chanceCreation *= 0.94;
-            summary.defensiveStrength *= 1.08;
-            summary.shotVolumeFactor *= 0.90;
-            summary.riskFactor *= 0.92;
+            summary.attackStrength *= 0.90;
+            summary.chanceCreation *= 0.91;
+            summary.defensiveStrength *= 1.12;
+            summary.possessionStrength *= 0.96;
+            summary.shotVolumeFactor *= 0.82;
+            summary.passVolumeFactor *= 0.98;
+            summary.volatilityFactor *= 0.92;
+            summary.riskFactor *= 0.84;
         }
 
         if (tactics.tempo == TeamTempo::High) {
-            summary.shotVolumeFactor *= 1.08;
-            summary.possessionStrength *= 0.98;
+            summary.shotVolumeFactor *= 1.13;
+            summary.passVolumeFactor *= 0.98;
+            summary.possessionStrength *= 0.97;
+            summary.passAccuracy -= 0.045;
+            summary.volatilityFactor *= 1.12;
+            summary.riskFactor *= 1.06;
         } else if (tactics.tempo == TeamTempo::Low) {
-            summary.shotVolumeFactor *= 0.92;
-            summary.possessionStrength *= 1.03;
+            summary.shotVolumeFactor *= 0.86;
+            summary.passVolumeFactor *= 1.05;
+            summary.possessionStrength *= 1.05;
+            summary.passAccuracy += 0.040;
+            summary.volatilityFactor *= 0.88;
+            summary.riskFactor *= 0.95;
         }
 
         if (tactics.width == TeamWidth::Wide) {
-            summary.chanceCreation *= 1.03;
+            summary.chanceCreation *= 1.04;
+            summary.possessionStrength *= 0.98;
+            summary.cornerFactor *= 1.30;
         } else if (tactics.width == TeamWidth::Narrow) {
-            summary.possessionStrength *= 1.02;
+            summary.possessionStrength *= 1.05;
+            summary.shotVolumeFactor *= 0.95;
+            summary.cornerFactor *= 0.82;
         }
 
         if (tactics.passingDirectness == PassingDirectness::Direct) {
-            summary.shotVolumeFactor *= 1.04;
-            summary.chanceCreation *= 1.02;
-            summary.possessionStrength *= 0.97;
+            summary.shotVolumeFactor *= 1.11;
+            summary.passVolumeFactor *= 0.88;
+            summary.chanceCreation *= 1.04;
+            summary.possessionStrength *= 0.95;
+            summary.passAccuracy -= 0.060;
+            summary.volatilityFactor *= 1.16;
+            summary.riskFactor *= 1.08;
         } else if (tactics.passingDirectness == PassingDirectness::Short) {
-            summary.shotVolumeFactor *= 0.96;
-            summary.possessionStrength *= 1.04;
+            summary.shotVolumeFactor *= 0.89;
+            summary.passVolumeFactor *= 1.13;
+            summary.possessionStrength *= 1.07;
+            summary.passAccuracy += 0.055;
+            summary.volatilityFactor *= 0.90;
         }
 
         if (tactics.defensiveLine == DefensiveLine::High) {
-            summary.chanceCreation *= 1.02;
-            summary.defensiveStrength *= 0.98;
-            summary.riskFactor *= 1.04;
+            summary.chanceCreation *= 1.05;
+            summary.defensiveStrength *= 0.96;
+            summary.shotVolumeFactor *= 1.04;
+            summary.riskFactor *= 1.14;
+            summary.volatilityFactor *= 1.08;
         } else if (tactics.defensiveLine == DefensiveLine::Low) {
-            summary.defensiveStrength *= 1.04;
-            summary.shotVolumeFactor *= 0.96;
-            summary.riskFactor *= 0.96;
+            summary.defensiveStrength *= 1.09;
+            summary.possessionStrength *= 0.96;
+            summary.shotVolumeFactor *= 0.88;
+            summary.riskFactor *= 0.84;
+            summary.volatilityFactor *= 0.92;
         }
 
-        summary.passAccuracy = clampDouble((summary.possessionStrength / 100.0) * 0.25 + 0.62, 0.65, 0.88);
+        summary.passAccuracy = clampDouble(
+            (summary.possessionStrength / 100.0) * 0.25 + 0.62 + summary.passAccuracy - 0.76,
+            0.58,
+            0.91);
         return summary;
     }
 
@@ -362,25 +401,35 @@ namespace {
             if (profile.player == nullptr || profile.player->playerId == excludePlayerId) {
                 continue;
             }
-            total += scorer ? profile.scoringWeight : profile.assistWeight;
+            const double weight = scorer ? profile.scoringWeight : profile.assistWeight;
+            if (weight <= 0.0) {
+                continue;
+            }
+            total += weight;
         }
         if (total <= 0.0) {
             return nullptr;
         }
 
+        const StarterProfile* fallback = nullptr;
         const double target = unit(seed, salt) * total;
         double current = 0.0;
         for (const StarterProfile& profile : starters) {
             if (profile.player == nullptr || profile.player->playerId == excludePlayerId) {
                 continue;
             }
-            current += scorer ? profile.scoringWeight : profile.assistWeight;
+            const double weight = scorer ? profile.scoringWeight : profile.assistWeight;
+            if (weight <= 0.0) {
+                continue;
+            }
+            fallback = &profile;
+            current += weight;
             if (current >= target) {
                 return &profile;
             }
         }
 
-        return starters.empty() ? nullptr : &starters.back();
+        return fallback;
     }
 
     int sampleGoalsFromShots(
@@ -406,9 +455,9 @@ namespace {
             }
         }
 
-        const int softCeiling = std::clamp(static_cast<int>(std::ceil(expectedGoals)) + 2, 3, 6);
+        const int softCeiling = std::clamp(static_cast<int>(std::ceil(expectedGoals)) + 2, 3, 7);
         while (goals > softCeiling
-            && unit(seed, salt ^ (0x55aaULL + static_cast<std::uint64_t>(goals))) < 0.78) {
+            && unit(seed, salt ^ (0x55aaULL + static_cast<std::uint64_t>(goals))) < 0.82) {
             --goals;
         }
         return goals;
@@ -452,32 +501,32 @@ MatchEngineResult FastMatchSummarySimulator::run(const MatchEngineInput& input) 
         50.0
             + (home.possessionStrength - away.possessionStrength) * 0.18
             + 1.5
-            + (unit(seed, 0x101ULL) - 0.5) * 2.0,
-        38.0,
-        62.0);
+            + (unit(seed, 0x101ULL) - 0.5) * 3.0,
+        34.0,
+        66.0);
     result.awayStats.possessionShare = 100.0 - result.homeStats.possessionShare;
 
     const double homeChanceRatio = clampDouble(
         (home.chanceCreation / std::max(35.0, away.defensiveStrength)) * away.riskFactor,
-        0.70,
-        1.35);
+        0.60,
+        1.55);
     const double awayChanceRatio = clampDouble(
         (away.chanceCreation / std::max(35.0, home.defensiveStrength)) * home.riskFactor,
-        0.70,
-        1.35);
+        0.60,
+        1.55);
     const double homeShotMean =
         11.0 * home.shotVolumeFactor * homeChanceRatio * (result.homeStats.possessionShare / 50.0) + 0.8;
     const double awayShotMean =
         10.5 * away.shotVolumeFactor * awayChanceRatio * (result.awayStats.possessionShare / 50.0);
 
     result.homeStats.shots = roundedClamped(
-        homeShotMean + (unit(seed, 0x201ULL) - 0.5) * 4.0,
+        homeShotMean + (unit(seed, 0x201ULL) - 0.5) * 4.0 * home.volatilityFactor,
         5,
-        19);
+        24);
     result.awayStats.shots = roundedClamped(
-        awayShotMean + (unit(seed, 0x202ULL) - 0.5) * 4.0,
+        awayShotMean + (unit(seed, 0x202ULL) - 0.5) * 4.0 * away.volatilityFactor,
         4,
-        18);
+        23);
 
     const double homeSotRate = clampDouble(
         0.32 + (home.finishing - away.goalkeeperStrength) * 0.0012,
@@ -500,22 +549,22 @@ MatchEngineResult FastMatchSummarySimulator::run(const MatchEngineInput& input) 
         0.078
             * clampDouble(home.attackStrength / std::max(40.0, away.defensiveStrength), 0.78, 1.25)
             * clampDouble(home.finishing / std::max(40.0, away.goalkeeperStrength), 0.78, 1.22),
-        0.045,
-        0.135);
+        0.040,
+        0.155);
     const double awayShotQuality = clampDouble(
         0.075
             * clampDouble(away.attackStrength / std::max(40.0, home.defensiveStrength), 0.78, 1.25)
             * clampDouble(away.finishing / std::max(40.0, home.goalkeeperStrength), 0.78, 1.22),
-        0.043,
-        0.130);
+        0.038,
+        0.150);
     result.homeStats.expectedGoals = clampDouble(
         result.homeStats.shots * homeShotQuality,
-        0.25,
-        3.20);
+        0.15,
+        4.00);
     result.awayStats.expectedGoals = clampDouble(
         result.awayStats.shots * awayShotQuality,
-        0.20,
-        3.00);
+        0.15,
+        3.80);
 
     result.homeStats.goals = sampleGoalsFromShots(
         result.homeStats.shotsOnTarget,
@@ -534,11 +583,12 @@ MatchEngineResult FastMatchSummarySimulator::run(const MatchEngineInput& input) 
 
     const auto fillPassing = [&](MatchTeamSimulationStats& stats, const TeamSummary& summary, std::uint64_t salt) {
         const double tempoPassFactor =
-            summary.shotVolumeFactor >= 1.05 ? 0.96 : summary.shotVolumeFactor <= 0.94 ? 1.06 : 1.0;
+            summary.shotVolumeFactor >= 1.08 ? 0.94 : summary.shotVolumeFactor <= 0.90 ? 1.07 : 1.0;
         stats.passesAttempted = roundedClamped(
-            300.0 + stats.possessionShare * 3.2 * tempoPassFactor + (unit(seed, salt) - 0.5) * 36.0,
-            220,
-            560);
+            (300.0 + stats.possessionShare * 3.2 * tempoPassFactor) * summary.passVolumeFactor
+                + (unit(seed, salt) - 0.5) * 44.0 * summary.volatilityFactor,
+            180,
+            620);
         stats.passesCompleted = roundedClamped(
             stats.passesAttempted * summary.passAccuracy,
             0,
@@ -547,7 +597,10 @@ MatchEngineResult FastMatchSummarySimulator::run(const MatchEngineInput& input) 
         stats.tacklesWon = roundedClamped(stats.tacklesAttempted * 0.58, 0, stats.tacklesAttempted);
         stats.interceptions = roundedClamped(7.0 + (50.0 - stats.possessionShare) * 0.09, 3, 14);
         stats.fouls = roundedClamped(8.0 + (unit(seed, salt ^ 0xf0f0ULL) - 0.5) * 5.0, 4, 15);
-        stats.corners = roundedClamped(stats.shots * 0.18 + unit(seed, salt ^ 0xc0c0ULL) * 2.0, 0, 8);
+        stats.corners = roundedClamped(
+            stats.shots * 0.18 * summary.cornerFactor + unit(seed, salt ^ 0xc0c0ULL) * 2.0,
+            0,
+            10);
     };
     fillPassing(result.homeStats, home, 0x501ULL);
     fillPassing(result.awayStats, away, 0x502ULL);

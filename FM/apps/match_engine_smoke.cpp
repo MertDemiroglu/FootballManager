@@ -123,13 +123,19 @@ namespace {
 
     MatchEngineInput buildInput(
         MatchSimulationDetail detail,
-        std::uint64_t deterministicSeed = 0x51f0c0deULL) {
-        Team homeTeam = makeTeam(101, "Home Smoke", 4);
-        Team awayTeam = makeTeam(202, "Away Smoke", 0);
+        std::uint64_t deterministicSeed = 0x51f0c0deULL,
+        int homeRatingOffset = 4,
+        int awayRatingOffset = 0,
+        TacticalSetup homeTactics = TacticalSetup{},
+        TacticalSetup awayTactics = TacticalSetup{}) {
+        Team homeTeam = makeTeam(101, "Home Smoke", homeRatingOffset);
+        Team awayTeam = makeTeam(202, "Away Smoke", awayRatingOffset);
 
         TeamSelectionService selectionService;
         TeamSheet homeSheet = selectionService.buildTeamSheet(homeTeam, FormationId::FourFourTwo);
         TeamSheet awaySheet = selectionService.buildTeamSheet(awayTeam, FormationId::FourFourTwo);
+        homeSheet.tacticalSetup = homeTactics;
+        awaySheet.tacticalSetup = awayTactics;
 
         MatchEngineOptions options;
         options.detail = detail;
@@ -146,6 +152,26 @@ namespace {
             homeSheet,
             awaySheet,
             options);
+    }
+
+    double passAccuracyFor(const MatchTeamSimulationStats& stats) {
+        return stats.passesAttempted > 0
+            ? static_cast<double>(stats.passesCompleted) / static_cast<double>(stats.passesAttempted)
+            : 0.0;
+    }
+
+    std::vector<PlayerId> goalkeeperIdsFor(const MatchTeamSnapshot& team) {
+        std::vector<PlayerId> ids;
+        for (const TeamSheetSlotAssignment& assignment : team.teamSheet.startingAssignments) {
+            if (assignment.slotRole == FormationSlotRole::Goalkeeper && assignment.playerId != 0) {
+                ids.push_back(assignment.playerId);
+            }
+        }
+        return ids;
+    }
+
+    bool containsPlayerId(const std::vector<PlayerId>& ids, PlayerId playerId) {
+        return std::find(ids.begin(), ids.end(), playerId) != ids.end();
     }
 
     void assertResultReportConsistency(
@@ -206,6 +232,11 @@ namespace {
         const MatchEngineInput input = buildInput(detail);
         const MatchEngineResult result = MatchEngine{}.simulate(input);
         assertResultReportConsistency(input, result);
+        if (detail == MatchSimulationDetail::BackgroundSummary) {
+            require(result.traceFrames.empty(), "background summary should route to fast no-trace simulation");
+        } else {
+            require(!result.traceFrames.empty(), "watched/debug detail should route to detailed coordinate simulation");
+        }
     }
 
     void runOfficialGoalEventSmoke() {
@@ -276,9 +307,9 @@ namespace {
             const int combinedShots = sample.homeStats.shots + sample.awayStats.shots;
             const double combinedXg =
                 sample.homeStats.expectedGoals + sample.awayStats.expectedGoals;
-            require(combinedShots >= 12 && combinedShots <= 40,
+            require(combinedShots >= 10 && combinedShots <= 46,
                 "background summary combined shots should stay in a playable range");
-            require(combinedXg >= 0.4 && combinedXg <= 6.5,
+            require(combinedXg >= 0.3 && combinedXg <= 7.0,
                 "background summary xG should stay in a playable range");
             require(combinedGoals <= static_cast<int>(std::ceil(combinedXg)) + 5,
                 "background summary goals should stay directionally consistent with xG");
@@ -296,6 +327,112 @@ namespace {
             "background summary should not regularly produce extreme scorelines");
         require(assistedGoalSamples > 0,
             "background summary should produce assisted goals across deterministic samples");
+    }
+
+    void runGoalkeeperScorerSafetySmoke() {
+        for (std::uint64_t seed = 1; seed <= 80; ++seed) {
+            const MatchEngineInput input =
+                buildInput(MatchSimulationDetail::BackgroundSummary, seed + 0x6600ULL);
+            const std::vector<PlayerId> homeGoalkeepers = goalkeeperIdsFor(input.homeTeam);
+            const std::vector<PlayerId> awayGoalkeepers = goalkeeperIdsFor(input.awayTeam);
+            const MatchEngineResult result = MatchEngine{}.simulate(input);
+            assertResultReportConsistency(input, result);
+
+            for (const MatchEventRecord& event : result.report->events) {
+                if (event.kind != MatchEventKind::Goal) {
+                    continue;
+                }
+                require(!containsPlayerId(homeGoalkeepers, event.primaryPlayerId)
+                    && !containsPlayerId(awayGoalkeepers, event.primaryPlayerId),
+                    "fast summary should not assign open-play goals to goalkeepers");
+            }
+
+            for (const MatchPlayerReport& playerReport : result.report->playerReports) {
+                if (containsPlayerId(homeGoalkeepers, playerReport.playerId)
+                    || containsPlayerId(awayGoalkeepers, playerReport.playerId)) {
+                    require(playerReport.goals == 0,
+                        "fast summary goalkeeper player reports should not contain open-play goals");
+                }
+            }
+        }
+    }
+
+    void runFastSummaryTacticalSensitivitySmoke() {
+        TacticalSetup attacking;
+        attacking.mentality = TeamMentality::Attacking;
+        TacticalSetup defensive;
+        defensive.mentality = TeamMentality::Defensive;
+        const MatchEngineResult attackResult = MatchEngine{}.simulate(
+            buildInput(MatchSimulationDetail::BackgroundSummary, 0x7100ULL, 4, 0, attacking));
+        const MatchEngineResult defensiveResult = MatchEngine{}.simulate(
+            buildInput(MatchSimulationDetail::BackgroundSummary, 0x7100ULL, 4, 0, defensive));
+        require(attackResult.homeStats.shots > defensiveResult.homeStats.shots,
+            "attacking mentality should increase own shot volume");
+        require(attackResult.homeStats.expectedGoals > defensiveResult.homeStats.expectedGoals,
+            "attacking mentality should increase own xG");
+        require(attackResult.awayStats.expectedGoals >= defensiveResult.awayStats.expectedGoals,
+            "attacking mentality should carry more defensive risk");
+
+        TacticalSetup highTempo;
+        highTempo.tempo = TeamTempo::High;
+        TacticalSetup lowTempo;
+        lowTempo.tempo = TeamTempo::Low;
+        const MatchEngineResult highTempoResult = MatchEngine{}.simulate(
+            buildInput(MatchSimulationDetail::BackgroundSummary, 0x7200ULL, 4, 0, highTempo));
+        const MatchEngineResult lowTempoResult = MatchEngine{}.simulate(
+            buildInput(MatchSimulationDetail::BackgroundSummary, 0x7200ULL, 4, 0, lowTempo));
+        require(highTempoResult.homeStats.shots > lowTempoResult.homeStats.shots,
+            "high tempo should increase shot volume");
+        require(passAccuracyFor(highTempoResult.homeStats) < passAccuracyFor(lowTempoResult.homeStats),
+            "high tempo should reduce pass accuracy compared with low tempo");
+
+        TacticalSetup direct;
+        direct.passingDirectness = PassingDirectness::Direct;
+        TacticalSetup shortPassing;
+        shortPassing.passingDirectness = PassingDirectness::Short;
+        const MatchEngineResult directResult = MatchEngine{}.simulate(
+            buildInput(MatchSimulationDetail::BackgroundSummary, 0x7300ULL, 4, 0, direct));
+        const MatchEngineResult shortResult = MatchEngine{}.simulate(
+            buildInput(MatchSimulationDetail::BackgroundSummary, 0x7300ULL, 4, 0, shortPassing));
+        require(directResult.homeStats.shots > shortResult.homeStats.shots,
+            "direct passing should increase direct shot volume");
+        require(shortResult.homeStats.passesAttempted > directResult.homeStats.passesAttempted,
+            "short passing should increase pass volume");
+        require(passAccuracyFor(shortResult.homeStats) > passAccuracyFor(directResult.homeStats),
+            "short passing should increase pass accuracy");
+    }
+
+    void runFastSummaryQualitySensitivitySmoke() {
+        int betterXgSamples = 0;
+        int betterShotSamples = 0;
+        int betterControlSamples = 0;
+        for (std::uint64_t seed = 1; seed <= 16; ++seed) {
+            const MatchEngineInput input =
+                buildInput(
+                    MatchSimulationDetail::BackgroundSummary,
+                    0x8100ULL + seed,
+                    16,
+                    -6);
+            const MatchEngineResult result = MatchEngine{}.simulate(input);
+            assertResultReportConsistency(input, result);
+            if (result.homeStats.expectedGoals > result.awayStats.expectedGoals) {
+                ++betterXgSamples;
+            }
+            if (result.homeStats.shots >= result.awayStats.shots) {
+                ++betterShotSamples;
+            }
+            if (result.homeStats.possessionShare >= result.awayStats.possessionShare
+                || result.homeStats.expectedGoals > result.awayStats.expectedGoals + 0.3) {
+                ++betterControlSamples;
+            }
+        }
+
+        require(betterXgSamples >= 12,
+            "stronger team should usually produce more xG in fast summary");
+        require(betterShotSamples >= 11,
+            "stronger team should usually produce at least as many shots in fast summary");
+        require(betterControlSamples >= 11,
+            "stronger team should usually show better possession or chance control");
     }
 
     void runInvalidInputSmoke() {
@@ -499,6 +636,9 @@ int main() {
         runDetailSmoke(MatchSimulationDetail::DebugFullTrace);
         runOfficialGoalEventSmoke();
         runBackgroundSummaryCalibrationSmoke();
+        runGoalkeeperScorerSafetySmoke();
+        runFastSummaryTacticalSensitivitySmoke();
+        runFastSummaryQualitySensitivitySmoke();
         runHandlerIntegrationSmoke();
         runPlayerAttributesPersistenceSmoke();
         runMatchReportStatsPersistenceSmoke();

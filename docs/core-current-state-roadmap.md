@@ -42,7 +42,7 @@ This living document describes the current core/backend shape and the next backe
 - ContestResolver skeleton: Qt-free helper layer now resolves local contest/action winners from copied participants and timing/context inputs using deterministic weighted selection, then separately reports the physical ball outcome, optional clean controller, possession-change, attacking/defending success, loose-ball/deflection information, margin, and score details without mutating player, ball, simulation, domain, save/load, report, fixture, standing, history, or UI state.
 - TacticalZone / DefensiveResponsibility / PlayerIntentResolver / MovementResolver skeleton: Qt-free helper layers now provide a 3x3 attacking-perspective tactical zone model, role-based defensive responsibility and press eligibility, deterministic role/zone/distance constrained intent resolution, non-mutating player movement toward intent targets, and deterministic deflected-ball trajectory creation. They are not integrated into runtime match play yet.
 - Minimal coordinate match simulator: `MatchEngine::simulate` now delegates watched/debug snapshot input to a Qt-free matchSecond/action-duration simulator loop that initializes local `MatchSimulationState`, wires TeamShapeModel, PlayerIntentResolver, MovementResolver, ActionCandidateGenerator/Selector, BallTrajectoryBuilder, InterceptionResolver, and ContestResolver, and returns simulation stats/events/traces without mutating game state.
-- Fast background coordinate summary: `BackgroundSummary` uses a deterministic aggregate simulator based on the same snapshots, detailed attributes, starting XI roles, formation, and tactical setup, producing official events, stats, goals/assists/minutes/ratings, and no marker trace for scalable AI/multi-league fixtures.
+- Fast background coordinate summary: `BackgroundSummary` uses a deterministic aggregate simulator based on the same snapshots, detailed attributes, starting XI roles, formation, goalkeeper quality, home/away context, and tactical setup, producing official events, stats, goals/assists/minutes/ratings, and no marker trace for scalable AI/multi-league fixtures. Managed/user-visible matches use `WatchedMatch` and therefore the detailed coordinate simulator.
 - Shot / Save / Goal local simulator + Ball Vertical Profile: `BallTrajectory` now carries a simple vertical flight profile and apex height; the local simulator uses temporary attribute-based reach checks for high balls/aerial situations, routes high crosses/clearances toward aerial handling, and resolves on-target shots through first-pass shot-quality/xG and goalkeeper guardrails into local-only save, rebound, or goal event/stat outcomes.
 - MatchEngineResult -> MatchReport Adapter: a Qt-free pure adapter now converts simulator metadata, scores, lineups, player report basics including ratings, official events including assists, and basic team stats into `MatchReport`. Watched/debug trace frames remain presentation/debug output rather than authoritative report events.
 - MatchEngine deterministic/smoke coverage: `fm_match_engine_smoke` verifies deterministic result/report goals for repeated input and seed, report metadata consistency, starter player reports, invalid-input safe defaults, and no-crash coverage for background, watched, and debug detail modes.
@@ -89,9 +89,9 @@ This living document describes the current core/backend shape and the next backe
 
 - The coordinate simulation design, runtime boundary, first playable simulator, deterministic smoke coverage, and default handler integration are documented and compile-safe.
 - The current implemented MatchEngine foundation includes core type DTOs/enums, pitch helpers, snapshot-based input, output-only result DTOs, the `MatchEngine::simulate` simulator entry point, a read-only `MatchEngineInputBuilder` snapshot builder, in-memory simulation state containers, `TeamShapeModel`, `BallTrajectoryBuilder` / `InterceptionResolver` / `ContestResolver`, action-planning helpers, tactical zones, defensive responsibilities, player intent resolution, movement resolution, deflected trajectory creation, and simulator stat/trace output.
-- The playable V1 engine now uses real pitch dimensions, tactical shape, action-duration timing, ball trajectories, path interception, local contests, watched/debug traces, fast aggregate background summaries, official assists, and player ratings.
+- The playable V1 engine now uses real pitch dimensions, tactical shape, action-duration timing, ball trajectories, path interception, local contests, watched/debug traces, fast aggregate AI/background summaries, managed-match detailed coordinate simulation, official assists, player ratings, goalkeeper scorer safety, and first-pass tactical stat sensitivity.
 - V1 tactical inputs needed by the future engine are Mentality, Tempo, Width, DefensiveLine, PressingIntensity, MarkingStyle, and PassingDirectness.
-- The next planned implementation phases are tuning/stability, match event richness and UI playback preparation, managed-match watched-mode policy refinement, and eventual lightweight deprecation/cleanup after confidence.
+- The next planned implementation phases are detailed coordinate simulator tuning, ActionPlan/deeper decision work, watched match UX/playback preparation, and eventual lightweight deprecation/cleanup after confidence.
 
 ## Known Not-Yet-Supported Core Scenarios
 
@@ -131,11 +131,12 @@ This living document describes the current core/backend shape and the next backe
 17. Feature-flagged runtime integration prep (implemented)
 18. First playable coordinate match flow (implemented; `Coordinate` default, `Lightweight` fallback)
 19. Watched/background mode separation (implemented with fast `BackgroundSummary` and detailed watched/debug coordinate simulation)
-20. Tuning/stability pass
-21. Match event richness and UI playback preparation
-22. Managed-match watched-mode policy refinement
-23. Eventual lightweight deprecation/cleanup after confidence
-24. Multi-league expansion preparation
+20. Fast summary calibration and managed-match detail policy (implemented)
+21. Detailed coordinate simulator tuning
+22. ActionPlan/deeper decision work
+23. Match event richness and watched match UX/playback preparation
+24. Eventual lightweight deprecation/cleanup after confidence
+25. Multi-league expansion preparation
 
 ## Deferred / Later Core Work
 

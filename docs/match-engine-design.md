@@ -18,7 +18,7 @@ The first compile-time core type layer for the future engine includes:
 - the default playable coordinate match simulator
 - `FastMatchSummarySimulator` for scalable background fixtures
 
-These layers now power the default runtime match flow. `MatchEngine::simulate` uses copied snapshots and routes by `MatchSimulationDetail`: `BackgroundSummary` runs the fast aggregate coordinate summary, while `WatchedMatch` and `DebugFullTrace` run the full coordinate loop. `PlayMatchCommandHandler` validates the returned `MatchReport` before passing it to `League::applyMatchReport`. If the coordinate report is missing or unsafe, the handler falls back to the lightweight `MatchSimulation`.
+These layers now power the default runtime match flow. `MatchEngine::simulate` uses copied snapshots and routes by `MatchSimulationDetail`: `BackgroundSummary` runs the fast aggregate coordinate summary, while `WatchedMatch` and `DebugFullTrace` run the full coordinate loop. The caller owns the detail policy: AI/background fixtures use `BackgroundSummary`; managed/user-visible matches, including fast-forwarded user matches, use `WatchedMatch`; developer diagnostics use `DebugFullTrace`. `PlayMatchCommandHandler` validates the returned `MatchReport` before passing it to `League::applyMatchReport`. If the coordinate report is missing or unsafe, the handler falls back to the lightweight `MatchSimulation`.
 
 `TacticalSetup` V1 now provides tactical input to both coordinate paths. Mentality, tempo, width, defensive line, and passing directness are used as first-pass inputs; tuning remains ongoing.
 
@@ -28,7 +28,7 @@ The `MatchEngine` interface now exists as a compile-safe, Qt-free core boundary.
 
 `MatchEngineResult` is output-only. It carries the coordinate `MatchReport`, team/player simulation stats, official match events, optional trace frames, and the simulated match clock. The simulator returns local team/player stats and official events independently from trace output. A focused `MatchEngineReportAdapter` converts the simulator result metadata, score, lineup snapshots, player reports, official events, and basic team stats into `MatchReport`.
 
-`MatchEngine` does not mutate domain objects. `PlayMatchCommandHandler` defaults to `Coordinate`, builds `MatchEngineInput` through `MatchEngineInputBuilder`, runs `MatchEngine::simulate`, and uses `result.report` only after validating ids, metadata, goals, lineup team ids, and player-report team ids against the command. Its default coordinate detail is `BackgroundSummary` for scalable AI/runtime fixture processing, while options can explicitly request detailed coordinate simulation for watched/managed-team testing. Any unsafe build, missing report, or mismatched report falls back to the lightweight `MatchSimulation` report. `League::applyMatchReport` remains the authoritative apply path.
+`MatchEngine` does not mutate domain objects. `PlayMatchCommandHandler` defaults to `Coordinate`, builds `MatchEngineInput` through `MatchEngineInputBuilder`, runs `MatchEngine::simulate`, and uses `result.report` only after validating ids, metadata, goals, lineup team ids, and player-report team ids against the command. Its default coordinate detail remains `BackgroundSummary` for scalable AI/runtime fixture processing, while `Game::playPendingPreMatch` passes `WatchedMatch` for managed-team matches. Future Instant Result can explicitly choose fast summary, but user-visible watched or fast-forwarded matches should stay on `CoordinateMatchSimulator`. Any unsafe build, missing report, or mismatched report falls back to the lightweight `MatchSimulation` report. `League::applyMatchReport` remains the authoritative apply path.
 
 `TeamShapeModel` now exists as the first tactical-positioning helper. It is a Qt-free, read-only model layer that converts `TeamSheet`, `TacticalSetup`, pitch context, and attacking direction into per-player target positions. It does not mutate teams, players, leagues, fixtures, standings, reports, history, save state, or UI state.
 
@@ -74,11 +74,26 @@ The simulator returns approximate possession, pass, shot, interception, expected
 
 ## Fast Background Summary
 
-`FastMatchSummarySimulator` is the scalable `BackgroundSummary` path. It is not the old lightweight random score generator; it is a cheaper aggregate version of the coordinate model that consumes the same `MatchEngineInput` snapshots, detailed `PlayerAttributes`, starting XI roles/formation, and `TacticalSetup`.
+`FastMatchSummarySimulator` is the scalable `BackgroundSummary` path. It is not the old lightweight random score generator; it is a cheaper aggregate version of the coordinate model that consumes the same `MatchEngineInput` snapshots, detailed `PlayerAttributes`, starting XI roles/formation, broad formation shape, goalkeeper quality, home/away context, deterministic seed, and `TacticalSetup`.
 
-The summary computes directional team strengths for attack, chance creation, finishing, defending, goalkeeper prevention, possession, tempo, and risk. It then produces bounded deterministic shots, shots on target, expected goals, goals, possession, passing, corners, fouls, official goal events, scorer/assist player stats, minutes, and ratings. It does not emit marker trace or run the full movement/trajectory/contest loop, which keeps AI and multi-league fixtures cheap while preserving the same report schema as detailed coordinate matches.
+The summary computes directional team strengths for attack, chance creation, finishing, defending, goalkeeper prevention, possession, tempo, pass volume, pass accuracy, corners, volatility, and risk. It then produces bounded deterministic shots, shots on target, expected goals, goals, possession, passing, corners, fouls, official goal events, scorer/assist player stats, minutes, and ratings. It does not emit marker trace or run the full movement/trajectory/contest loop, which keeps AI and multi-league fixtures cheap while preserving the same report schema as detailed coordinate matches.
 
 Background and watched modes therefore share the same input contract and report contract, but not the same cost profile. Watched/debug detail remains available for user-managed or explicitly watched matches; background runtime remains scalable by default.
+
+Fast summary tactical sensitivity is intentionally bounded but visible:
+
+- Attacking raises shot volume and xG while increasing risk conceded.
+- Defensive lowers own volume and xG while improving defensive resistance.
+- High tempo raises action/shot volume, lowers pass accuracy, and increases volatility.
+- Low tempo improves pass accuracy/control while lowering shot volume.
+- Wide play increases corners and wide-player involvement.
+- Narrow play improves central possession and reduces crossing/corner volume.
+- Direct passing lowers passes and pass accuracy while increasing shot volume and volatility.
+- Short passing raises passes, pass accuracy, and possession while lowering direct shot volume.
+- High defensive line increases pressure/chance creation and risk behind.
+- Low defensive line lowers opponent shot quality and own chance volume.
+
+Open-play scorer selection is role and attribute weighted. Strikers, wingers, and attacking midfielders are the main scorer pool; central midfielders can score occasionally; defenders are rare until explicit set-piece logic exists. Goalkeepers are excluded from open-play scorer and assist selection for now.
 
 ## MatchEngineInputBuilder
 
@@ -116,7 +131,7 @@ PlayMatchCommandHandler
 
 ## Deterministic Smoke Coverage
 
-`fm_match_engine_smoke` covers the current simulator boundary without requiring a full realistic score. It verifies deterministic goals/report goals for repeated input and seed, report presence for valid input, report score/id/metadata consistency, starter player reports and ratings, regulation-time simulation, official goal events in `BackgroundSummary`, background no-trace behavior, background calibration ranges, assisted goal samples, basic team report stats, team-stat/player-rating persistence, safe default output for invalid input, no-crash execution for `BackgroundSummary`, `WatchedMatch`, and `DebugFullTrace`, default handler mode/detail selection, handler report application through `League`, fixture/standings updates, `MatchPlayedEvent` publication, explicit watched coordinate detail, and explicit lightweight mode.
+`fm_match_engine_smoke` covers the current simulator boundary without requiring a full realistic score. It verifies deterministic goals/report goals for repeated input and seed, report presence for valid input, report score/id/metadata consistency, starter player reports and ratings, regulation-time simulation, official goal events in `BackgroundSummary`, background no-trace behavior, background calibration ranges, assisted goal samples, no open-play goalkeeper scorers in fast summary, tactical sensitivity for mentality/tempo/directness, quality sensitivity for strong-vs-weak teams, basic team report stats, team-stat/player-rating persistence, safe default output for invalid input, no-crash execution for `BackgroundSummary`, `WatchedMatch`, and `DebugFullTrace`, default handler mode/detail selection, handler report application through `League`, fixture/standings updates, `MatchPlayedEvent` publication, explicit watched coordinate detail, and explicit lightweight mode.
 
 This coverage is intentionally small and regression-oriented. It does not assert detailed trace contents or exact scorelines because the coordinate simulator remains under active tuning.
 
@@ -235,7 +250,7 @@ Team shape depends on:
 - MarkingStyle
 - PassingDirectness
 
-These fields are persisted with selected `TeamSheet` runtime state, but they do not yet affect current match results. The current UI still only exposes mentality and tempo. Future tactical UI can expose More Options without changing the principle that core owns match decisions and QML only edits user-facing setup.
+These fields are persisted with selected `TeamSheet` runtime state and now feed the coordinate summary/detail models. The current UI still only exposes mentality and tempo. Future tactical UI can expose More Options without changing the principle that core owns match decisions and QML only edits user-facing setup.
 
 `DefensiveLine` is intentionally a positional shape adjustment, not pressing behavior. In `OutOfPossession` it raises or drops the defensive block, in `DefensiveTransition` it shifts the recovery line, in `InPossession` it shifts rest-defense/back-line support, and in `AttackingTransition` it controls how far the back line follows the attack.
 

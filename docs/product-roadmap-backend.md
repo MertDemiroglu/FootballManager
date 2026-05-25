@@ -237,14 +237,14 @@ Related documents:
 
 - Status: implemented as a PR86 follow-up.
 - Scope: route `BackgroundSummary` to `FastMatchSummarySimulator`, keep `WatchedMatch`/`DebugFullTrace` on the full `CoordinateMatchSimulator`, add first-pass shot/scoring guardrails to the detailed loop, track simple assists, carry player match ratings into `MatchReport` and UI-facing lineup data, and expand smoke/calibration checks.
-- Current behavior: background fixtures use a deterministic aggregate coordinate summary based on the same snapshots, detailed attributes, starting XI roles/formation, and tactical setup. It emits official events, team stats, player goals/assists/minutes/ratings, and no marker trace. Watched/debug matches remain available through the full coordinate action-duration loop.
+- Current behavior: AI/background fixtures use a deterministic aggregate coordinate summary based on the same snapshots, detailed attributes, starting XI roles/formation, goalkeeper quality, home/away context, and tactical setup. It emits official events, team stats, player goals/assists/minutes/ratings, and no marker trace. Managed/user-visible matches now request `WatchedMatch` and run through the full coordinate action-duration loop; fast-forward changes presentation speed later, not the simulation runner. Goalkeepers are excluded from open-play scorer/assist pools until explicit set-piece or penalty logic exists.
 - Do not mix in: QML redesign, lightweight removal, final tuning, or changes to `League::applyMatchReport` semantics.
 
 ## Next Backend Phases
 
-1. Tuning/stability pass
-2. Match event richness and UI playback preparation
-3. Managed-match watched-mode policy refinement
+1. Detailed coordinate simulator tuning/stability pass
+2. ActionPlan/deeper decision work
+3. Match event richness and watched match UX/playback preparation
 4. Eventual lightweight deprecation/cleanup after confidence
 
 ## Deferred / Later Backend Work

@@ -151,7 +151,8 @@ void PlayMatchCommandHandler::handle(League& league, const PlayMatchCommand& com
 void PlayMatchCommandHandler::handle(League& league,
     const PlayMatchCommand& command,
     const TeamSheet& homeSheet,
-    const TeamSheet& awaySheet) {
+    const TeamSheet& awaySheet,
+    std::optional<MatchSimulationDetail> coordinateDetailOverride) {
     if (command.matchId == 0) {
         throw std::invalid_argument("play command match id cannot be zero");
     }
@@ -185,6 +186,8 @@ void PlayMatchCommandHandler::handle(League& league,
 
     MatchReport report;
     if (options.engineMode == MatchSimulationEngineMode::Coordinate) {
+        const MatchSimulationDetail coordinateDetail =
+            coordinateDetailOverride.value_or(options.coordinateDetail);
         std::optional<MatchReport> coordinateReport =
             tryBuildCoordinateReport(
                 command,
@@ -192,7 +195,7 @@ void PlayMatchCommandHandler::handle(League& league,
                 *awayTeam,
                 homeSheet,
                 awaySheet,
-                options.coordinateDetail);
+                coordinateDetail);
         report = coordinateReport.has_value()
             ? *coordinateReport
             : buildLightweightReport(command, *homeTeam, *awayTeam, homeSheet, awaySheet);

@@ -44,6 +44,20 @@ namespace {
             && lhs.getDay() == rhs.getDay();
     }
 
+    MatchSimulationDetail detailForMatch(
+        const PlayMatchCommand& command,
+        LeagueId managedLeagueId,
+        TeamId managedTeamId) {
+        if (managedLeagueId != 0
+            && managedTeamId != 0
+            && command.leagueId == managedLeagueId
+            && (command.homeId == managedTeamId || command.awayId == managedTeamId)) {
+            return MatchSimulationDetail::WatchedMatch;
+        }
+
+        return MatchSimulationDetail::BackgroundSummary;
+    }
+
     bool dateIsBefore(const Date& lhs, const Date& rhs) {
         return lhs < rhs;
     }
@@ -1267,7 +1281,10 @@ void Game::updateDaily() {
         const LeagueId managedLeagueId = user.getManagedLeagueId();
         const TeamId managedTeamId = user.getManagedTeamId();
         const bool hasManagedTeam = managedLeagueId != 0 && managedTeamId != 0;
-        const bool isManagedTeamMatch = hasManagedTeam && command.leagueId == managedLeagueId && (command.homeId == managedTeamId || command.awayId == managedTeamId);
+        const MatchSimulationDetail matchDetail =
+            detailForMatch(command, managedLeagueId, managedTeamId);
+        const bool isManagedTeamMatch = hasManagedTeam
+            && matchDetail == MatchSimulationDetail::WatchedMatch;
 
         if (isManagedTeamMatch) {
             LeagueContext* context = world.findLeagueContext(command.leagueId);
@@ -1312,7 +1329,12 @@ void Game::updateDaily() {
         }
         TeamSheet homeSheet = resolveCompleteTeamSheetForTeam(command.leagueId, command.homeId);
         TeamSheet awaySheet = resolveCompleteTeamSheetForTeam(command.leagueId, command.awayId);
-        context->getPlayMatchCommandHandler().handle(context->getLeague(), command, homeSheet, awaySheet);
+        context->getPlayMatchCommandHandler().handle(
+            context->getLeague(),
+            command,
+            homeSheet,
+            awaySheet,
+            matchDetail);
         requestRuntimeSave(SaveReason::MatchCompleted);
 
         refreshTimePauseState();
@@ -1656,7 +1678,8 @@ bool Game::playPendingPreMatch() {
         context->getLeague(),
         command,
         *pendingPreMatchHomeSheet,
-        *pendingPreMatchAwaySheet);
+        *pendingPreMatchAwaySheet,
+        detailForMatch(command, user.getManagedLeagueId(), user.getManagedTeamId()));
     pendingPreMatchCommand.reset();
     pendingPreMatchHomeSheet.reset();
     pendingPreMatchAwaySheet.reset();
