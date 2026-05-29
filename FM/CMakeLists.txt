@@ -38,6 +38,7 @@ add_library(fm_core STATIC
     src/match_engine/ball/ShotQualityModel.cpp
     src/match_engine/ball/ShotOutcomeResolver.cpp
     src/match_engine/ball/ShotTargetModel.cpp
+    src/match_engine/ball/PassResolutionModel.cpp
     src/match_engine/MatchEngineInputBuilder.cpp
     src/match_engine/ball/BallTrajectoryBuilder.cpp
     src/match_engine/contest/InterceptionResolver.cpp

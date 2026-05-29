@@ -4,6 +4,7 @@
 #include"fm/match_engine/decision/ActionSelector.h"
 #include"fm/match_engine/decision/BallCarrierDecisionModel.h"
 #include"fm/match_engine/ball/BallTrajectoryBuilder.h"
+#include"fm/match_engine/ball/PassResolutionModel.h"
 #include"fm/match_engine/ball/ShotOutcomeResolver.h"
 #include"fm/match_engine/contest/ContestResolver.h"
 #include"fm/match_engine/contest/InterceptionResolver.h"
@@ -480,8 +481,12 @@ namespace {
         return type == PlayerIntentType::InterceptBallPath
             || type == PlayerIntentType::BlockPassingLane
             || type == PlayerIntentType::PressBallCarrier
+            || type == PlayerIntentType::ContainBallCarrier
+            || type == PlayerIntentType::CoverSpace
             || type == PlayerIntentType::MarkOpponent;
     }
+
+    double distancePointToSegment(PitchPoint point, PitchPoint start, PitchPoint end);
 
     bool isRoutinePass(BallCarrierActionType type) {
         return type == BallCarrierActionType::BackPass
@@ -505,8 +510,11 @@ namespace {
             if (pending && !pending->isShot && isRoutinePass(pending->actionType)) {
                 const double distanceToStart = PitchGeometry::distance(player.position, trajectory.start);
                 const double distanceToEnd = PitchGeometry::distance(player.position, trajectory.actualTarget);
+                const double distanceToLane =
+                    distancePointToSegment(player.position, trajectory.start, trajectory.actualTarget);
                 if (!isInterceptionIntent(player.currentIntent.type)
-                    && std::min(distanceToStart, distanceToEnd) > 8.0) {
+                    && distanceToLane > 7.5
+                    && std::min(distanceToStart, distanceToEnd) > 10.0) {
                     continue;
                 }
             }
@@ -1189,6 +1197,65 @@ namespace {
         return std::clamp(pressure, 0.0, 100.0);
     }
 
+    double intentPressureContribution(PlayerIntentType intent) {
+        switch (intent) {
+        case PlayerIntentType::PressBallCarrier:
+        case PlayerIntentType::AttemptTackle:
+            return 18.0;
+        case PlayerIntentType::ContainBallCarrier:
+            return 13.0;
+        case PlayerIntentType::BlockPassingLane:
+        case PlayerIntentType::InterceptBallPath:
+            return 15.0;
+        case PlayerIntentType::MarkOpponent:
+        case PlayerIntentType::CoverSpace:
+            return 9.0;
+        case PlayerIntentType::None:
+        case PlayerIntentType::HoldAttackingShape:
+        case PlayerIntentType::MoveToSupport:
+        case PlayerIntentType::DropForPass:
+        case PlayerIntentType::MakeRunBehind:
+        case PlayerIntentType::AttackNearPost:
+        case PlayerIntentType::AttackFarPost:
+        case PlayerIntentType::AttackCutbackZone:
+        case PlayerIntentType::ReceivePass:
+        case PlayerIntentType::OccupyWidth:
+        case PlayerIntentType::OccupyHalfSpace:
+        case PlayerIntentType::HoldDefensiveShape:
+        case PlayerIntentType::RecoverToGoal:
+        case PlayerIntentType::ProtectGoalZone:
+        case PlayerIntentType::RecoverLooseBall:
+        case PlayerIntentType::ClearDanger:
+            return 0.0;
+        }
+        return 0.0;
+    }
+
+    double contextualPassPressure(
+        PitchPoint start,
+        PitchPoint target,
+        const std::vector<PlayerSimState>& defenders) {
+        double pressure = 0.0;
+        for (const PlayerSimState& defender : defenders) {
+            const double contribution = intentPressureContribution(defender.currentIntent.type);
+            if (contribution <= 0.0) {
+                continue;
+            }
+
+            const double carrierDistance = PitchGeometry::distance(defender.position, start);
+            const double targetDistance = PitchGeometry::distance(defender.position, target);
+            const double laneDistance = distancePointToSegment(defender.position, start, target);
+            if (carrierDistance <= 6.0) {
+                pressure += contribution;
+            } else if (targetDistance <= 5.5) {
+                pressure += contribution * 0.85;
+            } else if (laneDistance <= 5.0) {
+                pressure += contribution * 0.75;
+            }
+        }
+        return std::clamp(pressure, 0.0, 100.0);
+    }
+
     double opponentBlockCompactness(
         PitchPoint ballPosition,
         const std::vector<PlayerSimState>& opponents) {
@@ -1807,6 +1874,14 @@ namespace {
 
         const ActionCandidate action = *selection.selected;
         const BallCarrierActionType actionType = action.type;
+        const double executionPressure = isPassLike(actionType)
+            ? std::max(
+                action.pressurePenalty,
+                contextualPassPressure(
+                    state.ball.position,
+                    action.intendedTarget,
+                    opponentState->players))
+            : action.pressurePenalty;
         if (actionType == BallCarrierActionType::Hold) {
             appendTrace(
                 result,
@@ -1859,7 +1934,7 @@ namespace {
             trajectoryType,
             static_cast<double>(state.currentSecond),
             executionQuality,
-            action.pressurePenalty,
+            executionPressure,
             stepSeed(
                 baseSeed,
                 state,
@@ -1875,7 +1950,7 @@ namespace {
             shotXG = openPlayXGFor(
                 state.ball.position,
                 carrierShapeContext.attackingDirection,
-                action.pressurePenalty);
+                executionPressure);
             ++teamStatsFor(result, carrier->teamId).shots;
             teamStatsFor(result, carrier->teamId).expectedGoals += shotXG;
             ++playerStatsFor(result, carrier->playerId, carrier->teamId).shots;
@@ -1897,7 +1972,7 @@ namespace {
             actionType,
             trajectoryType,
             executionQuality,
-            action.pressurePenalty,
+            executionPressure,
             actionType == BallCarrierActionType::Shoot,
             shotXG
         };
@@ -1951,6 +2026,101 @@ namespace {
         participant.arrivalSecond = arrivalSecond;
         participant.startingAdvantage = startingAdvantage;
         return participant;
+    }
+
+    PlayerSimState* bestArrivalContestDefender(
+        TeamSimState& defendingTeam,
+        const PendingBallAction& pending,
+        const BallTrajectory& trajectory,
+        const PlayerSimState& receiver) {
+        PlayerSimState* best = nullptr;
+        double bestScore = 0.0;
+        for (PlayerSimState& defender : defendingTeam.players) {
+            if (!isInterceptionIntent(defender.currentIntent.type)) {
+                continue;
+            }
+            const double receiverDistance = PitchGeometry::distance(defender.position, receiver.position);
+            const double arrivalDistance = PitchGeometry::distance(defender.position, trajectory.actualTarget);
+            const double laneDistance =
+                distancePointToSegment(defender.position, trajectory.start, trajectory.actualTarget);
+            if (receiverDistance > 7.0 && arrivalDistance > 7.0 && laneDistance > 5.5) {
+                continue;
+            }
+
+            const double intent = intentPressureContribution(defender.currentIntent.type);
+            const double score =
+                intent
+                + std::max(0.0, 18.0 - receiverDistance * 2.0)
+                + std::max(0.0, 18.0 - arrivalDistance * 2.0)
+                + std::max(0.0, 12.0 - laneDistance * 1.8)
+                + pending.pressure * 0.12;
+            if (score > bestScore) {
+                best = &defender;
+                bestScore = score;
+            }
+        }
+        return best;
+    }
+
+    void recordDefenderPassWin(
+        MatchSimulationState& state,
+        MatchEngineResult& result,
+        const MatchEngineInput& input,
+        const PendingBallAction& pending,
+        PlayerSimState& defender,
+        PitchPoint winPoint,
+        AssistTracker& assistTracker) {
+        setControlledBy(state, defender.playerId, defender.teamId, winPoint);
+        ++teamStatsFor(result, defender.teamId).interceptions;
+        ++playerStatsFor(result, defender.playerId, defender.teamId).interceptions;
+        if (isPassLike(pending.actionType)) {
+            ++teamStatsFor(result, pending.sourceTeamId).passesIntercepted;
+        }
+        clearAssist(assistTracker);
+        appendTrace(
+            result,
+            input.options.detail,
+            state,
+            MatchTraceKind::Turnover,
+            defender.teamId,
+            defender.playerId,
+            pending.sourcePlayerId,
+            winPoint,
+            winPoint);
+        appendTrace(
+            result,
+            input.options.detail,
+            state,
+            MatchTraceKind::Interception,
+            defender.teamId,
+            defender.playerId,
+            pending.sourcePlayerId,
+            winPoint,
+            winPoint);
+    }
+
+    void recordLoosePass(
+        MatchSimulationState& state,
+        MatchEngineResult& result,
+        const MatchEngineInput& input,
+        const PendingBallAction& pending,
+        PitchPoint loosePoint,
+        AssistTracker& assistTracker) {
+        if (isPassLike(pending.actionType)) {
+            ++teamStatsFor(result, pending.sourceTeamId).passesLoose;
+        }
+        setLooseBall(state, loosePoint);
+        clearAssist(assistTracker);
+        appendTrace(
+            result,
+            input.options.detail,
+            state,
+            MatchTraceKind::LooseBall,
+            pending.sourceTeamId,
+            pending.sourcePlayerId,
+            0,
+            loosePoint,
+            loosePoint);
     }
 
     SimulationStepResult processShotAtGoal(
@@ -2424,6 +2594,69 @@ namespace {
             if (target != nullptr
                 && PitchGeometry::distance(target->position, state.ball.position)
                     <= controlRange) {
+                PlayerSimState* arrivalDefender =
+                    bestArrivalContestDefender(*defendingTeam, *pending, trajectory, *target);
+                const double defenderDistanceToArrival = arrivalDefender != nullptr
+                    ? PitchGeometry::distance(arrivalDefender->position, state.ball.position)
+                    : 100.0;
+                const double defenderDistanceToReceiver = arrivalDefender != nullptr
+                    ? PitchGeometry::distance(arrivalDefender->position, target->position)
+                    : 100.0;
+                const double defenderDistanceToLane = arrivalDefender != nullptr
+                    ? distancePointToSegment(
+                        arrivalDefender->position,
+                        trajectory.start,
+                        trajectory.actualTarget)
+                    : 100.0;
+                const PassResolutionResult passResolution = PassResolutionModel{}.resolve(
+                    PassResolutionContext{
+                        pending->actionType,
+                        PitchGeometry::distance(trajectory.start, trajectory.actualTarget),
+                        pending->executionQuality,
+                        pending->pressure,
+                        PitchGeometry::distance(target->position, state.ball.position),
+                        controlRange,
+                        arrivalDefender != nullptr,
+                        defenderDistanceToArrival,
+                        defenderDistanceToReceiver,
+                        defenderDistanceToLane,
+                        arrivalDefender != nullptr
+                            ? intentPressureContribution(arrivalDefender->currentIntent.type)
+                            : 0.0,
+                        stepSeed(
+                            baseSeed,
+                            state,
+                            static_cast<std::uint64_t>(target->playerId)
+                                ^ (static_cast<std::uint64_t>(
+                                    arrivalDefender != nullptr ? arrivalDefender->playerId : 0) << 32)
+                                ^ 0x9a55ULL)
+                    });
+                if (passResolution.outcome == PassResolutionOutcome::DefenderIntercept
+                    && arrivalDefender != nullptr) {
+                    recordDefenderPassWin(
+                        state,
+                        result,
+                        input,
+                        *pending,
+                        *arrivalDefender,
+                        state.ball.position,
+                        assistTracker);
+                    pending = std::nullopt;
+                    return SimulationStepResult{ elapsedToArrival };
+                }
+                if (passResolution.outcome == PassResolutionOutcome::DeflectedLoose
+                    || passResolution.outcome == PassResolutionOutcome::MisplacedLoose
+                    || passResolution.outcome == PassResolutionOutcome::OutOfPlay) {
+                    recordLoosePass(
+                        state,
+                        result,
+                        input,
+                        *pending,
+                        state.ball.position,
+                        assistTracker);
+                    pending = std::nullopt;
+                    return SimulationStepResult{ elapsedToArrival };
+                }
                 setControlledBy(
                     state,
                     target->playerId,

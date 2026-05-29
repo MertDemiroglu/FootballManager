@@ -146,6 +146,29 @@ namespace {
         return candidate;
     }
 
+    double passSuitabilityForOption(
+        const PassOption& option,
+        const PlayerDecisionContext& context,
+        double categorySuitability) {
+        double suitability = categorySuitability;
+        const double compactness = std::clamp(context.possession.opponentBlockCompactness / 100.0, 0.0, 1.0);
+        if (option.kind == PassOptionKind::SwitchPlay && compactness > 0.55) {
+            suitability *= 1.12;
+        }
+        if ((option.kind == PassOptionKind::ProgressivePass
+                || option.kind == PassOptionKind::ThroughBall
+                || option.kind == PassOptionKind::Cutback
+                || option.kind == PassOptionKind::Cross)
+            && context.possession.progressionAvailable) {
+            suitability *= 1.08;
+        }
+        if ((option.kind == PassOptionKind::SafePass || option.kind == PassOptionKind::BackPass)
+            && !context.possession.safeCirculationAvailable) {
+            suitability *= 0.88;
+        }
+        return std::clamp(suitability, 0.45, 1.55);
+    }
+
     ActionCandidate fromCarryOption(const CarryOption& option, double categorySuitability) {
         ActionCandidate candidate;
         candidate.type = option.actionType;
@@ -156,6 +179,20 @@ namespace {
         candidate.pressurePenalty = option.pressureRisk * 0.14 + option.zoneLimitRisk * 0.16;
         candidate.finalScore = clampSelectionScore(option.score * categorySuitability);
         return candidate;
+    }
+
+    double carrySuitabilityForOption(
+        const CarryOption& option,
+        const PlayerDecisionContext& context,
+        double categorySuitability) {
+        double suitability = categorySuitability;
+        if (option.progressionScore > 20.0 && context.possession.progressionAvailable) {
+            suitability *= 1.10;
+        }
+        if (context.localPressure > 35.0 && option.kind == CarryOptionKind::Dribble) {
+            suitability *= 0.86;
+        }
+        return std::clamp(suitability, 0.45, 1.50);
     }
 
     ActionCandidate fromShotOption(const ShotOption& option, double categorySuitability) {
@@ -169,6 +206,21 @@ namespace {
         candidate.pressurePenalty = option.pressurePenalty * 0.16;
         candidate.finalScore = clampSelectionScore(option.score * categorySuitability);
         return candidate;
+    }
+
+    double shotSuitabilityForOption(
+        const ShotOption& option,
+        const PlayerDecisionContext& context,
+        double categorySuitability) {
+        double suitability = categorySuitability;
+        if (option.estimatedXG >= 0.18) {
+            suitability *= 1.16;
+        } else if (option.estimatedXG < 0.05
+            && context.phase != DecisionMatchPhase::ChanceCreation
+            && context.phase != DecisionMatchPhase::BoxEntry) {
+            suitability *= 0.82;
+        }
+        return std::clamp(suitability, 0.35, 1.70);
     }
 }
 
@@ -203,7 +255,7 @@ std::vector<ActionCandidate> BallCarrierDecisionModel::evaluate(
             player.localPressure
         });
     for (const PassOption& option : passOptions) {
-        candidates.push_back(fromPassOption(option, categories.pass));
+        candidates.push_back(fromPassOption(option, passSuitabilityForOption(option, player, categories.pass)));
     }
 
     const std::vector<CarryOption> carryOptions = CarryOptionEvaluator{}.evaluate(
@@ -220,7 +272,7 @@ std::vector<ActionCandidate> BallCarrierDecisionModel::evaluate(
             player.localPressure
         });
     for (const CarryOption& option : carryOptions) {
-        candidates.push_back(fromCarryOption(option, categories.carry));
+        candidates.push_back(fromCarryOption(option, carrySuitabilityForOption(option, player, categories.carry)));
     }
 
     const std::vector<ShotOption> shotOptions = ShotDecisionEvaluator{}.evaluate(
@@ -237,7 +289,7 @@ std::vector<ActionCandidate> BallCarrierDecisionModel::evaluate(
             player.localPressure
         });
     for (const ShotOption& option : shotOptions) {
-        candidates.push_back(fromShotOption(option, categories.shoot));
+        candidates.push_back(fromShotOption(option, shotSuitabilityForOption(option, player, categories.shoot)));
     }
 
     if (isOwnDefensiveDanger(player.ballPosition, context.attackingDirection)) {

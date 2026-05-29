@@ -1284,19 +1284,45 @@ namespace {
             const int combinedPasses =
                 result.homeStats.passesAttempted + result.awayStats.passesAttempted;
             const int combinedShots = result.homeStats.shots + result.awayStats.shots;
-            if (maxPossession > 90.0 && combinedPasses > 1500 && combinedShots == 0) {
+            const bool extremeLoop =
+                maxPossession > 95.0
+                || result.homeStats.passesAttempted > 2000
+                || result.awayStats.passesAttempted > 2000
+                || (result.homeStats.passesAttempted > 1500 && result.awayStats.passesAttempted < 100)
+                || (result.awayStats.passesAttempted > 1500 && result.homeStats.passesAttempted < 100)
+                || (maxPossession > 90.0
+                    && std::min(result.homeStats.passesAttempted, result.awayStats.passesAttempted) < 100)
+                || (maxPossession > 90.0 && combinedPasses > 1500 && combinedShots == 0);
+            if (extremeLoop) {
                 std::cerr << "anti-loop guardrail seed=" << (0x9300ULL + seed)
                     << " maxPossession=" << maxPossession
                     << " combinedPasses=" << combinedPasses
                     << " combinedShots=" << combinedShots
                     << " homePossession=" << result.homeStats.possessionShare
                     << " awayPossession=" << result.awayStats.possessionShare
-                    << " homePasses=" << result.homeStats.passesAttempted
-                    << " awayPasses=" << result.awayStats.passesAttempted
+                    << " homePasses=" << result.homeStats.passesCompleted
+                    << "/" << result.homeStats.passesAttempted
+                    << " awayPasses=" << result.awayStats.passesCompleted
+                    << "/" << result.awayStats.passesAttempted
+                    << " homeShots=" << result.homeStats.shots
+                    << " awayShots=" << result.awayStats.shots
+                    << " homeSOT=" << result.homeStats.shotsOnTarget
+                    << " awaySOT=" << result.awayStats.shotsOnTarget
+                    << " homeXg=" << result.homeStats.expectedGoals
+                    << " awayXg=" << result.awayStats.expectedGoals
+                    << " interceptions="
+                    << (result.homeStats.interceptions + result.awayStats.interceptions)
+                    << " loosePasses="
+                    << (result.homeStats.passesLoose + result.awayStats.passesLoose)
+                    << " deflectedPasses="
+                    << (result.homeStats.passesDeflected + result.awayStats.passesDeflected)
+                    << " receiverOutOfRange="
+                    << (result.homeStats.passesReceiverOutOfRange
+                        + result.awayStats.passesReceiverOutOfRange)
                     << '\n';
             }
-            require(!(maxPossession > 90.0 && combinedPasses > 1500 && combinedShots == 0),
-                "detailed coordinate match should not fall into extreme no-shot short-pass loop");
+            require(!extremeLoop,
+                "detailed coordinate match should not fall into extreme short-pass possession loop");
 
             totalCarryTraces += traceCountFor(result, MatchTraceKind::Carry);
             totalShotTraces += traceCountFor(result, MatchTraceKind::Shot);
