@@ -169,7 +169,7 @@ Related documents:
 ### 19. ActionPlan / ActionCandidate / PlayerIntent Skeleton
 
 - Status: implemented.
-- Scope: add Qt-free helper layers for future ball-carrier planning: `ActionPlan` types, reassessment trigger evaluation, `PerceptionModel` option awareness, basic `ActionCandidateGenerator` output, and weighted deterministic `ActionSelector` choice.
+- Scope: add Qt-free helper layers for future ball-carrier planning: `ActionPlan` types, reassessment trigger evaluation, `PerceptionModel` option awareness, basic `BallCarrierDecisionModel` output, and weighted deterministic `ActionSelector` choice.
 - Current role: these helpers are consumed by the coordinate simulator. They do not replace `MatchSimulation` by themselves and do not mutate player state, ball state, domain objects, fixtures, standings, reports, history, save/load state, or UI.
 - Follow-on work: `ContestResolver` now exists; tune movement/intent behavior inside the coordinate simulator.
 - Do not mix in: contest resolution, movement resolution, full coordinate engine implementation, tactical effects in current match flow, mini-pitch UI, fixture/standings/report application changes, save/load schema changes, or current match result behavior changes.

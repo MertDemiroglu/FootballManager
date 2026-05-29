@@ -4,6 +4,7 @@
 #include"fm/match/TacticalSetup.h"
 #include"fm/match_engine/contest/ContestResolver.h"
 #include"fm/match_engine/MatchSimulationState.h"
+#include"fm/match_engine/decision/DecisionContext.h"
 #include"fm/match_engine/geometry/TacticalZones.h"
 #include"fm/match_engine/movement/TeamShapeModel.h"
 
@@ -33,6 +34,7 @@ struct PlayerIntentResolutionContext {
 
     std::vector<TeamSheetSlotAssignment> teamAssignments;
     std::vector<TeamSheetSlotAssignment> opponentAssignments;
+    DefensiveContext defensiveContext;
 
     std::uint64_t seed = 0;
 };

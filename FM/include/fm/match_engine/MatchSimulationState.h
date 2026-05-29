@@ -83,6 +83,9 @@ struct PossessionState {
     PossessionPhase phase = PossessionPhase::BuildUp;
     int possessionStartSecond = 0;
     int actionDepth = 0;
+    PitchPoint possessionStartPoint;
+    PitchPoint lastMeaningfulProgressionPoint;
+    int lastMeaningfulProgressionSecond = 0;
     bool isTransition = false;
 };
 
