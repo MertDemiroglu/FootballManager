@@ -36,23 +36,28 @@ namespace {
             || kind == PassOptionKind::Cutback;
     }
 
-    double phaseFitFor(const PlayerDecisionContext& context, BallCarrierActionType type) {
+    double phaseFitFor(
+        const PlayerDecisionContext& context,
+        BallCarrierActionType type,
+        const PhaseFitProfile& profile) {
         if (type == BallCarrierActionType::Shoot) {
-            if (context.phase == DecisionMatchPhase::BoxEntry
-                || context.phase == DecisionMatchPhase::ChanceCreation) {
-                return 8.0;
+            if (context.phase == DecisionMatchPhase::BoxEntry) {
+                return profile.shotBoxEntry;
+            }
+            if (context.phase == DecisionMatchPhase::ChanceCreation) {
+                return profile.shotChanceCreation;
             }
             if (context.phase == DecisionMatchPhase::FinalThird) {
-                return 4.0;
+                return profile.shotFinalThird;
             }
             if (context.phase == DecisionMatchPhase::BuildUp) {
-                return -8.0;
+                return profile.shotBuildUp;
             }
         }
 
         if ((type == BallCarrierActionType::Carry || type == BallCarrierActionType::Dribble)
             && context.possession.progressionAvailable) {
-            return 4.0;
+            return profile.carryProgressionAvailable;
         }
 
         return 0.0;
@@ -98,24 +103,32 @@ ActionCandidate ActionScoringModel::buildPassCandidate(
     const ActionScoringContext& context) const {
     const RoleDecisionProfile role = roleDecisionProfile(context.player.role);
     const TacticalDecisionProfile tactics = tacticalDecisionProfile(context.player.tacticalSetup);
+    const PassActionScoringProfile scoring = defaultPassActionScoringProfile();
+    const PhaseFitProfile phase = defaultPhaseFitProfile();
 
     ActionScoreBreakdown breakdown;
-    breakdown.retentionValue = option.safetyScore * 0.24 * role.retentionPreference * tactics.retentionIntent;
+    breakdown.retentionValue =
+        option.safetyScore * scoring.safetyToRetention * role.retentionPreference * tactics.retentionIntent;
     breakdown.progressionValue =
-        option.progressionScore * 0.24 * role.progressionPreference * tactics.progressionIntent;
+        option.progressionScore * scoring.progressionToProgression * role.progressionPreference * tactics.progressionIntent;
     breakdown.chanceValue = isChancePass(option.kind)
-        ? option.progressionScore * 0.12 * role.chancePreference * tactics.chanceIntent
+        ? option.progressionScore * scoring.chancePassProgressionToChance * role.chancePreference * tactics.chanceIntent
         : 0.0;
     breakdown.tacticalFit = option.kind == PassOptionKind::SwitchPlay
-        ? 5.0 * tactics.widthIntent
-        : 3.0 * tactics.directnessIntent;
+        ? scoring.switchPlayTacticalFit * tactics.widthIntent
+        : scoring.directPassTacticalFit * tactics.directnessIntent;
     breakdown.roleFit = isChancePass(option.kind)
-        ? 4.0 * role.directPreference
-        : 4.0 * role.retentionPreference;
-    breakdown.skillFit = std::max(0.0, 22.0 - option.executionDifficulty * 0.20);
-    breakdown.pressureCost = option.laneRisk * 0.12 + option.receiverPressure * 0.08;
-    breakdown.turnoverRiskCost = option.executionDifficulty * 0.08 / std::max(0.45, role.passRiskTolerance);
-    breakdown.phaseFit = phaseFitFor(context.player, option.actionType);
+        ? scoring.chancePassRoleFit * role.directPreference
+        : scoring.retentionPassRoleFit * role.retentionPreference;
+    breakdown.skillFit = std::max(
+        0.0,
+        scoring.executionDifficultySkillBase - option.executionDifficulty * scoring.executionDifficultyToSkillCost);
+    breakdown.pressureCost =
+        option.laneRisk * scoring.laneRiskToPressureCost
+        + option.receiverPressure * scoring.receiverPressureToPressureCost;
+    breakdown.turnoverRiskCost = option.executionDifficulty * scoring.executionDifficultyToTurnoverRisk
+        / std::max(scoring.riskToleranceMinimum, role.passRiskTolerance);
+    breakdown.phaseFit = phaseFitFor(context.player, option.actionType, phase);
 
     return candidateFromBreakdown(
         option.actionType,
@@ -129,23 +142,28 @@ ActionCandidate ActionScoringModel::buildCarryCandidate(
     const ActionScoringContext& context) const {
     const RoleDecisionProfile role = roleDecisionProfile(context.player.role);
     const TacticalDecisionProfile tactics = tacticalDecisionProfile(context.player.tacticalSetup);
+    const CarryActionScoringProfile scoring = defaultCarryActionScoringProfile();
+    const PhaseFitProfile phase = defaultPhaseFitProfile();
 
     ActionScoreBreakdown breakdown;
-    breakdown.retentionValue = option.spaceScore * 0.20 * role.retentionPreference;
+    breakdown.retentionValue = option.spaceScore * scoring.spaceToRetention * role.retentionPreference;
     breakdown.progressionValue =
-        option.progressionScore * 0.30 * role.progressionPreference * tactics.progressionIntent;
+        option.progressionScore * scoring.progressionToProgression * role.progressionPreference * tactics.progressionIntent;
     breakdown.tacticalFit = option.kind == CarryOptionKind::SafeCarry
-        ? 4.0 * tactics.retentionIntent
-        : 5.0 * tactics.riskTolerance;
+        ? scoring.safeCarryTacticalFit * tactics.retentionIntent
+        : scoring.riskCarryTacticalFit * tactics.riskTolerance;
     breakdown.roleFit = option.kind == CarryOptionKind::Dribble
-        ? 4.0 * role.carryRiskTolerance
-        : 4.0 * role.progressionPreference;
-    breakdown.skillFit = std::max(0.0, 20.0 - option.controlDifficulty * 0.16);
-    breakdown.pressureCost = option.pressureRisk * 0.14;
+        ? scoring.dribbleRoleFit * role.carryRiskTolerance
+        : scoring.progressionRoleFit * role.progressionPreference;
+    breakdown.skillFit = std::max(
+        0.0,
+        scoring.controlDifficultySkillBase - option.controlDifficulty * scoring.controlDifficultyToSkillCost);
+    breakdown.pressureCost = option.pressureRisk * scoring.pressureRiskToPressureCost;
     breakdown.turnoverRiskCost =
-        (option.controlDifficulty * 0.06 + option.zoneLimitRisk * 0.16)
-        / std::max(0.45, role.carryRiskTolerance);
-    breakdown.phaseFit = phaseFitFor(context.player, option.actionType);
+        (option.controlDifficulty * scoring.controlDifficultyToTurnoverRisk
+            + option.zoneLimitRisk * scoring.zoneLimitToTurnoverRisk)
+        / std::max(scoring.riskToleranceMinimum, role.carryRiskTolerance);
+    breakdown.phaseFit = phaseFitFor(context.player, option.actionType, phase);
 
     return candidateFromBreakdown(option.actionType, option.targetPoint, 0, breakdown);
 }
@@ -155,17 +173,20 @@ ActionCandidate ActionScoringModel::buildShotCandidate(
     const ActionScoringContext& context) const {
     const RoleDecisionProfile role = roleDecisionProfile(context.player.role);
     const TacticalDecisionProfile tactics = tacticalDecisionProfile(context.player.tacticalSetup);
+    const ShotActionScoringProfile scoring = defaultShotActionScoringProfile();
+    const PhaseFitProfile phase = defaultPhaseFitProfile();
 
     ActionScoreBreakdown breakdown;
     breakdown.chanceValue =
-        option.estimatedXG * 80.0
-        + option.angleScore * 0.08
-        + option.distanceScore * 0.08;
-    breakdown.tacticalFit = 5.0 * tactics.chanceIntent;
-    breakdown.roleFit = 8.0 * role.chancePreference;
-    breakdown.skillFit = option.shooterConfidence * 0.10;
-    breakdown.pressureCost = option.pressurePenalty * 0.16 / std::max(0.45, role.shotRiskTolerance);
-    breakdown.phaseFit = phaseFitFor(context.player, option.actionType);
+        option.estimatedXG * scoring.xgToChanceValue
+        + option.angleScore * scoring.angleToChanceValue
+        + option.distanceScore * scoring.distanceToChanceValue;
+    breakdown.tacticalFit = scoring.tacticalChanceFit * tactics.chanceIntent;
+    breakdown.roleFit = scoring.roleChanceFit * role.chancePreference;
+    breakdown.skillFit = option.shooterConfidence * scoring.shooterConfidenceToSkillFit;
+    breakdown.pressureCost = option.pressurePenalty * scoring.pressurePenaltyToPressureCost
+        / std::max(scoring.riskToleranceMinimum, role.shotRiskTolerance);
+    breakdown.phaseFit = phaseFitFor(context.player, option.actionType, phase);
 
     return candidateFromBreakdown(option.actionType, option.targetPoint, 0, breakdown);
 }
@@ -173,31 +194,36 @@ ActionCandidate ActionScoringModel::buildShotCandidate(
 ActionCandidate ActionScoringModel::buildHoldCandidate(const ActionScoringContext& context) const {
     const RoleDecisionProfile role = roleDecisionProfile(context.player.role);
     const TacticalDecisionProfile tactics = tacticalDecisionProfile(context.player.tacticalSetup);
+    const HoldActionScoringProfile scoring = defaultHoldActionScoringProfile();
 
     ActionScoreBreakdown breakdown;
-    breakdown.retentionValue = 18.0 * role.retentionPreference * tactics.retentionIntent;
-    breakdown.tacticalFit = 5.0 * tactics.retentionIntent;
-    breakdown.roleFit = 4.0 * role.retentionPreference;
-    breakdown.skillFit = 8.0;
-    breakdown.pressureCost = context.player.localPressure * 0.45;
+    breakdown.retentionValue = scoring.retentionBase * role.retentionPreference * tactics.retentionIntent;
+    breakdown.tacticalFit = scoring.tacticalRetentionFit * tactics.retentionIntent;
+    breakdown.roleFit = scoring.roleRetentionFit * role.retentionPreference;
+    breakdown.skillFit = scoring.skillBase;
+    breakdown.pressureCost = context.player.localPressure * scoring.localPressureCost;
     return candidateFromBreakdown(BallCarrierActionType::Hold, context.player.ballPosition, 0, breakdown);
 }
 
 ActionCandidate ActionScoringModel::buildClearCandidate(const ActionScoringContext& context) const {
+    const ClearActionScoringProfile scoring = defaultClearActionScoringProfile();
+
     ActionScoreBreakdown breakdown;
     if (isOwnDefensiveDanger(context.player.ballPosition, context.attackingDirection)) {
-        breakdown.retentionValue = 12.0;
-        breakdown.progressionValue = 22.0;
+        breakdown.retentionValue = scoring.retentionBase;
+        breakdown.progressionValue = scoring.progressionBase;
         breakdown.tacticalFit =
-            context.player.tacticalSetup.mentality == TeamMentality::Defensive ? 10.0 : 4.0;
-        breakdown.roleFit = 8.0;
-        breakdown.skillFit = 8.0;
-        breakdown.pressureCost = context.player.localPressure * 0.20;
+            context.player.tacticalSetup.mentality == TeamMentality::Defensive
+                ? scoring.defensiveMentalityTacticalFit
+                : scoring.normalTacticalFit;
+        breakdown.roleFit = scoring.roleFit;
+        breakdown.skillFit = scoring.skillBase;
+        breakdown.pressureCost = context.player.localPressure * scoring.localPressureCost;
     }
 
     return candidateFromBreakdown(
         BallCarrierActionType::Clear,
-        advanceTarget(context.player.ballPosition, context.attackingDirection, 35.0),
+        advanceTarget(context.player.ballPosition, context.attackingDirection, scoring.targetAdvanceMeters),
         0,
         breakdown);
 }

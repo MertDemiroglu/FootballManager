@@ -28,26 +28,136 @@ struct TacticalBiasProfile {
 };
 
 struct PassDecisionTuning {
-    double safePassBaseline = 1.0;
-    double backPassBaseline = 1.0;
-    double progressivePassBaseline = 1.0;
-    double switchPlayBaseline = 1.0;
-    double throughBallBaseline = 1.0;
-    double crossBaseline = 1.0;
-    double cutbackBaseline = 1.0;
+    double safePassBaseScore = 33.0;
+    double backPassBaseScore = 32.0;
+    double progressivePassBaseScore = 28.0;
+    double switchPlayBaseScore = 25.0;
+    double throughBallBaseScore = 22.0;
+    double crossBaseScore = 24.0;
+    double cutbackBaseScore = 24.0;
+    double fallbackBaseScore = 24.0;
+    double baseSafetyValue = 95.0;
     double laneRiskPenaltyScale = 1.0;
     double receiverPressurePenaltyScale = 1.0;
+    double laneRiskToSafetyPenalty = 0.78;
+    double receiverPressureToSafetyPenalty = 0.48;
+    double difficultyToSafetyPenalty = 0.50;
+    double carrierPressureToSafetyPenalty = 0.18;
+    double riskToleranceMinimum = 0.55;
+    double riskToleranceMaximum = 1.55;
+    double safePassSafetyContribution = 0.34;
+    double riskyPassSafetyContribution = 0.20;
+    double safePassProgressionContribution = 0.10;
+    double riskyPassProgressionContribution = 0.33;
+    double passingSkillContribution = 0.10;
+    double difficultyPenalty = 0.12;
+    double shortSafePassDistance = 15.0;
+    double shortSafePassBonus = 5.0;
+    double finalThirdSimplePassBonus = 9.0;
+    double defenderBackPassBonus = 3.0;
+    double roleMultiplierBlend = 0.62;
+    double tacticalMultiplierBlend = 0.62;
+    double roleMultiplierMinimum = 0.58;
+    double roleMultiplierMaximum = 1.34;
+    double tacticalMultiplierMinimum = 0.58;
+    double tacticalMultiplierMaximum = 1.34;
+    double progressivePassPenalty = 6.0;
+    double switchPlayPenalty = 8.0;
+    double throughBallPenalty = 18.0;
+    double crossOrCutbackPenalty = 20.0;
+    double progressionForwardCap = 38.0;
+    double progressionForwardMultiplier = 1.35;
+    double finalThirdProgressionBonus = 8.0;
+    double midfieldReceiverSafeProgressionBonus = 3.0;
+    double attackingReceiverThroughBallBonus = 8.0;
+    double attackingReceiverProgressionBonus = 5.0;
+    double wideSwitchReceiverBonus = 6.0;
+    double switchPlayProgressionBonus = 7.0;
+    double throughBallProgressionBonus = 13.0;
+    double crossOrCutbackProgressionBonus = 10.0;
+    double backPassProgressionMultiplier = 0.18;
 };
 
 struct CarryDecisionTuning {
-    double safeCarryBaseline = 1.0;
-    double progressiveCarryBaseline = 1.0;
-    double dribbleBaseline = 1.0;
+    double safeCarryBaseScore = 35.0;
+    double progressiveCarryBaseScore = 34.0;
+    double dribbleBaseScore = 27.0;
+    double fallbackBaseScore = 20.0;
+    double safeSpaceContribution = 0.27;
+    double riskSpaceContribution = 0.20;
+    double safeProgressionContribution = 0.12;
+    double riskProgressionContribution = 0.34;
+    double dribbleSkillContribution = 0.25;
+    double carrySkillContribution = 0.13;
+    double difficultyPenalty = 0.15;
+    double pressureRiskPenalty = 0.18;
+    double zoneLimitRiskPenalty = 0.34;
+    double riskToleranceMinimum = 0.45;
+    double riskToleranceMaximum = 1.55;
+    double lowPressureSafeCarryThreshold = 8.0;
+    double lowPressureSafeCarryBonus = 5.0;
+    double openSpaceProgressiveThreshold = 72.0;
+    double openSpaceProgressiveBonus = 4.0;
+    double highPressureDribbleThreshold = 35.0;
+    double highPressureDribblePenalty = 8.0;
+    double wideSafeCarryBonus = 2.0;
+    double wideProgressiveCarryBonus = 6.0;
+    double goalkeeperMinimumSafeCarryScore = 14.0;
+    double minimumSafeCarryScore = 18.0;
+    double minimumProgressiveCarryScore = 12.0;
+    double minimumDribbleScore = 8.0;
 };
 
 struct ShotDecisionTuning {
     double openPlayShotBaseline = 1.0;
     double pressurePenaltyScale = 1.0;
+    double minimumOpenPlayXG = 0.012;
+    double nonAttackingThirdMinimumXG = 0.06;
+    double weakShotXG = 0.08;
+    double defensiveRoleLowXG = 0.12;
+    double optionScoreMinimum = 6.0;
+    double strongChanceAlwaysIncludeXG = 0.16;
+    double distanceScoreBaseline = 50.0;
+    double distanceScoreContribution = 0.05;
+    double angleScoreBaseline = 20.0;
+    double angleScoreContribution = 0.04;
+    double shooterConfidenceBaseline = 55.0;
+    double shooterConfidenceContribution = 0.08;
+    double pressurePenaltyToScoreCost = 0.16;
+    double riskToleranceMinimum = 0.45;
+    double riskToleranceMaximum = 1.35;
+    double shotBiasBlend = 0.34;
+    double shotBiasMinimum = 0.58;
+    double shotBiasMaximum = 1.20;
+    double longShotDistance = 24.0;
+    double longShotBiasBlend = 0.40;
+    double longShotBiasMinimum = 0.55;
+    double longShotBiasMaximum = 1.10;
+    double tacticalShotBiasBlend = 0.45;
+    double tacticalShotBiasMinimum = 0.75;
+    double tacticalShotBiasMaximum = 1.16;
+    double weakShotBiasBlend = 0.65;
+    double weakShotBiasMinimum = 0.62;
+    double weakShotBiasMaximum = 1.18;
+    double defensiveRoleWeakShotMultiplier = 0.78;
+    double xgVeryWeakThreshold = 0.02;
+    double xgWeakThreshold = 0.05;
+    double xgLowThreshold = 0.08;
+    double xgMediumThreshold = 0.18;
+    double xgGoodThreshold = 0.30;
+    double xgVeryWeakBase = 4.0;
+    double xgVeryWeakSlope = 300.0;
+    double xgWeakBase = 10.0;
+    double xgWeakSlope = 300.0;
+    double xgLowBase = 19.0;
+    double xgLowSlope = 230.0;
+    double xgMediumBase = 28.0;
+    double xgMediumSlope = 170.0;
+    double xgGoodBase = 46.0;
+    double xgGoodSlope = 135.0;
+    double xgGreatBase = 62.0;
+    double xgGreatSlope = 70.0;
+    double xgDesireMaximum = 82.0;
 };
 
 struct ActionScoringWeights {
@@ -60,6 +170,75 @@ struct ActionScoringWeights {
     double pressureCostWeight = 1.0;
     double turnoverRiskWeight = 1.0;
     double phaseFitWeight = 1.0;
+};
+
+struct PassActionScoringProfile {
+    double safetyToRetention = 0.24;
+    double progressionToProgression = 0.24;
+    double chancePassProgressionToChance = 0.12;
+    double switchPlayTacticalFit = 5.0;
+    double directPassTacticalFit = 3.0;
+    double chancePassRoleFit = 4.0;
+    double retentionPassRoleFit = 4.0;
+    double executionDifficultySkillBase = 22.0;
+    double executionDifficultyToSkillCost = 0.20;
+    double laneRiskToPressureCost = 0.12;
+    double receiverPressureToPressureCost = 0.08;
+    double executionDifficultyToTurnoverRisk = 0.08;
+    double riskToleranceMinimum = 0.45;
+};
+
+struct CarryActionScoringProfile {
+    double spaceToRetention = 0.20;
+    double progressionToProgression = 0.30;
+    double safeCarryTacticalFit = 4.0;
+    double riskCarryTacticalFit = 5.0;
+    double dribbleRoleFit = 4.0;
+    double progressionRoleFit = 4.0;
+    double controlDifficultySkillBase = 20.0;
+    double controlDifficultyToSkillCost = 0.16;
+    double pressureRiskToPressureCost = 0.14;
+    double controlDifficultyToTurnoverRisk = 0.06;
+    double zoneLimitToTurnoverRisk = 0.16;
+    double riskToleranceMinimum = 0.45;
+};
+
+struct ShotActionScoringProfile {
+    double xgToChanceValue = 80.0;
+    double angleToChanceValue = 0.08;
+    double distanceToChanceValue = 0.08;
+    double tacticalChanceFit = 5.0;
+    double roleChanceFit = 8.0;
+    double shooterConfidenceToSkillFit = 0.10;
+    double pressurePenaltyToPressureCost = 0.16;
+    double riskToleranceMinimum = 0.45;
+};
+
+struct HoldActionScoringProfile {
+    double retentionBase = 18.0;
+    double tacticalRetentionFit = 5.0;
+    double roleRetentionFit = 4.0;
+    double skillBase = 8.0;
+    double localPressureCost = 0.45;
+};
+
+struct ClearActionScoringProfile {
+    double retentionBase = 12.0;
+    double progressionBase = 22.0;
+    double defensiveMentalityTacticalFit = 10.0;
+    double normalTacticalFit = 4.0;
+    double roleFit = 8.0;
+    double skillBase = 8.0;
+    double localPressureCost = 0.20;
+    double targetAdvanceMeters = 35.0;
+};
+
+struct PhaseFitProfile {
+    double shotBoxEntry = 8.0;
+    double shotChanceCreation = 8.0;
+    double shotFinalThird = 4.0;
+    double shotBuildUp = -8.0;
+    double carryProgressionAvailable = 4.0;
 };
 
 struct RoleDecisionProfile {
@@ -131,6 +310,30 @@ struct ShotTacticalDecisionProfile {
 
 inline ActionScoringWeights defaultActionScoringWeights() {
     return ActionScoringWeights{};
+}
+
+inline PassActionScoringProfile defaultPassActionScoringProfile() {
+    return PassActionScoringProfile{};
+}
+
+inline CarryActionScoringProfile defaultCarryActionScoringProfile() {
+    return CarryActionScoringProfile{};
+}
+
+inline ShotActionScoringProfile defaultShotActionScoringProfile() {
+    return ShotActionScoringProfile{};
+}
+
+inline HoldActionScoringProfile defaultHoldActionScoringProfile() {
+    return HoldActionScoringProfile{};
+}
+
+inline ClearActionScoringProfile defaultClearActionScoringProfile() {
+    return ClearActionScoringProfile{};
+}
+
+inline PhaseFitProfile defaultPhaseFitProfile() {
+    return PhaseFitProfile{};
 }
 
 inline ActionSelectionTuning defaultActionSelectionTuning() {

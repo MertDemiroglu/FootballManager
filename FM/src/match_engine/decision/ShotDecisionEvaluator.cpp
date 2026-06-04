@@ -108,23 +108,25 @@ namespace {
         return clampScore((goalAngleRadians(point, direction) / Pi) * 100.0);
     }
 
-    double xgDesire(double xg) {
-        if (xg < 0.02) {
-            return 4.0 + xg * 300.0;
+    double xgDesire(double xg, const ShotDecisionTuning& tuning) {
+        if (xg < tuning.xgVeryWeakThreshold) {
+            return tuning.xgVeryWeakBase + xg * tuning.xgVeryWeakSlope;
         }
-        if (xg < 0.05) {
-            return 10.0 + (xg - 0.02) * 300.0;
+        if (xg < tuning.xgWeakThreshold) {
+            return tuning.xgWeakBase + (xg - tuning.xgVeryWeakThreshold) * tuning.xgWeakSlope;
         }
-        if (xg < 0.08) {
-            return 19.0 + (xg - 0.05) * 230.0;
+        if (xg < tuning.xgLowThreshold) {
+            return tuning.xgLowBase + (xg - tuning.xgWeakThreshold) * tuning.xgLowSlope;
         }
-        if (xg < 0.18) {
-            return 28.0 + (xg - 0.08) * 170.0;
+        if (xg < tuning.xgMediumThreshold) {
+            return tuning.xgMediumBase + (xg - tuning.xgLowThreshold) * tuning.xgMediumSlope;
         }
-        if (xg < 0.30) {
-            return 46.0 + (xg - 0.18) * 135.0;
+        if (xg < tuning.xgGoodThreshold) {
+            return tuning.xgGoodBase + (xg - tuning.xgMediumThreshold) * tuning.xgGoodSlope;
         }
-        return std::min(82.0, 62.0 + (xg - 0.30) * 70.0);
+        return std::min(
+            tuning.xgDesireMaximum,
+            tuning.xgGreatBase + (xg - tuning.xgGoodThreshold) * tuning.xgGreatSlope);
     }
 
     bool isDefensiveRole(FormationSlotRole role) {
@@ -156,22 +158,22 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
         tacticalZoneForPoint(context.ballPosition, context.attackingDirection);
     const bool attackingThird = isAttackingThird(zone);
 
-    if (xg < 0.012) {
+    const ShotDecisionTuning tuning;
+    if (xg < tuning.minimumOpenPlayXG) {
         return output;
     }
-    if (!attackingThird && xg < 0.06) {
+    if (!attackingThird && xg < tuning.nonAttackingThirdMinimumXG) {
         return output;
     }
     const PlayerAttributes attributes = attributesFor(context.teamSnapshot, context.carrierState);
     const ShotRoleDecisionProfile role = shotRoleDecisionProfile(context.carrierRole);
     const ShotTacticalDecisionProfile tactics = shotTacticalDecisionProfile(context.tacticalSetup);
-    const ShotDecisionTuning tuning;
     const double shooter = shootingConfidence(attributes);
     const double distanceScore = distanceScoreFor(distance);
     const double angleScore = angleScoreFor(context.ballPosition, context.attackingDirection);
     const double pressurePenalty =
         std::clamp(context.carrierPressure * tuning.pressurePenaltyScale, 0.0, 100.0);
-    const bool weakShot = xg < 0.08;
+    const bool weakShot = xg < tuning.weakShotXG;
     const ShotTargetResult shotTarget = ShotTargetModel{}.chooseTarget(ShotTargetContext{
         context.ballPosition,
         context.attackingDirection,
@@ -181,22 +183,35 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
         context.carrierPressure
     });
 
-    double score = xgDesire(xg) * tuning.openPlayShotBaseline
-        + (distanceScore - 50.0) * 0.05
-        + (angleScore - 20.0) * 0.04
-        + (shooter - 55.0) * 0.08
-        - pressurePenalty * 0.16 / std::clamp(role.riskTolerance, 0.45, 1.35);
+    double score = xgDesire(xg, tuning) * tuning.openPlayShotBaseline
+        + (distanceScore - tuning.distanceScoreBaseline) * tuning.distanceScoreContribution
+        + (angleScore - tuning.angleScoreBaseline) * tuning.angleScoreContribution
+        + (shooter - tuning.shooterConfidenceBaseline) * tuning.shooterConfidenceContribution
+        - pressurePenalty * tuning.pressurePenaltyToScoreCost
+            / std::clamp(role.riskTolerance, tuning.riskToleranceMinimum, tuning.riskToleranceMaximum);
 
-    score *= std::clamp(1.0 + (role.shotBias - 1.0) * 0.34, 0.58, 1.20);
-    if (distance > 24.0) {
-        score *= std::clamp(1.0 + (role.longShotBias - 1.0) * 0.40, 0.55, 1.10);
+    score *= std::clamp(
+        1.0 + (role.shotBias - 1.0) * tuning.shotBiasBlend,
+        tuning.shotBiasMinimum,
+        tuning.shotBiasMaximum);
+    if (distance > tuning.longShotDistance) {
+        score *= std::clamp(
+            1.0 + (role.longShotBias - 1.0) * tuning.longShotBiasBlend,
+            tuning.longShotBiasMinimum,
+            tuning.longShotBiasMaximum);
     }
-    score *= std::clamp(1.0 + (tactics.shotBias - 1.0) * 0.45, 0.75, 1.16);
+    score *= std::clamp(
+        1.0 + (tactics.shotBias - 1.0) * tuning.tacticalShotBiasBlend,
+        tuning.tacticalShotBiasMinimum,
+        tuning.tacticalShotBiasMaximum);
     if (weakShot) {
-        score *= std::clamp(1.0 + (tactics.weakShotBias - 1.0) * 0.65, 0.62, 1.18);
+        score *= std::clamp(
+            1.0 + (tactics.weakShotBias - 1.0) * tuning.weakShotBiasBlend,
+            tuning.weakShotBiasMinimum,
+            tuning.weakShotBiasMaximum);
     }
-    if (isDefensiveRole(context.carrierRole) && xg < 0.12) {
-        score *= 0.78;
+    if (isDefensiveRole(context.carrierRole) && xg < tuning.defensiveRoleLowXG) {
+        score *= tuning.defensiveRoleWeakShotMultiplier;
     }
 
     ShotOption option;
@@ -210,7 +225,7 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     option.pressurePenalty = pressurePenalty;
     option.shooterConfidence = shooter;
 
-    if (option.score >= 6.0 || xg >= 0.16) {
+    if (option.score >= tuning.optionScoreMinimum || xg >= tuning.strongChanceAlwaysIncludeXG) {
         output.push_back(option);
     }
     return output;

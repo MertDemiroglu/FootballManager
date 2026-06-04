@@ -281,13 +281,13 @@ namespace {
     double baselineFor(const CarryDecisionTuning& tuning, CarryOptionKind kind) {
         switch (kind) {
         case CarryOptionKind::SafeCarry:
-            return 35.0 * tuning.safeCarryBaseline;
+            return tuning.safeCarryBaseScore;
         case CarryOptionKind::ProgressiveCarry:
-            return 34.0 * tuning.progressiveCarryBaseline;
+            return tuning.progressiveCarryBaseScore;
         case CarryOptionKind::Dribble:
-            return 27.0 * tuning.dribbleBaseline;
+            return tuning.dribbleBaseScore;
         }
-        return 20.0;
+        return tuning.fallbackBaseScore;
     }
 
     BallCarrierActionType actionTypeFor(CarryOptionKind kind) {
@@ -315,31 +315,44 @@ namespace {
             progressionScoreFor(kind, context.ballPosition, target, context.attackingDirection);
         const double zoneRisk =
             zoneLimitRiskFor(context.carrierRole, context.ballPosition, target, context.attackingDirection);
-        const double riskTolerance = std::clamp(role.riskTolerance * tactics.riskTolerance, 0.45, 1.55);
+        const double riskTolerance = std::clamp(
+            role.riskTolerance * tactics.riskTolerance,
+            tuning.riskToleranceMinimum,
+            tuning.riskToleranceMaximum);
         const double difficulty = controlDifficultyFor(kind, distance, pressureRisk, skill);
 
         double score = baselineFor(tuning, kind)
-            + space * (kind == CarryOptionKind::SafeCarry ? 0.27 : 0.20)
-            + progression * (kind == CarryOptionKind::SafeCarry ? 0.12 : 0.34)
-            + skill * (kind == CarryOptionKind::Dribble ? 0.25 : 0.13)
-            - difficulty * 0.15
-            - pressureRisk * 0.18 / riskTolerance
-            - zoneRisk * 0.34 / riskTolerance;
+            + space * (kind == CarryOptionKind::SafeCarry
+                ? tuning.safeSpaceContribution
+                : tuning.riskSpaceContribution)
+            + progression * (kind == CarryOptionKind::SafeCarry
+                ? tuning.safeProgressionContribution
+                : tuning.riskProgressionContribution)
+            + skill * (kind == CarryOptionKind::Dribble
+                ? tuning.dribbleSkillContribution
+                : tuning.carrySkillContribution)
+            - difficulty * tuning.difficultyPenalty
+            - pressureRisk * tuning.pressureRiskPenalty / riskTolerance
+            - zoneRisk * tuning.zoneLimitRiskPenalty / riskTolerance;
 
         score *= roleKindMultiplier(role, kind, target);
         score *= tacticalKindMultiplier(tactics, kind);
 
-        if (kind == CarryOptionKind::SafeCarry && context.carrierPressure <= 8.0) {
-            score += 5.0;
+        if (kind == CarryOptionKind::SafeCarry
+            && context.carrierPressure <= tuning.lowPressureSafeCarryThreshold) {
+            score += tuning.lowPressureSafeCarryBonus;
         }
-        if (kind == CarryOptionKind::ProgressiveCarry && space >= 72.0) {
-            score += 4.0;
+        if (kind == CarryOptionKind::ProgressiveCarry && space >= tuning.openSpaceProgressiveThreshold) {
+            score += tuning.openSpaceProgressiveBonus;
         }
-        if (kind == CarryOptionKind::Dribble && context.carrierPressure >= 35.0) {
-            score -= 8.0;
+        if (kind == CarryOptionKind::Dribble
+            && context.carrierPressure >= tuning.highPressureDribbleThreshold) {
+            score -= tuning.highPressureDribblePenalty;
         }
         if (isFullbackOrWideRole(context.carrierRole) && isWide(context.ballPosition) && isWide(target)) {
-            score += kind == CarryOptionKind::SafeCarry ? 2.0 : 6.0;
+            score += kind == CarryOptionKind::SafeCarry
+                ? tuning.wideSafeCarryBonus
+                : tuning.wideProgressiveCarryBonus;
         }
 
         CarryOption option;
@@ -390,7 +403,12 @@ std::vector<CarryOption> CarryOptionEvaluator::evaluate(
         role,
         tactics,
         tuning);
-    pushIfUseful(output, safe, context.carrierRole == FormationSlotRole::Goalkeeper ? 14.0 : 18.0);
+    pushIfUseful(
+        output,
+        safe,
+        context.carrierRole == FormationSlotRole::Goalkeeper
+            ? tuning.goalkeeperMinimumSafeCarryScore
+            : tuning.minimumSafeCarryScore);
 
     if (context.carrierRole != FormationSlotRole::Goalkeeper) {
         const CarryOption progressive = makeOption(
@@ -401,7 +419,7 @@ std::vector<CarryOption> CarryOptionEvaluator::evaluate(
             role,
             tactics,
             tuning);
-        pushIfUseful(output, progressive, 12.0);
+        pushIfUseful(output, progressive, tuning.minimumProgressiveCarryScore);
 
         const CarryOption dribble = makeOption(
             CarryOptionKind::Dribble,
@@ -411,7 +429,7 @@ std::vector<CarryOption> CarryOptionEvaluator::evaluate(
             role,
             tactics,
             tuning);
-        pushIfUseful(output, dribble, 8.0);
+        pushIfUseful(output, dribble, tuning.minimumDribbleScore);
     }
 
     std::sort(
