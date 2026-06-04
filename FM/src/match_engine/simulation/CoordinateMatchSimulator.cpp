@@ -4,7 +4,8 @@
 #include"fm/match_engine/decision/ActionSelector.h"
 #include"fm/match_engine/decision/BallCarrierDecisionModel.h"
 #include"fm/match_engine/ball/BallTrajectoryBuilder.h"
-#include"fm/match_engine/ball/PassResolutionModel.h"
+#include"fm/match_engine/ball/LooseBallRecoveryModel.h"
+#include"fm/match_engine/ball/PassResolutionFlow.h"
 #include"fm/match_engine/ball/ShotOutcomeResolver.h"
 #include"fm/match_engine/contest/ContestResolver.h"
 #include"fm/match_engine/contest/InterceptionResolver.h"
@@ -26,7 +27,6 @@
 #include<vector>
 
 namespace {
-    constexpr double LooseBallControlRangeMeters = 1.5;
     constexpr int RegulationMatchSeconds = 90 * 60;
     constexpr int MaxSafetyActions = 8000;
     constexpr double MinimumStepSeconds = 0.5;
@@ -35,6 +35,7 @@ namespace {
 
     struct SimulationStepResult {
         double elapsedSeconds = 1.0;
+        bool controlledActionExecuted = false;
     };
 
     struct PendingBallAction {
@@ -625,6 +626,7 @@ namespace {
         }
 
         state.possession.teamInPossession = input.homeTeam.teamId;
+        state.possession.lastPossessionTeamId = input.homeTeam.teamId;
         state.possession.ballCarrierId = kickoffPlayerId;
         state.possession.phase = PossessionPhase::BuildUp;
         state.possession.possessionStartSecond = 0;
@@ -879,7 +881,9 @@ namespace {
         PlayerId playerId,
         TeamId teamId,
         PitchPoint position) {
-        const TeamId previousTeam = state.possession.teamInPossession;
+        const TeamId previousTeam = state.possession.teamInPossession != 0
+            ? state.possession.teamInPossession
+            : state.possession.lastPossessionTeamId;
         clearBallFlags(state);
 
         PlayerSimState* controller = findPlayerState(state, playerId);
@@ -895,6 +899,7 @@ namespace {
         state.ball.position = PitchGeometry::clampToPitch(position);
         state.ball.trajectory = std::nullopt;
         state.possession.teamInPossession = teamId;
+        state.possession.lastPossessionTeamId = teamId;
         state.possession.ballCarrierId = playerId;
         if (previousTeam != teamId) {
             state.possession.possessionStartSecond = state.currentSecond;
@@ -934,12 +939,19 @@ namespace {
         double entryProgress);
 
     void setLooseBall(MatchSimulationState& state, PitchPoint position) {
+        const TeamId lastPossessionTeamId = state.ball.carrierTeamId != 0
+            ? state.ball.carrierTeamId
+            : (state.possession.teamInPossession != 0
+                ? state.possession.teamInPossession
+                : state.possession.lastPossessionTeamId);
         clearBallFlags(state);
         state.ball.controlState = BallControlState::Loose;
         state.ball.carrierPlayerId = 0;
         state.ball.carrierTeamId = 0;
         state.ball.position = PitchGeometry::clampToPitch(position);
         state.ball.trajectory = std::nullopt;
+        state.possession.teamInPossession = 0;
+        state.possession.lastPossessionTeamId = lastPossessionTeamId;
         state.possession.ballCarrierId = 0;
         state.possession.isTransition = true;
     }
@@ -1874,6 +1886,7 @@ namespace {
 
         const ActionCandidate action = *selection.selected;
         const BallCarrierActionType actionType = action.type;
+        ++state.possession.actionDepth;
         const double executionPressure = isPassLike(actionType)
             ? std::max(
                 action.pressurePenalty,
@@ -1896,7 +1909,7 @@ namespace {
             const double holdSeconds = 1.0
                 + matchEngineDeterministicUnitInterval(
                     stepSeed(baseSeed, state, carrier->playerId ^ 0x681dULL)) * 2.0;
-            return SimulationStepResult{ clampElapsedSeconds(holdSeconds, 1.0, 3.0) };
+            return SimulationStepResult{ clampElapsedSeconds(holdSeconds, 1.0, 3.0), true };
         }
 
         if (actionType == BallCarrierActionType::Carry
@@ -1923,7 +1936,7 @@ namespace {
                 0,
                 state.ball.position,
                 action.intendedTarget);
-            return SimulationStepResult{ elapsedSeconds };
+            return SimulationStepResult{ elapsedSeconds, true };
         }
 
         const BallTrajectoryType trajectoryType = trajectoryTypeFor(actionType);
@@ -1962,7 +1975,8 @@ namespace {
         state.ball.carrierTeamId = 0;
         state.ball.position = trajectory.trajectory.start;
         state.ball.trajectory = trajectory.trajectory;
-        state.possession.teamInPossession = carrier->teamId;
+        state.possession.teamInPossession = 0;
+        state.possession.lastPossessionTeamId = carrier->teamId;
         state.possession.ballCarrierId = 0;
 
         pending = PendingBallAction{
@@ -1987,7 +2001,7 @@ namespace {
             action.targetPlayerId,
             trajectory.trajectory.start,
             trajectory.trajectory.actualTarget);
-        return SimulationStepResult{ trajectoryElapsedSeconds(trajectory.trajectory) };
+        return SimulationStepResult{ trajectoryElapsedSeconds(trajectory.trajectory), true };
     }
 
     ContestType contestTypeFor(
@@ -2036,14 +2050,11 @@ namespace {
         PlayerSimState* best = nullptr;
         double bestScore = 0.0;
         for (PlayerSimState& defender : defendingTeam.players) {
-            if (!isInterceptionIntent(defender.currentIntent.type)) {
-                continue;
-            }
             const double receiverDistance = PitchGeometry::distance(defender.position, receiver.position);
             const double arrivalDistance = PitchGeometry::distance(defender.position, trajectory.actualTarget);
             const double laneDistance =
                 distancePointToSegment(defender.position, trajectory.start, trajectory.actualTarget);
-            if (receiverDistance > 7.0 && arrivalDistance > 7.0 && laneDistance > 5.5) {
+            if (receiverDistance > 9.0 && arrivalDistance > 9.0 && laneDistance > 7.0) {
                 continue;
             }
 
@@ -2258,6 +2269,9 @@ namespace {
             state.ball.carrierPlayerId = 0;
             state.ball.carrierTeamId = 0;
             state.ball.position = savePoint;
+            state.possession.teamInPossession = 0;
+            state.possession.lastPossessionTeamId = goalkeeper->teamId;
+            state.possession.ballCarrierId = 0;
             state.ball.trajectory = trajectoryBuilder.buildDeflectedTrajectory(
                 DeflectedBallTrajectoryRequest{
                     savePoint,
@@ -2366,7 +2380,10 @@ namespace {
 
         const BallTrajectory trajectory = *state.ball.trajectory;
         const double elapsedToArrival = remainingTrajectorySeconds(state, trajectory);
-        TeamSimState* defendingTeam = opponentTeam(state, state.possession.teamInPossession);
+        const TeamId attackingTeamId = pending
+            ? pending->sourceTeamId
+            : state.possession.lastPossessionTeamId;
+        TeamSimState* defendingTeam = opponentTeam(state, attackingTeamId);
         if (defendingTeam == nullptr) {
             setLooseBall(state, trajectory.actualTarget);
             pending = std::nullopt;
@@ -2375,6 +2392,153 @@ namespace {
 
         if (pending) {
             moveReceiverTowardPass(state, input, *pending, trajectory);
+        }
+
+        if (pending && isPassLike(pending->actionType)) {
+            state.ball.position = PitchGeometry::clampToPitch(trajectory.actualTarget);
+            PlayerSimState* target = findPlayerState(state, pending->targetPlayerId);
+            const MatchPlayerSnapshot* targetSnapshot =
+                target != nullptr ? findSnapshotForPlayer(input, target->playerId) : nullptr;
+            const double controlRange = receptionControlRange(
+                pending->actionType,
+                pending->executionQuality,
+                targetSnapshot,
+                pending->pressure);
+
+            if (target == nullptr) {
+                recordLoosePass(
+                    state,
+                    result,
+                    input,
+                    *pending,
+                    state.ball.position,
+                    assistTracker);
+                pending = std::nullopt;
+                return SimulationStepResult{ elapsedToArrival };
+            }
+
+            PlayerSimState* arrivalDefender =
+                bestArrivalContestDefender(*defendingTeam, *pending, trajectory, *target);
+            const double receiverDistanceToArrival =
+                PitchGeometry::distance(target->position, state.ball.position);
+            if (receiverDistanceToArrival > controlRange) {
+                ++teamStatsFor(result, pending->sourceTeamId).passesReceiverOutOfRange;
+            }
+            const double receiverArrivalSecond = static_cast<double>(state.currentSecond)
+                + movementDurationSeconds(
+                    target->position,
+                    state.ball.position,
+                    target->effectivePace,
+                    0.0,
+                    4.0);
+            const double defenderDistanceToArrival = arrivalDefender != nullptr
+                ? PitchGeometry::distance(arrivalDefender->position, state.ball.position)
+                : 100.0;
+            const double defenderDistanceToReceiver = arrivalDefender != nullptr
+                ? PitchGeometry::distance(arrivalDefender->position, target->position)
+                : 100.0;
+            const double defenderDistanceToLane = arrivalDefender != nullptr
+                ? distancePointToSegment(
+                    arrivalDefender->position,
+                    trajectory.start,
+                    trajectory.actualTarget)
+                : 100.0;
+            const double defenderArrivalSecond = arrivalDefender != nullptr
+                ? static_cast<double>(state.currentSecond)
+                    + movementDurationSeconds(
+                        arrivalDefender->position,
+                        state.ball.position,
+                        arrivalDefender->effectivePace,
+                        0.0,
+                        4.0)
+                : 100.0;
+            const double defenderLaneArrivalSecond = arrivalDefender != nullptr
+                ? static_cast<double>(state.currentSecond)
+                    + (defenderDistanceToLane / std::max(arrivalDefender->effectivePace, 0.5))
+                : 100.0;
+            const PassResolutionFlowResult passFlow = PassResolutionFlow{}.resolve(
+                PassResolutionFlowRequest{
+                    PassResolutionContext{
+                        pending->actionType,
+                        trajectory.start,
+                        trajectory.intendedTarget,
+                        trajectory.actualTarget,
+                        PitchGeometry::distance(trajectory.start, trajectory.actualTarget),
+                        pending->executionQuality,
+                        pending->pressure,
+                        trajectory.arrivalSecond,
+                        receiverDistanceToArrival,
+                        controlRange,
+                        receiverArrivalSecond,
+                        arrivalDefender != nullptr,
+                        defenderDistanceToArrival,
+                        defenderDistanceToReceiver,
+                        defenderDistanceToLane,
+                        defenderArrivalSecond,
+                        defenderLaneArrivalSecond,
+                        arrivalDefender != nullptr
+                            ? intentPressureContribution(arrivalDefender->currentIntent.type)
+                            : 0.0,
+                        stepSeed(
+                            baseSeed,
+                            state,
+                            static_cast<std::uint64_t>(target->playerId)
+                                ^ (static_cast<std::uint64_t>(
+                                    arrivalDefender != nullptr ? arrivalDefender->playerId : 0) << 32)
+                                ^ 0x9a55ULL)
+                    },
+                    target->playerId,
+                    target->teamId,
+                    arrivalDefender != nullptr ? arrivalDefender->playerId : 0,
+                    arrivalDefender != nullptr ? arrivalDefender->teamId : 0
+                });
+            const PassResolutionResult& passResolution = passFlow.resolution;
+
+            if (passResolution.outcome == PassResolutionOutcome::DefenderIntercept
+                && arrivalDefender != nullptr) {
+                recordDefenderPassWin(
+                    state,
+                    result,
+                    input,
+                    *pending,
+                    *arrivalDefender,
+                    state.ball.position,
+                    assistTracker);
+                pending = std::nullopt;
+                return SimulationStepResult{ elapsedToArrival };
+            }
+
+            if (passResolution.outcome == PassResolutionOutcome::DeflectedLoose
+                || passResolution.outcome == PassResolutionOutcome::MisplacedLoose
+                || passResolution.outcome == PassResolutionOutcome::OutOfPlay) {
+                recordLoosePass(
+                    state,
+                    result,
+                    input,
+                    *pending,
+                    state.ball.position,
+                    assistTracker);
+                pending = std::nullopt;
+                return SimulationStepResult{ elapsedToArrival };
+            }
+
+            setControlledBy(
+                state,
+                target->playerId,
+                target->teamId,
+                state.ball.position);
+            if (target->teamId == pending->sourceTeamId) {
+                ++teamStatsFor(result, pending->sourceTeamId).passesCompleted;
+                ++playerStatsFor(
+                    result,
+                    pending->sourcePlayerId,
+                    pending->sourceTeamId).passesCompleted;
+                rememberCompletedPass(assistTracker, state, *pending, target->playerId);
+            } else {
+                clearAssist(assistTracker);
+            }
+            pending = std::nullopt;
+            return SimulationStepResult{ elapsedToArrival };
         }
 
         const std::vector<PlayerSimState> interceptionDefenders =
@@ -2486,7 +2650,12 @@ namespace {
                         ++teamStatsFor(result, pending->sourceTeamId).passesDeflected;
                     }
                     state.ball.controlState = BallControlState::InFlight;
+                    state.ball.carrierPlayerId = 0;
+                    state.ball.carrierTeamId = 0;
                     state.ball.position = candidate.interceptionPoint;
+                    state.possession.teamInPossession = 0;
+                    state.possession.lastPossessionTeamId = candidate.teamId;
+                    state.possession.ballCarrierId = 0;
                     state.ball.trajectory = trajectoryBuilder.buildDeflectedTrajectory(
                         DeflectedBallTrajectoryRequest{
                             candidate.interceptionPoint,
@@ -2580,110 +2749,6 @@ namespace {
                 assistTracker);
         }
 
-        if (pending
-            && !pending->isShot
-            && pending->targetPlayerId != 0) {
-            PlayerSimState* target = findPlayerState(state, pending->targetPlayerId);
-            const MatchPlayerSnapshot* targetSnapshot =
-                target != nullptr ? findSnapshotForPlayer(input, target->playerId) : nullptr;
-            const double controlRange = receptionControlRange(
-                pending->actionType,
-                pending->executionQuality,
-                targetSnapshot,
-                pending->pressure);
-            if (target != nullptr
-                && PitchGeometry::distance(target->position, state.ball.position)
-                    <= controlRange) {
-                PlayerSimState* arrivalDefender =
-                    bestArrivalContestDefender(*defendingTeam, *pending, trajectory, *target);
-                const double defenderDistanceToArrival = arrivalDefender != nullptr
-                    ? PitchGeometry::distance(arrivalDefender->position, state.ball.position)
-                    : 100.0;
-                const double defenderDistanceToReceiver = arrivalDefender != nullptr
-                    ? PitchGeometry::distance(arrivalDefender->position, target->position)
-                    : 100.0;
-                const double defenderDistanceToLane = arrivalDefender != nullptr
-                    ? distancePointToSegment(
-                        arrivalDefender->position,
-                        trajectory.start,
-                        trajectory.actualTarget)
-                    : 100.0;
-                const PassResolutionResult passResolution = PassResolutionModel{}.resolve(
-                    PassResolutionContext{
-                        pending->actionType,
-                        PitchGeometry::distance(trajectory.start, trajectory.actualTarget),
-                        pending->executionQuality,
-                        pending->pressure,
-                        PitchGeometry::distance(target->position, state.ball.position),
-                        controlRange,
-                        arrivalDefender != nullptr,
-                        defenderDistanceToArrival,
-                        defenderDistanceToReceiver,
-                        defenderDistanceToLane,
-                        arrivalDefender != nullptr
-                            ? intentPressureContribution(arrivalDefender->currentIntent.type)
-                            : 0.0,
-                        stepSeed(
-                            baseSeed,
-                            state,
-                            static_cast<std::uint64_t>(target->playerId)
-                                ^ (static_cast<std::uint64_t>(
-                                    arrivalDefender != nullptr ? arrivalDefender->playerId : 0) << 32)
-                                ^ 0x9a55ULL)
-                    });
-                if (passResolution.outcome == PassResolutionOutcome::DefenderIntercept
-                    && arrivalDefender != nullptr) {
-                    recordDefenderPassWin(
-                        state,
-                        result,
-                        input,
-                        *pending,
-                        *arrivalDefender,
-                        state.ball.position,
-                        assistTracker);
-                    pending = std::nullopt;
-                    return SimulationStepResult{ elapsedToArrival };
-                }
-                if (passResolution.outcome == PassResolutionOutcome::DeflectedLoose
-                    || passResolution.outcome == PassResolutionOutcome::MisplacedLoose
-                    || passResolution.outcome == PassResolutionOutcome::OutOfPlay) {
-                    recordLoosePass(
-                        state,
-                        result,
-                        input,
-                        *pending,
-                        state.ball.position,
-                        assistTracker);
-                    pending = std::nullopt;
-                    return SimulationStepResult{ elapsedToArrival };
-                }
-                setControlledBy(
-                    state,
-                    target->playerId,
-                    target->teamId,
-                    state.ball.position);
-                if (target->teamId == pending->sourceTeamId && isPassLike(pending->actionType)) {
-                    ++teamStatsFor(result, pending->sourceTeamId).passesCompleted;
-                    ++playerStatsFor(
-                        result,
-                        pending->sourcePlayerId,
-                        pending->sourceTeamId).passesCompleted;
-                    rememberCompletedPass(assistTracker, state, *pending, target->playerId);
-                } else {
-                    clearAssist(assistTracker);
-                }
-                pending = std::nullopt;
-                return SimulationStepResult{ elapsedToArrival };
-            }
-
-            if (isPassLike(pending->actionType)) {
-                ++teamStatsFor(result, pending->sourceTeamId).passesReceiverOutOfRange;
-            }
-        }
-
-        if (pending && isPassLike(pending->actionType) && pending->targetPlayerId == 0) {
-            ++teamStatsFor(result, pending->sourceTeamId).passesLoose;
-        }
         setLooseBall(state, state.ball.position);
         clearAssist(assistTracker);
         appendTrace(
@@ -2705,38 +2770,56 @@ namespace {
         MatchEngineResult& result,
         const MatchEngineInput& input,
         AssistTracker& assistTracker) {
-        PlayerSimState* best = nullptr;
-        double bestDistance = std::numeric_limits<double>::max();
-
+        std::vector<LooseBallRecoveryCandidate> candidates;
+        candidates.reserve(state.homeTeam.players.size() + state.awayTeam.players.size());
         for (PlayerSimState& player : state.homeTeam.players) {
-            const double distance = PitchGeometry::distance(player.position, state.ball.position);
-            if (distance < bestDistance) {
-                best = &player;
-                bestDistance = distance;
-            }
+            candidates.push_back(LooseBallRecoveryCandidate{
+                player.playerId,
+                player.teamId,
+                player.position,
+                player.currentIntent,
+                player.effectivePace,
+                player.effectiveAcceleration,
+                player.baseOverall
+            });
         }
         for (PlayerSimState& player : state.awayTeam.players) {
-            const double distance = PitchGeometry::distance(player.position, state.ball.position);
-            if (distance < bestDistance) {
-                best = &player;
-                bestDistance = distance;
-            }
+            candidates.push_back(LooseBallRecoveryCandidate{
+                player.playerId,
+                player.teamId,
+                player.position,
+                player.currentIntent,
+                player.effectivePace,
+                player.effectiveAcceleration,
+                player.baseOverall
+            });
         }
 
-        if (best == nullptr || bestDistance > LooseBallControlRangeMeters) {
-            return SimulationStepResult{ best != nullptr
-                ? movementDurationSeconds(
-                    best->position,
+        const LooseBallRecoveryResult recovery = LooseBallRecoveryModel{}.resolve(
+            LooseBallRecoveryContext{
+                state.ball.position,
+                state.possession.lastPossessionTeamId,
+                candidates
+            });
+        if (!recovery.controlled) {
+            if (PlayerSimState* pursuingPlayer = findPlayerState(state, recovery.playerId)) {
+                pursuingPlayer->targetPosition = state.ball.position;
+                pursuingPlayer->currentIntent = PlayerIntent{
+                    PlayerIntentType::RecoverLooseBall,
                     state.ball.position,
-                    best->effectivePace,
-                    0.5,
-                    4.0)
-                : 1.0 };
+                    0,
+                    1.0
+                };
+            }
+            return SimulationStepResult{ recovery.elapsedSeconds };
         }
 
-        const double raceSeconds =
-            movementDurationSeconds(best->position, state.ball.position, best->effectivePace, 0.5, 4.0);
-        const TeamId previousTeam = state.possession.teamInPossession;
+        PlayerSimState* best = findPlayerState(state, recovery.playerId);
+        if (best == nullptr) {
+            return SimulationStepResult{ recovery.elapsedSeconds };
+        }
+
+        const TeamId previousTeam = state.possession.lastPossessionTeamId;
         setControlledBy(state, best->playerId, best->teamId, state.ball.position);
         if (previousTeam != 0 && previousTeam != best->teamId) {
             clearAssist(assistTracker);
@@ -2753,7 +2836,7 @@ namespace {
             0,
             state.ball.position,
             state.ball.position);
-        return SimulationStepResult{ raceSeconds };
+        return SimulationStepResult{ recovery.elapsedSeconds };
     }
 
     SimulationStepResult processOutOfPlay(MatchSimulationState& state) {
@@ -2982,7 +3065,6 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
         }
 
         updateMeaningfulProgression(state);
-        ++state.possession.actionDepth;
         state.currentSecond = std::min(
             RegulationMatchSeconds,
             state.currentSecond + static_cast<int>(std::ceil(elapsedSeconds)));

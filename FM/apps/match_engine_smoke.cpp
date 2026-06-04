@@ -1312,6 +1312,7 @@ namespace {
                     << " awayXg=" << result.awayStats.expectedGoals
                     << " interceptions="
                     << (result.homeStats.interceptions + result.awayStats.interceptions)
+                    << " turnovers=" << traceCountFor(result, MatchTraceKind::Turnover)
                     << " loosePasses="
                     << (result.homeStats.passesLoose + result.awayStats.passesLoose)
                     << " deflectedPasses="

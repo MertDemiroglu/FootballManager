@@ -29,10 +29,14 @@ namespace {
 
     bool defenderCloseEnoughToContest(const PassResolutionContext& context) {
         const PassResolutionProfile profile;
+        const double defenderArrivalMargin =
+            std::min(context.defenderArrivalSecond, context.defenderLaneArrivalSecond)
+            - context.ballArrivalSecond;
         return context.hasRelevantDefender
             && (context.defenderDistanceToArrival <= profile.closeDefenderMeters
                 || context.defenderDistanceToReceiver <= profile.closeDefenderMeters + 1.0
-                || context.defenderDistanceToLane <= profile.closeLaneMeters);
+                || context.defenderDistanceToLane <= profile.closeLaneMeters
+                || defenderArrivalMargin <= 0.35);
     }
 
     double receiverSecurity(const PassResolutionContext& context) {
@@ -54,6 +58,11 @@ namespace {
             return 0.0;
         }
 
+        const double defenderArrivalMargin =
+            std::min(context.defenderArrivalSecond, context.defenderLaneArrivalSecond)
+            - context.ballArrivalSecond;
+        const double timingThreat =
+            clampDouble(14.0 - (defenderArrivalMargin * 12.0), 0.0, 22.0);
         const double arrivalThreat =
             clampDouble(24.0 - (context.defenderDistanceToArrival * 5.0), 0.0, 24.0);
         const double receiverThreat =
@@ -65,6 +74,7 @@ namespace {
             + arrivalThreat
             + receiverThreat
             + laneThreat
+            + timingThreat
             + (context.pressure * 0.13);
     }
 
