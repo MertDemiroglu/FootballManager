@@ -11,17 +11,6 @@
 namespace {
     constexpr double Pi = 3.14159265358979323846;
 
-    struct ShotRoleProfile {
-        double shotBias = 1.0;
-        double longShotBias = 1.0;
-        double riskTolerance = 1.0;
-    };
-
-    struct ShotTacticalProfile {
-        double shotBias = 1.0;
-        double weakShotBias = 1.0;
-    };
-
     double clampScore(double value) {
         return std::clamp(value, 0.0, 100.0);
     }
@@ -94,90 +83,6 @@ namespace {
                 + attributes.physical.agility * 0.06,
             0.0,
             100.0);
-    }
-
-    ShotRoleProfile roleProfile(FormationSlotRole role) {
-        ShotRoleProfile profile;
-        switch (role) {
-        case FormationSlotRole::Goalkeeper:
-            profile.shotBias = 0.12;
-            profile.longShotBias = 0.08;
-            profile.riskTolerance = 0.45;
-            break;
-        case FormationSlotRole::CenterBack:
-            profile.shotBias = 0.34;
-            profile.longShotBias = 0.22;
-            profile.riskTolerance = 0.58;
-            break;
-        case FormationSlotRole::LeftBack:
-        case FormationSlotRole::RightBack:
-        case FormationSlotRole::LeftWingBack:
-        case FormationSlotRole::RightWingBack:
-            profile.shotBias = 0.58;
-            profile.longShotBias = 0.46;
-            profile.riskTolerance = 0.72;
-            break;
-        case FormationSlotRole::DefensiveMidfielder:
-            profile.shotBias = 0.66;
-            profile.longShotBias = 0.56;
-            profile.riskTolerance = 0.74;
-            break;
-        case FormationSlotRole::CentralMidfielder:
-        case FormationSlotRole::LeftMidfielder:
-        case FormationSlotRole::RightMidfielder:
-            profile.shotBias = 0.88;
-            profile.longShotBias = 0.88;
-            profile.riskTolerance = 0.92;
-            break;
-        case FormationSlotRole::AttackingMidfielder:
-            profile.shotBias = 1.08;
-            profile.longShotBias = 1.02;
-            profile.riskTolerance = 1.10;
-            break;
-        case FormationSlotRole::LeftWinger:
-        case FormationSlotRole::RightWinger:
-            profile.shotBias = 0.98;
-            profile.longShotBias = 0.92;
-            profile.riskTolerance = 1.03;
-            break;
-        case FormationSlotRole::Striker:
-            profile.shotBias = 1.18;
-            profile.longShotBias = 1.02;
-            profile.riskTolerance = 1.12;
-            break;
-        case FormationSlotRole::Unknown:
-            break;
-        }
-        return profile;
-    }
-
-    ShotTacticalProfile tacticalProfile(const TacticalSetup& tactics) {
-        ShotTacticalProfile profile;
-        if (tactics.mentality == TeamMentality::Defensive) {
-            profile.shotBias -= 0.16;
-            profile.weakShotBias -= 0.22;
-        } else if (tactics.mentality == TeamMentality::Attacking) {
-            profile.shotBias += 0.14;
-            profile.weakShotBias += 0.08;
-        }
-
-        if (tactics.tempo == TeamTempo::Low) {
-            profile.shotBias -= 0.06;
-            profile.weakShotBias -= 0.12;
-        } else if (tactics.tempo == TeamTempo::High) {
-            profile.shotBias += 0.07;
-            profile.weakShotBias += 0.05;
-        }
-
-        if (tactics.passingDirectness == PassingDirectness::Direct) {
-            profile.shotBias += 0.05;
-        } else if (tactics.passingDirectness == PassingDirectness::Short) {
-            profile.weakShotBias -= 0.08;
-        }
-
-        profile.shotBias = std::clamp(profile.shotBias, 0.55, 1.35);
-        profile.weakShotBias = std::clamp(profile.weakShotBias, 0.50, 1.25);
-        return profile;
     }
 
     double distanceScoreFor(double distance) {
@@ -258,8 +163,8 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
         return output;
     }
     const PlayerAttributes attributes = attributesFor(context.teamSnapshot, context.carrierState);
-    const ShotRoleProfile role = roleProfile(context.carrierRole);
-    const ShotTacticalProfile tactics = tacticalProfile(context.tacticalSetup);
+    const ShotRoleDecisionProfile role = shotRoleDecisionProfile(context.carrierRole);
+    const ShotTacticalDecisionProfile tactics = shotTacticalDecisionProfile(context.tacticalSetup);
     const ShotDecisionTuning tuning;
     const double shooter = shootingConfidence(attributes);
     const double distanceScore = distanceScoreFor(distance);

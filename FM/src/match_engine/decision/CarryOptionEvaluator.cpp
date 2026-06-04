@@ -8,24 +8,6 @@
 #include<limits>
 
 namespace {
-    struct CarryRoleProfile {
-        double safeBias = 1.0;
-        double progressiveBias = 1.0;
-        double dribbleBias = 1.0;
-        double wideBias = 1.0;
-        double centralBias = 1.0;
-        double riskTolerance = 1.0;
-        double softProgressLimit = 0.70;
-        double deepCarryPenalty = 0.0;
-    };
-
-    struct CarryTacticalProfile {
-        double safeBias = 1.0;
-        double progressiveBias = 1.0;
-        double dribbleBias = 1.0;
-        double riskTolerance = 1.0;
-    };
-
     double clampScore(double value) {
         return std::clamp(value, 0.0, 100.0);
     }
@@ -129,137 +111,6 @@ namespace {
             || role == FormationSlotRole::RightWinger;
     }
 
-    CarryRoleProfile roleProfile(FormationSlotRole role) {
-        CarryRoleProfile profile;
-        switch (role) {
-        case FormationSlotRole::Goalkeeper:
-            profile.safeBias = 0.30;
-            profile.progressiveBias = 0.05;
-            profile.dribbleBias = 0.02;
-            profile.riskTolerance = 0.42;
-            profile.softProgressLimit = 0.22;
-            break;
-        case FormationSlotRole::CenterBack:
-            profile.safeBias = 1.18;
-            profile.progressiveBias = 0.55;
-            profile.dribbleBias = 0.10;
-            profile.riskTolerance = 0.62;
-            profile.softProgressLimit = 0.46;
-            break;
-        case FormationSlotRole::LeftBack:
-        case FormationSlotRole::RightBack:
-            profile.safeBias = 1.08;
-            profile.progressiveBias = 0.92;
-            profile.dribbleBias = 0.58;
-            profile.wideBias = 1.25;
-            profile.riskTolerance = 0.82;
-            profile.softProgressLimit = 0.66;
-            break;
-        case FormationSlotRole::LeftWingBack:
-        case FormationSlotRole::RightWingBack:
-            profile.safeBias = 1.02;
-            profile.progressiveBias = 1.08;
-            profile.dribbleBias = 0.76;
-            profile.wideBias = 1.30;
-            profile.riskTolerance = 0.92;
-            profile.softProgressLimit = 0.74;
-            break;
-        case FormationSlotRole::DefensiveMidfielder:
-            profile.safeBias = 1.14;
-            profile.progressiveBias = 0.88;
-            profile.dribbleBias = 0.38;
-            profile.riskTolerance = 0.78;
-            profile.softProgressLimit = 0.58;
-            break;
-        case FormationSlotRole::CentralMidfielder:
-            profile.safeBias = 1.02;
-            profile.progressiveBias = 1.04;
-            profile.dribbleBias = 0.72;
-            profile.riskTolerance = 0.96;
-            profile.softProgressLimit = 0.70;
-            break;
-        case FormationSlotRole::LeftMidfielder:
-        case FormationSlotRole::RightMidfielder:
-            profile.safeBias = 0.98;
-            profile.progressiveBias = 1.08;
-            profile.dribbleBias = 0.86;
-            profile.wideBias = 1.16;
-            profile.riskTolerance = 1.00;
-            profile.softProgressLimit = 0.76;
-            break;
-        case FormationSlotRole::AttackingMidfielder:
-            profile.safeBias = 0.86;
-            profile.progressiveBias = 1.22;
-            profile.dribbleBias = 1.16;
-            profile.centralBias = 1.12;
-            profile.riskTolerance = 1.12;
-            profile.softProgressLimit = 0.88;
-            break;
-        case FormationSlotRole::LeftWinger:
-        case FormationSlotRole::RightWinger:
-            profile.safeBias = 0.84;
-            profile.progressiveBias = 1.24;
-            profile.dribbleBias = 1.28;
-            profile.wideBias = 1.34;
-            profile.riskTolerance = 1.10;
-            profile.softProgressLimit = 0.92;
-            break;
-        case FormationSlotRole::Striker:
-            profile.safeBias = 0.70;
-            profile.progressiveBias = 0.82;
-            profile.dribbleBias = 1.02;
-            profile.riskTolerance = 0.94;
-            profile.softProgressLimit = 0.94;
-            profile.deepCarryPenalty = 14.0;
-            break;
-        case FormationSlotRole::Unknown:
-            break;
-        }
-        return profile;
-    }
-
-    CarryTacticalProfile tacticalProfile(const TacticalSetup& tactics) {
-        CarryTacticalProfile profile;
-        if (tactics.mentality == TeamMentality::Defensive) {
-            profile.safeBias += 0.18;
-            profile.progressiveBias -= 0.14;
-            profile.dribbleBias -= 0.16;
-            profile.riskTolerance -= 0.12;
-        } else if (tactics.mentality == TeamMentality::Attacking) {
-            profile.safeBias -= 0.06;
-            profile.progressiveBias += 0.18;
-            profile.dribbleBias += 0.14;
-            profile.riskTolerance += 0.14;
-        }
-
-        if (tactics.tempo == TeamTempo::Low) {
-            profile.safeBias += 0.16;
-            profile.progressiveBias -= 0.10;
-            profile.dribbleBias -= 0.08;
-            profile.riskTolerance -= 0.05;
-        } else if (tactics.tempo == TeamTempo::High) {
-            profile.safeBias -= 0.06;
-            profile.progressiveBias += 0.16;
-            profile.dribbleBias += 0.11;
-            profile.riskTolerance += 0.08;
-        }
-
-        if (tactics.passingDirectness == PassingDirectness::Short) {
-            profile.safeBias += 0.12;
-            profile.progressiveBias -= 0.10;
-        } else if (tactics.passingDirectness == PassingDirectness::Direct) {
-            profile.safeBias -= 0.08;
-            profile.progressiveBias += 0.16;
-            profile.dribbleBias += 0.06;
-        }
-
-        profile.safeBias = std::clamp(profile.safeBias, 0.65, 1.40);
-        profile.progressiveBias = std::clamp(profile.progressiveBias, 0.55, 1.45);
-        profile.dribbleBias = std::clamp(profile.dribbleBias, 0.50, 1.45);
-        profile.riskTolerance = std::clamp(profile.riskTolerance, 0.65, 1.35);
-        return profile;
-    }
-
     double nearestOpponentDistance(
         PitchPoint position,
         const TeamSimState* opponentState) {
@@ -327,7 +178,7 @@ namespace {
         PitchPoint from,
         PitchPoint target,
         AttackingDirection direction) {
-        const CarryRoleProfile profile = roleProfile(role);
+        const CarryRoleDecisionProfile profile = carryRoleDecisionProfile(role);
         const double targetProgress = attackingProgress(target, direction);
         const double currentProgress = attackingProgress(from, direction);
         double risk = 0.0;
@@ -394,7 +245,7 @@ namespace {
     }
 
     double roleKindMultiplier(
-        const CarryRoleProfile& role,
+        const CarryRoleDecisionProfile& role,
         CarryOptionKind kind,
         PitchPoint target) {
         double multiplier = 1.0;
@@ -416,7 +267,7 @@ namespace {
     }
 
     double tacticalKindMultiplier(
-        const CarryTacticalProfile& tactics,
+        const CarryTacticalDecisionProfile& tactics,
         CarryOptionKind kind) {
         if (kind == CarryOptionKind::SafeCarry) {
             return tactics.safeBias;
@@ -450,8 +301,8 @@ namespace {
         const CarryOptionEvaluationContext& context,
         PitchPoint target,
         const PlayerAttributes& attributes,
-        const CarryRoleProfile& role,
-        const CarryTacticalProfile& tactics,
+        const CarryRoleDecisionProfile& role,
+        const CarryTacticalDecisionProfile& tactics,
         const CarryDecisionTuning& tuning) {
         const double distance = PitchGeometry::distance(context.ballPosition, target);
         const double skill = kind == CarryOptionKind::Dribble
@@ -519,8 +370,8 @@ std::vector<CarryOption> CarryOptionEvaluator::evaluate(
     }
 
     const PlayerAttributes attributes = attributesFor(context.teamSnapshot, context.carrierState);
-    const CarryRoleProfile role = roleProfile(context.carrierRole);
-    const CarryTacticalProfile tactics = tacticalProfile(context.tacticalSetup);
+    const CarryRoleDecisionProfile role = carryRoleDecisionProfile(context.carrierRole);
+    const CarryTacticalDecisionProfile tactics = carryTacticalDecisionProfile(context.tacticalSetup);
     const CarryDecisionTuning tuning;
     const bool wideCarrier = isWide(context.ballPosition);
 
