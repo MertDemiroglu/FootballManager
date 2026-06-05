@@ -160,6 +160,40 @@ struct ShotDecisionTuning {
     double xgDesireMaximum = 82.0;
 };
 
+struct ShootingModelTuning {
+    double defaultAttribute = 50.0;
+    double closeShotDistance = 10.0;
+    double longShotDistance = 24.0;
+    double veryLongShotDistance = 32.0;
+    double minimumShotPower = 18.0;
+    double maximumShotPower = 34.0;
+    double baseDeviationMeters = 0.35;
+    double openPlayXGIntercept = -2.75;
+    double openPlayXGDistanceCoefficient = 0.120;
+    double openPlayXGAngleCoefficient = 1.05;
+    double openPlayXGPressureCoefficient = 0.022;
+    double openPlayXGMinimum = 0.004;
+    double openPlayXGMaximum = 0.28;
+    double pressureDeviationScale = 1.35;
+    double distanceDeviationScale = 0.065;
+    double angleDeviationScale = 1.15;
+    double difficultTypeDeviationScale = 0.90;
+    double cleanStrikeThreshold = 58.0;
+    double blockLaneWidthMeters = 2.8;
+    double blockReactionWindowSeconds = 0.42;
+    double baseBlockProbability = 0.05;
+    double maximumBlockProbability = 0.58;
+    double offTargetBaseProbability = 0.06;
+    double offTargetMaximumProbability = 0.62;
+    double saveMinimumProbability = 0.10;
+    double saveMaximumProbability = 0.82;
+    double heldReboundBase = 0.48;
+    double handlingHeldScale = 0.38;
+    double reboundPowerScale = 0.22;
+    double offTargetRestartSeconds = 18.0;
+    double savedHeldRestartSeconds = 10.0;
+};
+
 struct ActionScoringWeights {
     double retentionWeight = 1.0;
     double progressionWeight = 1.0;

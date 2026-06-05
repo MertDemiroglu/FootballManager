@@ -28,6 +28,8 @@ namespace {
             return 22.0;
         case BallTrajectoryType::Deflection:
             return 12.0;
+        case BallTrajectoryType::Rebound:
+            return 10.0;
         }
 
         return 15.0;
@@ -51,6 +53,8 @@ namespace {
             return 12.0;
         case BallTrajectoryType::Deflection:
             return 4.0;
+        case BallTrajectoryType::Rebound:
+            return 3.5;
         }
 
         return 5.0;
@@ -72,6 +76,8 @@ namespace {
             return BallFlightProfile::Lofted;
         case BallTrajectoryType::Deflection:
             return BallFlightProfile::Medium;
+        case BallTrajectoryType::Rebound:
+            return BallFlightProfile::Low;
         }
 
         return BallFlightProfile::Ground;
@@ -95,6 +101,8 @@ namespace {
             return 7.0;
         case BallTrajectoryType::Deflection:
             return 1.5;
+        case BallTrajectoryType::Rebound:
+            return 0.8;
         }
 
         return 0.05;
