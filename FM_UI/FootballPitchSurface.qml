@@ -4,6 +4,8 @@ Rectangle {
     id: root
 
     property int fieldMargin: 16
+    property var metrics: null
+    property real scaleFactor: metrics ? metrics.scale : 1.0
     property color pitchTopColor: "#0d5f37"
     property color pitchMidColor: "#073f28"
     property color pitchBottomColor: "#052c20"
@@ -13,7 +15,7 @@ Rectangle {
     radius: 12
     color: "#0b5c34"
     border.color: "#237447"
-    border.width: 1
+    border.width: Math.max(1, Math.round(1 * root.scaleFactor))
     clip: true
 
     gradient: Gradient {
@@ -40,7 +42,7 @@ Rectangle {
         anchors.fill: parent
         radius: parent.radius
         color: "transparent"
-        border.width: 12
+        border.width: Math.max(4, Math.round(12 * root.scaleFactor))
         border.color: "#031910"
         opacity: 0.22
     }
@@ -48,10 +50,10 @@ Rectangle {
     Rectangle {
         id: pitchField
         anchors.fill: parent
-        anchors.margins: root.fieldMargin
-        radius: 10
+        anchors.margins: Math.max(6, Math.round(root.fieldMargin * root.scaleFactor))
+        radius: Math.round(10 * root.scaleFactor)
         color: "transparent"
-        border.width: 2
+        border.width: Math.max(1, Math.round(2 * root.scaleFactor))
         border.color: root.lineColor
         opacity: 0.62
     }
@@ -60,7 +62,7 @@ Rectangle {
         anchors.left: pitchField.left
         anchors.right: pitchField.right
         anchors.verticalCenter: pitchField.verticalCenter
-        height: 2
+        height: Math.max(1, Math.round(2 * root.scaleFactor))
         color: root.lineColor
         opacity: 0.58
     }
@@ -71,7 +73,7 @@ Rectangle {
         height: width
         radius: width / 2
         color: "transparent"
-        border.width: 2
+        border.width: Math.max(1, Math.round(2 * root.scaleFactor))
         border.color: root.lineColor
         opacity: 0.56
     }
@@ -82,7 +84,7 @@ Rectangle {
         width: pitchField.width * 0.42
         height: pitchField.height * 0.16
         color: "transparent"
-        border.width: 2
+        border.width: Math.max(1, Math.round(2 * root.scaleFactor))
         border.color: root.lineColor
         opacity: 0.54
     }
@@ -93,7 +95,7 @@ Rectangle {
         width: pitchField.width * 0.42
         height: pitchField.height * 0.16
         color: "transparent"
-        border.width: 2
+        border.width: Math.max(1, Math.round(2 * root.scaleFactor))
         border.color: root.lineColor
         opacity: 0.54
     }
@@ -104,7 +106,7 @@ Rectangle {
         width: pitchField.width * 0.22
         height: pitchField.height * 0.07
         color: "transparent"
-        border.width: 2
+        border.width: Math.max(1, Math.round(2 * root.scaleFactor))
         border.color: root.lineColor
         opacity: 0.5
     }
@@ -115,7 +117,7 @@ Rectangle {
         width: pitchField.width * 0.22
         height: pitchField.height * 0.07
         color: "transparent"
-        border.width: 2
+        border.width: Math.max(1, Math.round(2 * root.scaleFactor))
         border.color: root.lineColor
         opacity: 0.5
     }

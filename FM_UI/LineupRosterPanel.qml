@@ -12,9 +12,10 @@ ColumnLayout {
     property int selectedSourceSlotIndex: -1
     property int selectedPlayerId: 0
     property string squadFilter: "All"
-    readonly property int metricColumnWidth: 58
-    readonly property int scrollbarGutter: 16
-    readonly property int metricHeaderRightInset: 30
+    property var metrics: null
+    readonly property int metricColumnWidth: metrics ? metrics.px(metrics.dense ? 48 : 58) : 58
+    readonly property int scrollbarGutter: metrics ? metrics.px(16) : 16
+    readonly property int metricHeaderRightInset: metrics ? metrics.px(metrics.dense ? 18 : 30) : 30
     readonly property var unassignedRosterRows: buildUnassignedRosterRows()
     readonly property var filteredRosterRows: buildFilteredRosterRows()
     readonly property bool isSquadDropHighlighted: squadDropArea.containsDrag
@@ -53,13 +54,12 @@ ColumnLayout {
     signal slotDroppedOnSlot(int sourceSlotIndex, int targetSlotIndex)
     signal playerDroppedOnSquad(int playerId, int sourceSlotIndex)
 
-    spacing: 8
-    Layout.minimumHeight: 500
+    spacing: metrics ? metrics.spacingSm : 8
 
     Rectangle {
         Layout.fillWidth: true
-        Layout.preferredHeight: startingContent.implicitHeight + 28
-        radius: 8
+        Layout.preferredHeight: metrics ? Math.max(metrics.px(190), Math.min(metrics.px(metrics.dense ? 270 : 360), root.height * (metrics.dense ? 0.42 : 0.5))) : startingContent.implicitHeight + 28
+        radius: metrics ? metrics.radiusMd : 8
         color: "#0d1721"
         border.color: "#263847"
         clip: true
@@ -67,7 +67,8 @@ ColumnLayout {
         LineupStartingXISection {
             id: startingContent
             anchors.fill: parent
-            anchors.margins: 14
+            anchors.margins: root.metrics ? root.metrics.spacingMd : 14
+            metrics: root.metrics
             slotsModel: root.slotsModel
             substitutesModel: root.substitutesModel
             selectedSlotIndex: root.selectedSlotIndex
@@ -89,7 +90,7 @@ ColumnLayout {
         id: squadCard
         Layout.fillWidth: true
         Layout.fillHeight: true
-        radius: 8
+        radius: metrics ? metrics.radiusMd : 8
         color: "#0d1721"
         border.color: root.isSquadDropHighlighted ? "#23c7d4" : "#263847"
         border.width: root.isSquadDropHighlighted ? 2 : 1
@@ -97,8 +98,8 @@ ColumnLayout {
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 14
-            spacing: 8
+            anchors.margins: root.metrics ? root.metrics.spacingMd : 14
+            spacing: root.metrics ? root.metrics.spacingSm : 8
 
             RowLayout {
                 Layout.fillWidth: true
@@ -107,8 +108,8 @@ ColumnLayout {
 
                 ComboBox {
                     id: squadFilterSelector
-                    Layout.preferredWidth: 150
-                    Layout.preferredHeight: 34
+                    Layout.preferredWidth: root.metrics ? root.metrics.px(root.metrics.dense ? 126 : 150) : 150
+                    Layout.preferredHeight: root.metrics ? root.metrics.px(root.metrics.dense ? 30 : 34) : 34
                     model: [ "All", "GK", "DEF", "MID", "ATT" ]
                     currentIndex: Math.max(0, [ "All", "GK", "DEF", "MID", "ATT" ].indexOf(root.squadFilter))
                     onActivated: function(index) {
@@ -120,7 +121,7 @@ ColumnLayout {
                         rightPadding: 24
                         text: "Filter: " + squadFilterSelector.currentText
                         color: "#f7fbff"
-                        font.pixelSize: 13
+                        font.pixelSize: root.metrics ? root.metrics.font(13) : 13
                         font.bold: true
                         verticalAlignment: Text.AlignVCenter
                         elide: Text.ElideRight
@@ -130,7 +131,7 @@ ColumnLayout {
                         y: (squadFilterSelector.height - height) / 2
                         text: "v"
                         color: "#c7d1db"
-                        font.pixelSize: 12
+                        font.pixelSize: root.metrics ? root.metrics.font(12) : 12
                         font.bold: true
                     }
                     background: Rectangle {
@@ -161,7 +162,7 @@ ColumnLayout {
                         contentItem: Label {
                             text: modelData
                             color: "#f7fbff"
-                            font.pixelSize: 12
+                            font.pixelSize: root.metrics ? root.metrics.font(12) : 12
                             verticalAlignment: Text.AlignVCenter
                             leftPadding: 8
                         }
@@ -174,10 +175,10 @@ ColumnLayout {
 
                 Item { Layout.fillWidth: true }
 
-                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Overall"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Form"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Fitness"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Moral"; font.pixelSize: 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                Label { Layout.preferredWidth: root.metricColumnWidth; text: root.metrics && root.metrics.dense ? "OVR" : "Overall"; font.pixelSize: root.metrics ? root.metrics.font(12) : 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Form"; font.pixelSize: root.metrics ? root.metrics.font(12) : 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                Label { Layout.preferredWidth: root.metricColumnWidth; text: root.metrics && root.metrics.dense ? "Fit" : "Fitness"; font.pixelSize: root.metrics ? root.metrics.font(12) : 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                Label { Layout.preferredWidth: root.metricColumnWidth; text: "Moral"; font.pixelSize: root.metrics ? root.metrics.font(12) : 12; font.bold: true; color: "#f2f7ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
             }
 
             Rectangle {
@@ -243,6 +244,7 @@ ColumnLayout {
                         selectedPlayerId: root.selectedPlayerId
                         rowData: modelData
                         metricColumnWidth: root.metricColumnWidth
+                        metrics: root.metrics
                         onClicked: function(clickedPlayerId) {
                             root.playerClicked(clickedPlayerId)
                         }
@@ -253,7 +255,7 @@ ColumnLayout {
                     anchors.centerIn: parent
                     visible: squadList.count === 0
                     text: root.squadFilter === "All" ? "No squad players shown" : "No players in this filter"
-                    font.pixelSize: 12
+                    font.pixelSize: root.metrics ? root.metrics.font(12) : 12
                     color: "#91a4b6"
                 }
             }

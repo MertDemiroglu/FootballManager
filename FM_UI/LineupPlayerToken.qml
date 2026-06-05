@@ -16,6 +16,8 @@ Item {
     property bool showMetric: false
     property string mode: "preMatch"
     property bool empty: false
+    property var metrics: null
+    property real scaleFactor: metrics ? metrics.compactTokenScale : 1.0
 
     readonly property string resolvedName: root.empty
                                           ? "Empty"
@@ -26,8 +28,8 @@ Item {
                                             ? root.positionGroup
                                             : groupFromPosition(root.positionText)
 
-    width: 90
-    height: root.showMetric ? 100 : 76
+    width: Math.round(90 * scaleFactor)
+    height: Math.round((root.showMetric ? 100 : 76) * scaleFactor)
 
     function surnameFromName(fullName) {
         const parts = String(fullName || "").trim().split(/\s+/).filter(function(part) { return part.length > 0 })
@@ -68,18 +70,18 @@ Item {
 
     Item {
         id: shirt
-        width: 46
-        height: 36
+        width: Math.round(46 * root.scaleFactor)
+        height: Math.round(36 * root.scaleFactor)
         anchors.horizontalCenter: parent.horizontalCenter
         y: 0
         visible: !root.empty
 
         Rectangle {
-            x: 10
-            y: 7
-            width: 26
-            height: 25
-            radius: 7
+            x: Math.round(10 * root.scaleFactor)
+            y: Math.round(7 * root.scaleFactor)
+            width: Math.round(26 * root.scaleFactor)
+            height: Math.round(25 * root.scaleFactor)
+            radius: Math.round(7 * root.scaleFactor)
             color: root.kitColorPrimary
             border.color: "#0f172a"
             border.width: 1
@@ -87,10 +89,10 @@ Item {
 
         Rectangle {
             x: 0
-            y: 10
-            width: 16
-            height: 14
-            radius: 4
+            y: Math.round(10 * root.scaleFactor)
+            width: Math.round(16 * root.scaleFactor)
+            height: Math.round(14 * root.scaleFactor)
+            radius: Math.round(4 * root.scaleFactor)
             rotation: -18
             color: root.kitColorSecondary
             border.color: "#0f172a"
@@ -98,11 +100,11 @@ Item {
         }
 
         Rectangle {
-            x: 30
-            y: 10
-            width: 16
-            height: 14
-            radius: 4
+            x: Math.round(30 * root.scaleFactor)
+            y: Math.round(10 * root.scaleFactor)
+            width: Math.round(16 * root.scaleFactor)
+            height: Math.round(14 * root.scaleFactor)
+            radius: Math.round(4 * root.scaleFactor)
             rotation: 18
             color: root.kitColorSecondary
             border.color: "#0f172a"
@@ -110,21 +112,21 @@ Item {
         }
 
         Rectangle {
-            x: 21
-            y: 7
-            width: 5
-            height: 25
-            radius: 2
+            x: Math.round(21 * root.scaleFactor)
+            y: Math.round(7 * root.scaleFactor)
+            width: Math.max(2, Math.round(5 * root.scaleFactor))
+            height: Math.round(25 * root.scaleFactor)
+            radius: Math.round(2 * root.scaleFactor)
             color: root.kitColorSecondary
             opacity: 0.9
         }
 
         Rectangle {
-            x: 17
-            y: 6
-            width: 12
-            height: 7
-            radius: 4
+            x: Math.round(17 * root.scaleFactor)
+            y: Math.round(6 * root.scaleFactor)
+            width: Math.round(12 * root.scaleFactor)
+            height: Math.round(7 * root.scaleFactor)
+            radius: Math.round(4 * root.scaleFactor)
             color: "#dbeafe"
             opacity: 0.9
             border.color: "#0f172a"
@@ -135,10 +137,10 @@ Item {
     Rectangle {
         id: body
         anchors.horizontalCenter: parent.horizontalCenter
-        y: root.empty ? 21 : 30
-        width: 86
-        height: root.showMetric ? 66 : 44
-        radius: 7
+        y: Math.round((root.empty ? 21 : 30) * root.scaleFactor)
+        width: Math.round(86 * root.scaleFactor)
+        height: Math.round((root.showMetric ? 66 : 44) * root.scaleFactor)
+        radius: Math.round(7 * root.scaleFactor)
         color: root.empty ? "#111827" : "#111923"
         border.color: root.empty ? "#334155" : "#405264"
         border.width: 1
@@ -147,15 +149,15 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            height: 20
-            radius: 6
+            height: Math.round(20 * root.scaleFactor)
+            radius: Math.round(6 * root.scaleFactor)
             color: root.empty ? "#334155" : root.bandColor(root.resolvedGroup)
 
             Label {
                 anchors.centerIn: parent
                 text: root.positionText || "-"
                 color: "#f8fafc"
-                font.pixelSize: 12
+                font.pixelSize: root.metrics ? root.metrics.font(12) : Math.round(12 * root.scaleFactor)
                 font.bold: true
             }
         }
@@ -164,23 +166,23 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.topMargin: 23
-            height: 19
+            anchors.topMargin: Math.round(23 * root.scaleFactor)
+            height: Math.round(19 * root.scaleFactor)
             text: root.resolvedName
             color: root.empty ? "#94a3b8" : "#f8fafc"
-            font.pixelSize: 14
+            font.pixelSize: root.metrics ? root.metrics.font(14) : Math.round(14 * root.scaleFactor)
             font.bold: true
             horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight
         }
 
         Rectangle {
-            width: 42
-            height: 18
-            radius: 8
+            width: Math.round(42 * root.scaleFactor)
+            height: Math.round(18 * root.scaleFactor)
+            radius: Math.round(8 * root.scaleFactor)
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
-            anchors.bottomMargin: 5
+            anchors.bottomMargin: Math.round(5 * root.scaleFactor)
             visible: root.showMetric
             color: "#0b1118"
             border.color: "#405264"
@@ -189,7 +191,7 @@ Item {
                 anchors.centerIn: parent
                 text: root.metricText.length > 0 ? root.metricText : "-"
                 color: root.metricText.length > 0 ? "#f8fafc" : "#64748b"
-                font.pixelSize: 11
+                font.pixelSize: root.metrics ? root.metrics.font(11) : Math.round(11 * root.scaleFactor)
                 font.bold: true
             }
         }

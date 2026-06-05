@@ -12,16 +12,17 @@ Rectangle {
     property string teamName: gameFacade.shellState.selectedTeamName || ""
     property string teamPrimaryColor: gameFacade.shellState.selectedTeamPrimaryColor || "#22c55e"
     property string teamSecondaryColor: gameFacade.shellState.selectedTeamSecondaryColor || "#0f172a"
+    property var metrics: null
+    readonly property real pitchAspectRatio: 0.68
 
     signal slotClicked(int slotIndex)
     signal playerDroppedOnSlot(int playerId, int slotIndex)
     signal slotDroppedOnSlot(int sourceSlotIndex, int targetSlotIndex)
 
-    radius: 14
+    radius: metrics ? metrics.radiusLg : 14
     border.color: "#1d5f3c"
     color: "#0b1520"
     clip: true
-    Layout.minimumHeight: 420
     layer.enabled: true
     layer.smooth: true
 
@@ -37,22 +38,26 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 10
+        anchors.margins: root.metrics ? root.metrics.spacingSm : 10
         spacing: 0
 
         FootballPitchSurface {
             id: pitchBackground
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            Layout.minimumHeight: 360
+            Layout.preferredWidth: Math.min(parent.width, parent.height * root.pitchAspectRatio)
+            Layout.preferredHeight: Math.min(parent.height, parent.width / root.pitchAspectRatio)
+            Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+            metrics: root.metrics
 
             Item {
                 id: cardsLayer
                 anchors.fill: pitchBackground.fieldItem
                 visible: root.slotRows.length > 0
 
-                readonly property real cardWidth: 108
-                readonly property real cardHeight: 122
+                readonly property real cardScale: root.metrics
+                                                  ? root.metrics.clamp(Math.min(width / 560, height / 640), 0.72, 1.02)
+                                                  : Math.max(0.72, Math.min(1.02, Math.min(width / 560, height / 640)))
+                readonly property real cardWidth: Math.round(108 * cardScale)
+                readonly property real cardHeight: Math.round(122 * cardScale)
 
                 Repeater {
                     model: root.slotRows
@@ -65,6 +70,8 @@ Rectangle {
                         selectedSourceSlotIndex: root.selectedSourceSlotIndex
                         kitColorPrimary: root.teamPrimaryColor
                         kitColorSecondary: root.teamSecondaryColor
+                        metrics: root.metrics
+                        scaleFactor: cardsLayer.cardScale
                         x: root.clamped(
                                root.normalized(modelData.pitchX, 0.5) * cardsLayer.width - width / 2,
                                0,
@@ -91,7 +98,7 @@ Rectangle {
                 visible: root.slotRows.length === 0
                 text: "No formation slots loaded"
                 color: "#ffffff"
-                font.pixelSize: 14
+                font.pixelSize: root.metrics ? root.metrics.font(14) : 14
             }
         }
     }

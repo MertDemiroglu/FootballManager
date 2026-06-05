@@ -13,24 +13,25 @@ Item {
     property string homeFormationText: ""
     property string awayFormationText: ""
     property bool compactMode: false
+    property var metrics: null
 
     implicitHeight: content.implicitHeight
 
     ColumnLayout {
         id: content
         anchors.fill: parent
-        spacing: 10
+        spacing: root.metrics ? root.metrics.spacingSm : 10
 
         Label {
             text: "Lineups"
             color: "#101828"
-            font.pixelSize: 16
+            font.pixelSize: root.metrics ? root.metrics.font(16) : 16
             font.bold: true
         }
 
         Loader {
             Layout.fillWidth: true
-            sourceComponent: width >= 760 ? rowLayout : columnLayout
+            sourceComponent: width >= (root.metrics ? root.metrics.px(760) : 760) ? rowLayout : columnLayout
         }
     }
 
@@ -38,7 +39,7 @@ Item {
         id: rowLayout
         RowLayout {
             width: parent ? parent.width : 0
-            spacing: 10
+            spacing: root.metrics ? root.metrics.spacingSm : 10
 
             TeamLineupCard {
                 Layout.fillWidth: true
@@ -48,6 +49,7 @@ Item {
                 formationText: root.homeFormationText
                 lineupRows: root.homeLineupRows
                 compactMode: root.compactMode
+                metrics: root.metrics
             }
 
             TeamLineupCard {
@@ -58,6 +60,7 @@ Item {
                 formationText: root.awayFormationText
                 lineupRows: root.awayLineupRows
                 compactMode: root.compactMode
+                metrics: root.metrics
             }
         }
     }
@@ -66,7 +69,7 @@ Item {
         id: columnLayout
         ColumnLayout {
             width: parent ? parent.width : 0
-            spacing: 10
+            spacing: root.metrics ? root.metrics.spacingSm : 10
 
             TeamLineupCard {
                 Layout.fillWidth: true
@@ -76,6 +79,7 @@ Item {
                 formationText: root.homeFormationText
                 lineupRows: root.homeLineupRows
                 compactMode: root.compactMode
+                metrics: root.metrics
             }
 
             TeamLineupCard {
@@ -86,6 +90,7 @@ Item {
                 formationText: root.awayFormationText
                 lineupRows: root.awayLineupRows
                 compactMode: root.compactMode
+                metrics: root.metrics
             }
         }
     }

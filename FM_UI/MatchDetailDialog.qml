@@ -81,7 +81,8 @@ InteractionModalShell {
         awayFormationText: details.awayFormationText || "-"
         homeLineupRows: details.homeLineup || []
         awayLineupRows: details.awayLineup || []
-        compactMode: false
+        compactMode: root.metrics ? root.metrics.compact : false
+        metrics: root.metrics
     }
 
     Rectangle {

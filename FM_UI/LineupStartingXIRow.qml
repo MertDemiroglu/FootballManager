@@ -11,6 +11,8 @@ Rectangle {
     property string warningText: ""
     property string warningLevel: "none"
     property int metricColumnWidth: 54
+    property var metrics: null
+    readonly property real scaleFactor: metrics ? metrics.scale : 1.0
 
     readonly property int slotIndex: typeof slotData.slotIndex === "number" ? slotData.slotIndex : -1
     readonly property bool hasPlayer: !!slotData.hasAssignedPlayer && !slotData.isEmpty
@@ -30,12 +32,12 @@ Rectangle {
         return text.replace(/^OVR\s+/i, "")
     }
 
-    radius: 8
+    radius: metrics ? metrics.radiusMd : 8
     color: isDropHighlighted ? "#123642" : (hasPlayer ? "#101a25" : "#151820")
     border.color: isDropHighlighted ? "#23c7d4" : (hasPlayer ? "#253747" : "#f5b942")
     border.width: isDropHighlighted ? 2 : 1
     opacity: slotDragArea.drag.active ? 0.72 : 1.0
-    implicitHeight: 42
+    implicitHeight: Math.round(42 * scaleFactor)
 
     Item {
         id: slotDragSource
@@ -79,20 +81,21 @@ Rectangle {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 8
-        anchors.rightMargin: 8
-        spacing: 8
+        anchors.leftMargin: root.metrics ? root.metrics.spacingSm : 8
+        anchors.rightMargin: root.metrics ? root.metrics.spacingSm : 8
+        spacing: root.metrics ? root.metrics.spacingSm : 8
 
         PositionBadge {
             text: root.slotData.slotLabel || root.slotData.slotRole || "?"
             roleKey: root.slotData.slotRoleKey || -1
-            implicitHeight: 22
+            implicitHeight: Math.round(22 * root.scaleFactor)
+            metrics: root.metrics
         }
 
         Label {
             Layout.fillWidth: true
             text: root.hasPlayer ? (root.slotData.assignedPlayerName || "Unknown") : "Empty"
-            font.pixelSize: 12
+            font.pixelSize: root.metrics ? root.metrics.font(12) : 12
             font.bold: root.hasPlayer
             color: root.hasPlayer ? "#f7fbff" : "#f5b942"
             elide: Text.ElideRight
@@ -101,7 +104,7 @@ Rectangle {
 
         Rectangle {
             Layout.preferredWidth: root.metricColumnWidth
-            Layout.preferredHeight: 22
+            Layout.preferredHeight: Math.round(22 * root.scaleFactor)
             radius: 999
             color: "#233241"
             border.color: "#3a4d5e"
@@ -111,7 +114,7 @@ Rectangle {
                 text: root.hasPlayer
                       ? root.numberOnly(root.slotData.assignedPlayerOverallSummary, root.slotData.assignedPlayerOverall)
                       : "-"
-                font.pixelSize: 10
+                font.pixelSize: root.metrics ? root.metrics.font(10) : 10
                 font.bold: true
                 color: root.hasPlayer ? "#d7e0e8" : "#7d8d9a"
             }
@@ -123,6 +126,7 @@ Rectangle {
             compact: true
             valueOnly: true
             Layout.preferredWidth: root.metricColumnWidth
+            metrics: root.metrics
         }
 
         ConditionBadge {
@@ -131,6 +135,7 @@ Rectangle {
             compact: true
             valueOnly: true
             Layout.preferredWidth: root.metricColumnWidth
+            metrics: root.metrics
         }
 
         ConditionBadge {
@@ -139,6 +144,7 @@ Rectangle {
             compact: true
             valueOnly: true
             Layout.preferredWidth: root.metricColumnWidth
+            metrics: root.metrics
         }
 
     }
@@ -150,7 +156,7 @@ Rectangle {
         anchors.topMargin: 3
         visible: root.hasWarning
         text: "!"
-        font.pixelSize: 12
+        font.pixelSize: root.metrics ? root.metrics.font(12) : 12
         font.bold: true
         color: "#f5b942"
         ToolTip.visible: warningMouse.containsMouse

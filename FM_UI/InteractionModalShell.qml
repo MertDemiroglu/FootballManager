@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 
 Item {
     id: root
@@ -10,6 +11,7 @@ Item {
     property color cardBorderColor: "#d0d5dd"
     property real outerMargin: 48
     property real contentMargin: 20
+    property var metrics: null
     default property alias contentData: contentColumn.data
 
     Rectangle {
@@ -24,23 +26,30 @@ Item {
 
     Rectangle {
         id: dialogCard
-        width: Math.min(parent.width - root.outerMargin, root.maxCardWidth)
-        implicitHeight: contentColumn.implicitHeight + (root.contentMargin * 2)
-        height: implicitHeight
+        readonly property real safeOuterMargin: root.metrics ? root.metrics.px(root.metrics.dense ? 18 : root.outerMargin) : root.outerMargin
+        readonly property real safeContentMargin: root.metrics ? root.metrics.cardPadding : root.contentMargin
+        width: Math.max(1, Math.min(parent.width - safeOuterMargin * 2, root.maxCardWidth))
+        implicitHeight: contentColumn.implicitHeight + (safeContentMargin * 2)
+        height: Math.max(1, Math.min(implicitHeight, parent.height - safeOuterMargin * 2))
         anchors.centerIn: parent
-        radius: root.cardRadius
+        radius: root.metrics ? root.metrics.radiusLg : root.cardRadius
         color: root.cardColor
         border.color: root.cardBorderColor
 
-        Column {
-            id: contentColumn
-            anchors.top: parent.top
-            anchors.topMargin: root.contentMargin
-            anchors.left: parent.left
-            anchors.leftMargin: root.contentMargin
-            anchors.right: parent.right
-            anchors.rightMargin: root.contentMargin
-            spacing: 12
+        ScrollView {
+            id: contentScroll
+            anchors.fill: parent
+            anchors.margins: dialogCard.safeContentMargin
+            clip: true
+            contentWidth: availableWidth
+            contentHeight: contentColumn.implicitHeight
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+
+            Column {
+                id: contentColumn
+                width: contentScroll.availableWidth
+                spacing: root.metrics ? root.metrics.spacingMd : 12
+            }
         }
     }
 }

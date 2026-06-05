@@ -6,8 +6,10 @@ import "UiHelpers.js" as UiHelpers
 Dialog {
     id: root
     modal: true
-    width: 540
-    height: 600
+    property var metrics: null
+    readonly property real safeOuterMargin: metrics ? metrics.px(metrics.dense ? 18 : 48) : 48
+    width: parent ? Math.max(1, Math.min(540, parent.width - safeOuterMargin * 2)) : 540
+    height: parent ? Math.max(1, Math.min(600, parent.height - safeOuterMargin * 2)) : 600
     standardButtons: Dialog.Ok
     title: playerDetails && playerDetails.hasPlayer ? (playerDetails.name || "Player") : "Player Details"
 
@@ -17,12 +19,13 @@ Dialog {
 
 
     ScrollView {
+        id: detailsScroll
         anchors.fill: parent
         anchors.margins: 12
         clip: true
 
         Item {
-            width: Math.max(root.width - 48, 440)
+            width: Math.max(1, detailsScroll.availableWidth)
             implicitHeight: contentColumn.implicitHeight
 
             ColumnLayout {

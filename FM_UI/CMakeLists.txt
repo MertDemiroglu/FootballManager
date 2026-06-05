@@ -65,6 +65,7 @@ qt_add_qml_module(FM_UI
     VERSION 1.0
     QML_FILES
         Main.qml
+        UiMetrics.qml
         HomeView.qml
         NewGameView.qml
         AppIcon.qml

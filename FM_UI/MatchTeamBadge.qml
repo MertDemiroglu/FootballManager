@@ -9,14 +9,17 @@ Item {
     property string secondaryColor: "#0f172a"
     property string textColor: "#f8fafc"
     property int badgeSize: 64
+    property var metrics: null
+    property real scaleFactor: metrics ? metrics.scale : 1.0
+    readonly property int scaledBadgeSize: Math.max(24, Math.round(badgeSize * scaleFactor))
 
     function initial(value) {
         const text = String(value || "").trim()
         return text.length > 0 ? text.charAt(0).toUpperCase() : "-"
     }
 
-    implicitWidth: badgeSize
-    implicitHeight: badgeSize
+    implicitWidth: scaledBadgeSize
+    implicitHeight: scaledBadgeSize
 
     Rectangle {
         anchors.fill: parent
@@ -47,7 +50,7 @@ Item {
             anchors.centerIn: parent
             text: root.initial(root.teamName)
             color: root.textColor || "#f8fafc"
-            font.pixelSize: Math.max(16, root.badgeSize * 0.32)
+            font.pixelSize: Math.max(12, Math.round(root.scaledBadgeSize * 0.32))
             font.bold: true
         }
     }
