@@ -12,7 +12,7 @@ Rectangle {
     property string warningLevel: "none"
     property int metricColumnWidth: 54
     property var metrics: null
-    readonly property real scaleFactor: metrics ? metrics.scale : 1.0
+    readonly property real scaleFactor: metrics ? metrics.visualScale : 1.0
 
     readonly property int slotIndex: typeof slotData.slotIndex === "number" ? slotData.slotIndex : -1
     readonly property bool hasPlayer: !!slotData.hasAssignedPlayer && !slotData.isEmpty
@@ -88,7 +88,7 @@ Rectangle {
         PositionBadge {
             text: root.slotData.slotLabel || root.slotData.slotRole || "?"
             roleKey: root.slotData.slotRoleKey || -1
-            implicitHeight: Math.round(22 * root.scaleFactor)
+            implicitHeight: Math.round(24 * root.scaleFactor)
             metrics: root.metrics
         }
 

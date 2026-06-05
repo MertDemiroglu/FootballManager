@@ -10,7 +10,7 @@ Item {
     property string textColor: "#f8fafc"
     property int badgeSize: 64
     property var metrics: null
-    property real scaleFactor: metrics ? metrics.scale : 1.0
+    property real scaleFactor: metrics ? metrics.visualScale : 1.0
     readonly property int scaledBadgeSize: Math.max(24, Math.round(badgeSize * scaleFactor))
 
     function initial(value) {

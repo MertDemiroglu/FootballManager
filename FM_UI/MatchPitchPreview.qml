@@ -12,7 +12,8 @@ Rectangle {
     property bool showMetrics: mode === "postMatch"
     property var metrics: null
     property real scaleFactor: metrics ? metrics.scale : 1.0
-    readonly property real pitchAspectRatio: 0.68
+    property bool preservePitchAspectRatio: false
+    property real pitchAspectRatio: 0.68
 
     color: "transparent"
     clip: true
@@ -59,13 +60,18 @@ Rectangle {
         return ""
     }
 
-    FootballPitchSurface {
-        id: pitchSurface
-        width: Math.min(root.width, root.height * root.pitchAspectRatio)
-        height: Math.min(root.height, root.width / root.pitchAspectRatio)
+    Item {
+        id: pitchBounds
+        width: root.preservePitchAspectRatio ? Math.min(root.width, root.height * root.pitchAspectRatio) : root.width
+        height: root.preservePitchAspectRatio ? Math.min(root.height, root.width / root.pitchAspectRatio) : root.height
         anchors.centerIn: parent
-        fieldMargin: 28
-        metrics: root.metrics
+
+        FootballPitchSurface {
+            id: pitchSurface
+            anchors.fill: parent
+            fieldMargin: 28
+            metrics: root.metrics
+        }
     }
 
     Item {
@@ -75,8 +81,8 @@ Rectangle {
         readonly property real tokenScale: root.metrics
                                            ? root.metrics.clamp(Math.min(width / 500, height / 620), 0.72, 1.04)
                                            : Math.max(0.72, Math.min(1.04, Math.min(width / 500, height / 620)))
-        x: pitchSurface.x + pitchSurface.fieldItem.x + insetX
-        y: pitchSurface.y + pitchSurface.fieldItem.y + insetY
+        x: pitchBounds.x + pitchSurface.fieldItem.x + insetX
+        y: pitchBounds.y + pitchSurface.fieldItem.y + insetY
         width: Math.max(1, pitchSurface.fieldItem.width - insetX * 2)
         height: Math.max(1, pitchSurface.fieldItem.height - insetY * 2)
 

@@ -10,6 +10,8 @@ QtObject {
     readonly property real baseHeight: 900
     readonly property real scale: clamp(Math.min(viewportWidth / baseWidth, viewportHeight / baseHeight), 0.78, 1.08)
     readonly property real fontScale: clamp(scale, 0.86, 1.08)
+    readonly property real downscale: clamp(scale, 0.78, 1.0)
+    readonly property real visualScale: dense ? downscale : 1.0
     readonly property bool compact: viewportWidth < 1400 || viewportHeight < 800
     readonly property bool narrow: viewportWidth < 1180
     readonly property bool wide: viewportWidth >= 1600

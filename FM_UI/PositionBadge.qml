@@ -8,7 +8,7 @@ Rectangle {
     property int roleKey: -1
     property int horizontalPadding: 9
     property var metrics: null
-    property real scaleFactor: metrics ? metrics.scale : 1.0
+    property real scaleFactor: metrics ? metrics.visualScale : 1.0
 
     function normalizedLabel() {
         return (root.text || "?").toUpperCase()

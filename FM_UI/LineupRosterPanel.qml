@@ -16,14 +16,45 @@ ColumnLayout {
     readonly property int metricColumnWidth: metrics ? metrics.px(metrics.dense ? 48 : 58) : 58
     readonly property int scrollbarGutter: metrics ? metrics.px(16) : 16
     readonly property int metricHeaderRightInset: metrics ? metrics.px(metrics.dense ? 18 : 30) : 30
+    readonly property int topCardMargin: metrics ? metrics.spacingMd : 14
+    readonly property var assignedPlayerIdMap: buildAssignedPlayerIdMap()
     readonly property var unassignedRosterRows: buildUnassignedRosterRows()
     readonly property var filteredRosterRows: buildFilteredRosterRows()
     readonly property bool isSquadDropHighlighted: squadDropArea.containsDrag
 
+    function normalizedPlayerId(value) {
+        const id = Number(value || 0)
+        return isNaN(id) ? 0 : id
+    }
+
+    function markAssignedPlayer(map, value) {
+        const playerId = normalizedPlayerId(value)
+        if (playerId > 0)
+            map[playerId] = true
+    }
+
+    function buildAssignedPlayerIdMap() {
+        const assigned = ({})
+        const slotRows = slotsModel && slotsModel.rows ? slotsModel.rows : []
+        for (let i = 0; i < slotRows.length; ++i)
+            markAssignedPlayer(assigned, slotRows[i].assignedPlayerId)
+
+        const substituteRows = substitutesModel && substitutesModel.rows ? substitutesModel.rows : []
+        for (let j = 0; j < substituteRows.length; ++j)
+            markAssignedPlayer(assigned, substituteRows[j].playerId)
+
+        return assigned
+    }
+
+    function isPlayerAssignedAnywhere(playerId) {
+        const id = normalizedPlayerId(playerId)
+        return id > 0 && assignedPlayerIdMap[id] === true
+    }
+
     function buildUnassignedRosterRows() {
         const rows = rosterModel && rosterModel.rows ? rosterModel.rows : []
         return rows.filter(function(row) {
-            return !row.isAssigned
+            return !root.isPlayerAssignedAnywhere(row.playerId)
         })
     }
 
@@ -58,7 +89,7 @@ ColumnLayout {
 
     Rectangle {
         Layout.fillWidth: true
-        Layout.preferredHeight: metrics ? Math.max(metrics.px(190), Math.min(metrics.px(metrics.dense ? 270 : 360), root.height * (metrics.dense ? 0.42 : 0.5))) : startingContent.implicitHeight + 28
+        Layout.preferredHeight: startingContent.implicitHeight + root.topCardMargin * 2
         radius: metrics ? metrics.radiusMd : 8
         color: "#0d1721"
         border.color: "#263847"
@@ -67,7 +98,7 @@ ColumnLayout {
         LineupStartingXISection {
             id: startingContent
             anchors.fill: parent
-            anchors.margins: root.metrics ? root.metrics.spacingMd : 14
+            anchors.margins: root.topCardMargin
             metrics: root.metrics
             slotsModel: root.slotsModel
             substitutesModel: root.substitutesModel

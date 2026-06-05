@@ -9,7 +9,7 @@ Rectangle {
     property bool compact: false
     property bool valueOnly: false
     property var metrics: null
-    property real scaleFactor: metrics ? metrics.scale : 1.0
+    property real scaleFactor: metrics ? metrics.visualScale : 1.0
 
     function conditionColor(score) {
         if (score === undefined || score === null || isNaN(score)) {

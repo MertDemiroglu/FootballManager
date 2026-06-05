@@ -9,7 +9,7 @@ Rectangle {
     property int selectedPlayerId: 0
     property int metricColumnWidth: 54
     property var metrics: null
-    readonly property real scaleFactor: metrics ? metrics.scale : 1.0
+    readonly property real scaleFactor: metrics ? metrics.visualScale : 1.0
     readonly property int playerId: rowData.playerId || 0
     readonly property bool isSelected: playerId > 0 && playerId === selectedPlayerId
     readonly property int sourceSlotIndex: rowData.isAssigned ? (rowData.assignedSlotIndex || -1) : -1

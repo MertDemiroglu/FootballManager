@@ -15,6 +15,7 @@ Item {
     property var metrics: null
     readonly property bool compactLayout: metrics ? metrics.compact : width < 1400
     readonly property bool stackLineups: metrics ? metrics.narrow : width < 1180
+    readonly property int heroToPitchGap: metrics ? metrics.px(metrics.dense ? 18 : 30) : 30
 
     signal backRequested()
     signal editLineupRequested()
@@ -215,6 +216,7 @@ Item {
                 Loader {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+                    Layout.topMargin: root.heroToPitchGap
                     sourceComponent: root.stackLineups ? stackedPitchPanels : sideBySidePitchPanels
                 }
 

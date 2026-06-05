@@ -5,7 +5,7 @@ Rectangle {
 
     property int fieldMargin: 16
     property var metrics: null
-    property real scaleFactor: metrics ? metrics.scale : 1.0
+    property real scaleFactor: metrics ? metrics.visualScale : 1.0
     property color pitchTopColor: "#0d5f37"
     property color pitchMidColor: "#073f28"
     property color pitchBottomColor: "#052c20"
