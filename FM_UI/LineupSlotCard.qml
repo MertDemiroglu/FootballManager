@@ -46,7 +46,9 @@ Rectangle {
         y: 0
 
         property string dragKind: "slot"
+        property string sourceKind: "startingXi"
         property int dragSourceSlotIndex: root.slotIndex
+        property int dragSourceSubstituteIndex: -1
         property int dragPlayerId: root.slotData.assignedPlayerId || 0
         property int dragAssignedPlayerId: root.slotData.assignedPlayerId || 0
 
@@ -73,6 +75,9 @@ Rectangle {
                 const sourceSlotIndex = source.dragSourceSlotIndex
                 if (sourceSlotIndex !== root.slotIndex)
                     root.slotDroppedOnSlot(sourceSlotIndex, root.slotIndex)
+                drop.acceptProposedAction()
+            } else if (source.dragKind === "substitute") {
+                root.playerDroppedOnSlot(source.dragPlayerId || 0, root.slotIndex)
                 drop.acceptProposedAction()
             }
         }

@@ -2130,6 +2130,90 @@ bool GameFacade::unassignEditableLineupPlayer(int playerId) {
     return true;
 }
 
+int GameFacade::getEditableLineupSubstituteCapacity() const {
+    return static_cast<int>(kMaxSubstituteCount);
+}
+
+bool GameFacade::assignEditableLineupPlayerToSubstitute(int playerId, int substituteIndex) {
+    if (!gameStarted || playerId <= 0 || substituteIndex < 0) {
+        return false;
+    }
+
+    EditableLineup* lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup && !ensureEditableLineupReady()) {
+        return false;
+    }
+    lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup) {
+        return false;
+    }
+
+    if (!lineup->assignPlayerToSubstitute(static_cast<PlayerId>(playerId),
+                                          static_cast<std::size_t>(substituteIndex))) {
+        return false;
+    }
+
+    if (!syncEditableLineupToSelectedTeamSheet(false)) {
+        return false;
+    }
+    refreshEditableLineupViews();
+    emit gameStateChanged();
+    return true;
+}
+
+bool GameFacade::clearEditableLineupSubstitute(int substituteIndex) {
+    if (!gameStarted || substituteIndex < 0) {
+        return false;
+    }
+
+    EditableLineup* lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup && !ensureEditableLineupReady()) {
+        return false;
+    }
+    lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup) {
+        return false;
+    }
+
+    if (!lineup->clearSubstitute(static_cast<std::size_t>(substituteIndex))) {
+        return false;
+    }
+
+    if (!syncEditableLineupToSelectedTeamSheet(false)) {
+        return false;
+    }
+    refreshEditableLineupViews();
+    emit gameStateChanged();
+    return true;
+}
+
+bool GameFacade::swapEditableLineupSubstitutes(int firstSubstituteIndex, int secondSubstituteIndex) {
+    if (!gameStarted || firstSubstituteIndex < 0 || secondSubstituteIndex < 0) {
+        return false;
+    }
+
+    EditableLineup* lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup && !ensureEditableLineupReady()) {
+        return false;
+    }
+    lineup = editableLineup.has_value() ? &editableLineup.value() : nullptr;
+    if (!lineup) {
+        return false;
+    }
+
+    if (!lineup->swapSubstitutes(static_cast<std::size_t>(firstSubstituteIndex),
+                                 static_cast<std::size_t>(secondSubstituteIndex))) {
+        return false;
+    }
+
+    if (!syncEditableLineupToSelectedTeamSheet(false)) {
+        return false;
+    }
+    refreshEditableLineupViews();
+    emit gameStateChanged();
+    return true;
+}
+
 bool GameFacade::applyEditableLineupToActivePreMatch() {
     if (!gameStarted) {
         return false;
@@ -2961,10 +3045,31 @@ void GameFacade::refreshEditableLineupSubstitutesModel() {
     }
 
     QVector<EditableLineupRosterModel::Row> rows;
-    rows.reserve(static_cast<qsizetype>(lineup->getSubstitutePlayerIds().size()));
-    for (PlayerId playerId : lineup->getSubstitutePlayerIds()) {
+    rows.reserve(static_cast<qsizetype>(kMaxSubstituteCount));
+    for (std::size_t substituteIndex = 0; substituteIndex < kMaxSubstituteCount; ++substituteIndex) {
+        const PlayerId playerId = substituteIndex < lineup->getSubstitutePlayerIds().size()
+            ? lineup->getSubstitutePlayerIds()[substituteIndex]
+            : 0;
+        if (playerId == 0) {
+            EditableLineupRosterModel::Row row;
+            row.positionShort = QStringLiteral("SUB");
+            row.isAssigned = true;
+            row.assignedSlotIndex = -1;
+            row.substituteIndex = static_cast<int>(substituteIndex);
+            row.hasPlayer = false;
+            rows.push_back(row);
+            continue;
+        }
+
         const Footballer* playerPtr = team->findPlayerById(playerId);
         if (!playerPtr) {
+            EditableLineupRosterModel::Row row;
+            row.positionShort = QStringLiteral("SUB");
+            row.isAssigned = true;
+            row.assignedSlotIndex = -1;
+            row.substituteIndex = static_cast<int>(substituteIndex);
+            row.hasPlayer = false;
+            rows.push_back(row);
             continue;
         }
 
@@ -2980,8 +3085,10 @@ void GameFacade::refreshEditableLineupSubstitutesModel() {
         row.form = condition.getForm();
         row.fitness = condition.getFitness();
         row.morale = condition.getMorale();
-        row.isAssigned = false;
+        row.isAssigned = true;
         row.assignedSlotIndex = -1;
+        row.substituteIndex = static_cast<int>(substituteIndex);
+        row.hasPlayer = true;
         rows.push_back(row);
     }
 
@@ -3108,7 +3215,11 @@ void GameFacade::syncEditableLineupDisplayToActivePreMatch() {
         }
     }
 
-    displaySheet.substitutePlayerIds = editableLineup->getSubstitutePlayerIds();
+    for (PlayerId playerId : editableLineup->getSubstitutePlayerIds()) {
+        if (playerId != 0) {
+            displaySheet.substitutePlayerIds.push_back(playerId);
+        }
+    }
     displaySheet.teamId = managedTeamId;
     currentGame->replaceActivePreMatchDisplayTeamSheetForTeam(managedTeamId, displaySheet);
 }

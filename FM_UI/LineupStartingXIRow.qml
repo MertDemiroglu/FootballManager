@@ -12,6 +12,9 @@ Rectangle {
     property string warningLevel: "none"
     property int metricColumnWidth: 54
     property var metrics: null
+    property string slotKind: "startingXi"
+    property int sourceSubstituteIndex: -1
+    property bool dropEnabled: true
     readonly property real scaleFactor: metrics ? metrics.visualScale : 1.0
 
     readonly property int slotIndex: typeof slotData.slotIndex === "number" ? slotData.slotIndex : -1
@@ -26,6 +29,7 @@ Rectangle {
     signal clicked(int slotIndex)
     signal playerDroppedOnSlot(int playerId, int slotIndex)
     signal slotDroppedOnSlot(int sourceSlotIndex, int targetSlotIndex)
+    signal substituteDroppedOnSlot(int playerId, int sourceSubstituteIndex, int targetSlotIndex)
 
     function numberOnly(summary, fallbackValue) {
         const text = summary ? String(summary) : String(fallbackValue || "-")
@@ -46,8 +50,10 @@ Rectangle {
         x: 0
         y: 0
 
-        property string dragKind: "slot"
+        property string dragKind: root.slotKind === "substitute" ? "substitute" : "slot"
+        property string sourceKind: root.slotKind
         property int dragSourceSlotIndex: root.slotIndex
+        property int dragSourceSubstituteIndex: root.sourceSubstituteIndex
         property int dragPlayerId: root.slotData.assignedPlayerId || 0
         property int dragAssignedPlayerId: root.slotData.assignedPlayerId || 0
 
@@ -61,6 +67,7 @@ Rectangle {
         id: slotDropArea
         anchors.fill: parent
         keys: [ "lineup-player", "lineup-slot" ]
+        enabled: root.dropEnabled
 
         onDropped: function(drop) {
             const source = drop.source
@@ -74,6 +81,11 @@ Rectangle {
                 const sourceSlotIndex = source.dragSourceSlotIndex
                 if (sourceSlotIndex !== root.slotIndex)
                     root.slotDroppedOnSlot(sourceSlotIndex, root.slotIndex)
+                drop.acceptProposedAction()
+            } else if (source.dragKind === "substitute") {
+                const sourceSubstituteIndex = source.dragSourceSubstituteIndex
+                if (sourceSubstituteIndex !== root.sourceSubstituteIndex)
+                    root.substituteDroppedOnSlot(source.dragPlayerId || 0, sourceSubstituteIndex, root.slotIndex)
                 drop.acceptProposedAction()
             }
         }
@@ -125,6 +137,7 @@ Rectangle {
             value: root.hasPlayer ? (root.slotData.assignedPlayerForm || 0) : 0
             compact: true
             valueOnly: true
+            inactive: !root.hasPlayer
             Layout.preferredWidth: root.metricColumnWidth
             metrics: root.metrics
         }
@@ -134,6 +147,7 @@ Rectangle {
             value: root.hasPlayer ? (root.slotData.assignedPlayerFitness || 0) : 0
             compact: true
             valueOnly: true
+            inactive: !root.hasPlayer
             Layout.preferredWidth: root.metricColumnWidth
             metrics: root.metrics
         }
@@ -143,6 +157,7 @@ Rectangle {
             value: root.hasPlayer ? (root.slotData.assignedPlayerMorale || 0) : 0
             compact: true
             valueOnly: true
+            inactive: !root.hasPlayer
             Layout.preferredWidth: root.metricColumnWidth
             metrics: root.metrics
         }

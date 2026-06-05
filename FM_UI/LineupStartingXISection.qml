@@ -12,13 +12,16 @@ ColumnLayout {
     property int metricColumnWidth: 58
     property string lineupPanelMode: "StartingXI"
     property var metrics: null
+    property int substituteSlotCapacity: 11
+    property int substituteDropCapacity: 10
     readonly property var orderedSlotRows: orderedSlots()
     readonly property var substituteRows: substitutesModel && substitutesModel.rows ? substitutesModel.rows : []
+    readonly property var substituteSlotRows: buildSubstituteSlotRows()
     readonly property int rowHeight: metrics ? Math.round((metrics.dense ? 32 : 42) * metrics.visualScale) : 42
     readonly property int rowSpacing: 2
     readonly property int tabHeaderHeight: metrics ? Math.round((metrics.dense ? 30 : 32) * metrics.visualScale) : 32
     readonly property int tableInnerMargin: metrics ? metrics.spacingSm : 8
-    readonly property int tableRowCapacity: Math.max(orderedSlotRows.length, substituteRows.length, 11)
+    readonly property int tableRowCapacity: Math.max(orderedSlotRows.length, substituteSlotCapacity, 11)
     readonly property int rowsHeight: tableRowCapacity * rowHeight
                                       + Math.max(0, tableRowCapacity - 1) * rowSpacing
 
@@ -27,6 +30,10 @@ ColumnLayout {
     signal slotClicked(int slotIndex)
     signal playerDroppedOnSlot(int playerId, int slotIndex)
     signal slotDroppedOnSlot(int sourceSlotIndex, int targetSlotIndex)
+    signal playerDroppedOnSubstitute(int playerId, int substituteIndex)
+    signal slotDroppedOnSubstitute(int sourceSlotIndex, int targetSubstituteIndex)
+    signal substituteDroppedOnSubstitute(int sourceSubstituteIndex, int targetSubstituteIndex)
+    signal substituteDroppedOnSlot(int playerId, int sourceSubstituteIndex, int targetSlotIndex)
 
     function orderedSlots() {
         const rows = slotsModel && slotsModel.rows ? slotsModel.rows.slice() : []
@@ -37,6 +44,43 @@ ColumnLayout {
                 return leftOrder - rightOrder
             return (lhs.slotIndex || 0) - (rhs.slotIndex || 0)
         })
+        return rows
+    }
+
+    function normalizedPlayerId(value) {
+        const id = Number(value || 0)
+        return isNaN(id) ? 0 : id
+    }
+
+    function substituteSlotRow(row, index) {
+        const playerId = row ? normalizedPlayerId(row.playerId) : 0
+        const hasPlayer = playerId > 0 && (!row || row.hasPlayer !== false)
+        return {
+            slotIndex: index,
+            substituteIndex: index,
+            slotRole: "SUB",
+            slotRoleKey: -1,
+            slotRoleText: "SUB",
+            slotLabel: "SUB",
+            isEmpty: !hasPlayer,
+            hasAssignedPlayer: hasPlayer,
+            assignedPlayerId: hasPlayer ? playerId : 0,
+            assignedPlayerName: hasPlayer ? (row.name || "Unknown") : "",
+            assignedPlayerOverall: hasPlayer ? (row.overall || 0) : 0,
+            assignedPlayerOverallSummary: hasPlayer ? (row.overallSummary || "") : "",
+            assignedPlayerForm: hasPlayer ? (row.form || 0) : 0,
+            assignedPlayerFitness: hasPlayer ? (row.fitness || 0) : 0,
+            assignedPlayerMorale: hasPlayer ? (row.morale || 0) : 0,
+            dropEnabled: index < root.substituteDropCapacity
+        }
+    }
+
+    function buildSubstituteSlotRows() {
+        const rows = []
+        const fixedCount = Math.max(root.substituteSlotCapacity, 11)
+        for (let i = 0; i < fixedCount; ++i) {
+            rows.push(substituteSlotRow(i < root.substituteRows.length ? root.substituteRows[i] : null, i))
+        }
         return rows
     }
 
@@ -129,19 +173,35 @@ ColumnLayout {
                     onSlotDroppedOnSlot: function(sourceSlotIndex, targetSlotIndex) {
                         root.slotDroppedOnSlot(sourceSlotIndex, targetSlotIndex)
                     }
+                    onSubstituteDroppedOnSlot: function(playerId, sourceSubstituteIndex, targetSlotIndex) {
+                        root.substituteDroppedOnSlot(playerId, sourceSubstituteIndex, targetSlotIndex)
+                    }
                 }
             }
 
             Repeater {
-                model: root.lineupPanelMode === "Substitutes" ? root.substituteRows : []
+                model: root.lineupPanelMode === "Substitutes" ? root.substituteSlotRows : []
 
-                delegate: LineupRosterRow {
+                delegate: LineupStartingXIRow {
                     Layout.fillWidth: true
                     Layout.preferredHeight: root.rowHeight
-                    selectedPlayerId: 0
-                    rowData: modelData
+                    slotData: modelData
+                    slotKind: "substitute"
+                    sourceSubstituteIndex: modelData.substituteIndex
+                    dropEnabled: modelData.dropEnabled
+                    selectedSlotIndex: -1
+                    selectedSourceSlotIndex: -1
                     metricColumnWidth: root.metricColumnWidth
                     metrics: root.metrics
+                    onPlayerDroppedOnSlot: function(playerId, substituteIndex) {
+                        root.playerDroppedOnSubstitute(playerId, substituteIndex)
+                    }
+                    onSlotDroppedOnSlot: function(sourceSlotIndex, targetSubstituteIndex) {
+                        root.slotDroppedOnSubstitute(sourceSlotIndex, targetSubstituteIndex)
+                    }
+                    onSubstituteDroppedOnSlot: function(playerId, sourceSubstituteIndex, targetSubstituteIndex) {
+                        root.substituteDroppedOnSubstitute(sourceSubstituteIndex, targetSubstituteIndex)
+                    }
                 }
             }
         }

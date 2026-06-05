@@ -14,6 +14,8 @@ Item {
     readonly property var slotsModel: gameFacade.editableLineupSlotsModel
     readonly property var rosterModel: gameFacade.editableLineupRosterModel
     readonly property var substitutesModel: gameFacade.editableLineupSubstitutesModel
+    readonly property int substituteDropCapacity: gameFacade ? gameFacade.getEditableLineupSubstituteCapacity() : 10
+    readonly property int substituteSlotCapacity: Math.max(11, substituteDropCapacity)
     readonly property bool hasValidLineupData: lineupState
         && lineupState.hasLineup
         && slotsModel
@@ -318,6 +320,67 @@ Item {
         } else {
             actionStatusText = "Drop unassign failed."
         }
+    }
+
+    function handleSubstituteDroppedOnSquad(playerId, sourceSubstituteIndex) {
+        if (!gameFacade || playerId <= 0 || sourceSubstituteIndex < 0)
+            return
+
+        const ok = gameFacade.clearEditableLineupSubstitute(sourceSubstituteIndex)
+        if (ok) {
+            if (selectedPlayerId === playerId)
+                selectedPlayerId = 0
+            actionStatusText = "Substitute moved back to squad."
+        } else {
+            actionStatusText = "Substitute move failed."
+        }
+    }
+
+    function handlePlayerDroppedOnSubstitute(playerId, targetSubstituteIndex) {
+        if (!gameFacade || playerId <= 0 || targetSubstituteIndex < 0)
+            return
+
+        const ok = gameFacade.assignEditableLineupPlayerToSubstitute(playerId, targetSubstituteIndex)
+        if (ok) {
+            selectedPlayerId = 0
+            selectedSourceSlotIndex = -1
+            actionStatusText = "Dropped player into substitutes."
+        } else {
+            actionStatusText = "Substitute assign failed."
+        }
+    }
+
+    function handleSlotDroppedOnSubstitute(sourceSlotIndex, targetSubstituteIndex) {
+        if (!gameFacade || sourceSlotIndex < 0 || targetSubstituteIndex < 0)
+            return
+
+        const row = slotRowFor(sourceSlotIndex)
+        if (!row || !row.hasAssignedPlayer || (row.assignedPlayerId || 0) <= 0) {
+            actionStatusText = "Substitute assign failed."
+            return
+        }
+
+        const ok = gameFacade.assignEditableLineupPlayerToSubstitute(row.assignedPlayerId, targetSubstituteIndex)
+        if (ok) {
+            selectedSourceSlotIndex = -1
+            selectedSlotIndex = -1
+            selectedPlayerId = 0
+            actionStatusText = "Moved slot player to substitutes."
+        } else {
+            actionStatusText = "Substitute assign failed."
+        }
+    }
+
+    function handleSubstituteDroppedOnSubstitute(sourceSubstituteIndex, targetSubstituteIndex) {
+        if (!gameFacade || sourceSubstituteIndex < 0 || targetSubstituteIndex < 0)
+            return
+        if (sourceSubstituteIndex === targetSubstituteIndex) {
+            actionStatusText = ""
+            return
+        }
+
+        const ok = gameFacade.swapEditableLineupSubstitutes(sourceSubstituteIndex, targetSubstituteIndex)
+        actionStatusText = ok ? "Swapped substitutes." : "Substitute swap failed."
     }
 
     function assignedSummaryText() {
@@ -733,6 +796,8 @@ Item {
                 selectedSlotIndex: root.selectedSlotIndex
                 selectedSourceSlotIndex: root.selectedSourceSlotIndex
                 selectedPlayerId: root.selectedPlayerId
+                substituteSlotCapacity: root.substituteSlotCapacity
+                substituteDropCapacity: root.substituteDropCapacity
                 metrics: root.metrics
                 onSlotClicked: function(slotIndex) {
                     root.selectSlot(slotIndex)
@@ -748,6 +813,18 @@ Item {
                 }
                 onPlayerDroppedOnSquad: function(playerId, sourceSlotIndex) {
                     root.handlePlayerDroppedOnSquad(playerId, sourceSlotIndex)
+                }
+                onSubstituteDroppedOnSquad: function(playerId, sourceSubstituteIndex) {
+                    root.handleSubstituteDroppedOnSquad(playerId, sourceSubstituteIndex)
+                }
+                onPlayerDroppedOnSubstitute: function(playerId, substituteIndex) {
+                    root.handlePlayerDroppedOnSubstitute(playerId, substituteIndex)
+                }
+                onSlotDroppedOnSubstitute: function(sourceSlotIndex, targetSubstituteIndex) {
+                    root.handleSlotDroppedOnSubstitute(sourceSlotIndex, targetSubstituteIndex)
+                }
+                onSubstituteDroppedOnSubstitute: function(sourceSubstituteIndex, targetSubstituteIndex) {
+                    root.handleSubstituteDroppedOnSubstitute(sourceSubstituteIndex, targetSubstituteIndex)
                 }
             }
         }

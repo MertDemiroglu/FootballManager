@@ -43,6 +43,9 @@ public:
     bool swapSlots(std::size_t firstSlotIndex, std::size_t secondSlotIndex);
     bool clearSlot(std::size_t slotIndex);
     bool unassignPlayer(PlayerId playerId);
+    bool assignPlayerToSubstitute(PlayerId playerId, std::size_t substituteIndex);
+    bool clearSubstitute(std::size_t substituteIndex);
+    bool swapSubstitutes(std::size_t firstSubstituteIndex, std::size_t secondSubstituteIndex);
     void setSubstitutePlayerIds(std::vector<PlayerId> playerIds);
     void setTacticalSetup(TacticalSetup newTacticalSetup);
     void applyTeamSheet(const TeamSheet& teamSheet);
@@ -63,4 +66,5 @@ private:
     void cacheRosterPlayerIds(const Team& team);
     bool isPlayerInRoster(PlayerId playerId) const;
     void removeSubstitutePlayer(PlayerId playerId);
+    void ensureSubstituteSlot(std::size_t substituteIndex);
 };

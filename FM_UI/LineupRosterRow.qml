@@ -9,6 +9,7 @@ Rectangle {
     property int selectedPlayerId: 0
     property int metricColumnWidth: 54
     property var metrics: null
+    property string sourceKind: "squad"
     readonly property real scaleFactor: metrics ? metrics.visualScale : 1.0
     readonly property int playerId: rowData.playerId || 0
     readonly property bool isSelected: playerId > 0 && playerId === selectedPlayerId
@@ -38,6 +39,7 @@ Rectangle {
         y: 0
 
         property string dragKind: "player"
+        property string sourceKind: root.sourceKind
         property int dragPlayerId: root.playerId
         property int dragSourceSlotIndex: root.sourceSlotIndex
         property int dragAssignedPlayerId: root.playerId

@@ -13,6 +13,8 @@ ColumnLayout {
     property int selectedPlayerId: 0
     property string squadFilter: "All"
     property var metrics: null
+    property int substituteSlotCapacity: 11
+    property int substituteDropCapacity: 10
     readonly property int metricColumnWidth: metrics ? metrics.px(metrics.dense ? 48 : 58) : 58
     readonly property int scrollbarGutter: metrics ? metrics.px(16) : 16
     readonly property int metricHeaderRightInset: metrics ? metrics.px(metrics.dense ? 18 : 30) : 30
@@ -84,6 +86,10 @@ ColumnLayout {
     signal playerDroppedOnSlot(int playerId, int slotIndex)
     signal slotDroppedOnSlot(int sourceSlotIndex, int targetSlotIndex)
     signal playerDroppedOnSquad(int playerId, int sourceSlotIndex)
+    signal substituteDroppedOnSquad(int playerId, int sourceSubstituteIndex)
+    signal playerDroppedOnSubstitute(int playerId, int substituteIndex)
+    signal slotDroppedOnSubstitute(int sourceSlotIndex, int targetSubstituteIndex)
+    signal substituteDroppedOnSubstitute(int sourceSubstituteIndex, int targetSubstituteIndex)
 
     spacing: metrics ? metrics.spacingSm : 8
 
@@ -102,6 +108,8 @@ ColumnLayout {
             metrics: root.metrics
             slotsModel: root.slotsModel
             substitutesModel: root.substitutesModel
+            substituteSlotCapacity: root.substituteSlotCapacity
+            substituteDropCapacity: root.substituteDropCapacity
             selectedSlotIndex: root.selectedSlotIndex
             selectedSourceSlotIndex: root.selectedSourceSlotIndex
             metricColumnWidth: root.metricColumnWidth
@@ -113,6 +121,18 @@ ColumnLayout {
             }
             onSlotDroppedOnSlot: function(sourceSlotIndex, targetSlotIndex) {
                 root.slotDroppedOnSlot(sourceSlotIndex, targetSlotIndex)
+            }
+            onPlayerDroppedOnSubstitute: function(playerId, substituteIndex) {
+                root.playerDroppedOnSubstitute(playerId, substituteIndex)
+            }
+            onSlotDroppedOnSubstitute: function(sourceSlotIndex, targetSubstituteIndex) {
+                root.slotDroppedOnSubstitute(sourceSlotIndex, targetSubstituteIndex)
+            }
+            onSubstituteDroppedOnSubstitute: function(sourceSubstituteIndex, targetSubstituteIndex) {
+                root.substituteDroppedOnSubstitute(sourceSubstituteIndex, targetSubstituteIndex)
+            }
+            onSubstituteDroppedOnSlot: function(playerId, sourceSubstituteIndex, targetSlotIndex) {
+                root.playerDroppedOnSlot(playerId, targetSlotIndex)
             }
         }
     }
@@ -237,6 +257,9 @@ ColumnLayout {
                             drop.acceptProposedAction()
                         } else if (source.dragKind === "player" && source.dragPlayerId > 0 && source.dragSourceSlotIndex >= 0) {
                             root.playerDroppedOnSquad(source.dragPlayerId, source.dragSourceSlotIndex)
+                            drop.acceptProposedAction()
+                        } else if (source.dragKind === "substitute" && source.dragPlayerId > 0 && source.dragSourceSubstituteIndex >= 0) {
+                            root.substituteDroppedOnSquad(source.dragPlayerId, source.dragSourceSubstituteIndex)
                             drop.acceptProposedAction()
                         }
                     }

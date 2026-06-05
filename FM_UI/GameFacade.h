@@ -158,6 +158,10 @@ public:
     Q_INVOKABLE bool swapEditableLineupSlots(int firstSlotIndex, int secondSlotIndex);
     Q_INVOKABLE bool clearEditableLineupSlot(int slotIndex);
     Q_INVOKABLE bool unassignEditableLineupPlayer(int playerId);
+    Q_INVOKABLE int getEditableLineupSubstituteCapacity() const;
+    Q_INVOKABLE bool assignEditableLineupPlayerToSubstitute(int playerId, int substituteIndex);
+    Q_INVOKABLE bool clearEditableLineupSubstitute(int substituteIndex);
+    Q_INVOKABLE bool swapEditableLineupSubstitutes(int firstSubstituteIndex, int secondSubstituteIndex);
     Q_INVOKABLE bool applyEditableLineupToActivePreMatch();
 
     Q_INVOKABLE QVariantMap getPlayerDetails(int playerId) const;

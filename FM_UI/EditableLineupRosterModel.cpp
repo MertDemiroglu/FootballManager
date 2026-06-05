@@ -44,6 +44,10 @@ QVariant EditableLineupRosterModel::data(const QModelIndex& index, int role) con
         return row.isAssigned;
     case AssignedSlotIndexRole:
         return row.assignedSlotIndex;
+    case SubstituteIndexRole:
+        return row.substituteIndex;
+    case HasPlayerRole:
+        return row.hasPlayer;
     default:
         return {};
     }
@@ -61,6 +65,8 @@ QHash<int, QByteArray> EditableLineupRosterModel::roleNames() const {
         { MoraleRole, "morale" },
         { IsAssignedRole, "isAssigned" },
         { AssignedSlotIndexRole, "assignedSlotIndex" },
+        { SubstituteIndexRole, "substituteIndex" },
+        { HasPlayerRole, "hasPlayer" },
     };
 }
 
@@ -96,5 +102,7 @@ QVariantMap EditableLineupRosterModel::toVariantMap(const Row& row) const {
     map.insert(QStringLiteral("morale"), row.morale);
     map.insert(QStringLiteral("isAssigned"), row.isAssigned);
     map.insert(QStringLiteral("assignedSlotIndex"), row.assignedSlotIndex);
+    map.insert(QStringLiteral("substituteIndex"), row.substituteIndex);
+    map.insert(QStringLiteral("hasPlayer"), row.hasPlayer);
     return map;
 }
