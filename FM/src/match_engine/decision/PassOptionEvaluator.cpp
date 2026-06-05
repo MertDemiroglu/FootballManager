@@ -182,149 +182,6 @@ namespace {
             || role == FormationSlotRole::RightWinger;
     }
 
-    RoleRiskProfile roleRiskProfile(FormationSlotRole role) {
-        RoleRiskProfile profile;
-        switch (role) {
-        case FormationSlotRole::Goalkeeper:
-            profile.safeOptionBias = 1.45;
-            profile.progressiveOptionBias = 0.45;
-            profile.directOptionBias = 0.62;
-            profile.wideOptionBias = 0.70;
-            profile.crossOptionBias = 0.05;
-            profile.throughBallBias = 0.05;
-            profile.riskTolerance = 0.58;
-            break;
-        case FormationSlotRole::CenterBack:
-            profile.safeOptionBias = 1.34;
-            profile.progressiveOptionBias = 0.68;
-            profile.directOptionBias = 0.70;
-            profile.wideOptionBias = 0.86;
-            profile.crossOptionBias = 0.10;
-            profile.throughBallBias = 0.20;
-            profile.riskTolerance = 0.66;
-            break;
-        case FormationSlotRole::LeftBack:
-        case FormationSlotRole::RightBack:
-        case FormationSlotRole::LeftWingBack:
-        case FormationSlotRole::RightWingBack:
-            profile.safeOptionBias = 1.14;
-            profile.progressiveOptionBias = 1.00;
-            profile.directOptionBias = 0.92;
-            profile.wideOptionBias = 1.25;
-            profile.crossOptionBias = 1.18;
-            profile.throughBallBias = 0.55;
-            profile.riskTolerance = 0.84;
-            break;
-        case FormationSlotRole::DefensiveMidfielder:
-            profile.safeOptionBias = 1.22;
-            profile.progressiveOptionBias = 0.96;
-            profile.directOptionBias = 0.86;
-            profile.wideOptionBias = 0.96;
-            profile.crossOptionBias = 0.30;
-            profile.throughBallBias = 0.60;
-            profile.riskTolerance = 0.82;
-            break;
-        case FormationSlotRole::CentralMidfielder:
-        case FormationSlotRole::LeftMidfielder:
-        case FormationSlotRole::RightMidfielder:
-            profile.safeOptionBias = 1.05;
-            profile.progressiveOptionBias = 1.10;
-            profile.directOptionBias = 1.00;
-            profile.wideOptionBias = 1.08;
-            profile.crossOptionBias = isFullbackOrWideRole(role) ? 1.05 : 0.55;
-            profile.throughBallBias = 0.85;
-            profile.riskTolerance = 0.98;
-            break;
-        case FormationSlotRole::AttackingMidfielder:
-            profile.safeOptionBias = 0.88;
-            profile.progressiveOptionBias = 1.25;
-            profile.directOptionBias = 1.18;
-            profile.wideOptionBias = 0.95;
-            profile.crossOptionBias = 0.82;
-            profile.throughBallBias = 1.24;
-            profile.riskTolerance = 1.18;
-            break;
-        case FormationSlotRole::LeftWinger:
-        case FormationSlotRole::RightWinger:
-            profile.safeOptionBias = 0.88;
-            profile.progressiveOptionBias = 1.12;
-            profile.directOptionBias = 1.00;
-            profile.wideOptionBias = 1.24;
-            profile.crossOptionBias = 1.32;
-            profile.throughBallBias = 0.76;
-            profile.riskTolerance = 1.08;
-            break;
-        case FormationSlotRole::Striker:
-            profile.safeOptionBias = 0.96;
-            profile.progressiveOptionBias = 0.86;
-            profile.directOptionBias = 0.80;
-            profile.wideOptionBias = 0.72;
-            profile.crossOptionBias = 0.45;
-            profile.throughBallBias = 0.55;
-            profile.riskTolerance = 0.92;
-            break;
-        case FormationSlotRole::Unknown:
-            break;
-        }
-
-        return profile;
-    }
-
-    TacticalBiasProfile tacticalBiasProfile(const TacticalSetup& tactics) {
-        TacticalBiasProfile profile;
-        if (tactics.mentality == TeamMentality::Defensive) {
-            profile.safeCirculationBias += 0.22;
-            profile.possessionBias += 0.08;
-            profile.verticalityBias -= 0.14;
-            profile.directPassingBias -= 0.08;
-            profile.riskTolerance -= 0.14;
-        } else if (tactics.mentality == TeamMentality::Attacking) {
-            profile.safeCirculationBias -= 0.08;
-            profile.verticalityBias += 0.20;
-            profile.directPassingBias += 0.14;
-            profile.riskTolerance += 0.16;
-        }
-
-        if (tactics.tempo == TeamTempo::Low) {
-            profile.safeCirculationBias += 0.16;
-            profile.possessionBias += 0.12;
-            profile.verticalityBias -= 0.10;
-            profile.riskTolerance -= 0.06;
-        } else if (tactics.tempo == TeamTempo::High) {
-            profile.safeCirculationBias -= 0.08;
-            profile.verticalityBias += 0.16;
-            profile.directPassingBias += 0.12;
-            profile.riskTolerance += 0.10;
-        }
-
-        if (tactics.passingDirectness == PassingDirectness::Short) {
-            profile.safeCirculationBias += 0.22;
-            profile.possessionBias += 0.15;
-            profile.verticalityBias -= 0.12;
-            profile.directPassingBias -= 0.18;
-        } else if (tactics.passingDirectness == PassingDirectness::Direct) {
-            profile.safeCirculationBias -= 0.14;
-            profile.verticalityBias += 0.24;
-            profile.directPassingBias += 0.24;
-            profile.riskTolerance += 0.12;
-        }
-
-        if (tactics.width == TeamWidth::Wide) {
-            profile.widthBias += 0.22;
-        } else if (tactics.width == TeamWidth::Narrow) {
-            profile.widthBias -= 0.16;
-            profile.possessionBias += 0.05;
-        }
-
-        profile.safeCirculationBias = std::clamp(profile.safeCirculationBias, 0.65, 1.45);
-        profile.possessionBias = std::clamp(profile.possessionBias, 0.70, 1.35);
-        profile.verticalityBias = std::clamp(profile.verticalityBias, 0.65, 1.45);
-        profile.directPassingBias = std::clamp(profile.directPassingBias, 0.65, 1.45);
-        profile.widthBias = std::clamp(profile.widthBias, 0.65, 1.45);
-        profile.riskTolerance = std::clamp(profile.riskTolerance, 0.70, 1.35);
-        return profile;
-    }
-
     double receiverPressure(
         PitchPoint receiverPosition,
         const TeamSimState* opponentState) {
@@ -415,19 +272,24 @@ namespace {
         return std::clamp(difficulty, 0.0, 100.0);
     }
 
-    double receiverRoleProgressionBonus(FormationSlotRole role, PassOptionKind kind) {
+    double receiverRoleProgressionBonus(
+        FormationSlotRole role,
+        PassOptionKind kind,
+        const PassDecisionTuning& tuning) {
         if (kind == PassOptionKind::SafePass || kind == PassOptionKind::BackPass) {
             return role == FormationSlotRole::DefensiveMidfielder
-                || role == FormationSlotRole::CentralMidfielder ? 3.0 : 0.0;
+                || role == FormationSlotRole::CentralMidfielder ? tuning.midfieldReceiverSafeProgressionBonus : 0.0;
         }
         if (role == FormationSlotRole::AttackingMidfielder
             || role == FormationSlotRole::LeftWinger
             || role == FormationSlotRole::RightWinger
             || role == FormationSlotRole::Striker) {
-            return kind == PassOptionKind::ThroughBall ? 8.0 : 5.0;
+            return kind == PassOptionKind::ThroughBall
+                ? tuning.attackingReceiverThroughBallBonus
+                : tuning.attackingReceiverProgressionBonus;
         }
         if (isFullbackOrWideRole(role) && kind == PassOptionKind::SwitchPlay) {
-            return 6.0;
+            return tuning.wideSwitchReceiverBonus;
         }
         return 0.0;
     }
@@ -472,29 +334,25 @@ namespace {
         return 1.0;
     }
 
-    PassDecisionTuning passTuning() {
-        return PassDecisionTuning{};
-    }
-
     double baselineFor(const PassDecisionTuning& tuning, PassOptionKind kind) {
         switch (kind) {
         case PassOptionKind::SafePass:
-            return 33.0 * tuning.safePassBaseline;
+            return tuning.safePassBaseScore;
         case PassOptionKind::BackPass:
-            return 32.0 * tuning.backPassBaseline;
+            return tuning.backPassBaseScore;
         case PassOptionKind::ProgressivePass:
-            return 28.0 * tuning.progressivePassBaseline;
+            return tuning.progressivePassBaseScore;
         case PassOptionKind::SwitchPlay:
-            return 25.0 * tuning.switchPlayBaseline;
+            return tuning.switchPlayBaseScore;
         case PassOptionKind::ThroughBall:
-            return 22.0 * tuning.throughBallBaseline;
+            return tuning.throughBallBaseScore;
         case PassOptionKind::Cross:
-            return 24.0 * tuning.crossBaseline;
+            return tuning.crossBaseScore;
         case PassOptionKind::Cutback:
-            return 24.0 * tuning.cutbackBaseline;
+            return tuning.cutbackBaseScore;
         }
 
-        return 24.0;
+        return tuning.fallbackBaseScore;
     }
 
     BallCarrierActionType actionTypeFor(PassOptionKind kind) {
@@ -533,63 +391,79 @@ namespace {
         const double skill = executionSkill(passerAttributes, kind);
         const double difficulty =
             executionDifficulty(distance, lane, pressure, context.carrierPressure, kind, skill);
-        const double riskTolerance = std::clamp(role.riskTolerance * tactics.riskTolerance, 0.55, 1.55);
+        const double riskTolerance = std::clamp(
+            role.riskTolerance * tactics.riskTolerance,
+            tuning.riskToleranceMinimum,
+            tuning.riskToleranceMaximum);
         const double safety = clampScore(
-            95.0
-                - lane * tuning.laneRiskPenaltyScale * 0.78 / riskTolerance
-                - pressure * tuning.receiverPressurePenaltyScale * 0.48 / riskTolerance
-                - difficulty * 0.50
-                - context.carrierPressure * 0.18);
+            tuning.baseSafetyValue
+                - lane * tuning.laneRiskPenaltyScale * tuning.laneRiskToSafetyPenalty / riskTolerance
+                - pressure * tuning.receiverPressurePenaltyScale * tuning.receiverPressureToSafetyPenalty
+                    / riskTolerance
+                - difficulty * tuning.difficultyToSafetyPenalty
+                - context.carrierPressure * tuning.carrierPressureToSafetyPenalty);
 
         const double forward = std::max(0.0, forwardMeters(
             context.ballPosition,
             receiver.position,
             context.attackingDirection));
-        double progression = std::min(38.0, forward * 1.35)
-            + (isFinalThird(receiver.position, context.attackingDirection) ? 8.0 : 0.0)
-            + receiverRoleProgressionBonus(receiverRole, kind);
+        double progression = std::min(tuning.progressionForwardCap, forward * tuning.progressionForwardMultiplier)
+            + (isFinalThird(receiver.position, context.attackingDirection)
+                ? tuning.finalThirdProgressionBonus
+                : 0.0)
+            + receiverRoleProgressionBonus(receiverRole, kind, tuning);
         if (kind == PassOptionKind::SwitchPlay) {
-            progression += 7.0;
+            progression += tuning.switchPlayProgressionBonus;
         } else if (kind == PassOptionKind::ThroughBall) {
-            progression += 13.0;
+            progression += tuning.throughBallProgressionBonus;
         } else if (kind == PassOptionKind::Cross || kind == PassOptionKind::Cutback) {
-            progression += 10.0;
+            progression += tuning.crossOrCutbackProgressionBonus;
         } else if (kind == PassOptionKind::BackPass) {
-            progression *= 0.18;
+            progression *= tuning.backPassProgressionMultiplier;
         }
         progression = clampScore(progression);
 
         double score = baselineFor(tuning, kind)
-            + safety * (kind == PassOptionKind::SafePass || kind == PassOptionKind::BackPass ? 0.34 : 0.20)
-            + progression * (kind == PassOptionKind::SafePass || kind == PassOptionKind::BackPass ? 0.10 : 0.33)
-            + passingSkill(passerAttributes) * 0.10
-            - difficulty * 0.12;
+            + safety * (kind == PassOptionKind::SafePass || kind == PassOptionKind::BackPass
+                ? tuning.safePassSafetyContribution
+                : tuning.riskyPassSafetyContribution)
+            + progression * (kind == PassOptionKind::SafePass || kind == PassOptionKind::BackPass
+                ? tuning.safePassProgressionContribution
+                : tuning.riskyPassProgressionContribution)
+            + passingSkill(passerAttributes) * tuning.passingSkillContribution
+            - difficulty * tuning.difficultyPenalty;
 
-        if (kind == PassOptionKind::SafePass && distance <= 15.0) {
-            score += 5.0;
+        if (kind == PassOptionKind::SafePass && distance <= tuning.shortSafePassDistance) {
+            score += tuning.shortSafePassBonus;
         }
         if (isFinalThird(context.ballPosition, context.attackingDirection)
             && (kind == PassOptionKind::SafePass || kind == PassOptionKind::ProgressivePass)) {
-            score += 9.0;
+            score += tuning.finalThirdSimplePassBonus;
         }
         if (kind == PassOptionKind::BackPass && isDefenderRole(context.carrierRole)) {
-            score += 3.0;
+            score += tuning.defenderBackPassBonus;
         }
 
         const double roleMultiplier =
-            std::clamp(1.0 + (roleKindMultiplier(role, kind) - 1.0) * 0.62, 0.58, 1.34);
+            std::clamp(
+                1.0 + (roleKindMultiplier(role, kind) - 1.0) * tuning.roleMultiplierBlend,
+                tuning.roleMultiplierMinimum,
+                tuning.roleMultiplierMaximum);
         const double tacticalMultiplier =
-            std::clamp(1.0 + (tacticalKindMultiplier(tactics, kind) - 1.0) * 0.62, 0.58, 1.34);
+            std::clamp(
+                1.0 + (tacticalKindMultiplier(tactics, kind) - 1.0) * tuning.tacticalMultiplierBlend,
+                tuning.tacticalMultiplierMinimum,
+                tuning.tacticalMultiplierMaximum);
         score *= roleMultiplier;
         score *= tacticalMultiplier;
         if (kind == PassOptionKind::ProgressivePass) {
-            score -= 6.0;
+            score -= tuning.progressivePassPenalty;
         } else if (kind == PassOptionKind::SwitchPlay) {
-            score -= 8.0;
+            score -= tuning.switchPlayPenalty;
         } else if (kind == PassOptionKind::ThroughBall) {
-            score -= 18.0;
+            score -= tuning.throughBallPenalty;
         } else if (kind == PassOptionKind::Cross || kind == PassOptionKind::Cutback) {
-            score -= 20.0;
+            score -= tuning.crossOrCutbackPenalty;
         }
 
         PassOption option;
@@ -636,9 +510,9 @@ std::vector<PassOption> PassOptionEvaluator::evaluate(
     const PlayerAttributes passerAttributes =
         attributesFor(context.teamSnapshot, context.carrierState);
     const double skill = passingSkill(passerAttributes);
-    const RoleRiskProfile role = roleRiskProfile(context.carrierRole);
-    const TacticalBiasProfile tactics = tacticalBiasProfile(context.tacticalSetup);
-    const PassDecisionTuning tuning = passTuning();
+    const RoleRiskProfile role = passRoleRiskProfile(context.carrierRole);
+    const TacticalBiasProfile tactics = passTacticalBiasProfile(context.tacticalSetup);
+    const PassDecisionTuning tuning;
 
     std::vector<PassOption> safeOptions;
     std::vector<PassOption> backOptions;

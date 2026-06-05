@@ -217,6 +217,14 @@ namespace {
         });
     }
 
+    PitchPoint compactTowardBall(PitchPoint shapeTarget, PitchPoint ballPosition, double compactness) {
+        const double factor = std::clamp(compactness, 0.0, 1.0);
+        return PitchGeometry::clampToPitch(PitchPoint{
+            shapeTarget.x + (ballPosition.x - shapeTarget.x) * factor,
+            shapeTarget.y + (ballPosition.y - shapeTarget.y) * factor
+        });
+    }
+
     double pressingIntensityBoost(PressingIntensity intensity) {
         switch (intensity) {
         case PressingIntensity::Low:
@@ -514,11 +522,23 @@ namespace {
         const bool laneRelevant = sameOrAdjacentLane(
             tacticalZoneForPoint(player.position, context.attackingDirection),
             ballZone);
+        const bool contextPress =
+            context.defensiveContext.pressTriggerActive
+            && laneRelevant
+            && !isGoalkeeper(role)
+            && distanceToCarrier <= CoverRangeMeters
+            && (isZoneInResponsibility(responsibility, ballZone) || laneRelevant);
+        const double compactness =
+            context.defensiveContext.blockCompactness >= 70.0 ? 0.08 : 0.18;
+        const PitchPoint compactShapeTarget =
+            compactTowardBall(shapeTarget, ballPosition, contextPress ? compactness : 0.0);
+        const double contextPressureBoost =
+            contextPress ? std::clamp(context.defensiveContext.localPressOpportunity * 0.22, 4.0, 16.0) : 0.0;
 
         std::vector<IntentCandidate> candidates;
         candidates.push_back(IntentCandidate{
             PlayerIntentType::HoldDefensiveShape,
-            shapeTarget,
+            compactShapeTarget,
             0,
             0.2,
             38.0
@@ -526,17 +546,19 @@ namespace {
                 + zonalPreferenceBoost(context.tacticalSetup.markingStyle, PlayerIntentType::HoldDefensiveShape)
         });
 
-        if (pressEligible && distanceToCarrier <= TackleRangeMeters) {
+        if ((pressEligible || contextPress) && distanceToCarrier <= TackleRangeMeters) {
             candidates.push_back(IntentCandidate{
                 PlayerIntentType::AttemptTackle,
                 carrier != nullptr ? carrier->position : ballPosition,
                 carrier != nullptr ? carrier->playerId : 0,
                 1.0,
                 70.0 + pressingIntensityBoost(context.tacticalSetup.pressingIntensity)
+                    + contextPressureBoost
             });
         }
 
-        if (pressEligible && distanceToCarrier <= PressRangeMeters) {
+        if ((pressEligible && distanceToCarrier <= PressRangeMeters)
+            || (contextPress && distanceToCarrier <= ContainRangeMeters)) {
             candidates.push_back(IntentCandidate{
                 PlayerIntentType::PressBallCarrier,
                 carrier != nullptr ? carrier->position : ballPosition,
@@ -545,6 +567,7 @@ namespace {
                 58.0
                     + pressingIntensityBoost(context.tacticalSetup.pressingIntensity)
                     + zonalPreferenceBoost(context.tacticalSetup.markingStyle, PlayerIntentType::PressBallCarrier)
+                    + contextPressureBoost
             });
         }
 
@@ -556,17 +579,19 @@ namespace {
                 0.65,
                 pressEligible ? 50.0 : 56.0
                     + (context.tacticalSetup.pressingIntensity == PressingIntensity::Low ? 7.0 : 0.0)
+                    + contextPressureBoost * 0.6
             });
         }
 
         if (distanceToCarrier <= CoverRangeMeters && laneRelevant) {
             candidates.push_back(IntentCandidate{
                 PlayerIntentType::CoverSpace,
-                shapeTarget,
+                compactShapeTarget,
                 0,
                 0.45,
                 48.0
                     + zonalPreferenceBoost(context.tacticalSetup.markingStyle, PlayerIntentType::CoverSpace)
+                    + contextPressureBoost * 0.5
             });
         }
 
@@ -594,6 +619,7 @@ namespace {
                 0.5,
                 43.0
                     + zonalPreferenceBoost(context.tacticalSetup.markingStyle, PlayerIntentType::BlockPassingLane)
+                    + contextPressureBoost * 0.75
             });
         }
 

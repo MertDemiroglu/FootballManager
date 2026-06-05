@@ -1,17 +1,21 @@
 #include"fm/match_engine/decision/ActionSelector.h"
 
 #include"../DeterministicRandom.h"
+#include"fm/match_engine/decision/DecisionTuningProfile.h"
 
 #include<algorithm>
 #include<cmath>
 
 namespace {
     double decisionSharpness(const PlayerAttributes& attributes) {
-        return 0.75 + std::clamp(attributes.mental.decisions, 0, 100) / 35.0;
+        const ActionSelectionTuning tuning = defaultActionSelectionTuning();
+        return tuning.decisionSharpnessBase
+            + std::clamp(attributes.mental.decisions, 0, 100) / tuning.decisionSharpnessFromDecisions;
     }
 
     double candidateWeight(const ActionCandidate& candidate, double sharpness) {
-        return std::pow(std::max(candidate.finalScore, 0.1), sharpness);
+        const ActionSelectionTuning tuning = defaultActionSelectionTuning();
+        return std::pow(std::max(candidate.finalScore, tuning.minimumCandidateWeightScore), sharpness);
     }
 
     bool isPassAction(BallCarrierActionType type) {
@@ -27,18 +31,25 @@ namespace {
     double actionSkillMultiplier(
         BallCarrierActionType type,
         const PlayerAttributes& attributes) {
+        const ActionSelectionTuning tuning = defaultActionSelectionTuning();
         if (isPassAction(type)) {
             const double passingSkill =
                 (static_cast<double>(attributes.technical.passing)
                     + static_cast<double>(attributes.mental.vision)
                     + static_cast<double>(attributes.mental.decisions)) / 3.0;
-            return std::clamp(0.85 + ((passingSkill - 50.0) / 160.0), 0.78, 1.18);
+            return std::clamp(
+                tuning.passSkillBaseline + ((passingSkill - 50.0) / tuning.passSkillInfluence),
+                tuning.passSkillMinimum,
+                tuning.passSkillMaximum);
         }
         if (type == BallCarrierActionType::Shoot) {
             const double shootingSkill =
                 (static_cast<double>(attributes.technical.shooting)
                     + static_cast<double>(attributes.mental.composure)) / 2.0;
-            return std::clamp(0.88 + ((shootingSkill - 50.0) / 180.0), 0.80, 1.16);
+            return std::clamp(
+                tuning.shotSkillBaseline + ((shootingSkill - 50.0) / tuning.shotSkillInfluence),
+                tuning.shotSkillMinimum,
+                tuning.shotSkillMaximum);
         }
         if (type == BallCarrierActionType::Carry
             || type == BallCarrierActionType::Dribble
@@ -46,7 +57,10 @@ namespace {
             const double carrySkill =
                 (static_cast<double>(attributes.technical.dribbling)
                     + static_cast<double>(attributes.physical.agility)) / 2.0;
-            return std::clamp(0.90 + ((carrySkill - 50.0) / 190.0), 0.82, 1.14);
+            return std::clamp(
+                tuning.carrySkillBaseline + ((carrySkill - 50.0) / tuning.carrySkillInfluence),
+                tuning.carrySkillMinimum,
+                tuning.carrySkillMaximum);
         }
 
         return 1.0;
