@@ -23,6 +23,8 @@ public:
         int morale = 0;
         bool isAssigned = false;
         int assignedSlotIndex = -1;
+        int substituteIndex = -1;
+        bool hasPlayer = true;
     };
 
     enum Role {
@@ -36,6 +38,8 @@ public:
         MoraleRole,
         IsAssignedRole,
         AssignedSlotIndexRole,
+        SubstituteIndexRole,
+        HasPlayerRole,
     };
 
     explicit EditableLineupRosterModel(QObject* parent = nullptr);

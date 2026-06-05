@@ -6,13 +6,16 @@ Item {
     id: root
     Layout.fillWidth: true
     Layout.fillHeight: true
-    implicitHeight: Math.max(700, layoutRoot.implicitHeight)
+    implicitHeight: layoutRoot.implicitHeight
+    property var metrics: null
 
     // Uses the global GameFacade context property; backend models remain the source of truth.
     readonly property var lineupState: gameFacade.editableLineupState
     readonly property var slotsModel: gameFacade.editableLineupSlotsModel
     readonly property var rosterModel: gameFacade.editableLineupRosterModel
     readonly property var substitutesModel: gameFacade.editableLineupSubstitutesModel
+    readonly property int substituteDropCapacity: gameFacade ? gameFacade.getEditableLineupSubstituteCapacity() : 10
+    readonly property int substituteSlotCapacity: Math.max(11, substituteDropCapacity)
     readonly property bool hasValidLineupData: lineupState
         && lineupState.hasLineup
         && slotsModel
@@ -319,6 +322,67 @@ Item {
         }
     }
 
+    function handleSubstituteDroppedOnSquad(playerId, sourceSubstituteIndex) {
+        if (!gameFacade || playerId <= 0 || sourceSubstituteIndex < 0)
+            return
+
+        const ok = gameFacade.clearEditableLineupSubstitute(sourceSubstituteIndex)
+        if (ok) {
+            if (selectedPlayerId === playerId)
+                selectedPlayerId = 0
+            actionStatusText = "Substitute moved back to squad."
+        } else {
+            actionStatusText = "Substitute move failed."
+        }
+    }
+
+    function handlePlayerDroppedOnSubstitute(playerId, targetSubstituteIndex) {
+        if (!gameFacade || playerId <= 0 || targetSubstituteIndex < 0)
+            return
+
+        const ok = gameFacade.assignEditableLineupPlayerToSubstitute(playerId, targetSubstituteIndex)
+        if (ok) {
+            selectedPlayerId = 0
+            selectedSourceSlotIndex = -1
+            actionStatusText = "Dropped player into substitutes."
+        } else {
+            actionStatusText = "Substitute assign failed."
+        }
+    }
+
+    function handleSlotDroppedOnSubstitute(sourceSlotIndex, targetSubstituteIndex) {
+        if (!gameFacade || sourceSlotIndex < 0 || targetSubstituteIndex < 0)
+            return
+
+        const row = slotRowFor(sourceSlotIndex)
+        if (!row || !row.hasAssignedPlayer || (row.assignedPlayerId || 0) <= 0) {
+            actionStatusText = "Substitute assign failed."
+            return
+        }
+
+        const ok = gameFacade.assignEditableLineupPlayerToSubstitute(row.assignedPlayerId, targetSubstituteIndex)
+        if (ok) {
+            selectedSourceSlotIndex = -1
+            selectedSlotIndex = -1
+            selectedPlayerId = 0
+            actionStatusText = "Moved slot player to substitutes."
+        } else {
+            actionStatusText = "Substitute assign failed."
+        }
+    }
+
+    function handleSubstituteDroppedOnSubstitute(sourceSubstituteIndex, targetSubstituteIndex) {
+        if (!gameFacade || sourceSubstituteIndex < 0 || targetSubstituteIndex < 0)
+            return
+        if (sourceSubstituteIndex === targetSubstituteIndex) {
+            actionStatusText = ""
+            return
+        }
+
+        const ok = gameFacade.swapEditableLineupSubstitutes(sourceSubstituteIndex, targetSubstituteIndex)
+        actionStatusText = ok ? "Swapped substitutes." : "Substitute swap failed."
+    }
+
     function assignedSummaryText() {
         if (!lineupState || !lineupState.hasLineup)
             return "Lineup data unavailable"
@@ -349,16 +413,16 @@ Item {
     ColumnLayout {
         id: layoutRoot
         anchors.fill: parent
-        spacing: 10
+        spacing: root.metrics ? root.metrics.spacingSm : 10
 
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: root.metrics ? root.metrics.spacingSm : 8
 
             Label {
                 Layout.fillWidth: true
                 text: "Lineup Editor"
-                font.pixelSize: 30
+                font.pixelSize: root.metrics ? root.metrics.font(root.metrics.dense ? 22 : 30) : 30
                 font.bold: true
                 color: root.textPrimary
                 elide: Text.ElideRight
@@ -366,13 +430,13 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 10
+                spacing: root.metrics ? root.metrics.spacingSm : 10
 
                 Label {
                     text: root.lineupState && root.lineupState.hasLineup
                           ? ("Formation " + (root.lineupState.formationText || "-"))
                           : "Lineup data unavailable"
-                    font.pixelSize: 14
+                    font.pixelSize: root.metrics ? root.metrics.font(14) : 14
                     color: "#c7d1db"
                 }
 
@@ -388,7 +452,7 @@ Item {
                     text: root.lineupState && root.lineupState.hasLineup
                           ? ("Assigned " + (root.lineupState.assignedCount || 0) + "/" + (root.lineupState.slotCount || 0))
                           : ""
-                    font.pixelSize: 14
+                    font.pixelSize: root.metrics ? root.metrics.font(14) : 14
                     color: "#c7d1db"
                 }
             }
@@ -400,13 +464,13 @@ Item {
                 Button {
                     text: "Auto Select"
                     enabled: root.hasValidLineupData
-                    Layout.preferredWidth: 146
-                    Layout.preferredHeight: 40
+                    Layout.preferredWidth: root.metrics ? root.metrics.px(146) : 146
+                    Layout.preferredHeight: root.metrics ? root.metrics.px(root.metrics.dense ? 34 : 40) : 40
                     onClicked: root.autoSelectLineup()
                     contentItem: Label {
                         text: parent.text
                         color: "#04130b"
-                        font.pixelSize: 13
+                        font.pixelSize: root.metrics ? root.metrics.font(13) : 13
                         font.bold: true
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
@@ -424,13 +488,13 @@ Item {
                              && gameFacade.interactionState.hasActiveInteraction
                              && gameFacade.interactionState.kind === "pre_match"
                     enabled: root.hasValidLineupData
-                    Layout.preferredWidth: 132
-                    Layout.preferredHeight: 40
+                    Layout.preferredWidth: root.metrics ? root.metrics.px(132) : 132
+                    Layout.preferredHeight: root.metrics ? root.metrics.px(root.metrics.dense ? 34 : 40) : 40
                     onClicked: root.applyLineupToMatch()
                     contentItem: Label {
                         text: parent.text
                         color: root.textPrimary
-                        font.pixelSize: 13
+                        font.pixelSize: root.metrics ? root.metrics.font(13) : 13
                         font.bold: true
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
@@ -446,7 +510,7 @@ Item {
                     Layout.fillWidth: true
                     text: actionStatusText
                     visible: actionStatusText.length > 0
-                    font.pixelSize: 12
+                    font.pixelSize: root.metrics ? root.metrics.font(12) : 12
                     color: "#90f0b8"
                     elide: Text.ElideRight
                 }
@@ -457,7 +521,7 @@ Item {
             Layout.fillWidth: true
             visible: !root.hasValidLineupData
             color: "#f87171"
-            font.pixelSize: 12
+            font.pixelSize: root.metrics ? root.metrics.font(12) : 12
             wrapMode: Text.WordWrap
             text: "Lineup debug: hasLineup=" + (lineupState ? lineupState.hasLineup : false)
                 + ", slots=" + (slotsModel ? slotsModel.count : 0)
@@ -469,14 +533,13 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.minimumHeight: 500
-            spacing: 12
+            spacing: root.metrics ? root.metrics.panelGap : 12
 
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.preferredWidth: 3
-                spacing: 12
+                spacing: root.metrics ? root.metrics.panelGap : 12
 
                 LineupPitchPanel {
                     Layout.fillWidth: true
@@ -484,6 +547,7 @@ Item {
                     slotsModel: root.slotsModel
                     selectedSlotIndex: root.selectedSlotIndex
                     selectedSourceSlotIndex: root.selectedSourceSlotIndex
+                    metrics: root.metrics
                     onSlotClicked: function(slotIndex) {
                         root.selectSlot(slotIndex)
                     }
@@ -500,28 +564,28 @@ Item {
                     radius: 8
                     color: "#0d1721"
                     border.color: root.borderColor
-                    implicitHeight: tacticalContent.implicitHeight + 24
+                    implicitHeight: tacticalContent.implicitHeight + (root.metrics ? root.metrics.cardPadding : 24)
 
                     RowLayout {
                         id: tacticalContent
                         anchors.fill: parent
-                        anchors.margins: 14
-                        spacing: 16
+                        anchors.margins: root.metrics ? root.metrics.spacingMd : 14
+                        spacing: root.metrics ? root.metrics.spacingMd : 16
 
                         ColumnLayout {
-                            Layout.preferredWidth: 158
-                            spacing: 10
+                            Layout.preferredWidth: root.metrics ? root.metrics.px(root.metrics.dense ? 132 : 158) : 158
+                            spacing: root.metrics ? root.metrics.spacingSm : 10
 
                             Label {
                                 text: "Formation"
-                                font.pixelSize: 13
+                                font.pixelSize: root.metrics ? root.metrics.font(13) : 13
                                 color: "#c7d1db"
                             }
 
                             ComboBox {
                                 id: formationSelector
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 38
+                                Layout.preferredHeight: root.metrics ? root.metrics.px(root.metrics.dense ? 32 : 38) : 38
                                 model: root.supportedFormations
                                 textRole: "formationText"
                                 valueRole: "formationId"
@@ -535,7 +599,7 @@ Item {
                                     rightPadding: 30
                                     text: formationSelector.displayText
                                     color: root.textPrimary
-                                    font.pixelSize: 14
+                                    font.pixelSize: root.metrics ? root.metrics.font(14) : 14
                                     font.bold: true
                                     verticalAlignment: Text.AlignVCenter
                                     elide: Text.ElideRight
@@ -545,7 +609,7 @@ Item {
                                     y: (formationSelector.height - height) / 2
                                     text: "v"
                                     color: "#c7d1db"
-                                    font.pixelSize: 14
+                                    font.pixelSize: root.metrics ? root.metrics.font(14) : 14
                                     font.bold: true
                                 }
                                 background: Rectangle {
@@ -576,7 +640,7 @@ Item {
                                     contentItem: Label {
                                         text: modelData.formationText || ""
                                         color: "#f7fbff"
-                                        font.pixelSize: 13
+                                        font.pixelSize: root.metrics ? root.metrics.font(13) : 13
                                         verticalAlignment: Text.AlignVCenter
                                         leftPadding: 8
                                     }
@@ -590,11 +654,11 @@ Item {
 
                         ColumnLayout {
                             Layout.fillWidth: true
-                            spacing: 10
+                            spacing: root.metrics ? root.metrics.spacingSm : 10
 
                             Label {
                                 text: "Mentality"
-                                font.pixelSize: 13
+                                font.pixelSize: root.metrics ? root.metrics.font(13) : 13
                                 color: "#c7d1db"
                             }
 
@@ -612,7 +676,7 @@ Item {
                                         required property var modelData
                                         text: modelData.displayText || ""
                                         Layout.fillWidth: true
-                                        Layout.preferredHeight: 38
+                                        Layout.preferredHeight: root.metrics ? root.metrics.px(root.metrics.dense ? 32 : 38) : 38
                                         onClicked: {
                                             const code = modelData.stableCode || ""
                                             const ok = gameFacade ? gameFacade.setEditableLineupMentality(code) : false
@@ -626,7 +690,7 @@ Item {
                                         contentItem: Label {
                                             text: parent.text
                                             color: root.selectedMentalityCode === parent.modelData.stableCode ? "#f7fbff" : "#c7d1db"
-                                            font.pixelSize: 13
+                                            font.pixelSize: root.metrics ? root.metrics.font(13) : 13
                                             horizontalAlignment: Text.AlignHCenter
                                             verticalAlignment: Text.AlignVCenter
                                         }
@@ -642,11 +706,11 @@ Item {
 
                         ColumnLayout {
                             Layout.fillWidth: true
-                            spacing: 10
+                            spacing: root.metrics ? root.metrics.spacingSm : 10
 
                             Label {
                                 text: "Tempo"
-                                font.pixelSize: 13
+                                font.pixelSize: root.metrics ? root.metrics.font(13) : 13
                                 color: "#c7d1db"
                             }
 
@@ -664,7 +728,7 @@ Item {
                                         required property var modelData
                                         text: modelData.displayText || ""
                                         Layout.fillWidth: true
-                                        Layout.preferredHeight: 38
+                                        Layout.preferredHeight: root.metrics ? root.metrics.px(root.metrics.dense ? 32 : 38) : 38
                                         onClicked: {
                                             const code = modelData.stableCode || ""
                                             const ok = gameFacade ? gameFacade.setEditableLineupTempo(code) : false
@@ -678,7 +742,7 @@ Item {
                                         contentItem: Label {
                                             text: parent.text
                                             color: root.selectedTempoCode === parent.modelData.stableCode ? "#f7fbff" : "#c7d1db"
-                                            font.pixelSize: 13
+                                            font.pixelSize: root.metrics ? root.metrics.font(13) : 13
                                             horizontalAlignment: Text.AlignHCenter
                                             verticalAlignment: Text.AlignVCenter
                                         }
@@ -694,14 +758,14 @@ Item {
 
                         Button {
                             text: "More Options"
-                            Layout.preferredWidth: 132
-                            Layout.preferredHeight: 38
+                            Layout.preferredWidth: root.metrics ? root.metrics.px(132) : 132
+                            Layout.preferredHeight: root.metrics ? root.metrics.px(root.metrics.dense ? 32 : 38) : 38
                             Layout.alignment: Qt.AlignBottom
                             onClicked: root.actionStatusText = "More tactical options coming soon."
                             contentItem: Label {
                                 text: parent.text
                                 color: root.textPrimary
-                                font.pixelSize: 13
+                                font.pixelSize: root.metrics ? root.metrics.font(13) : 13
                                 font.bold: true
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment: Text.AlignVCenter
@@ -732,6 +796,9 @@ Item {
                 selectedSlotIndex: root.selectedSlotIndex
                 selectedSourceSlotIndex: root.selectedSourceSlotIndex
                 selectedPlayerId: root.selectedPlayerId
+                substituteSlotCapacity: root.substituteSlotCapacity
+                substituteDropCapacity: root.substituteDropCapacity
+                metrics: root.metrics
                 onSlotClicked: function(slotIndex) {
                     root.selectSlot(slotIndex)
                 }
@@ -746,6 +813,18 @@ Item {
                 }
                 onPlayerDroppedOnSquad: function(playerId, sourceSlotIndex) {
                     root.handlePlayerDroppedOnSquad(playerId, sourceSlotIndex)
+                }
+                onSubstituteDroppedOnSquad: function(playerId, sourceSubstituteIndex) {
+                    root.handleSubstituteDroppedOnSquad(playerId, sourceSubstituteIndex)
+                }
+                onPlayerDroppedOnSubstitute: function(playerId, substituteIndex) {
+                    root.handlePlayerDroppedOnSubstitute(playerId, substituteIndex)
+                }
+                onSlotDroppedOnSubstitute: function(sourceSlotIndex, targetSubstituteIndex) {
+                    root.handleSlotDroppedOnSubstitute(sourceSlotIndex, targetSubstituteIndex)
+                }
+                onSubstituteDroppedOnSubstitute: function(sourceSubstituteIndex, targetSubstituteIndex) {
+                    root.handleSubstituteDroppedOnSubstitute(sourceSubstituteIndex, targetSubstituteIndex)
                 }
             }
         }

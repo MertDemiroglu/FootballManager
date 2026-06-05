@@ -12,6 +12,10 @@ Item {
     property string selectedTeamTextColor: "#f8fafc"
     property string currentDateText: ""
     property bool suppressFallback: false
+    property var metrics: null
+    readonly property bool compactLayout: metrics ? metrics.compact : width < 1400
+    readonly property bool stackLineups: metrics ? metrics.narrow : width < 1180
+    readonly property int heroToPitchGap: metrics ? metrics.px(metrics.dense ? 18 : 30) : 30
 
     signal backRequested()
     signal editLineupRequested()
@@ -40,20 +44,21 @@ Item {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 74
+                Layout.preferredHeight: root.metrics ? root.metrics.px(root.metrics.dense ? 58 : 74) : 74
                 color: root.shellColor
                 border.color: root.borderColor
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 28
-                    anchors.rightMargin: 28
-                    spacing: 20
+                    anchors.leftMargin: root.metrics ? root.metrics.pageMargin : 28
+                    anchors.rightMargin: root.metrics ? root.metrics.pageMargin : 28
+                    spacing: root.metrics ? root.metrics.spacingMd : 20
 
                     MatchTeamBadge {
-                        Layout.preferredWidth: 44
-                        Layout.preferredHeight: 44
+                        Layout.preferredWidth: root.metrics ? root.metrics.px(44) : 44
+                        Layout.preferredHeight: root.metrics ? root.metrics.px(44) : 44
                         badgeSize: 44
+                        metrics: root.metrics
                         teamName: root.selectedTeamName || interactionData.homeTeamName || "No Team"
                         primaryColor: root.selectedTeamPrimaryColor
                         secondaryColor: root.selectedTeamSecondaryColor
@@ -63,7 +68,7 @@ Item {
                     Label {
                         text: root.selectedTeamName || "No Team"
                         color: root.textPrimary
-                        font.pixelSize: 18
+                        font.pixelSize: root.metrics ? root.metrics.font(18) : 18
                         font.bold: true
                     }
 
@@ -77,19 +82,19 @@ Item {
                         Layout.fillWidth: true
                         text: "Pre-Match"
                         color: root.textPrimary
-                        font.pixelSize: 24
+                        font.pixelSize: root.metrics ? root.metrics.font(root.compactLayout ? 20 : 24) : 24
                         font.bold: true
                     }
 
                     Label {
                         text: root.currentDateText || interactionData.dateText || ""
                         color: root.textSecondary
-                        font.pixelSize: 16
+                        font.pixelSize: root.metrics ? root.metrics.font(16) : 16
                     }
 
                     MatchFlowButton {
-                        Layout.preferredWidth: 126
-                        Layout.preferredHeight: 44
+                        Layout.preferredWidth: root.metrics ? root.metrics.px(126) : 126
+                        Layout.preferredHeight: root.metrics ? root.metrics.px(root.compactLayout ? 38 : 44) : 44
                         text: "Back"
                         iconName: "main-menu"
                         primary: false
@@ -154,16 +159,16 @@ Item {
         Item {
             ColumnLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 30
-                anchors.rightMargin: 30
-                anchors.topMargin: 34
-                anchors.bottomMargin: 24
-                spacing: 38
+                anchors.leftMargin: root.metrics ? root.metrics.pageMargin : 30
+                anchors.rightMargin: root.metrics ? root.metrics.pageMargin : 30
+                anchors.topMargin: root.metrics ? root.metrics.spacingLg : 34
+                anchors.bottomMargin: root.metrics ? root.metrics.spacingLg : 24
+                spacing: root.metrics ? root.metrics.panelGap : 38
 
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 132
-                    spacing: 28
+                    Layout.preferredHeight: root.metrics ? root.metrics.px(root.compactLayout ? 96 : 132) : 132
+                    spacing: root.metrics ? root.metrics.panelGap : 28
 
                     TeamHero {
                         Layout.fillWidth: true
@@ -176,14 +181,14 @@ Item {
                     }
 
                     Column {
-                        Layout.preferredWidth: 260
-                        spacing: 14
+                        Layout.preferredWidth: root.metrics ? root.metrics.px(root.compactLayout ? 210 : 260) : 260
+                        spacing: root.metrics ? root.metrics.spacingSm : 14
 
                         Label {
                             width: parent.width
                             text: "VS"
                             color: root.textPrimary
-                            font.pixelSize: 42
+                            font.pixelSize: root.metrics ? root.metrics.font(root.compactLayout ? 32 : 42) : 42
                             font.bold: true
                             horizontalAlignment: Text.AlignHCenter
                         }
@@ -191,9 +196,9 @@ Item {
                         Row {
                             anchors.horizontalCenter: parent.horizontalCenter
                             spacing: 14
-                            Label { text: interactionData.dateText || ""; color: root.textSecondary; font.pixelSize: 15 }
+                            Label { text: interactionData.dateText || ""; color: root.textSecondary; font.pixelSize: root.metrics ? root.metrics.font(15) : 15 }
                             Rectangle { width: 5; height: 5; radius: 3; color: root.green; anchors.verticalCenter: parent.verticalCenter }
-                            Label { text: "Matchweek " + (interactionData.matchweek || "-"); color: root.textSecondary; font.pixelSize: 15 }
+                            Label { text: "Matchweek " + (interactionData.matchweek || "-"); color: root.textSecondary; font.pixelSize: root.metrics ? root.metrics.font(15) : 15 }
                         }
                     }
 
@@ -208,45 +213,22 @@ Item {
                     }
                 }
 
-                RowLayout {
+                Loader {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    spacing: 28
-
-                    PitchPanel {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        label: "HOME LINEUP"
-                        teamName: interactionData.homeTeamName || "Home"
-                        formationText: interactionData.homeFormationText || "-"
-                        lineupRows: interactionData.homeLineup || []
-                        averageOverallText: interactionData.homeAverageOverallText || "--"
-                        kitPrimary: interactionData.homePrimaryColor || "#22c55e"
-                        kitSecondary: interactionData.homeSecondaryColor || "#0f172a"
-                    }
-
-                    PitchPanel {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        label: "AWAY LINEUP"
-                        teamName: interactionData.awayTeamName || "Away"
-                        formationText: interactionData.awayFormationText || "-"
-                        lineupRows: interactionData.awayLineup || []
-                        averageOverallText: interactionData.awayAverageOverallText || "--"
-                        kitPrimary: interactionData.awayPrimaryColor || "#22c55e"
-                        kitSecondary: interactionData.awaySecondaryColor || "#0f172a"
-                    }
+                    Layout.topMargin: root.heroToPitchGap
+                    sourceComponent: root.stackLineups ? stackedPitchPanels : sideBySidePitchPanels
                 }
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 18
+                    spacing: root.metrics ? root.metrics.panelGap : 18
 
                     Item { Layout.fillWidth: true }
 
                     MatchFlowButton {
-                        Layout.preferredWidth: 220
-                        Layout.preferredHeight: 58
+                        Layout.preferredWidth: root.metrics ? root.metrics.px(root.compactLayout ? 190 : 220) : 220
+                        Layout.preferredHeight: root.metrics ? root.metrics.px(root.compactLayout ? 48 : 58) : 58
                         text: "Edit Lineup"
                         iconName: "lineup"
                         primary: false
@@ -254,14 +236,78 @@ Item {
                     }
 
                     MatchFlowButton {
-                        Layout.preferredWidth: 260
-                        Layout.preferredHeight: 58
+                        Layout.preferredWidth: root.metrics ? root.metrics.px(root.compactLayout ? 220 : 260) : 260
+                        Layout.preferredHeight: root.metrics ? root.metrics.px(root.compactLayout ? 48 : 58) : 58
                         text: "Play Match"
                         iconName: "play"
                         primary: true
                         onClicked: root.playMatchRequested()
                     }
                 }
+            }
+        }
+    }
+
+    Component {
+        id: sideBySidePitchPanels
+
+        RowLayout {
+            spacing: root.metrics ? root.metrics.panelGap : 28
+
+            PitchPanel {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                label: "HOME LINEUP"
+                teamName: interactionData.homeTeamName || "Home"
+                formationText: interactionData.homeFormationText || "-"
+                lineupRows: interactionData.homeLineup || []
+                averageOverallText: interactionData.homeAverageOverallText || "--"
+                kitPrimary: interactionData.homePrimaryColor || "#22c55e"
+                kitSecondary: interactionData.homeSecondaryColor || "#0f172a"
+            }
+
+            PitchPanel {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                label: "AWAY LINEUP"
+                teamName: interactionData.awayTeamName || "Away"
+                formationText: interactionData.awayFormationText || "-"
+                lineupRows: interactionData.awayLineup || []
+                averageOverallText: interactionData.awayAverageOverallText || "--"
+                kitPrimary: interactionData.awayPrimaryColor || "#22c55e"
+                kitSecondary: interactionData.awaySecondaryColor || "#0f172a"
+            }
+        }
+    }
+
+    Component {
+        id: stackedPitchPanels
+
+        ColumnLayout {
+            spacing: root.metrics ? root.metrics.panelGap : 28
+
+            PitchPanel {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                label: "HOME LINEUP"
+                teamName: interactionData.homeTeamName || "Home"
+                formationText: interactionData.homeFormationText || "-"
+                lineupRows: interactionData.homeLineup || []
+                averageOverallText: interactionData.homeAverageOverallText || "--"
+                kitPrimary: interactionData.homePrimaryColor || "#22c55e"
+                kitSecondary: interactionData.homeSecondaryColor || "#0f172a"
+            }
+
+            PitchPanel {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                label: "AWAY LINEUP"
+                teamName: interactionData.awayTeamName || "Away"
+                formationText: interactionData.awayFormationText || "-"
+                lineupRows: interactionData.awayLineup || []
+                averageOverallText: interactionData.awayAverageOverallText || "--"
+                kitPrimary: interactionData.awayPrimaryColor || "#22c55e"
+                kitSecondary: interactionData.awaySecondaryColor || "#0f172a"
             }
         }
     }
@@ -278,12 +324,13 @@ Item {
         RowLayout {
             anchors.fill: parent
             layoutDirection: alignRight ? Qt.RightToLeft : Qt.LeftToRight
-            spacing: 22
+            spacing: root.metrics ? root.metrics.panelGap : 22
 
             MatchTeamBadge {
-                Layout.preferredWidth: 92
-                Layout.preferredHeight: 92
+                Layout.preferredWidth: root.metrics ? root.metrics.px(root.compactLayout ? 68 : 92) : 92
+                Layout.preferredHeight: root.metrics ? root.metrics.px(root.compactLayout ? 68 : 92) : 92
                 badgeSize: 92
+                metrics: root.metrics
                 teamName: teamHeroRoot.teamName
                 primaryColor: teamHeroRoot.primaryColor
                 secondaryColor: teamHeroRoot.secondaryColor
@@ -292,13 +339,13 @@ Item {
 
             Column {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: root.metrics ? root.metrics.spacingSm : 8
 
                 Label {
                     width: parent.width
                     text: teamHeroRoot.teamName
                     color: root.textPrimary
-                    font.pixelSize: 30
+                    font.pixelSize: root.metrics ? root.metrics.font(root.compactLayout ? 22 : 30) : 30
                     font.bold: true
                     horizontalAlignment: alignRight ? Text.AlignRight : Text.AlignLeft
                     elide: Text.ElideRight
@@ -319,7 +366,7 @@ Item {
         property bool alignRight: false
         readonly property var results: formCharacters(formText)
 
-        height: 24
+        height: root.metrics ? root.metrics.px(24) : 24
 
         function formCharacters(value) {
             const cleaned = String(value || "").toUpperCase().replace(/[^WDL]/g, "")
@@ -360,15 +407,15 @@ Item {
             anchors.right: formRoot.alignRight ? parent.right : undefined
             anchors.left: formRoot.alignRight ? undefined : parent.left
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 6
+            spacing: root.metrics ? root.metrics.spacingXs : 6
 
             Repeater {
                 model: formRoot.results
 
                 Rectangle {
-                    width: 24
-                    height: 24
-                    radius: 5
+                    width: root.metrics ? root.metrics.px(24) : 24
+                    height: root.metrics ? root.metrics.px(24) : 24
+                    radius: root.metrics ? root.metrics.radiusSm : 5
                     color: formRoot.resultBackground(modelData)
                     border.color: formRoot.resultColor(modelData)
                     opacity: modelData.length > 0 ? 1.0 : 0.65
@@ -377,7 +424,7 @@ Item {
                         anchors.centerIn: parent
                         text: modelData
                         color: modelData.length > 0 ? root.textPrimary : root.textMuted
-                        font.pixelSize: 11
+                        font.pixelSize: root.metrics ? root.metrics.font(11) : 11
                         font.bold: true
                     }
                 }
@@ -395,18 +442,18 @@ Item {
         property string kitPrimary: "#f97316"
         property string kitSecondary: "#22c55e"
 
-        radius: 12
+        radius: root.metrics ? root.metrics.radiusLg : 12
         color: root.panelColor
         border.color: root.borderColor
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 20
-            spacing: 16
+            anchors.margins: root.metrics ? root.metrics.cardPadding : 20
+            spacing: root.metrics ? root.metrics.spacingMd : 16
 
             RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 62
+                Layout.preferredHeight: root.metrics ? root.metrics.px(root.compactLayout ? 50 : 62) : 62
 
                 AppIcon {
                     Layout.preferredWidth: 28
@@ -414,19 +461,20 @@ Item {
                     name: "lineup"
                     size: 26
                     opacity: 0.95
+                    metrics: root.metrics
                 }
 
                 Column {
                     Layout.fillWidth: true
                     spacing: 2
-                    Label { text: label; color: root.green; font.pixelSize: 13; font.bold: true }
-                    Label { text: teamName; color: root.textPrimary; font.pixelSize: 22; font.bold: true; elide: Text.ElideRight; width: parent.width }
+                    Label { text: label; color: root.green; font.pixelSize: root.metrics ? root.metrics.font(13) : 13; font.bold: true }
+                    Label { text: teamName; color: root.textPrimary; font.pixelSize: root.metrics ? root.metrics.font(root.compactLayout ? 18 : 22) : 22; font.bold: true; elide: Text.ElideRight; width: parent.width }
                 }
 
                 Column {
                     spacing: 4
-                    Label { text: "Formation: " + (formationText || "-"); color: root.textSecondary; font.pixelSize: 14; horizontalAlignment: Text.AlignRight; width: 160 }
-                    Label { text: "Avg XI OVR " + (pitchPanelRoot.averageOverallText || "--"); color: root.textSecondary; font.pixelSize: 14; horizontalAlignment: Text.AlignRight; width: 160 }
+                    Label { text: "Formation: " + (formationText || "-"); color: root.textSecondary; font.pixelSize: root.metrics ? root.metrics.font(14) : 14; horizontalAlignment: Text.AlignRight; width: root.metrics ? root.metrics.px(root.compactLayout ? 126 : 160) : 160 }
+                    Label { text: "Avg XI OVR " + (pitchPanelRoot.averageOverallText || "--"); color: root.textSecondary; font.pixelSize: root.metrics ? root.metrics.font(14) : 14; horizontalAlignment: Text.AlignRight; width: root.metrics ? root.metrics.px(root.compactLayout ? 126 : 160) : 160 }
                 }
             }
 
@@ -442,6 +490,7 @@ Item {
                 mode: "preMatch"
                 kitColorPrimary: pitchPanelRoot.kitPrimary
                 kitColorSecondary: pitchPanelRoot.kitSecondary
+                metrics: root.metrics
             }
         }
     }
@@ -467,13 +516,14 @@ Item {
                 visible: buttonRoot.iconName.length > 0
                 name: buttonRoot.iconName
                 size: 22
+                metrics: root.metrics
                 anchors.verticalCenter: parent.verticalCenter
             }
 
             Label {
                 text: buttonRoot.text
                 color: root.textPrimary
-                font.pixelSize: 17
+                font.pixelSize: root.metrics ? root.metrics.font(17) : 17
                 font.bold: primary
                 anchors.verticalCenter: parent.verticalCenter
             }

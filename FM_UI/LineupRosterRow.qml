@@ -8,6 +8,9 @@ Rectangle {
     property var rowData: ({})
     property int selectedPlayerId: 0
     property int metricColumnWidth: 54
+    property var metrics: null
+    property string sourceKind: "squad"
+    readonly property real scaleFactor: metrics ? metrics.visualScale : 1.0
     readonly property int playerId: rowData.playerId || 0
     readonly property bool isSelected: playerId > 0 && playerId === selectedPlayerId
     readonly property int sourceSlotIndex: rowData.isAssigned ? (rowData.assignedSlotIndex || -1) : -1
@@ -21,12 +24,12 @@ Rectangle {
         return text.replace(/^OVR\s+/i, "")
     }
 
-    radius: 8
+    radius: metrics ? metrics.radiusMd : 8
     border.color: "#253747"
     border.width: 1
     color: "#101a25"
     opacity: playerDragArea.drag.active ? 0.72 : 1.0
-    implicitHeight: 42
+    implicitHeight: Math.round(42 * scaleFactor)
 
     Item {
         id: playerDragSource
@@ -36,6 +39,7 @@ Rectangle {
         y: 0
 
         property string dragKind: "player"
+        property string sourceKind: root.sourceKind
         property int dragPlayerId: root.playerId
         property int dragSourceSlotIndex: root.sourceSlotIndex
         property int dragAssignedPlayerId: root.playerId
@@ -49,19 +53,20 @@ Rectangle {
     RowLayout {
         id: rosterContent
         anchors.fill: parent
-        anchors.leftMargin: 8
-        anchors.rightMargin: 8
-        spacing: 8
+        anchors.leftMargin: root.metrics ? root.metrics.spacingSm : 8
+        anchors.rightMargin: root.metrics ? root.metrics.spacingSm : 8
+        spacing: root.metrics ? root.metrics.spacingSm : 8
 
         PositionBadge {
             text: rowData.positionShort || "?"
-            implicitHeight: 24
+            implicitHeight: Math.round(24 * root.scaleFactor)
+            metrics: root.metrics
         }
 
         Label {
             Layout.fillWidth: true
             text: rowData.name || "Unknown"
-            font.pixelSize: 12
+            font.pixelSize: root.metrics ? root.metrics.font(12) : 12
             font.bold: true
             color: "#f7fbff"
             elide: Text.ElideRight
@@ -70,7 +75,7 @@ Rectangle {
 
         Rectangle {
             Layout.preferredWidth: root.metricColumnWidth
-            Layout.preferredHeight: 22
+            Layout.preferredHeight: Math.round(22 * root.scaleFactor)
             radius: 999
             color: "#233241"
             border.color: "#3a4d5e"
@@ -78,7 +83,7 @@ Rectangle {
             Label {
                 anchors.centerIn: parent
                 text: root.numberOnly(rowData.overallSummary, rowData.overall)
-                font.pixelSize: 10
+                font.pixelSize: root.metrics ? root.metrics.font(10) : 10
                 font.bold: true
                 color: "#d7e0e8"
             }
@@ -90,6 +95,7 @@ Rectangle {
             compact: true
             valueOnly: true
             Layout.preferredWidth: root.metricColumnWidth
+            metrics: root.metrics
         }
 
         ConditionBadge {
@@ -98,6 +104,7 @@ Rectangle {
             compact: true
             valueOnly: true
             Layout.preferredWidth: root.metricColumnWidth
+            metrics: root.metrics
         }
 
         ConditionBadge {
@@ -106,6 +113,7 @@ Rectangle {
             compact: true
             valueOnly: true
             Layout.preferredWidth: root.metricColumnWidth
+            metrics: root.metrics
         }
     }
 

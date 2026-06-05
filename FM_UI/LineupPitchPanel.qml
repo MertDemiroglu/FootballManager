@@ -12,16 +12,19 @@ Rectangle {
     property string teamName: gameFacade.shellState.selectedTeamName || ""
     property string teamPrimaryColor: gameFacade.shellState.selectedTeamPrimaryColor || "#22c55e"
     property string teamSecondaryColor: gameFacade.shellState.selectedTeamSecondaryColor || "#0f172a"
+    property var metrics: null
+    property bool preservePitchAspectRatio: false
+    property real pitchAspectRatio: 0.68
 
     signal slotClicked(int slotIndex)
     signal playerDroppedOnSlot(int playerId, int slotIndex)
     signal slotDroppedOnSlot(int sourceSlotIndex, int targetSlotIndex)
 
-    radius: 14
+    radius: metrics ? metrics.radiusLg : 14
     border.color: "#1d5f3c"
     color: "#0b1520"
     clip: true
-    Layout.minimumHeight: 420
+    Layout.minimumHeight: metrics ? Math.round(420 * metrics.visualScale) : 420
     layer.enabled: true
     layer.smooth: true
 
@@ -37,61 +40,78 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 10
+        anchors.margins: root.metrics ? root.metrics.spacingSm : 10
         spacing: 0
 
-        FootballPitchSurface {
-            id: pitchBackground
+        Item {
+            id: pitchBounds
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.minimumHeight: 360
+            Layout.minimumHeight: root.metrics ? Math.round(360 * root.metrics.visualScale) : 360
 
-            Item {
-                id: cardsLayer
-                anchors.fill: pitchBackground.fieldItem
-                visible: root.slotRows.length > 0
+            FootballPitchSurface {
+                id: pitchBackground
+                width: root.preservePitchAspectRatio
+                       ? Math.min(pitchBounds.width, pitchBounds.height * root.pitchAspectRatio)
+                       : pitchBounds.width
+                height: root.preservePitchAspectRatio
+                        ? Math.min(pitchBounds.height, pitchBounds.width / root.pitchAspectRatio)
+                        : pitchBounds.height
+                anchors.centerIn: parent
+                metrics: root.metrics
 
-                readonly property real cardWidth: 108
-                readonly property real cardHeight: 122
+                Item {
+                    id: cardsLayer
+                    anchors.fill: pitchBackground.fieldItem
+                    visible: root.slotRows.length > 0
 
-                Repeater {
-                    model: root.slotRows
+                    readonly property real cardScale: root.metrics
+                                                      ? root.metrics.clamp(Math.min(width / 540, height / 560), 0.72, 1.0)
+                                                      : Math.max(0.72, Math.min(1.0, Math.min(width / 540, height / 560)))
+                    readonly property real cardWidth: Math.round(108 * cardScale)
+                    readonly property real cardHeight: Math.round(122 * cardScale)
 
-                    delegate: LineupSlotCard {
-                        width: cardsLayer.cardWidth
-                        height: cardsLayer.cardHeight
-                        slotData: modelData
-                        selectedSlotIndex: root.selectedSlotIndex
-                        selectedSourceSlotIndex: root.selectedSourceSlotIndex
-                        kitColorPrimary: root.teamPrimaryColor
-                        kitColorSecondary: root.teamSecondaryColor
-                        x: root.clamped(
-                               root.normalized(modelData.pitchX, 0.5) * cardsLayer.width - width / 2,
-                               0,
-                               cardsLayer.width - width)
-                        y: root.clamped(
-                               root.normalized(modelData.pitchY, 0.5) * cardsLayer.height - height / 2,
-                               0,
-                               cardsLayer.height - height)
-                        onClicked: function(slotIndex) {
-                            root.slotClicked(slotIndex)
-                        }
-                        onPlayerDroppedOnSlot: function(playerId, slotIndex) {
-                            root.playerDroppedOnSlot(playerId, slotIndex)
-                        }
-                        onSlotDroppedOnSlot: function(sourceSlotIndex, targetSlotIndex) {
-                            root.slotDroppedOnSlot(sourceSlotIndex, targetSlotIndex)
+                    Repeater {
+                        model: root.slotRows
+
+                        delegate: LineupSlotCard {
+                            width: cardsLayer.cardWidth
+                            height: cardsLayer.cardHeight
+                            slotData: modelData
+                            selectedSlotIndex: root.selectedSlotIndex
+                            selectedSourceSlotIndex: root.selectedSourceSlotIndex
+                            kitColorPrimary: root.teamPrimaryColor
+                            kitColorSecondary: root.teamSecondaryColor
+                            metrics: root.metrics
+                            scaleFactor: cardsLayer.cardScale
+                            x: root.clamped(
+                                   root.normalized(modelData.pitchX, 0.5) * cardsLayer.width - width / 2,
+                                   0,
+                                   cardsLayer.width - width)
+                            y: root.clamped(
+                                   root.normalized(modelData.pitchY, 0.5) * cardsLayer.height - height / 2,
+                                   0,
+                                   cardsLayer.height - height)
+                            onClicked: function(slotIndex) {
+                                root.slotClicked(slotIndex)
+                            }
+                            onPlayerDroppedOnSlot: function(playerId, slotIndex) {
+                                root.playerDroppedOnSlot(playerId, slotIndex)
+                            }
+                            onSlotDroppedOnSlot: function(sourceSlotIndex, targetSlotIndex) {
+                                root.slotDroppedOnSlot(sourceSlotIndex, targetSlotIndex)
+                            }
                         }
                     }
                 }
-            }
 
-            Label {
-                anchors.centerIn: parent
-                visible: root.slotRows.length === 0
-                text: "No formation slots loaded"
-                color: "#ffffff"
-                font.pixelSize: 14
+                Label {
+                    anchors.centerIn: parent
+                    visible: root.slotRows.length === 0
+                    text: "No formation slots loaded"
+                    color: "#ffffff"
+                    font.pixelSize: root.metrics ? root.metrics.font(14) : 14
+                }
             }
         }
     }

@@ -13,6 +13,7 @@ Item {
 
     readonly property int pagePadding: 24
     readonly property int sectionSpacing: 20
+    property var metrics: null
 
     property var selectedPlayerDetails: ({})
     readonly property var shellState: gameFacade.shellState
@@ -517,5 +518,6 @@ Item {
         id: playerDialog
         parent: Overlay.overlay
         playerDetails: root.selectedPlayerDetails
+        metrics: root.metrics
     }
 }

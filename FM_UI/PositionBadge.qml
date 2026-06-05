@@ -7,6 +7,8 @@ Rectangle {
     property string text: "?"
     property int roleKey: -1
     property int horizontalPadding: 9
+    property var metrics: null
+    property real scaleFactor: metrics ? metrics.visualScale : 1.0
 
     function normalizedLabel() {
         return (root.text || "?").toUpperCase()
@@ -41,18 +43,18 @@ Rectangle {
     readonly property string badgeText: normalizedLabel()
     readonly property string badgeGroup: groupForLabel(badgeText)
 
-    radius: 6
+    radius: Math.round(6 * scaleFactor)
     color: palette(badgeGroup, "fill")
     border.color: palette(badgeGroup, "border")
-    implicitWidth: badgeLabel.implicitWidth + horizontalPadding * 2
-    implicitHeight: 24
+    implicitWidth: badgeLabel.implicitWidth + Math.round(horizontalPadding * scaleFactor) * 2
+    implicitHeight: Math.round(24 * scaleFactor)
 
     Label {
         id: badgeLabel
         anchors.centerIn: parent
         text: root.badgeText
         font.bold: true
-        font.pixelSize: 11
+        font.pixelSize: metrics ? metrics.font(11) : Math.round(11 * scaleFactor)
         color: root.palette(root.badgeGroup, "text")
     }
 }

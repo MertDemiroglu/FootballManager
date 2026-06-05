@@ -9,8 +9,8 @@ ApplicationWindow {
     visibility: Window.FullScreen
     width: 1200
     height: 900
-    minimumWidth: 900
-    minimumHeight: 700
+    minimumWidth: 1024
+    minimumHeight: 640
     title: "Football Manager"
     color: "#071016"
 
@@ -34,6 +34,7 @@ ApplicationWindow {
 
     readonly property var shellState: gameFacade.shellState
     readonly property var interactionState: gameFacade.interactionState
+    readonly property alias metrics: uiMetrics
 
     property string currentView: shellState.hasStartedGame ? routes.dashboard : routes.home
     property string returnRouteAfterLineupEditor: ""
@@ -253,10 +254,16 @@ ApplicationWindow {
         }
     }
 
+    UiMetrics {
+        id: uiMetrics
+        viewportWidth: root.width
+        viewportHeight: root.height
+    }
+
     Loader {
         id: viewLoader
         anchors.fill: parent
-        anchors.margins: root.viewUsesPageMargins(root.currentView) ? 16 : 0
+        anchors.margins: root.viewUsesPageMargins(root.currentView) ? uiMetrics.pageMargin : 0
         sourceComponent: root.componentForView(root.currentView)
     }
 
@@ -314,6 +321,7 @@ ApplicationWindow {
         id: dashboardComponent
 
         DashboardView {
+            metrics: uiMetrics
             onOpenStandingsRequested: {
                 root.navigateTo(root.routes.standings)
             }
@@ -342,6 +350,7 @@ ApplicationWindow {
         id: standingsComponent
 
         StandingsView {
+            metrics: uiMetrics
             onBackRequested: {
                 root.navigateTo(root.routes.dashboard)
             }
@@ -351,6 +360,7 @@ ApplicationWindow {
     Component {
         id: teamComponent
         TeamView {
+            metrics: uiMetrics
             onBackRequested: {
                 root.navigateTo(root.routes.dashboard)
             }
@@ -366,6 +376,7 @@ ApplicationWindow {
     Component {
         id: lineupEditorComponent
         LineupEditorScreen {
+            metrics: uiMetrics
             onBackRequested: {
                 root.returnFromLineupEditor()
             }
@@ -399,6 +410,7 @@ ApplicationWindow {
         id: preMatchComponent
 
         PreMatchScreen {
+            metrics: uiMetrics
             interactionData: root.effectivePreMatchData()
             suppressFallback: root.matchFlowTransitionInProgress
             selectedTeamName: root.shellState.selectedTeamName || "No Team"
@@ -422,6 +434,7 @@ ApplicationWindow {
         id: postMatchComponent
 
         PostMatchScreen {
+            metrics: uiMetrics
             interactionData: root.interactionState.postMatch
             selectedTeamName: root.shellState.selectedTeamName || "No Team"
             selectedTeamPrimaryColor: root.shellState.selectedTeamPrimaryColor || "#22c55e"
@@ -447,6 +460,7 @@ ApplicationWindow {
         visible: root.interactionState.hasActiveInteraction
                  && root.interactionState.kind === root.interactionKinds.transferOffer
         interactionData: root.interactionState.transferOffer
+        metrics: uiMetrics
         onAcceptRequested: {
             root.acceptActiveTransferOffer()
         }
@@ -462,5 +476,6 @@ ApplicationWindow {
         id: matchDetailDialog
         anchors.fill: parent
         visible: false
+        metrics: uiMetrics
     }
 }

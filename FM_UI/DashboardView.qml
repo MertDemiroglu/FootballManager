@@ -26,6 +26,10 @@ Item {
                                                && interactionState.kind === "pre_match"
     property bool settingsPanelOpen: false
     property string sidebarStatusText: ""
+    property var metrics: null
+    readonly property bool compactLayout: metrics ? metrics.compact : width < 1400
+    readonly property int dashboardColumns: width >= (metrics ? metrics.px(980) : 980) ? 2 : 1
+    readonly property int fixtureLimit: metrics && metrics.dense ? 2 : 3
 
     readonly property color backgroundColor: "#071016"
     readonly property color shellColor: "#08111a"
@@ -175,25 +179,25 @@ Item {
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 8
-            spacing: 18
+            anchors.margins: root.metrics ? root.metrics.spacingSm : 8
+            spacing: root.metrics ? root.metrics.panelGap : 18
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 90
-                radius: 12
+                Layout.preferredHeight: root.metrics ? root.metrics.px(root.metrics.dense ? 72 : 90) : 90
+                radius: root.metrics ? root.metrics.radiusLg : 12
                 color: root.shellColor
                 border.color: root.borderColor
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 24
-                    anchors.rightMargin: 16
-                    spacing: 18
+                    anchors.leftMargin: root.metrics ? root.metrics.cardPadding : 24
+                    anchors.rightMargin: root.metrics ? root.metrics.cardPadding : 16
+                    spacing: root.metrics ? root.metrics.panelGap : 18
 
                     TeamBadge {
-                        Layout.preferredWidth: 50
-                        Layout.preferredHeight: 50
+                        Layout.preferredWidth: root.metrics ? root.metrics.px(root.compactLayout ? 42 : 50) : 50
+                        Layout.preferredHeight: root.metrics ? root.metrics.px(root.compactLayout ? 42 : 50) : 50
                         teamName: root.teamName()
                         primaryColor: dashboardState.selectedTeamPrimaryColor
                         secondaryColor: dashboardState.selectedTeamSecondaryColor
@@ -205,7 +209,7 @@ Item {
                         Layout.fillWidth: true
                         text: root.teamName()
                         color: root.textPrimary
-                        font.pixelSize: 28
+                        font.pixelSize: root.metrics ? root.metrics.font(root.compactLayout ? 22 : 28) : 28
                         font.bold: true
                         elide: Text.ElideRight
                     }
@@ -214,18 +218,18 @@ Item {
                         text: root.currentDateText()
                         color: root.textPrimary
                         opacity: 0.9
-                        font.pixelSize: 18
+                        font.pixelSize: root.metrics ? root.metrics.font(18) : 18
                     }
 
                     Rectangle {
                         Layout.preferredWidth: 1
-                        Layout.preferredHeight: 60
+                        Layout.preferredHeight: root.metrics ? root.metrics.px(root.compactLayout ? 46 : 60) : 60
                         color: root.borderColor
                     }
 
                     ShellActionButton {
-                        Layout.preferredWidth: 190
-                        Layout.preferredHeight: 62
+                        Layout.preferredWidth: root.metrics ? root.metrics.px(root.compactLayout ? 154 : 190) : 190
+                        Layout.preferredHeight: root.metrics ? root.metrics.px(root.compactLayout ? 48 : 62) : 62
                         text: root.timePaused ? "Resume" : "Pause"
                         iconName: root.timePaused ? "play" : "pause"
                         accentColor: root.timePaused ? root.green : root.red
@@ -244,20 +248,20 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                spacing: 20
+                spacing: root.metrics ? root.metrics.panelGap : 20
 
                 Rectangle {
-                    Layout.preferredWidth: 220
+                    Layout.preferredWidth: root.metrics ? root.metrics.px(root.metrics.wide ? 220 : (root.compactLayout ? 172 : 196)) : 220
                     Layout.fillHeight: true
-                    radius: 12
+                    radius: root.metrics ? root.metrics.radiusLg : 12
                     color: root.shellColor
                     border.color: root.borderColor
                     visible: root.hasActiveGame
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 22
-                        spacing: 8
+                        anchors.margins: root.metrics ? root.metrics.cardPadding : 22
+                        spacing: root.metrics ? root.metrics.spacingSm : 8
 
                         SidebarItem {
                             Layout.fillWidth: true
@@ -336,7 +340,7 @@ Item {
                             Layout.preferredHeight: 24
                             text: root.sidebarStatusText
                             color: root.green
-                            font.pixelSize: 13
+                            font.pixelSize: root.metrics ? root.metrics.font(13) : 13
                             horizontalAlignment: Text.AlignHCenter
                             elide: Text.ElideRight
                             opacity: text.length > 0 ? 0.95 : 0
@@ -381,38 +385,33 @@ Item {
                         }
                     }
 
-                    ScrollView {
-                        id: contentScroll
+                    GridLayout {
+                        id: dashboardGrid
                         anchors.fill: parent
-                        clip: true
                         visible: root.hasActiveGame
-                        contentWidth: availableWidth
-
-                        GridLayout {
-                            width: contentScroll.availableWidth
-                            columns: width >= 980 ? 2 : 1
-                            columnSpacing: 18
-                            rowSpacing: 18
+                        columns: root.dashboardColumns
+                        columnSpacing: root.metrics ? root.metrics.panelGap : 18
+                        rowSpacing: root.metrics ? root.metrics.panelGap : 18
 
                             DashboardCard {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 424
+                                Layout.fillHeight: true
                                 title: "NEXT MATCH"
                                 titleColor: root.green
 
                                 ColumnLayout {
                                     anchors.fill: parent
-                                    anchors.margins: 30
-                                    anchors.topMargin: 72
-                                    spacing: 18
+                                    anchors.margins: root.metrics ? root.metrics.cardPadding : 30
+                                    anchors.topMargin: root.metrics ? root.metrics.px(root.compactLayout ? 54 : 72) : 72
+                                    spacing: root.metrics ? root.metrics.spacingMd : 18
 
                                     Item {
                                         Layout.fillWidth: true
-                                        Layout.preferredHeight: 162
+                                        Layout.preferredHeight: root.metrics ? root.metrics.px(root.compactLayout ? 118 : 162) : 162
 
                                         RowLayout {
                                             anchors.fill: parent
-                                            spacing: 24
+                                            spacing: root.metrics ? root.metrics.panelGap : 24
 
                                             TeamMark {
                                                 Layout.fillWidth: true
@@ -434,7 +433,7 @@ Item {
                                                 text: "VS"
                                                 color: root.textPrimary
                                                 opacity: 0.82
-                                                font.pixelSize: 25
+                                                font.pixelSize: root.metrics ? root.metrics.font(25) : 25
                                                 font.bold: true
                                             }
 
@@ -463,20 +462,20 @@ Item {
                                               : "No upcoming match"
                                         color: root.textPrimary
                                         opacity: 0.92
-                                        font.pixelSize: 20
+                                        font.pixelSize: root.metrics ? root.metrics.font(root.compactLayout ? 17 : 20) : 20
                                         horizontalAlignment: Text.AlignHCenter
                                         elide: Text.ElideRight
                                     }
 
                                     RowLayout {
                                         Layout.alignment: Qt.AlignHCenter
-                                        spacing: 12
+                                        spacing: root.metrics ? root.metrics.spacingSm : 12
                                         visible: root.nextMatch && root.nextMatch.hasNextMatch
 
                                         Label {
                                             text: root.matchLocation(root.nextMatch.isHome)
                                             color: root.textPrimary
-                                            font.pixelSize: 17
+                                            font.pixelSize: root.metrics ? root.metrics.font(17) : 17
                                         }
 
                                         Rectangle {
@@ -489,15 +488,15 @@ Item {
                                         Label {
                                             text: root.matchweekText(root.nextMatch.matchweek)
                                             color: root.textPrimary
-                                            font.pixelSize: 17
+                                            font.pixelSize: root.metrics ? root.metrics.font(17) : 17
                                         }
                                     }
 
                                     Rectangle {
                                         Layout.alignment: Qt.AlignHCenter
-                                        Layout.preferredWidth: 270
-                                        Layout.preferredHeight: 48
-                                        radius: 12
+                                        Layout.preferredWidth: root.metrics ? root.metrics.px(root.compactLayout ? 230 : 270) : 270
+                                        Layout.preferredHeight: root.metrics ? root.metrics.px(root.compactLayout ? 40 : 48) : 48
+                                        radius: root.metrics ? root.metrics.radiusLg : 12
                                         color: root.hasActivePreMatch ? root.green : "#0c1720"
                                         border.color: root.hasActivePreMatch ? Qt.lighter(root.green, 1.1) : root.borderColor
 
@@ -509,6 +508,7 @@ Item {
                                                 visible: root.hasActivePreMatch
                                                 name: "play"
                                                 size: 20
+                                                metrics: root.metrics
                                                 anchors.verticalCenter: parent.verticalCenter
                                             }
 
@@ -517,7 +517,7 @@ Item {
                                                       ? "Go to Match"
                                                       : (root.nextMatch && root.nextMatch.hasNextMatch ? "Upcoming match" : "Schedule pending")
                                                 color: root.hasActivePreMatch ? "#ffffff" : root.textSecondary
-                                                font.pixelSize: 17
+                                                font.pixelSize: root.metrics ? root.metrics.font(17) : 17
                                                 font.bold: root.hasActivePreMatch
                                                 anchors.verticalCenter: parent.verticalCenter
                                             }
@@ -536,14 +536,14 @@ Item {
 
                             DashboardCard {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 424
+                                Layout.fillHeight: true
                                 title: "Season Stats"
                                 iconName: "stats"
 
                                 ColumnLayout {
                                     anchors.fill: parent
-                                    anchors.margins: 16
-                                    anchors.topMargin: 74
+                                    anchors.margins: root.metrics ? root.metrics.spacingMd : 16
+                                    anchors.topMargin: root.metrics ? root.metrics.px(root.compactLayout ? 54 : 74) : 74
                                     spacing: 0
 
                                     StatRow {
@@ -577,7 +577,7 @@ Item {
 
                                     Rectangle {
                                         Layout.fillWidth: true
-                                        Layout.preferredHeight: 62
+                                        Layout.preferredHeight: root.metrics ? root.metrics.px(root.compactLayout ? 48 : 62) : 62
                                         color: "transparent"
 
                                         RowLayout {
@@ -592,27 +592,28 @@ Item {
                                                 name: "form"
                                                 size: 24
                                                 opacity: 0.95
+                                                metrics: root.metrics
                                             }
 
                                             Label {
                                                 Layout.fillWidth: true
                                                 text: "Recent Form"
                                                 color: root.textSecondary
-                                                font.pixelSize: 18
+                                                font.pixelSize: root.metrics ? root.metrics.font(18) : 18
                                                 elide: Text.ElideRight
                                             }
 
                                             Row {
-                                                spacing: 10
+                                                spacing: root.metrics ? root.metrics.spacingSm : 10
 
                                                 Repeater {
                                                     model: root.formCharacters()
 
                                                     delegate: Rectangle {
                                                         required property string modelData
-                                                        width: 32
-                                                        height: 32
-                                                        radius: 5
+                                                        width: root.metrics ? root.metrics.px(root.compactLayout ? 26 : 32) : 32
+                                                        height: root.metrics ? root.metrics.px(root.compactLayout ? 26 : 32) : 32
+                                                        radius: root.metrics ? root.metrics.radiusSm : 5
                                                         color: root.resultBackground(modelData)
                                                         border.color: root.resultColor(modelData)
 
@@ -620,7 +621,7 @@ Item {
                                                             anchors.centerIn: parent
                                                             text: modelData
                                                             color: root.resultColor(modelData)
-                                                            font.pixelSize: 13
+                                                            font.pixelSize: root.metrics ? root.metrics.font(13) : 13
                                                             font.bold: true
                                                         }
                                                     }
@@ -642,7 +643,7 @@ Item {
 
                             DashboardCard {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 444
+                                Layout.fillHeight: true
                                 title: "Schedule Overview"
                                 iconName: "calendar"
                                 headerRightText: "View Full Schedule"
@@ -650,8 +651,8 @@ Item {
 
                                 ColumnLayout {
                                     anchors.fill: parent
-                                    anchors.margins: 20
-                                    anchors.topMargin: 72
+                                    anchors.margins: root.metrics ? root.metrics.cardPadding : 20
+                                    anchors.topMargin: root.metrics ? root.metrics.px(root.compactLayout ? 54 : 72) : 72
                                     spacing: 0
 
                                     Repeater {
@@ -673,7 +674,7 @@ Item {
                                             required property int matchweek
 
                                             Layout.fillWidth: true
-                                            visible: index < 3
+                                            visible: index < root.fixtureLimit
                                             fixtureDateText: dateText
                                             fixtureTitle: root.matchTitle(homeTeamName, awayTeamName)
                                             fixtureLocationText: root.matchLocation(isHome)
@@ -700,9 +701,8 @@ Item {
 
                             Item {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 444
+                                Layout.fillHeight: true
                             }
-                        }
                     }
                 }
             }

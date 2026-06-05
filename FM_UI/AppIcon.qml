@@ -5,10 +5,14 @@ Item {
 
     property string name: ""
     property int size: 24
+    property var metrics: null
+    property real scaleFactor: metrics ? metrics.scale : 1.0
     property color color: "#a8b3c1"
 
-    implicitWidth: size
-    implicitHeight: size
+    readonly property int scaledSize: Math.max(12, Math.round(size * scaleFactor))
+
+    implicitWidth: scaledSize
+    implicitHeight: scaledSize
 
     function iconFile(iconName) {
         switch (iconName) {
@@ -59,13 +63,13 @@ Item {
 
     Image {
         anchors.centerIn: parent
-        width: root.size
-        height: root.size
+        width: root.scaledSize
+        height: root.scaledSize
         source: root.iconFile(root.name).length > 0
                 ? Qt.resolvedUrl("assets/icons/" + root.iconFile(root.name))
                 : ""
-        sourceSize.width: root.size
-        sourceSize.height: root.size
+        sourceSize.width: root.scaledSize
+        sourceSize.height: root.scaledSize
         fillMode: Image.PreserveAspectFit
     }
 }

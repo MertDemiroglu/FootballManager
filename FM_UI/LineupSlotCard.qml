@@ -17,6 +17,8 @@ Rectangle {
     readonly property bool hasWarning: warningText.length > 0 && warningLevel !== "none"
     property string kitColorPrimary: "#f97316"
     property string kitColorSecondary: "#22c55e"
+    property var metrics: null
+    property real scaleFactor: metrics ? metrics.compactTokenScale : 1.0
     property real dragHotSpotX: width / 2
     property real dragHotSpotY: height / 2
 
@@ -24,7 +26,7 @@ Rectangle {
     signal playerDroppedOnSlot(int playerId, int slotIndex)
     signal slotDroppedOnSlot(int sourceSlotIndex, int targetSlotIndex)
 
-    radius: 12
+    radius: metrics ? metrics.radiusLg : Math.round(12 * scaleFactor)
     color: isDropHighlighted ? "#123642" : (isSelected ? "#10291d" : "transparent")
     border.color: isDropHighlighted
                   ? "#23c7d4"
@@ -33,8 +35,8 @@ Rectangle {
                                                     : (hasWarning ? "#b45309" : "transparent")))
     border.width: (isDropHighlighted || isSelected || isSourceSelected || hasWarning) ? 2 : 1
     opacity: slotDragArea.drag.active ? 0.72 : 1.0
-    implicitWidth: 108
-    implicitHeight: 122
+    implicitWidth: Math.round(108 * scaleFactor)
+    implicitHeight: Math.round(122 * scaleFactor)
 
     Item {
         id: slotDragSource
@@ -44,7 +46,9 @@ Rectangle {
         y: 0
 
         property string dragKind: "slot"
+        property string sourceKind: "startingXi"
         property int dragSourceSlotIndex: root.slotIndex
+        property int dragSourceSubstituteIndex: -1
         property int dragPlayerId: root.slotData.assignedPlayerId || 0
         property int dragAssignedPlayerId: root.slotData.assignedPlayerId || 0
 
@@ -72,6 +76,9 @@ Rectangle {
                 if (sourceSlotIndex !== root.slotIndex)
                     root.slotDroppedOnSlot(sourceSlotIndex, root.slotIndex)
                 drop.acceptProposedAction()
+            } else if (source.dragKind === "substitute") {
+                root.playerDroppedOnSlot(source.dragPlayerId || 0, root.slotIndex)
+                drop.acceptProposedAction()
             }
         }
     }
@@ -88,15 +95,17 @@ Rectangle {
         showMetric: false
         mode: "lineupEditor"
         empty: !root.hasPlayer
+        metrics: root.metrics
+        scaleFactor: root.scaleFactor
     }
 
     Rectangle {
         visible: root.hasPlayer
         anchors.horizontalCenter: parent.horizontalCenter
-        y: playerToken.y + playerToken.height + 6
-        width: 44
-        height: 18
-        radius: 8
+        y: playerToken.y + playerToken.height + Math.round(6 * root.scaleFactor)
+        width: Math.round(44 * root.scaleFactor)
+        height: Math.round(18 * root.scaleFactor)
+        radius: Math.round(8 * root.scaleFactor)
         color: "#0b1118"
         border.color: "#405264"
 
@@ -104,7 +113,7 @@ Rectangle {
             anchors.centerIn: parent
             text: root.slotData.assignedPlayerOverall > 0 ? String(root.slotData.assignedPlayerOverall) : "-"
             color: "#f8fafc"
-            font.pixelSize: 11
+                font.pixelSize: root.metrics ? root.metrics.font(11) : Math.round(11 * root.scaleFactor)
             font.bold: true
         }
     }
@@ -112,11 +121,11 @@ Rectangle {
     Label {
         anchors.top: parent.top
         anchors.right: parent.right
-        anchors.topMargin: 4
-        anchors.rightMargin: 6
+        anchors.topMargin: Math.round(4 * root.scaleFactor)
+        anchors.rightMargin: Math.round(6 * root.scaleFactor)
         visible: root.hasWarning
         text: "!"
-        font.pixelSize: 12
+        font.pixelSize: root.metrics ? root.metrics.font(12) : Math.round(12 * root.scaleFactor)
         font.bold: true
         color: "#b45309"
         ToolTip.visible: warningMouse.containsMouse

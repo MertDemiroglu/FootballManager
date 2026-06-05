@@ -11,6 +11,11 @@ Rectangle {
     property string warningText: ""
     property string warningLevel: "none"
     property int metricColumnWidth: 54
+    property var metrics: null
+    property string slotKind: "startingXi"
+    property int sourceSubstituteIndex: -1
+    property bool dropEnabled: true
+    readonly property real scaleFactor: metrics ? metrics.visualScale : 1.0
 
     readonly property int slotIndex: typeof slotData.slotIndex === "number" ? slotData.slotIndex : -1
     readonly property bool hasPlayer: !!slotData.hasAssignedPlayer && !slotData.isEmpty
@@ -24,18 +29,19 @@ Rectangle {
     signal clicked(int slotIndex)
     signal playerDroppedOnSlot(int playerId, int slotIndex)
     signal slotDroppedOnSlot(int sourceSlotIndex, int targetSlotIndex)
+    signal substituteDroppedOnSlot(int playerId, int sourceSubstituteIndex, int targetSlotIndex)
 
     function numberOnly(summary, fallbackValue) {
         const text = summary ? String(summary) : String(fallbackValue || "-")
         return text.replace(/^OVR\s+/i, "")
     }
 
-    radius: 8
+    radius: metrics ? metrics.radiusMd : 8
     color: isDropHighlighted ? "#123642" : (hasPlayer ? "#101a25" : "#151820")
     border.color: isDropHighlighted ? "#23c7d4" : (hasPlayer ? "#253747" : "#f5b942")
     border.width: isDropHighlighted ? 2 : 1
     opacity: slotDragArea.drag.active ? 0.72 : 1.0
-    implicitHeight: 42
+    implicitHeight: Math.round(42 * scaleFactor)
 
     Item {
         id: slotDragSource
@@ -44,8 +50,10 @@ Rectangle {
         x: 0
         y: 0
 
-        property string dragKind: "slot"
+        property string dragKind: root.slotKind === "substitute" ? "substitute" : "slot"
+        property string sourceKind: root.slotKind
         property int dragSourceSlotIndex: root.slotIndex
+        property int dragSourceSubstituteIndex: root.sourceSubstituteIndex
         property int dragPlayerId: root.slotData.assignedPlayerId || 0
         property int dragAssignedPlayerId: root.slotData.assignedPlayerId || 0
 
@@ -59,6 +67,7 @@ Rectangle {
         id: slotDropArea
         anchors.fill: parent
         keys: [ "lineup-player", "lineup-slot" ]
+        enabled: root.dropEnabled
 
         onDropped: function(drop) {
             const source = drop.source
@@ -73,26 +82,32 @@ Rectangle {
                 if (sourceSlotIndex !== root.slotIndex)
                     root.slotDroppedOnSlot(sourceSlotIndex, root.slotIndex)
                 drop.acceptProposedAction()
+            } else if (source.dragKind === "substitute") {
+                const sourceSubstituteIndex = source.dragSourceSubstituteIndex
+                if (sourceSubstituteIndex !== root.sourceSubstituteIndex)
+                    root.substituteDroppedOnSlot(source.dragPlayerId || 0, sourceSubstituteIndex, root.slotIndex)
+                drop.acceptProposedAction()
             }
         }
     }
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 8
-        anchors.rightMargin: 8
-        spacing: 8
+        anchors.leftMargin: root.metrics ? root.metrics.spacingSm : 8
+        anchors.rightMargin: root.metrics ? root.metrics.spacingSm : 8
+        spacing: root.metrics ? root.metrics.spacingSm : 8
 
         PositionBadge {
             text: root.slotData.slotLabel || root.slotData.slotRole || "?"
             roleKey: root.slotData.slotRoleKey || -1
-            implicitHeight: 22
+            implicitHeight: Math.round(24 * root.scaleFactor)
+            metrics: root.metrics
         }
 
         Label {
             Layout.fillWidth: true
             text: root.hasPlayer ? (root.slotData.assignedPlayerName || "Unknown") : "Empty"
-            font.pixelSize: 12
+            font.pixelSize: root.metrics ? root.metrics.font(12) : 12
             font.bold: root.hasPlayer
             color: root.hasPlayer ? "#f7fbff" : "#f5b942"
             elide: Text.ElideRight
@@ -101,7 +116,7 @@ Rectangle {
 
         Rectangle {
             Layout.preferredWidth: root.metricColumnWidth
-            Layout.preferredHeight: 22
+            Layout.preferredHeight: Math.round(22 * root.scaleFactor)
             radius: 999
             color: "#233241"
             border.color: "#3a4d5e"
@@ -111,7 +126,7 @@ Rectangle {
                 text: root.hasPlayer
                       ? root.numberOnly(root.slotData.assignedPlayerOverallSummary, root.slotData.assignedPlayerOverall)
                       : "-"
-                font.pixelSize: 10
+                font.pixelSize: root.metrics ? root.metrics.font(10) : 10
                 font.bold: true
                 color: root.hasPlayer ? "#d7e0e8" : "#7d8d9a"
             }
@@ -122,7 +137,9 @@ Rectangle {
             value: root.hasPlayer ? (root.slotData.assignedPlayerForm || 0) : 0
             compact: true
             valueOnly: true
+            inactive: !root.hasPlayer
             Layout.preferredWidth: root.metricColumnWidth
+            metrics: root.metrics
         }
 
         ConditionBadge {
@@ -130,7 +147,9 @@ Rectangle {
             value: root.hasPlayer ? (root.slotData.assignedPlayerFitness || 0) : 0
             compact: true
             valueOnly: true
+            inactive: !root.hasPlayer
             Layout.preferredWidth: root.metricColumnWidth
+            metrics: root.metrics
         }
 
         ConditionBadge {
@@ -138,7 +157,9 @@ Rectangle {
             value: root.hasPlayer ? (root.slotData.assignedPlayerMorale || 0) : 0
             compact: true
             valueOnly: true
+            inactive: !root.hasPlayer
             Layout.preferredWidth: root.metricColumnWidth
+            metrics: root.metrics
         }
 
     }
@@ -150,7 +171,7 @@ Rectangle {
         anchors.topMargin: 3
         visible: root.hasWarning
         text: "!"
-        font.pixelSize: 12
+        font.pixelSize: root.metrics ? root.metrics.font(12) : 12
         font.bold: true
         color: "#f5b942"
         ToolTip.visible: warningMouse.containsMouse
