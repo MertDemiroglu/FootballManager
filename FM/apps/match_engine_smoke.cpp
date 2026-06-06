@@ -712,8 +712,12 @@ namespace {
         bool savedReboundOccurred = false;
         int highKeeperGoals = 0;
         int lowKeeperGoals = 0;
+        int highKeeperSaves = 0;
+        int lowKeeperSaves = 0;
         int highHandlingHeld = 0;
         int lowHandlingHeld = 0;
+        int highHandlingRebounds = 0;
+        int lowHandlingRebounds = 0;
         for (std::uint64_t seed = 1; seed <= 260; ++seed) {
             ShotContext poorContext = buildShotContextForSmoke(
                 PitchPoint{ 84.0, 8.0 },
@@ -777,8 +781,12 @@ namespace {
             savedReboundOccurred = savedReboundOccurred || highOutcome.kind == ShotOutcomeKind::SavedRebound;
             highKeeperGoals += highOutcome.goal ? 1 : 0;
             lowKeeperGoals += lowOutcome.goal ? 1 : 0;
+            highKeeperSaves += highOutcome.goal ? 0 : 1;
+            lowKeeperSaves += lowOutcome.goal ? 0 : 1;
             highHandlingHeld += highOutcome.kind == ShotOutcomeKind::SavedHeld ? 1 : 0;
             lowHandlingHeld += lowOutcome.kind == ShotOutcomeKind::SavedHeld ? 1 : 0;
+            highHandlingRebounds += highOutcome.kind == ShotOutcomeKind::SavedRebound ? 1 : 0;
+            lowHandlingRebounds += lowOutcome.kind == ShotOutcomeKind::SavedRebound ? 1 : 0;
         }
 
         require(offTargetOccurred, "off-target shots should be able to occur");
@@ -786,6 +794,11 @@ namespace {
         require(savedReboundOccurred, "saved-rebound outcomes should be able to occur");
         require(highHandlingHeld > lowHandlingHeld,
             "goalkeeper handling should increase held-save tendency");
+        require(highKeeperSaves > lowKeeperSaves,
+            "strong goalkeeper should produce more saves in aggregate");
+        require(highHandlingHeld + highHandlingRebounds > 0
+                && lowHandlingHeld + lowHandlingRebounds > 0,
+            "keeper outcome smoke should exercise held and rebound save accounting");
         require(highKeeperGoals < lowKeeperGoals,
             "goalkeeper quality should affect save chance");
     }
@@ -1660,6 +1673,8 @@ namespace {
         int assistedGoalSamples = 0;
         int goalScorerRatingSamples = 0;
         int totalShots = 0;
+        int totalShotsOnTarget = 0;
+        int totalGoals = 0;
         int totalPasses = 0;
         int totalCarryTraces = 0;
         int totalShotTraces = 0;
@@ -1752,6 +1767,8 @@ namespace {
                     ++extremePerfectConversionSamples;
                 }
                 totalShots += stats->shots;
+                totalShotsOnTarget += stats->shotsOnTarget;
+                totalGoals += stats->goals;
                 totalPasses += stats->passesAttempted;
                 require(stats->fouls == 0 && stats->corners == 0,
                     "detailed coordinate fouls/corners should remain placeholders until modeled");
@@ -1796,6 +1813,19 @@ namespace {
             "balanced 4-4-2 coordinate matches should not explode into 30+ total xG");
         require(extremePerfectConversionSamples <= 1,
             "balanced coordinate samples should not regularly convert every high-volume shot on target");
+        if (totalShotsOnTarget >= 20) {
+            const double conversion =
+                static_cast<double>(totalGoals) / static_cast<double>(totalShotsOnTarget);
+            if (conversion >= 0.70) {
+                std::cerr << "SOT conversion guardrail totalGoals=" << totalGoals
+                    << " totalSOT=" << totalShotsOnTarget
+                    << " conversion=" << conversion
+                    << " totalShots=" << totalShots
+                    << '\n';
+            }
+            require(static_cast<double>(totalGoals) / static_cast<double>(totalShotsOnTarget) < 0.70,
+                "balanced coordinate samples should not regularly exceed 70 percent SOT-to-goal conversion");
+        }
     }
 
     void runInvalidInputSmoke() {

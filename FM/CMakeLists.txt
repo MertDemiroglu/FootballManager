@@ -37,7 +37,6 @@ add_library(fm_core STATIC
     src/match_engine/simulation/FastMatchSummarySimulator.cpp
     src/match_engine/ball/ShotQualityModel.cpp
     src/match_engine/ball/ShotOutcomeResolver.cpp
-    src/match_engine/ball/ShotTargetModel.cpp
     src/match_engine/ball/ShotContextBuilder.cpp
     src/match_engine/ball/ShotTypeSelector.cpp
     src/match_engine/ball/ShotTargetSelector.cpp

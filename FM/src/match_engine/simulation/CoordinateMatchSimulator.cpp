@@ -1474,6 +1474,42 @@ namespace {
         return trajectory.actualTarget.x <= 1.0;
     }
 
+    PitchPoint goalkeeperSaveContactPoint(
+        const BallTrajectory& trajectory,
+        AttackingDirection attackingDirection,
+        const PlayerSimState* goalkeeper,
+        const ShotFlowTuning& tuning) {
+        const double goalLineX = attackingDirection == AttackingDirection::HomeToAway
+            ? PitchGeometry::LengthMeters
+            : 0.0;
+        const double contactX = goalLineX
+            + (attackingDirection == AttackingDirection::HomeToAway
+                ? -tuning.saveContactGoalLineOffsetMeters
+                : tuning.saveContactGoalLineOffsetMeters);
+
+        double lineY = trajectory.actualTarget.y;
+        const double deltaX = trajectory.actualTarget.x - trajectory.start.x;
+        if (std::abs(deltaX) > tuning.minimumSaveContactDeltaX) {
+            const double progress = clampDouble((contactX - trajectory.start.x) / deltaX, 0.0, 1.0);
+            lineY = trajectory.start.y
+                + (trajectory.actualTarget.y - trajectory.start.y) * progress;
+        }
+
+        PitchPoint contact{ contactX, lineY };
+        if (goalkeeper != nullptr) {
+            contact.x = contact.x * (1.0 - tuning.saveContactGoalkeeperBlend)
+                + goalkeeper->position.x * tuning.saveContactGoalkeeperBlend;
+            contact.y = contact.y * (1.0 - tuning.saveContactGoalkeeperBlend)
+                + goalkeeper->position.y * tuning.saveContactGoalkeeperBlend;
+        }
+
+        const double centerY = PitchGeometry::WidthMeters / 2.0;
+        const double allowedHalfWidth =
+            (PitchGeometry::GoalWidthMeters / 2.0) + tuning.saveContactLateralPaddingMeters;
+        contact.y = clampDouble(contact.y, centerY - allowedHalfWidth, centerY + allowedHalfWidth);
+        return PitchGeometry::clampToPitch(contact);
+    }
+
     double goalkeeperStrengthFor(const MatchEngineInput& input, const PlayerSimState* goalkeeper) {
         if (goalkeeper == nullptr) {
             return 45.0;
@@ -2362,7 +2398,11 @@ namespace {
 
         ++teamStatsFor(result, pending->sourceTeamId).shotsOnTarget;
 
-        const PitchPoint savePoint = trajectory.actualTarget;
+        const PitchPoint savePoint = goalkeeperSaveContactPoint(
+            trajectory,
+            direction,
+            goalkeeper,
+            shootingTuning.flow);
         if (outcome.goal) {
             const SimulationStepResult goalStep = applyLocalGoal(
                 state,

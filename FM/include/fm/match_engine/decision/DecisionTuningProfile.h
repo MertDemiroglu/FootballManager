@@ -377,14 +377,15 @@ struct ShotOutcomeTuning {
     double goalkeeperPositioningWeight = 0.08;
     double goalkeeperConcentrationWeight = 0.08;
     double goalkeeperFallbackStrengthWeight = 0.10;
-    double saveProbabilityBase = 0.48;
+    double saveProbabilityBase = 0.56;
     double saveSkillBaseline = 55.0;
     double saveSkillWeight = 0.006;
     double saveChanceQualityWeight = 0.30;
     double savePlacementWeight = 0.13;
     double savePowerWeight = 0.08;
     double saveDifficultyWeight = 0.10;
-    double saveMinimumProbability = 0.10;
+    double maximumShotThreatPenalty = 0.38;
+    double saveMinimumProbability = 0.18;
     double saveMaximumProbability = 0.82;
     double chanceQualityScale = 0.42;
     double shotPowerBaseline = 18.0;
@@ -470,6 +471,10 @@ struct ShotTrajectoryTuning {
 struct ShotFlowTuning {
     double offTargetRestartSeconds = 18.0;
     double savedHeldRestartSeconds = 10.0;
+    double saveContactGoalLineOffsetMeters = 1.2;
+    double saveContactGoalkeeperBlend = 0.35;
+    double saveContactLateralPaddingMeters = 1.5;
+    double minimumSaveContactDeltaX = 0.001;
 };
 
 struct ShootingModelTuning {

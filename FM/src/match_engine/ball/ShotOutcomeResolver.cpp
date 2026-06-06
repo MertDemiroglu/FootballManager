@@ -83,13 +83,18 @@ ShotOutcomeResult GoalkeeperSaveResolver::resolveOnTarget(const ShotOutcomeConte
     const double chanceQuality = clampDouble(context.quality.adjustedXG / tuning.chanceQualityScale, 0.0, 1.0);
     const double saveDifficulty = clampDouble(context.quality.saveDifficulty / 100.0, 0.0, 1.0);
 
+    const double shotThreatPenalty = clampDouble(
+        chanceQuality * tuning.saveChanceQualityWeight
+            + placement * tuning.savePlacementWeight
+            + power * tuning.savePowerWeight
+            + saveDifficulty * tuning.saveDifficultyWeight,
+        0.0,
+        tuning.maximumShotThreatPenalty);
+
     const double saveProbability = clampDouble(
         tuning.saveProbabilityBase
             + (keeperSkill - tuning.saveSkillBaseline) * tuning.saveSkillWeight
-            - chanceQuality * tuning.saveChanceQualityWeight
-            - placement * tuning.savePlacementWeight
-            - power * tuning.savePowerWeight
-            - saveDifficulty * tuning.saveDifficultyWeight,
+            - shotThreatPenalty,
         tuning.saveMinimumProbability,
         tuning.saveMaximumProbability);
     const double saveRoll = matchEngineDeterministicUnitInterval(context.seed ^ 0x5a9eULL);
