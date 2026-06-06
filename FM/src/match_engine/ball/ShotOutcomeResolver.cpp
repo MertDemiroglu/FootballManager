@@ -15,71 +15,81 @@ namespace {
         return value > 0 ? clampDouble(static_cast<double>(value), 0.0, 100.0) : tuning.defaultAttribute;
     }
 
-    double goalkeeperSaveSkill(const PlayerAttributes& attributes, double fallbackStrength) {
+    double goalkeeperSaveSkill(
+        const PlayerAttributes& attributes,
+        double fallbackStrength,
+        const ShotOutcomeTuning& tuning) {
         return clampDouble(
-            attributeOrDefault(attributes.goalkeeper.shotStopping) * 0.36
-                + attributeOrDefault(attributes.goalkeeper.oneOnOnes) * 0.22
-                + attributeOrDefault(attributes.goalkeeper.handling) * 0.18
-                + attributeOrDefault(attributes.goalkeeper.aerialAbility) * 0.08
-                + attributeOrDefault(attributes.mental.positioning) * 0.08
-                + attributeOrDefault(attributes.mental.concentration) * 0.08
-                + fallbackStrength * 0.10,
+            attributeOrDefault(attributes.goalkeeper.shotStopping) * tuning.goalkeeperShotStoppingWeight
+                + attributeOrDefault(attributes.goalkeeper.oneOnOnes) * tuning.goalkeeperOneOnOnesWeight
+                + attributeOrDefault(attributes.goalkeeper.handling) * tuning.goalkeeperHandlingWeight
+                + attributeOrDefault(attributes.goalkeeper.aerialAbility) * tuning.goalkeeperAerialAbilityWeight
+                + attributeOrDefault(attributes.mental.positioning) * tuning.goalkeeperPositioningWeight
+                + attributeOrDefault(attributes.mental.concentration) * tuning.goalkeeperConcentrationWeight
+                + fallbackStrength * tuning.goalkeeperFallbackStrengthWeight,
             0.0,
             100.0);
     }
 }
 
 bool ShotAccuracyResolver::isOnTarget(const ShotOutcomeContext& context) const {
-    const ShootingModelTuning tuning;
+    const ShootingModelTuning modelTuning;
+    const ShotOutcomeTuning& tuning = modelTuning.outcome;
     const double executionMissFactor = (100.0 - context.execution.executionQuality) / 100.0;
     const double pressureFactor = clampDouble(context.shotContext.pressure / 100.0, 0.0, 1.0);
     const double angleFactor = clampDouble(1.0 - (context.shotContext.centrality * 4.0), 0.0, 1.0);
     const double difficultyFactor = clampDouble(context.quality.onTargetDifficulty / 100.0, 0.0, 1.0);
     const double deviationFactor = clampDouble(
-        (context.execution.targetDeviationMeters * 0.16) + (context.execution.heightError * 0.20),
+        (context.execution.targetDeviationMeters * tuning.deviationMissWeight)
+            + (context.execution.heightError * tuning.heightErrorMissWeight),
         0.0,
-        0.45);
+        tuning.deviationFactorMaximum);
 
     double typePenalty = 0.0;
     if (context.shotType == ShotType::LongShot) {
-        typePenalty = 0.08;
+        typePenalty = tuning.longShotMissPenalty;
     } else if (context.shotType == ShotType::TightAngleShot) {
-        typePenalty = 0.10;
+        typePenalty = tuning.tightAngleShotMissPenalty;
     } else if (context.shotType == ShotType::DesperationShot) {
-        typePenalty = 0.14;
+        typePenalty = tuning.desperationShotMissPenalty;
     }
 
     const double offTargetProbability = clampDouble(
         tuning.offTargetBaseProbability
-            + executionMissFactor * 0.30
-            + pressureFactor * 0.12
-            + angleFactor * 0.14
-            + difficultyFactor * 0.12
+            + executionMissFactor * tuning.executionMissWeight
+            + pressureFactor * tuning.pressureMissWeight
+            + angleFactor * tuning.angleMissWeight
+            + difficultyFactor * tuning.difficultyMissWeight
             + deviationFactor
             + typePenalty,
-        0.02,
+        tuning.offTargetMinimumProbability,
         tuning.offTargetMaximumProbability);
 
     return matchEngineDeterministicUnitInterval(context.seed ^ 0xacc0ULL) >= offTargetProbability;
 }
 
 ShotOutcomeResult GoalkeeperSaveResolver::resolveOnTarget(const ShotOutcomeContext& context) const {
-    const ShootingModelTuning tuning;
+    const ShootingModelTuning modelTuning;
+    const ShotOutcomeTuning& tuning = modelTuning.outcome;
     const double keeperSkill = goalkeeperSaveSkill(
         context.shotContext.goalkeeperAttributes,
-        context.shotContext.goalkeeperStrength);
+        context.shotContext.goalkeeperStrength,
+        tuning);
     const double placement = clampDouble(context.execution.placementQuality / 100.0, 0.0, 1.0);
-    const double power = clampDouble((context.execution.shotPower - 18.0) / 18.0, 0.0, 1.0);
-    const double chanceQuality = clampDouble(context.quality.adjustedXG / 0.42, 0.0, 1.0);
+    const double power = clampDouble(
+        (context.execution.shotPower - tuning.shotPowerBaseline) / tuning.shotPowerScale,
+        0.0,
+        1.0);
+    const double chanceQuality = clampDouble(context.quality.adjustedXG / tuning.chanceQualityScale, 0.0, 1.0);
     const double saveDifficulty = clampDouble(context.quality.saveDifficulty / 100.0, 0.0, 1.0);
 
     const double saveProbability = clampDouble(
-        0.48
-            + (keeperSkill - 55.0) * 0.006
-            - chanceQuality * 0.30
-            - placement * 0.13
-            - power * 0.08
-            - saveDifficulty * 0.10,
+        tuning.saveProbabilityBase
+            + (keeperSkill - tuning.saveSkillBaseline) * tuning.saveSkillWeight
+            - chanceQuality * tuning.saveChanceQualityWeight
+            - placement * tuning.savePlacementWeight
+            - power * tuning.savePowerWeight
+            - saveDifficulty * tuning.saveDifficultyWeight,
         tuning.saveMinimumProbability,
         tuning.saveMaximumProbability);
     const double saveRoll = matchEngineDeterministicUnitInterval(context.seed ^ 0x5a9eULL);
@@ -90,12 +100,12 @@ ShotOutcomeResult GoalkeeperSaveResolver::resolveOnTarget(const ShotOutcomeConte
     const double handling = attributeOrDefault(context.shotContext.goalkeeperAttributes.goalkeeper.handling);
     const double heldProbability = clampDouble(
         tuning.heldReboundBase
-            + ((handling - 50.0) / 100.0) * tuning.handlingHeldScale
-            + ((keeperSkill - 55.0) / 100.0) * 0.18
+            + ((handling - tuning.handlingBaseline) / 100.0) * tuning.handlingHeldScale
+            + ((keeperSkill - tuning.saveSkillBaseline) / 100.0) * tuning.keeperSkillHeldScale
             - power * tuning.reboundPowerScale
-            - context.quality.reboundRisk * 0.28,
-        0.12,
-        0.88);
+            - context.quality.reboundRisk * tuning.reboundRiskHeldPenalty,
+        tuning.heldMinimumProbability,
+        tuning.heldMaximumProbability);
     const bool held = matchEngineDeterministicUnitInterval(context.seed ^ 0xadd5ULL) < heldProbability;
     return held
         ? ShotOutcomeResult{ ShotOutcomeKind::SavedHeld, true, false, false }

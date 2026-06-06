@@ -24,11 +24,15 @@ namespace {
             : 0.0;
     }
 
-    double distancePointToSegment(PitchPoint point, PitchPoint start, PitchPoint end) {
+    double distancePointToSegment(
+        PitchPoint point,
+        PitchPoint start,
+        PitchPoint end,
+        const ShotContextTuning& tuning) {
         const double dx = end.x - start.x;
         const double dy = end.y - start.y;
         const double lengthSquared = dx * dx + dy * dy;
-        if (lengthSquared <= 0.0001) {
+        if (lengthSquared <= tuning.minimumSegmentLengthSquared) {
             return PitchGeometry::distance(point, start);
         }
 
@@ -61,7 +65,8 @@ namespace {
 }
 
 ShotContext ShotContextBuilder::build(const ShotContextBuildRequest& request) const {
-    const ShootingModelTuning tuning;
+    const ShootingModelTuning modelTuning;
+    const ShotContextTuning& tuning = modelTuning.context;
     ShotContext context;
     context.shotOrigin = PitchGeometry::clampToPitch(request.shotOrigin);
     context.attackingDirection = request.attackingDirection;
@@ -76,17 +81,24 @@ ShotContext ShotContextBuilder::build(const ShotContextBuildRequest& request) co
     context.angleRadians = goalAngleRadians(context.shotOrigin, request.attackingDirection);
     context.centrality = clampDouble(context.angleRadians / Pi, 0.0, 1.0);
 
-    const double farDistance = 100.0;
-    context.nearestDefenderDistance = farDistance;
+    context.nearestDefenderDistance = tuning.fallbackNearestDefenderDistance;
     double lanePressure = 0.0;
     for (PitchPoint defenderPosition : request.defenderPositions) {
         const double defenderDistance = PitchGeometry::distance(context.shotOrigin, defenderPosition);
         context.nearestDefenderDistance = std::min(context.nearestDefenderDistance, defenderDistance);
-        const double laneDistance = distancePointToSegment(defenderPosition, context.shotOrigin, goalCenter);
-        if (laneDistance <= tuning.blockLaneWidthMeters + 2.0) {
-            const double distanceFactor = clampDouble(1.0 - (laneDistance / (tuning.blockLaneWidthMeters + 2.0)), 0.0, 1.0);
-            const double reactionFactor = clampDouble(1.0 - (defenderDistance / 24.0), 0.0, 1.0);
-            lanePressure = std::max(lanePressure, (distanceFactor * 62.0) + (reactionFactor * 38.0));
+        const double laneDistance =
+            distancePointToSegment(defenderPosition, context.shotOrigin, goalCenter, tuning);
+        const double laneWidth = tuning.blockLaneWidthMeters + tuning.lanePressureExtraWidthMeters;
+        if (laneDistance <= laneWidth) {
+            const double distanceFactor = clampDouble(1.0 - (laneDistance / laneWidth), 0.0, 1.0);
+            const double reactionFactor = clampDouble(
+                1.0 - (defenderDistance / tuning.lanePressureReactionDistanceMeters),
+                0.0,
+                1.0);
+            lanePressure = std::max(
+                lanePressure,
+                (distanceFactor * tuning.lanePressureDistanceWeight)
+                    + (reactionFactor * tuning.lanePressureReactionWeight));
         }
     }
     context.lanePressure = clampDouble(lanePressure, 0.0, 100.0);

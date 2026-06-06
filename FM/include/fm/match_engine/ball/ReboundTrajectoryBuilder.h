@@ -9,6 +9,7 @@ struct ReboundTrajectoryRequest {
     ShotExecutionResult execution;
     ShotOutcomeKind outcome = ShotOutcomeKind::SavedRebound;
     double goalkeeperHandling = 50.0;
+    double deflectionStrength = 0.0;
     double startSecond = 0.0;
     std::uint64_t seed = 0;
 };

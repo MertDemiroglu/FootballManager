@@ -13,22 +13,22 @@ namespace {
         return value > 0 ? std::clamp(static_cast<double>(value), 0.0, 100.0) : tuning.defaultAttribute;
     }
 
-    double typeDifficulty(ShotType type) {
+    double typeDifficulty(ShotType type, const ShotExecutionTuning& tuning) {
         switch (type) {
         case ShotType::ControlledFinish:
-            return 10.0;
+            return tuning.controlledFinishDifficulty;
         case ShotType::PlacedShot:
-            return 17.0;
+            return tuning.placedShotDifficulty;
         case ShotType::PowerShot:
-            return 23.0;
+            return tuning.powerShotDifficulty;
         case ShotType::LongShot:
-            return 34.0;
+            return tuning.longShotDifficulty;
         case ShotType::TightAngleShot:
-            return 38.0;
+            return tuning.tightAngleShotDifficulty;
         case ShotType::DesperationShot:
-            return 48.0;
+            return tuning.desperationShotDifficulty;
         }
-        return 20.0;
+        return tuning.placedShotDifficulty;
     }
 
     double signedUnit(std::uint64_t seed) {
@@ -49,7 +49,8 @@ namespace {
 }
 
 ShotExecutionResult ShotExecutionModel::execute(const ShotExecutionRequest& request) const {
-    const ShootingModelTuning tuning;
+    const ShootingModelTuning modelTuning;
+    const ShotExecutionTuning& tuning = modelTuning.execution;
     const ShotContext& context = request.context;
     const double shooting = attributeOrDefault(context.shooterAttributes.technical.shooting);
     const double technique = attributeOrDefault(context.shooterAttributes.technical.technique);
@@ -57,40 +58,42 @@ ShotExecutionResult ShotExecutionModel::execute(const ShotExecutionRequest& requ
     const double decisions = attributeOrDefault(context.shooterAttributes.mental.decisions);
     const double agility = attributeOrDefault(context.shooterAttributes.physical.agility);
     const double skill =
-        (shooting * 0.34)
-        + (technique * 0.26)
-        + (composure * 0.19)
-        + (decisions * 0.13)
-        + (agility * 0.08);
+        (shooting * tuning.shootingSkillWeight)
+        + (technique * tuning.techniqueSkillWeight)
+        + (composure * tuning.composureSkillWeight)
+        + (decisions * tuning.decisionsSkillWeight)
+        + (agility * tuning.agilitySkillWeight);
 
     const double difficulty =
-        typeDifficulty(request.shotType)
-        + (context.pressure * 0.32)
-        + (context.distanceMeters * 0.42)
-        + ((1.0 - context.centrality) * 24.0)
-        + (context.lanePressure * 0.12);
-    const double qualityNoise = signedUnit(context.seed ^ 0x3ee171ULL) * 9.0;
+        typeDifficulty(request.shotType, tuning)
+        + (context.pressure * tuning.pressureDifficultyWeight)
+        + (context.distanceMeters * tuning.distanceDifficultyWeight)
+        + ((1.0 - context.centrality) * tuning.angleDifficultyWeight)
+        + (context.lanePressure * tuning.lanePressureDifficultyWeight);
+    const double qualityNoise = signedUnit(context.seed ^ 0x3ee171ULL) * tuning.executionNoiseRange;
     const double executionQuality = std::clamp(
-        62.0 + ((skill - difficulty) * 0.72) + qualityNoise,
-        1.0,
-        99.0);
+        tuning.executionQualityBase + ((skill - difficulty) * tuning.skillDifficultyBlend) + qualityNoise,
+        tuning.minimumExecutionQuality,
+        tuning.maximumExecutionQuality);
 
     const double qualityPenalty = (100.0 - executionQuality) / 100.0;
     const double deviationBudget =
         tuning.baseDeviationMeters
-        + (qualityPenalty * 4.1)
+        + (qualityPenalty * tuning.qualityDeviationScale)
         + (context.pressure / 100.0 * tuning.pressureDeviationScale)
         + (context.distanceMeters * tuning.distanceDeviationScale)
         + ((1.0 - context.centrality) * tuning.angleDeviationScale)
-        + (typeDifficulty(request.shotType) / 100.0 * tuning.difficultTypeDeviationScale);
+        + (typeDifficulty(request.shotType, tuning) / tuning.difficultyScale * tuning.typeDeviationScale);
     const double directionError = signedUnit(context.seed ^ 0x6711b9ULL) * deviationBudget;
-    const double heightError = signedUnit(context.seed ^ 0x54bd21ULL) * (0.35 + qualityPenalty * 1.8);
+    const double heightError =
+        signedUnit(context.seed ^ 0x54bd21ULL)
+            * (tuning.heightErrorBase + qualityPenalty * tuning.heightErrorQualityScale);
 
     ShotTargetZone actualZone = request.intendedTarget.intendedZone;
-    if (std::abs(directionError) > 1.55) {
+    if (std::abs(directionError) > tuning.laneShiftThreshold) {
         actualZone.lane = shiftedLane(actualZone.lane, directionError > 0.0 ? 1 : -1);
     }
-    if (std::abs(heightError) > 0.85) {
+    if (std::abs(heightError) > tuning.heightShiftThreshold) {
         actualZone.height = shiftedHeight(actualZone.height, heightError > 0.0 ? 1 : -1);
     }
 
@@ -99,14 +102,20 @@ ShotExecutionResult ShotExecutionModel::execute(const ShotExecutionRequest& requ
     actualTarget.y += directionError;
     actualTarget.y = std::clamp(actualTarget.y, 0.0, PitchGeometry::WidthMeters);
 
-    double powerBase = 24.0 + (shooting - 50.0) * 0.045 + (technique - 50.0) * 0.025;
-    if (request.shotType == ShotType::PowerShot || request.shotType == ShotType::LongShot) {
-        powerBase += 4.0;
+    double powerBase = tuning.powerBase
+        + (shooting - tuning.powerSkillBaseline) * tuning.shootingPowerWeight
+        + (technique - tuning.powerSkillBaseline) * tuning.techniquePowerWeight;
+    if (request.shotType == ShotType::PowerShot) {
+        powerBase += tuning.powerShotPowerBonus;
+    } else if (request.shotType == ShotType::LongShot) {
+        powerBase += tuning.longShotPowerBonus;
     } else if (request.shotType == ShotType::ControlledFinish || request.shotType == ShotType::PlacedShot) {
-        powerBase -= 1.8;
+        powerBase -= request.shotType == ShotType::ControlledFinish
+            ? tuning.controlledFinishPowerPenalty
+            : tuning.placedShotPowerPenalty;
     }
     const double shotPower = std::clamp(
-        powerBase + signedUnit(context.seed ^ 0x9017adULL) * 2.5,
+        powerBase + signedUnit(context.seed ^ 0x9017adULL) * tuning.powerNoiseRange,
         tuning.minimumShotPower,
         tuning.maximumShotPower);
 
@@ -117,7 +126,11 @@ ShotExecutionResult ShotExecutionModel::execute(const ShotExecutionRequest& requ
         std::abs(directionError),
         std::abs(heightError),
         shotPower,
-        std::clamp(request.intendedTarget.placementQuality + (executionQuality - 55.0) * 0.35, 0.0, 100.0),
+        std::clamp(
+            request.intendedTarget.placementQuality
+                + (executionQuality - tuning.placementExecutionBaseline) * tuning.placementExecutionBlend,
+            0.0,
+            100.0),
         executionQuality >= tuning.cleanStrikeThreshold
     };
 }

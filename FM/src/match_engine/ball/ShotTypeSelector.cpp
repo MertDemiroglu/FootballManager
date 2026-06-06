@@ -12,22 +12,22 @@ namespace {
         return value > 0 ? std::clamp(static_cast<double>(value), 0.0, 100.0) : tuning.defaultAttribute;
     }
 
-    double typeDifficulty(ShotType type) {
+    double typeDifficulty(ShotType type, const ShotTypeSelectionTuning& tuning) {
         switch (type) {
         case ShotType::ControlledFinish:
-            return 12.0;
+            return tuning.controlledFinishDifficulty;
         case ShotType::PlacedShot:
-            return 18.0;
+            return tuning.placedShotDifficulty;
         case ShotType::PowerShot:
-            return 24.0;
+            return tuning.powerShotDifficulty;
         case ShotType::LongShot:
-            return 34.0;
+            return tuning.longShotDifficulty;
         case ShotType::TightAngleShot:
-            return 38.0;
+            return tuning.tightAngleShotDifficulty;
         case ShotType::DesperationShot:
-            return 48.0;
+            return tuning.desperationShotDifficulty;
         }
-        return 24.0;
+        return tuning.powerShotDifficulty;
     }
 
     ShotType weightedChoice(const std::array<std::pair<ShotType, double>, 6>& weights, std::uint64_t seed) {
@@ -51,28 +51,60 @@ namespace {
 }
 
 ShotTypeSelectionResult ShotTypeSelector::select(const ShotContext& context) const {
-    const ShootingModelTuning tuning;
+    const ShootingModelTuning modelTuning;
+    const ShotTypeSelectionTuning& tuning = modelTuning.typeSelection;
     const double decisions = attributeOrDefault(context.shooterAttributes.mental.decisions);
     const double shooting = attributeOrDefault(context.shooterAttributes.technical.shooting);
     const double technique = attributeOrDefault(context.shooterAttributes.technical.technique);
     const double composure = attributeOrDefault(context.shooterAttributes.mental.composure);
-    const double skill = (shooting * 0.35) + (technique * 0.28) + (composure * 0.22) + (decisions * 0.15);
-    const double skillLift = std::clamp((skill - 50.0) / 50.0, -0.6, 0.8);
-    const double pressure = std::clamp(context.pressure / 100.0, 0.0, 1.0);
+    const double skill =
+        (shooting * tuning.shootingSkillWeight)
+        + (technique * tuning.techniqueSkillWeight)
+        + (composure * tuning.composureSkillWeight)
+        + (decisions * tuning.decisionsSkillWeight);
+    const double skillLift = std::clamp(
+        (skill - tuning.skillBaseline) / tuning.skillScale,
+        tuning.minimumSkillLift,
+        tuning.maximumSkillLift);
+    const double pressure = std::clamp(context.pressure / tuning.pressureScale, 0.0, 1.0);
     const double longDistance = context.distanceMeters > tuning.longShotDistance ? 1.0 : 0.0;
     const double veryLongDistance = context.distanceMeters > tuning.veryLongShotDistance ? 1.0 : 0.0;
-    const double tightAngle = std::clamp(1.0 - (context.centrality * 4.2), 0.0, 1.0);
-    const double closeCentral = context.distanceMeters < tuning.closeShotDistance && context.centrality > 0.22 ? 1.0 : 0.0;
+    const double tightAngle =
+        std::clamp(1.0 - (context.centrality * tuning.tightAngleCentralityScale), 0.0, 1.0);
+    const double closeCentral =
+        context.distanceMeters < tuning.closeShotDistance
+            && context.centrality > tuning.closeCentralMinimumCentrality
+        ? 1.0
+        : 0.0;
 
     const std::array<std::pair<ShotType, double>, 6> weights{ {
-        { ShotType::ControlledFinish, 28.0 + (closeCentral * 22.0) + (skillLift * 8.0) - (pressure * 8.0) },
-        { ShotType::PlacedShot, 26.0 + (skillLift * 12.0) + (context.centrality * 12.0) },
-        { ShotType::PowerShot, 18.0 + (pressure * 8.0) + (skillLift * 5.0) },
-        { ShotType::LongShot, 4.0 + (longDistance * 30.0) + (veryLongDistance * 16.0) },
-        { ShotType::TightAngleShot, 2.0 + (tightAngle * 36.0) },
-        { ShotType::DesperationShot, 2.0 + (pressure * 12.0) + (veryLongDistance * 10.0) + (context.lanePressure * 0.08) }
+        { ShotType::ControlledFinish,
+            tuning.controlledFinishBaseWeight
+                + (closeCentral * tuning.controlledFinishCloseCentralBonus)
+                + (skillLift * tuning.controlledFinishSkillBonus)
+                - (pressure * tuning.controlledFinishPressurePenalty) },
+        { ShotType::PlacedShot,
+            tuning.placedShotBaseWeight
+                + (skillLift * tuning.placedShotSkillBonus)
+                + (context.centrality * tuning.placedShotCentralityBonus) },
+        { ShotType::PowerShot,
+            tuning.powerShotBaseWeight
+                + (pressure * tuning.powerShotPressureBonus)
+                + (skillLift * tuning.powerShotSkillBonus) },
+        { ShotType::LongShot,
+            tuning.longShotBaseWeight
+                + (longDistance * tuning.longShotDistanceBonus)
+                + (veryLongDistance * tuning.veryLongShotDistanceBonus) },
+        { ShotType::TightAngleShot,
+            tuning.tightAngleShotBaseWeight
+                + (tightAngle * tuning.tightAngleShotTightAngleBonus) },
+        { ShotType::DesperationShot,
+            tuning.desperationShotBaseWeight
+                + (pressure * tuning.desperationShotPressureBonus)
+                + (veryLongDistance * tuning.desperationShotVeryLongBonus)
+                + (context.lanePressure * tuning.desperationShotLanePressureBonus) }
     } };
 
     const ShotType selected = weightedChoice(weights, context.seed ^ 0x5a0719ULL);
-    return ShotTypeSelectionResult{ selected, typeDifficulty(selected) };
+    return ShotTypeSelectionResult{ selected, typeDifficulty(selected, tuning) };
 }

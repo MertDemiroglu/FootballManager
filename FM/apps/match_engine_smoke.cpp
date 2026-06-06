@@ -7,6 +7,7 @@
 #include"fm/match_engine/decision/CarryOptionEvaluator.h"
 #include"fm/match_engine/decision/PassOptionEvaluator.h"
 #include"fm/match_engine/decision/ShotDecisionEvaluator.h"
+#include"fm/match_engine/ball/ReboundTrajectoryBuilder.h"
 #include"fm/match_engine/ball/ShotBlockResolver.h"
 #include"fm/match_engine/ball/ShotContextBuilder.h"
 #include"fm/match_engine/ball/ShotExecutionModel.h"
@@ -22,6 +23,7 @@
 #include"fm/roster/Team.h"
 
 #include<algorithm>
+#include<cmath>
 #include<cstdint>
 #include<filesystem>
 #include<iostream>
@@ -788,6 +790,122 @@ namespace {
             "goalkeeper quality should affect save chance");
     }
 
+    void runReboundTrajectoryModelSmoke() {
+        const PitchPoint contactPoint{ 70.0, PitchGeometry::WidthMeters / 2.0 };
+        BallTrajectory incoming;
+        incoming.start = PitchPoint{ 50.0, PitchGeometry::WidthMeters / 2.0 };
+        incoming.intendedTarget = PitchPoint{ 105.0, PitchGeometry::WidthMeters / 2.0 };
+        incoming.actualTarget = PitchPoint{ 105.0, PitchGeometry::WidthMeters / 2.0 };
+        incoming.startSecond = 12.0;
+        incoming.arrivalSecond = 12.45;
+        incoming.speedMetersPerSecond = 28.0;
+        incoming.type = BallTrajectoryType::Shot;
+        incoming.flightProfile = BallFlightProfile::Shot;
+        incoming.apexHeightMeters = 0.9;
+
+        ShotExecutionResult lowPowerExecution;
+        lowPowerExecution.actualZone = ShotTargetZone{ ShotTargetLane::Center, ShotTargetHeight::Low };
+        lowPowerExecution.actualTarget = incoming.actualTarget;
+        lowPowerExecution.executionQuality = 62.0;
+        lowPowerExecution.shotPower = 18.0;
+        lowPowerExecution.placementQuality = 58.0;
+
+        ShotExecutionResult highPowerExecution = lowPowerExecution;
+        highPowerExecution.shotPower = 92.0;
+
+        const ReboundTrajectoryBuilder builder;
+        const std::uint64_t seed = 0xabc123ULL;
+        const BallTrajectory first = builder.build(ReboundTrajectoryRequest{
+            contactPoint,
+            incoming,
+            highPowerExecution,
+            ShotOutcomeKind::SavedRebound,
+            42.0,
+            0.0,
+            incoming.arrivalSecond,
+            seed
+        });
+        const BallTrajectory second = builder.build(ReboundTrajectoryRequest{
+            contactPoint,
+            incoming,
+            highPowerExecution,
+            ShotOutcomeKind::SavedRebound,
+            42.0,
+            0.0,
+            incoming.arrivalSecond,
+            seed
+        });
+        require(PitchGeometry::distance(first.actualTarget, second.actualTarget) < 0.0001,
+            "same rebound input and seed should produce the same target");
+        require(first.arrivalSecond > first.startSecond,
+            "rebound trajectory should arrive after it starts");
+
+        const BallTrajectory lowPowerSaved = builder.build(ReboundTrajectoryRequest{
+            contactPoint,
+            incoming,
+            lowPowerExecution,
+            ShotOutcomeKind::SavedRebound,
+            42.0,
+            0.0,
+            incoming.arrivalSecond,
+            seed
+        });
+        require(
+            PitchGeometry::distance(contactPoint, first.actualTarget)
+                > PitchGeometry::distance(contactPoint, lowPowerSaved.actualTarget),
+            "higher shot power should generally create a longer saved rebound");
+
+        const BallTrajectory lowHandlingSaved = builder.build(ReboundTrajectoryRequest{
+            contactPoint,
+            incoming,
+            highPowerExecution,
+            ShotOutcomeKind::SavedRebound,
+            28.0,
+            0.0,
+            incoming.arrivalSecond,
+            seed
+        });
+        const BallTrajectory highHandlingSaved = builder.build(ReboundTrajectoryRequest{
+            contactPoint,
+            incoming,
+            highPowerExecution,
+            ShotOutcomeKind::SavedRebound,
+            88.0,
+            0.0,
+            incoming.arrivalSecond,
+            seed
+        });
+        require(
+            PitchGeometry::distance(contactPoint, highHandlingSaved.actualTarget)
+                < PitchGeometry::distance(contactPoint, lowHandlingSaved.actualTarget),
+            "higher goalkeeper handling should reduce saved rebound distance");
+
+        const BallTrajectory blockedDeflection = builder.build(ReboundTrajectoryRequest{
+            contactPoint,
+            incoming,
+            highPowerExecution,
+            ShotOutcomeKind::Blocked,
+            50.0,
+            0.85,
+            incoming.arrivalSecond,
+            seed
+        });
+        require(blockedDeflection.type == BallTrajectoryType::Deflection,
+            "blocked shot rebound builder should create a deflection trajectory");
+        require(first.type == BallTrajectoryType::Rebound,
+            "saved shot rebound builder should create a rebound trajectory");
+        require(blockedDeflection.flightProfile != first.flightProfile
+                || PitchGeometry::distance(blockedDeflection.actualTarget, first.actualTarget) > 0.001,
+            "blocked deflection and saved rebound should have different trajectory profiles");
+        require(blockedDeflection.actualTarget.x >= 0.0
+                && blockedDeflection.actualTarget.x <= PitchGeometry::LengthMeters
+                && blockedDeflection.actualTarget.y >= 0.0
+                && blockedDeflection.actualTarget.y <= PitchGeometry::WidthMeters,
+            "rebound target should be clamped to the pitch");
+        require(blockedDeflection.arrivalSecond > blockedDeflection.startSecond,
+            "blocked deflection should arrive after it starts");
+    }
+
     void assertResultReportConsistency(
         const MatchEngineInput& input,
         const MatchEngineResult& result) {
@@ -1547,6 +1665,7 @@ namespace {
         int totalShotTraces = 0;
         int hundredShotSamples = 0;
         int explodedXGSamples = 0;
+        int extremePerfectConversionSamples = 0;
         for (std::uint64_t seed = 1; seed <= 8; ++seed) {
             const MatchEngineInput input =
                 buildInput(MatchSimulationDetail::WatchedMatch, 0x9300ULL + seed);
@@ -1625,6 +1744,13 @@ namespace {
 
             for (const MatchTeamSimulationStats* stats : { &result.homeStats, &result.awayStats }) {
                 require(stats->passesAttempted > 0, "detailed coordinate match should attempt passes");
+                require(stats->shotsOnTarget <= stats->shots,
+                    "shots on target should never exceed total shots");
+                require(stats->goals <= stats->shotsOnTarget,
+                    "goals should not exceed shots on target while own goals are not modeled");
+                if (stats->shotsOnTarget >= 8 && stats->goals == stats->shotsOnTarget) {
+                    ++extremePerfectConversionSamples;
+                }
                 totalShots += stats->shots;
                 totalPasses += stats->passesAttempted;
                 require(stats->fouls == 0 && stats->corners == 0,
@@ -1668,6 +1794,8 @@ namespace {
             "balanced 4-4-2 coordinate matches should not regularly produce 100+ shots");
         require(explodedXGSamples == 0,
             "balanced 4-4-2 coordinate matches should not explode into 30+ total xG");
+        require(extremePerfectConversionSamples <= 1,
+            "balanced coordinate samples should not regularly convert every high-volume shot on target");
     }
 
     void runInvalidInputSmoke() {
@@ -1870,6 +1998,7 @@ int main() {
         runShotExecutionModelSmoke();
         runShotQualityFoundationSmoke();
         runShotOutcomeFoundationSmoke();
+        runReboundTrajectoryModelSmoke();
         runDetailSmoke(MatchSimulationDetail::BackgroundSummary);
         runDetailSmoke(MatchSimulationDetail::WatchedMatch);
         runDetailSmoke(MatchSimulationDetail::DebugFullTrace);

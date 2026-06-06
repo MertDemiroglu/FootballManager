@@ -53,7 +53,8 @@ double ShotQualityModel::calculateOpenPlayXG(
     PitchPoint shotLocation,
     AttackingDirection attackingDirection,
     double pressure) {
-    const ShootingModelTuning tuning;
+    const ShootingModelTuning modelTuning;
+    const ShotQualityTuning& tuning = modelTuning.quality;
     const double distanceMeters =
         PitchGeometry::distance(shotLocation, goalCenterFor(attackingDirection));
     const double angleRadians = goalAngleRadians(shotLocation, attackingDirection);
@@ -76,63 +77,71 @@ ShotQualityResult ShotQualityModel::evaluate(
         context.shotOrigin,
         context.attackingDirection,
         0.0);
-    const double pressureFactor = clampDouble(context.pressure / 100.0, 0.0, 1.0);
-    const double lanePressureFactor = clampDouble(context.lanePressure / 100.0, 0.0, 1.0);
-    const double tightAngleFactor = clampDouble(1.0 - (context.centrality * 4.0), 0.0, 1.0);
+    const ShootingModelTuning modelTuning;
+    const ShotQualityTuning& tuning = modelTuning.quality;
+    const double pressureFactor = clampDouble(context.pressure / tuning.pressureScale, 0.0, 1.0);
+    const double lanePressureFactor =
+        clampDouble(context.lanePressure / tuning.lanePressureScale, 0.0, 1.0);
+    const double tightAngleFactor =
+        clampDouble(1.0 - (context.centrality * tuning.tightAngleCentralityScale), 0.0, 1.0);
 
     double typePenalty = 0.0;
     if (shotType == ShotType::LongShot) {
-        typePenalty = 0.10;
+        typePenalty = tuning.longShotTypePenalty;
     } else if (shotType == ShotType::TightAngleShot) {
-        typePenalty = 0.12;
+        typePenalty = tuning.tightAngleShotTypePenalty;
     } else if (shotType == ShotType::DesperationShot) {
-        typePenalty = 0.18;
+        typePenalty = tuning.desperationShotTypePenalty;
     } else if (shotType == ShotType::PowerShot) {
-        typePenalty = 0.04;
+        typePenalty = tuning.powerShotTypePenalty;
     }
 
     const double blockRisk = clampDouble(
-        0.04
-            + lanePressureFactor * 0.34
-            + pressureFactor * 0.12
-            + clampDouble((22.0 - context.nearestDefenderDistance) / 45.0, 0.0, 0.22)
-            - ((execution.shotPower - 24.0) * 0.006),
-        0.02,
-        0.58);
+        tuning.blockRiskBase
+            + lanePressureFactor * tuning.blockRiskLanePressureWeight
+            + pressureFactor * tuning.blockRiskPressureWeight
+            + clampDouble(
+                (tuning.nearestDefenderDistanceReference - context.nearestDefenderDistance)
+                    / tuning.nearestDefenderDistanceScale,
+                0.0,
+                tuning.nearestDefenderRiskMaximum)
+            - ((execution.shotPower - tuning.blockRiskPowerBaseline) * tuning.blockRiskPowerReduction),
+        tuning.blockRiskMinimum,
+        tuning.blockRiskMaximum);
     const double adjustedXG = clampDouble(
         baseXG
-            * (1.0 - pressureFactor * 0.30)
-            * (1.0 - lanePressureFactor * 0.18)
+            * (1.0 - pressureFactor * tuning.adjustedXGPressurePenalty)
+            * (1.0 - lanePressureFactor * tuning.adjustedXGLanePressurePenalty)
             * (1.0 - typePenalty)
-            * (1.0 - tightAngleFactor * 0.18),
-        0.003,
-        0.42);
+            * (1.0 - tightAngleFactor * tuning.adjustedXGTightAnglePenalty),
+        tuning.adjustedXGMinimum,
+        tuning.adjustedXGMaximum);
 
     const double onTargetDifficulty = clampDouble(
-        18.0
-            + context.distanceMeters * 1.25
-            + context.pressure * 0.34
-            + tightAngleFactor * 30.0
-            + typePenalty * 70.0
-            + execution.targetDeviationMeters * 6.0
-            + execution.heightError * 7.0,
+        tuning.onTargetDifficultyBase
+            + context.distanceMeters * tuning.onTargetDifficultyDistanceWeight
+            + context.pressure * tuning.onTargetDifficultyPressureWeight
+            + tightAngleFactor * tuning.onTargetDifficultyTightAngleWeight
+            + typePenalty * tuning.onTargetDifficultyTypeWeight
+            + execution.targetDeviationMeters * tuning.onTargetDifficultyDeviationWeight
+            + execution.heightError * tuning.onTargetDifficultyHeightErrorWeight,
         0.0,
         100.0);
     const double saveDifficulty = clampDouble(
-        34.0
-            + adjustedXG * 92.0
-            + execution.placementQuality * 0.18
-            + (execution.shotPower - 22.0) * 1.4
-            + tightAngleFactor * 8.0,
+        tuning.saveDifficultyBase
+            + adjustedXG * tuning.saveDifficultyAdjustedXGWeight
+            + execution.placementQuality * tuning.saveDifficultyPlacementWeight
+            + (execution.shotPower - tuning.saveDifficultyPowerBaseline) * tuning.saveDifficultyPowerWeight
+            + tightAngleFactor * tuning.saveDifficultyTightAngleWeight,
         0.0,
         100.0);
     const double reboundRisk = clampDouble(
-        0.18
-            + (execution.shotPower - 22.0) * 0.018
-            + (1.0 - context.goalkeeperStrength / 100.0) * 0.18
-            + pressureFactor * 0.08,
-        0.05,
-        0.62);
+        tuning.reboundRiskBase
+            + (execution.shotPower - tuning.reboundRiskPowerBaseline) * tuning.reboundRiskPowerWeight
+            + (1.0 - context.goalkeeperStrength / 100.0) * tuning.reboundRiskGoalkeeperWeaknessWeight
+            + pressureFactor * tuning.reboundRiskPressureWeight,
+        tuning.reboundRiskMinimum,
+        tuning.reboundRiskMaximum);
 
     return ShotQualityResult{
         baseXG,

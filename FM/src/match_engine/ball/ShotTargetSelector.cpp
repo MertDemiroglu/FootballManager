@@ -12,22 +12,22 @@ namespace {
         return value > 0 ? std::clamp(static_cast<double>(value), 0.0, 100.0) : tuning.defaultAttribute;
     }
 
-    double shotTypeTargetDifficulty(ShotType type) {
+    double shotTypeTargetDifficulty(ShotType type, const ShotTargetSelectionTuning& tuning) {
         switch (type) {
         case ShotType::ControlledFinish:
-            return 8.0;
+            return tuning.controlledFinishTargetDifficulty;
         case ShotType::PlacedShot:
-            return 18.0;
+            return tuning.placedShotTargetDifficulty;
         case ShotType::PowerShot:
-            return 15.0;
+            return tuning.powerShotTargetDifficulty;
         case ShotType::LongShot:
-            return 30.0;
+            return tuning.longShotTargetDifficulty;
         case ShotType::TightAngleShot:
-            return 34.0;
+            return tuning.tightAngleShotTargetDifficulty;
         case ShotType::DesperationShot:
-            return 42.0;
+            return tuning.desperationShotTargetDifficulty;
         }
-        return 18.0;
+        return tuning.placedShotTargetDifficulty;
     }
 
     template<typename T, std::size_t Size>
@@ -59,13 +59,18 @@ PitchPoint shotTargetPointFor(
     ShotTargetZone zone) {
     const double centerY = PitchGeometry::WidthMeters / 2.0;
     const double halfGoal = PitchGeometry::GoalWidthMeters / 2.0;
+    const ShotTargetSelectionTuning tuning;
     const bool nearIsLowerY = shotOrigin.y < centerY;
 
     double laneOffset = 0.0;
     if (zone.lane == ShotTargetLane::NearPost) {
-        laneOffset = nearIsLowerY ? -halfGoal * 0.72 : halfGoal * 0.72;
+        laneOffset = nearIsLowerY
+            ? -halfGoal * tuning.goalLaneOffsetShare
+            : halfGoal * tuning.goalLaneOffsetShare;
     } else if (zone.lane == ShotTargetLane::FarPost) {
-        laneOffset = nearIsLowerY ? halfGoal * 0.72 : -halfGoal * 0.72;
+        laneOffset = nearIsLowerY
+            ? halfGoal * tuning.goalLaneOffsetShare
+            : -halfGoal * tuning.goalLaneOffsetShare;
     }
 
     return PitchPoint{ goalLineXFor(attackingDirection), centerY + laneOffset };
@@ -74,25 +79,49 @@ PitchPoint shotTargetPointFor(
 ShotTargetSelectionResult ShotTargetSelector::select(
     const ShotContext& context,
     ShotType shotType) const {
+    const ShootingModelTuning modelTuning;
+    const ShotTargetSelectionTuning& tuning = modelTuning.targetSelection;
     const double shooting = attributeOrDefault(context.shooterAttributes.technical.shooting);
     const double technique = attributeOrDefault(context.shooterAttributes.technical.technique);
     const double composure = attributeOrDefault(context.shooterAttributes.mental.composure);
     const double decisions = attributeOrDefault(context.shooterAttributes.mental.decisions);
     const double targetSkill =
-        (shooting * 0.30) + (technique * 0.25) + (composure * 0.25) + (decisions * 0.20);
-    const double skillLift = std::clamp((targetSkill - 50.0) / 50.0, -0.7, 0.9);
-    const double pressure = std::clamp(context.pressure / 100.0, 0.0, 1.0);
-    const double tightAngle = std::clamp(1.0 - (context.centrality * 4.0), 0.0, 1.0);
+        (shooting * tuning.shootingSkillWeight)
+        + (technique * tuning.techniqueSkillWeight)
+        + (composure * tuning.composureSkillWeight)
+        + (decisions * tuning.decisionsSkillWeight);
+    const double skillLift = std::clamp(
+        (targetSkill - tuning.skillBaseline) / tuning.skillScale,
+        tuning.minimumSkillLift,
+        tuning.maximumSkillLift);
+    const double pressure = std::clamp(context.pressure / tuning.pressureScale, 0.0, 1.0);
+    const double tightAngle =
+        std::clamp(1.0 - (context.centrality * tuning.tightAngleCentralityScale), 0.0, 1.0);
 
     const std::array<std::pair<ShotTargetLane, double>, 3> laneWeights{ {
-        { ShotTargetLane::NearPost, 24.0 + (tightAngle * 18.0) + (pressure * 8.0) },
-        { ShotTargetLane::Center, 18.0 - (skillLift * 5.0) + (pressure * 8.0) },
-        { ShotTargetLane::FarPost, 30.0 + (skillLift * 16.0) + (context.centrality * 10.0) - (tightAngle * 6.0) }
+        { ShotTargetLane::NearPost,
+            tuning.nearPostBaseWeight
+                + (tightAngle * tuning.nearPostTightAngleBonus)
+                + (pressure * tuning.nearPostPressureBonus) },
+        { ShotTargetLane::Center,
+            tuning.centerBaseWeight
+                - (skillLift * tuning.centerSkillPenalty)
+                + (pressure * tuning.centerPressureBonus) },
+        { ShotTargetLane::FarPost,
+            tuning.farPostBaseWeight
+                + (skillLift * tuning.farPostSkillBonus)
+                + (context.centrality * tuning.farPostCentralityBonus)
+                - (tightAngle * tuning.farPostTightAnglePenalty) }
     } };
     const std::array<std::pair<ShotTargetHeight, double>, 3> heightWeights{ {
-        { ShotTargetHeight::Low, 34.0 + (skillLift * 10.0) },
-        { ShotTargetHeight::Mid, 24.0 + (pressure * 6.0) },
-        { ShotTargetHeight::High, 15.0 + (shotType == ShotType::PowerShot ? 8.0 : 0.0) - (skillLift * 4.0) }
+        { ShotTargetHeight::Low,
+            tuning.lowHeightBaseWeight + (skillLift * tuning.lowHeightSkillBonus) },
+        { ShotTargetHeight::Mid,
+            tuning.midHeightBaseWeight + (pressure * tuning.midHeightPressureBonus) },
+        { ShotTargetHeight::High,
+            tuning.highHeightBaseWeight
+                + (shotType == ShotType::PowerShot ? tuning.highHeightPowerShotBonus : 0.0)
+                - (skillLift * tuning.highHeightSkillPenalty) }
     } };
 
     ShotTargetZone zone;
@@ -100,16 +129,23 @@ ShotTargetSelectionResult ShotTargetSelector::select(
     zone.height = weightedChoice(heightWeights, context.seed ^ 0x926b77ULL);
 
     const double heightDifficulty =
-        zone.height == ShotTargetHeight::High ? 12.0 : (zone.height == ShotTargetHeight::Low ? 6.0 : 4.0);
+        zone.height == ShotTargetHeight::High
+            ? tuning.highHeightDifficulty
+            : (zone.height == ShotTargetHeight::Low
+                ? tuning.lowHeightDifficulty
+                : tuning.midHeightDifficulty);
     const double laneDifficulty =
-        zone.lane == ShotTargetLane::Center ? 4.0 : 10.0;
-    const double placementQuality = std::clamp(targetSkill - (context.pressure * 0.24), 0.0, 100.0);
+        zone.lane == ShotTargetLane::Center
+            ? tuning.centerLaneDifficulty
+            : tuning.postLaneDifficulty;
+    const double placementQuality =
+        std::clamp(targetSkill - (context.pressure * tuning.placementPressurePenalty), 0.0, 100.0);
     const double targetDifficulty = std::clamp(
-        shotTypeTargetDifficulty(shotType)
+        shotTypeTargetDifficulty(shotType, tuning)
             + laneDifficulty
             + heightDifficulty
-            + (context.distanceMeters * 0.55)
-            + ((1.0 - context.centrality) * 16.0),
+            + (context.distanceMeters * tuning.distanceDifficultyWeight)
+            + ((1.0 - context.centrality) * tuning.tightAngleDifficultyWeight),
         0.0,
         100.0);
 

@@ -17,23 +17,28 @@ namespace {
         return value > 0 ? clampDouble(static_cast<double>(value), 0.0, 100.0) : tuning.defaultAttribute;
     }
 
-    double defenderBlockSkill(const ShotBlocker& blocker) {
+    double defenderBlockSkill(const ShotBlocker& blocker, const ShotBlockTuning& tuning) {
         return clampDouble(
-            attributeOrDefault(blocker.attributes.mental.positioning) * 0.28
-                + attributeOrDefault(blocker.attributes.mental.concentration) * 0.22
-                + attributeOrDefault(blocker.attributes.technical.marking) * 0.18
-                + attributeOrDefault(blocker.attributes.technical.tackling) * 0.16
-                + attributeOrDefault(blocker.attributes.physical.agility) * 0.10
-                + clampDouble(static_cast<double>(blocker.baseOverall), 0.0, 100.0) * 0.06,
+            attributeOrDefault(blocker.attributes.mental.positioning) * tuning.defenderPositioningWeight
+                + attributeOrDefault(blocker.attributes.mental.concentration) * tuning.defenderConcentrationWeight
+                + attributeOrDefault(blocker.attributes.technical.marking) * tuning.defenderMarkingWeight
+                + attributeOrDefault(blocker.attributes.technical.tackling) * tuning.defenderTacklingWeight
+                + attributeOrDefault(blocker.attributes.physical.agility) * tuning.defenderAgilityWeight
+                + clampDouble(static_cast<double>(blocker.baseOverall), 0.0, 100.0) * tuning.defenderOverallWeight,
             0.0,
             100.0);
     }
 
-    double distancePointToSegment(PitchPoint point, PitchPoint start, PitchPoint end, PitchPoint& closest) {
+    double distancePointToSegment(
+        PitchPoint point,
+        PitchPoint start,
+        PitchPoint end,
+        PitchPoint& closest,
+        const ShotBlockTuning& tuning) {
         const double dx = end.x - start.x;
         const double dy = end.y - start.y;
         const double lengthSquared = dx * dx + dy * dy;
-        if (lengthSquared <= 0.0001) {
+        if (lengthSquared <= tuning.minimumSegmentLengthSquared) {
             closest = start;
             return PitchGeometry::distance(point, start);
         }
@@ -48,7 +53,8 @@ namespace {
 }
 
 ShotBlockResult ShotBlockResolver::resolve(const ShotBlockRequest& request) const {
-    const ShootingModelTuning tuning;
+    const ShootingModelTuning modelTuning;
+    const ShotBlockTuning& tuning = modelTuning.block;
     ShotBlockResult best;
     double bestProbability = 0.0;
 
@@ -62,8 +68,9 @@ ShotBlockResult ShotBlockResolver::resolve(const ShotBlockRequest& request) cons
             blocker.position,
             request.trajectory.start,
             request.trajectory.actualTarget,
-            contactPoint);
-        if (laneDistance > tuning.blockLaneWidthMeters + 2.5) {
+            contactPoint,
+            tuning);
+        if (laneDistance > tuning.blockLaneWidthMeters + tuning.extraBlockLaneWidthMeters) {
             continue;
         }
 
@@ -73,26 +80,40 @@ ShotBlockResult ShotBlockResolver::resolve(const ShotBlockRequest& request) cons
         const double defenderDistance = PitchGeometry::distance(blocker.position, contactPoint);
         const double reactionWindow =
             tuning.blockReactionWindowSeconds
-            + clampDouble((defenderBlockSkill(blocker) - 50.0) / 100.0, -0.12, 0.24);
+            + clampDouble(
+                (defenderBlockSkill(blocker, tuning) - tuning.defenderSkillBaseline)
+                    / tuning.defenderSkillScale,
+                tuning.minimumReactionAdjustment,
+                tuning.maximumReactionAdjustment);
         const double playerArrival =
-            request.trajectory.startSecond + (defenderDistance / 6.5);
+            request.trajectory.startSecond + (defenderDistance / tuning.defenderInterventionSpeed);
         const double arrivalMargin = playerArrival - ballArrival;
         if (arrivalMargin > reactionWindow) {
             continue;
         }
 
-        const double laneFactor = clampDouble(1.0 - (laneDistance / (tuning.blockLaneWidthMeters + 2.5)), 0.0, 1.0);
-        const double timingFactor = clampDouble(1.0 - std::max(0.0, arrivalMargin) / std::max(reactionWindow, 0.05), 0.0, 1.0);
-        const double skillFactor = defenderBlockSkill(blocker) / 100.0;
-        const double speedPenalty = clampDouble((request.execution.shotPower - 18.0) / 26.0, 0.0, 0.45);
+        const double laneFactor = clampDouble(
+            1.0 - (laneDistance / (tuning.blockLaneWidthMeters + tuning.extraBlockLaneWidthMeters)),
+            0.0,
+            1.0);
+        const double timingFactor = clampDouble(
+            1.0 - std::max(0.0, arrivalMargin) / std::max(reactionWindow, tuning.timingMinimumWindowSeconds),
+            0.0,
+            1.0);
+        const double skillFactor = defenderBlockSkill(blocker, tuning) / tuning.defenderSkillScale;
+        const double speedPenalty = clampDouble(
+            (request.execution.shotPower - tuning.shotPowerSpeedPenaltyBaseline)
+                / tuning.shotPowerSpeedPenaltyScale,
+            0.0,
+            tuning.maximumSpeedPenalty);
         const double probability = clampDouble(
             tuning.baseBlockProbability
-                + request.quality.blockRisk * 0.44
-                + laneFactor * 0.20
-                + timingFactor * 0.15
-                + skillFactor * 0.12
-                + (request.context.lanePressure / 100.0) * 0.10
-                - speedPenalty * 0.18,
+                + request.quality.blockRisk * tuning.qualityBlockRiskWeight
+                + laneFactor * tuning.laneFactorWeight
+                + timingFactor * tuning.timingFactorWeight
+                + skillFactor * tuning.skillFactorWeight
+                + (request.context.lanePressure / 100.0) * tuning.lanePressureWeight
+                - speedPenalty * tuning.speedPenaltyWeight,
             0.0,
             tuning.maximumBlockProbability);
 
@@ -106,9 +127,12 @@ ShotBlockResult ShotBlockResolver::resolve(const ShotBlockRequest& request) cons
             best.blockerTeamId = blocker.teamId;
             best.contactPoint = PitchGeometry::clampToPitch(contactPoint);
             best.deflectionStrength = clampDouble(
-                0.35 + (request.execution.shotPower - 18.0) / 30.0 + laneFactor * 0.20,
-                0.25,
-                0.95);
+                tuning.deflectionStrengthBase
+                    + (request.execution.shotPower - tuning.deflectionStrengthPowerBaseline)
+                        / tuning.deflectionStrengthPowerScale
+                    + laneFactor * tuning.deflectionStrengthLaneWeight,
+                tuning.minimumDeflectionStrength,
+                tuning.maximumDeflectionStrength);
             bestProbability = probability;
         }
     }

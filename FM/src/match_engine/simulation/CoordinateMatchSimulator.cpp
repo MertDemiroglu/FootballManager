@@ -46,10 +46,19 @@ namespace {
         bool controlledActionExecuted = false;
     };
 
+    enum class PendingBallKind {
+        PlayerAction,
+        SavedRebound,
+        BlockedDeflection,
+        LooseDeflection
+    };
+
     struct PendingBallAction {
+        PendingBallKind kind = PendingBallKind::PlayerAction;
         TeamId sourceTeamId = 0;
         PlayerId sourcePlayerId = 0;
         PlayerId targetPlayerId = 0;
+        // Meaningful only when kind == PlayerAction.
         BallCarrierActionType actionType = BallCarrierActionType::Hold;
         BallTrajectoryType trajectoryType = BallTrajectoryType::GroundPass;
         double executionQuality = 70.0;
@@ -62,6 +71,53 @@ namespace {
         ShotExecutionResult shotExecution;
         ShotQualityResult shotQuality;
     };
+
+    PendingBallAction pendingPlayerAction(
+        TeamId sourceTeamId,
+        PlayerId sourcePlayerId,
+        PlayerId targetPlayerId,
+        BallCarrierActionType actionType,
+        BallTrajectoryType trajectoryType,
+        double executionQuality,
+        double pressure,
+        bool isShot,
+        double shotXG,
+        ShotType shotType = ShotType::ControlledFinish,
+        ShotContext shotContext = ShotContext{},
+        ShotTargetSelectionResult shotTarget = ShotTargetSelectionResult{},
+        ShotExecutionResult shotExecution = ShotExecutionResult{},
+        ShotQualityResult shotQuality = ShotQualityResult{}) {
+        PendingBallAction pending;
+        pending.kind = PendingBallKind::PlayerAction;
+        pending.sourceTeamId = sourceTeamId;
+        pending.sourcePlayerId = sourcePlayerId;
+        pending.targetPlayerId = targetPlayerId;
+        pending.actionType = actionType;
+        pending.trajectoryType = trajectoryType;
+        pending.executionQuality = executionQuality;
+        pending.pressure = pressure;
+        pending.isShot = isShot;
+        pending.shotXG = shotXG;
+        pending.shotType = shotType;
+        pending.shotContext = shotContext;
+        pending.shotTarget = shotTarget;
+        pending.shotExecution = shotExecution;
+        pending.shotQuality = shotQuality;
+        return pending;
+    }
+
+    PendingBallAction pendingUncontrolledBall(
+        PendingBallKind kind,
+        TeamId sourceTeamId,
+        PlayerId sourcePlayerId,
+        BallTrajectoryType trajectoryType) {
+        PendingBallAction pending;
+        pending.kind = kind;
+        pending.sourceTeamId = sourceTeamId;
+        pending.sourcePlayerId = sourcePlayerId;
+        pending.trajectoryType = trajectoryType;
+        return pending;
+    }
 
     struct AssistTracker {
         PlayerId passerPlayerId = 0;
@@ -2072,7 +2128,7 @@ namespace {
         state.possession.lastPossessionTeamId = carrier->teamId;
         state.possession.ballCarrierId = 0;
 
-        pending = PendingBallAction{
+        pending = pendingPlayerAction(
             carrier->teamId,
             carrier->playerId,
             action.targetPlayerId,
@@ -2086,8 +2142,7 @@ namespace {
             shotContext,
             shotTarget,
             shotExecution,
-            shotQuality
-        };
+            shotQuality);
 
         appendTrace(
             result,
@@ -2284,7 +2339,7 @@ namespace {
                     goalkeeper->position);
                 pending = std::nullopt;
                 return SimulationStepResult{
-                    elapsedToShot + shootingTuning.offTargetRestartSeconds
+                    elapsedToShot + shootingTuning.flow.offTargetRestartSeconds
                 };
             }
 
@@ -2301,7 +2356,7 @@ namespace {
                 trajectory.actualTarget);
             pending = std::nullopt;
             return SimulationStepResult{
-                elapsedToShot + shootingTuning.offTargetRestartSeconds
+                elapsedToShot + shootingTuning.flow.offTargetRestartSeconds
             };
         }
 
@@ -2336,7 +2391,7 @@ namespace {
                 savePoint);
             pending = std::nullopt;
             return SimulationStepResult{
-                elapsedToShot + shootingTuning.savedHeldRestartSeconds
+                elapsedToShot + shootingTuning.flow.savedHeldRestartSeconds
             };
         }
 
@@ -2355,6 +2410,7 @@ namespace {
                     pending->shotExecution,
                     ShotOutcomeKind::SavedRebound,
                     goalkeeperHandlingFor(input, goalkeeper),
+                    0.0,
                     trajectory.arrivalSecond,
                     stepSeed(baseSeed, state, goalkeeper->playerId ^ 0x5afeULL)
                 });
@@ -2368,16 +2424,11 @@ namespace {
                 pending->sourcePlayerId,
                 savePoint,
                 state.ball.trajectory->actualTarget);
-            pending = PendingBallAction{
+            pending = pendingUncontrolledBall(
+                PendingBallKind::SavedRebound,
                 goalkeeper->teamId,
                 goalkeeper->playerId,
-                0,
-                BallCarrierActionType::Hold,
-                BallTrajectoryType::Rebound,
-                50.0,
-                0.0,
-                false
-            };
+                BallTrajectoryType::Rebound);
             clearAssist(assistTracker);
             return SimulationStepResult{ elapsedToShot };
         }
@@ -2417,6 +2468,25 @@ namespace {
 
         const BallTrajectory trajectory = *state.ball.trajectory;
         const double elapsedToArrival = remainingTrajectorySeconds(state, trajectory);
+        if (pending && pending->kind != PendingBallKind::PlayerAction) {
+            state.ball.position = PitchGeometry::clampToPitch(trajectory.actualTarget);
+            setLooseBall(state, state.ball.position);
+            state.possession.lastPossessionTeamId = pending->sourceTeamId;
+            clearAssist(assistTracker);
+            appendTrace(
+                result,
+                input.options.detail,
+                state,
+                MatchTraceKind::LooseBall,
+                pending->sourceTeamId,
+                pending->sourcePlayerId,
+                0,
+                state.ball.position,
+                state.ball.position);
+            pending = std::nullopt;
+            return SimulationStepResult{ elapsedToArrival };
+        }
+
         const TeamId attackingTeamId = pending
             ? pending->sourceTeamId
             : state.possession.lastPossessionTeamId;
@@ -2606,6 +2676,7 @@ namespace {
                     pending->shotExecution,
                     ShotOutcomeKind::Blocked,
                     50.0,
+                    block.deflectionStrength,
                     blockSecond,
                     stepSeed(baseSeed, state, block.blockerPlayerId ^ 0xdef1ec7ULL)
                 });
@@ -2619,16 +2690,11 @@ namespace {
                     pending->sourcePlayerId,
                     block.contactPoint,
                     state.ball.trajectory->actualTarget);
-                pending = PendingBallAction{
+                pending = pendingUncontrolledBall(
+                    PendingBallKind::BlockedDeflection,
                     block.blockerTeamId,
                     block.blockerPlayerId,
-                    0,
-                    BallCarrierActionType::Hold,
-                    BallTrajectoryType::Deflection,
-                    50.0,
-                    0.0,
-                    false
-                };
+                    BallTrajectoryType::Deflection);
                 clearAssist(assistTracker);
                 return SimulationStepResult{
                     clampElapsedSeconds(blockSecond - static_cast<double>(state.currentSecond))
@@ -2780,16 +2846,11 @@ namespace {
                         pending->sourcePlayerId,
                         candidate.interceptionPoint,
                         state.ball.trajectory->actualTarget);
-                    pending = PendingBallAction{
+                    pending = pendingUncontrolledBall(
+                        PendingBallKind::LooseDeflection,
                         candidate.teamId,
                         candidate.playerId,
-                        0,
-                        pending->actionType,
-                        BallTrajectoryType::Deflection,
-                        50.0,
-                        0.0,
-                        false
-                    };
+                        BallTrajectoryType::Deflection);
                     clearAssist(assistTracker);
                     return SimulationStepResult{
                         clampElapsedSeconds(

@@ -17,21 +17,40 @@ namespace {
 }
 
 BallTrajectory ReboundTrajectoryBuilder::build(const ReboundTrajectoryRequest& request) const {
+    const ShootingModelTuning modelTuning;
+    const ReboundModelTuning& tuning = modelTuning.rebound;
     const PitchPoint contactPoint = PitchGeometry::clampToPitch(request.contactPoint);
     const double incomingAngle = std::atan2(
         request.incomingTrajectory.actualTarget.y - request.incomingTrajectory.start.y,
         request.incomingTrajectory.actualTarget.x - request.incomingTrajectory.start.x);
     const double handlingFactor = clampDouble(request.goalkeeperHandling / 100.0, 0.0, 1.0);
-    const double powerFactor = clampDouble((request.execution.shotPower - 18.0) / 18.0, 0.0, 1.0);
+    const double powerFactor = clampDouble(
+        (request.execution.shotPower - tuning.shotPowerBaseline) / tuning.shotPowerScale,
+        0.0,
+        1.0);
+    const double strengthFactor = clampDouble(request.deflectionStrength, 0.0, 1.0);
     const bool blocked = request.outcome == ShotOutcomeKind::Blocked;
     const double baseDistance = blocked
-        ? 7.0 + powerFactor * 14.0
-        : 5.0 + powerFactor * 12.0 + (1.0 - handlingFactor) * 8.0;
-    const double angleSpread = blocked ? 1.25 : 0.95;
-    const double angle = incomingAngle
-        + 3.14159265358979323846
+        ? tuning.blockedDeflectionBaseDistance
+            + powerFactor * tuning.blockedDeflectionPowerDistanceScale
+            + strengthFactor * tuning.deflectionStrengthDistanceScale
+        : tuning.savedReboundBaseDistance
+            + powerFactor * tuning.savedReboundPowerDistanceScale
+            + (1.0 - handlingFactor) * tuning.handlingDistanceReductionScale;
+    const double lateralSide = signedUnit(request.seed ^ 0x4a7ULL) >= 0.0 ? 1.0 : -1.0;
+    const double savedReboundBaseAngle =
+        incomingAngle
+        + lateralSide * tuning.savedReboundLateralAngleRadians
+        + tuning.reboundBackwardAngleRadians * tuning.savedReboundBackwardBlend;
+    const double blockedDeflectionBaseAngle = incomingAngle + tuning.reboundBackwardAngleRadians;
+    const double angleSpread = blocked
+        ? tuning.blockedDeflectionAngleSpread
+        : tuning.savedReboundAngleSpread;
+    const double angle = (blocked ? blockedDeflectionBaseAngle : savedReboundBaseAngle)
         + signedUnit(request.seed ^ 0x781ULL) * angleSpread;
-    const double distance = baseDistance + matchEngineDeterministicUnitInterval(request.seed ^ 0x515ULL) * 7.0;
+    const double distance =
+        baseDistance
+        + matchEngineDeterministicUnitInterval(request.seed ^ 0x515ULL) * tuning.randomDistanceScale;
     const PitchPoint target = PitchGeometry::clampToPitch(PitchPoint{
         contactPoint.x + std::cos(angle) * distance,
         contactPoint.y + std::sin(angle) * distance
@@ -44,9 +63,15 @@ BallTrajectory ReboundTrajectoryBuilder::build(const ReboundTrajectoryRequest& r
     trajectory.startSecond = request.startSecond;
     trajectory.type = blocked ? BallTrajectoryType::Deflection : BallTrajectoryType::Rebound;
     trajectory.flightProfile = blocked ? BallFlightProfile::Medium : BallFlightProfile::Low;
-    trajectory.speedMetersPerSecond = std::max(7.0 + powerFactor * 8.0, 1.0);
+    trajectory.speedMetersPerSecond = std::max(
+        tuning.reboundSpeedBase
+            + powerFactor * tuning.reboundSpeedPowerScale
+            + (blocked ? strengthFactor * tuning.deflectionStrengthSpeedScale : 0.0),
+        tuning.minimumReboundSpeed);
     trajectory.arrivalSecond =
         request.startSecond + (PitchGeometry::distance(contactPoint, target) / trajectory.speedMetersPerSecond);
-    trajectory.apexHeightMeters = blocked ? 1.4 + powerFactor : 0.45 + powerFactor * 0.9;
+    trajectory.apexHeightMeters = blocked
+        ? tuning.blockedDeflectionApexBase + powerFactor * tuning.blockedDeflectionApexPowerScale
+        : tuning.savedReboundApexBase + powerFactor * tuning.savedReboundApexPowerScale;
     return trajectory;
 }
