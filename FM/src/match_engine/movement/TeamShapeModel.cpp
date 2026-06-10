@@ -10,8 +10,6 @@
 
 namespace {
     struct MentalityShapeProfile {
-        double possessionAdvanceMeters = 0.0;
-        double attackingTransitionAdvanceMeters = 0.0;
         double defensiveRecoveryMeters = 0.0;
         double counterPressMultiplier = 1.0;
         double restDefenseGapMeters = 0.0;
@@ -19,24 +17,20 @@ namespace {
 
     struct RoleShapeProfile {
         double lineWeight = 0.0;
-        double possessionAdvanceWeight = 0.0;
         double ballSideShiftWeight = 0.0;
         double widthHoldWeight = 0.0;
-        double supportLaneWeight = 0.0;
         double counterPressWeight = 0.0;
         double restDefenseGapBonusMeters = 0.0;
     };
 
     struct DynamicShapeProfile {
-        double possessionBallShiftMeters = 2.0;
-        double possessionFarSideTuckMeters = 2.0;
-        double defensiveBallShiftMeters = 2.5;
-        double defensiveCompactTuckMeters = 1.75;
-        double transitionSupportLaneBlend = 0.12;
-        double transitionCounterPressBlend = 0.16;
-        double supportLaneAdvanceMeters = 4.0;
+        double possessionBallShiftMeters = 0.20;
+        double possessionFarSideTuckMeters = 0.25;
+        double defensiveBallShiftMeters = 0.40;
+        double defensiveCompactTuckMeters = 0.35;
+        double transitionCounterPressBlend = 0.08;
         double counterPressProximityMeters = 28.0;
-        double goalkeeperDefensiveShiftMeters = 0.75;
+        double goalkeeperDefensiveShiftMeters = 0.10;
     };
 
     constexpr DynamicShapeProfile kDynamicShapeProfile;
@@ -55,13 +49,6 @@ namespace {
         return direction == AttackingDirection::HomeToAway
             ? signedProgress
             : PitchGeometry::LengthMeters - signedProgress;
-    }
-
-    double ballProgression(const TeamShapeContext& context) {
-        return std::clamp(
-            signedProgressX(context.ballPosition, context.attackingDirection) / PitchGeometry::LengthMeters,
-            0.0,
-            1.0);
     }
 
     double ballSideOffset(const TeamShapeContext& context, double maxMeters) {
@@ -173,14 +160,14 @@ namespace {
     MentalityShapeProfile mentalityProfile(TeamMentality mentality) {
         switch (mentality) {
         case TeamMentality::Defensive:
-            return MentalityShapeProfile{ 0.8, 1.4, 2.5, 0.75, 10.0 };
+            return MentalityShapeProfile{ 2.5, 0.75, 10.0 };
         case TeamMentality::Balanced:
-            return MentalityShapeProfile{ 1.4, 2.2, 1.75, 1.0, 7.5 };
+            return MentalityShapeProfile{ 1.75, 1.0, 7.5 };
         case TeamMentality::Attacking:
-            return MentalityShapeProfile{ 2.2, 3.2, 1.0, 1.18, 5.5 };
+            return MentalityShapeProfile{ 1.0, 1.18, 5.5 };
         }
 
-        return MentalityShapeProfile{ 1.4, 2.2, 1.75, 1.0, 7.5 };
+        return MentalityShapeProfile{ 1.75, 1.0, 7.5 };
     }
 
     double roleLineWeight(FormationSlotRole role) {
@@ -219,34 +206,34 @@ namespace {
         const double lineWeight = roleLineWeight(role);
         switch (role) {
         case FormationSlotRole::Goalkeeper:
-            return RoleShapeProfile{ lineWeight, 0.0, 0.12, 1.0, 0.0, 0.05, 12.0 };
+            return RoleShapeProfile{ lineWeight, 0.12, 1.0, 0.05, 12.0 };
         case FormationSlotRole::CenterBack:
-            return RoleShapeProfile{ lineWeight, 0.16, 0.34, 0.85, 0.10, 0.12, 5.0 };
+            return RoleShapeProfile{ lineWeight, 0.34, 0.85, 0.12, 5.0 };
         case FormationSlotRole::LeftBack:
         case FormationSlotRole::RightBack:
-            return RoleShapeProfile{ lineWeight, 0.34, 0.58, 0.72, 0.32, 0.36, 0.0 };
+            return RoleShapeProfile{ lineWeight, 0.58, 0.72, 0.36, 0.0 };
         case FormationSlotRole::LeftWingBack:
         case FormationSlotRole::RightWingBack:
-            return RoleShapeProfile{ lineWeight, 0.48, 0.70, 0.62, 0.46, 0.44, 0.0 };
+            return RoleShapeProfile{ lineWeight, 0.70, 0.62, 0.44, 0.0 };
         case FormationSlotRole::DefensiveMidfielder:
-            return RoleShapeProfile{ lineWeight, 0.28, 0.45, 0.78, 0.28, 0.32, 2.5 };
+            return RoleShapeProfile{ lineWeight, 0.45, 0.78, 0.32, 2.5 };
         case FormationSlotRole::CentralMidfielder:
-            return RoleShapeProfile{ lineWeight, 0.62, 0.68, 0.55, 0.62, 0.56, 0.0 };
+            return RoleShapeProfile{ lineWeight, 0.68, 0.55, 0.56, 0.0 };
         case FormationSlotRole::AttackingMidfielder:
-            return RoleShapeProfile{ lineWeight, 0.82, 0.72, 0.42, 0.78, 0.58, 0.0 };
+            return RoleShapeProfile{ lineWeight, 0.72, 0.42, 0.58, 0.0 };
         case FormationSlotRole::LeftMidfielder:
         case FormationSlotRole::RightMidfielder:
-            return RoleShapeProfile{ lineWeight, 0.58, 0.78, 0.70, 0.56, 0.50, 0.0 };
+            return RoleShapeProfile{ lineWeight, 0.78, 0.70, 0.50, 0.0 };
         case FormationSlotRole::LeftWinger:
         case FormationSlotRole::RightWinger:
-            return RoleShapeProfile{ lineWeight, 0.86, 0.82, 0.82, 0.74, 0.52, 0.0 };
+            return RoleShapeProfile{ lineWeight, 0.82, 0.82, 0.52, 0.0 };
         case FormationSlotRole::Striker:
-            return RoleShapeProfile{ lineWeight, 0.92, 0.58, 0.30, 0.86, 0.42, 0.0 };
+            return RoleShapeProfile{ lineWeight, 0.58, 0.30, 0.42, 0.0 };
         case FormationSlotRole::Unknown:
-            return RoleShapeProfile{ lineWeight, 0.45, 0.45, 0.45, 0.45, 0.35, 0.0 };
+            return RoleShapeProfile{ lineWeight, 0.45, 0.45, 0.35, 0.0 };
         }
 
-        return RoleShapeProfile{ lineWeight, 0.45, 0.45, 0.45, 0.45, 0.35, 0.0 };
+        return RoleShapeProfile{ lineWeight, 0.45, 0.45, 0.35, 0.0 };
     }
 
     bool isDefensiveLineRole(FormationSlotRole role) {
@@ -318,15 +305,8 @@ namespace {
         const RoleShapeProfile& roleProfile,
         const MentalityShapeProfile& mentality) {
         PitchPoint adjusted = tacticalPosition;
-        const double direction = attackSign(context.attackingDirection);
-        const double progression = ballProgression(context);
         const double ballShift = ballSideOffset(context, kDynamicShapeProfile.possessionBallShiftMeters)
             * roleProfile.ballSideShiftWeight;
-
-        adjusted.x += direction
-            * mentality.possessionAdvanceMeters
-            * roleProfile.possessionAdvanceWeight
-            * (0.45 + progression);
 
         const double roleSide = sideSignForRole(role);
         const double ballSide = ballSideOffset(context, 1.0);
@@ -343,7 +323,7 @@ namespace {
         adjusted.y += ballShift * (1.0 - widthHold);
 
         if (ballSideWideRole) {
-            adjusted = blend(adjusted, PitchPoint{ adjusted.x, context.ballPosition.y }, 0.16);
+            adjusted = blend(adjusted, PitchPoint{ adjusted.x, context.ballPosition.y }, 0.02);
         } else if (farSideAdvancedRole) {
             const double centerY = PitchGeometry::WidthMeters / 2.0;
             adjusted.y += (centerY - adjusted.y)
@@ -393,25 +373,6 @@ namespace {
             context,
             roleProfile,
             mentality);
-        const double direction = attackSign(context.attackingDirection);
-        const double nearbySupport = proximityWeight(
-            tacticalPosition,
-            context.ballPosition,
-            kDynamicShapeProfile.counterPressProximityMeters)
-            * roleProfile.supportLaneWeight;
-        const PitchPoint supportLane{
-            context.ballPosition.x + direction * kDynamicShapeProfile.supportLaneAdvanceMeters,
-            context.ballPosition.y + (PitchGeometry::WidthMeters / 2.0 - context.ballPosition.y) * 0.25
-        };
-
-        adjusted = blend(
-            adjusted,
-            supportLane,
-            kDynamicShapeProfile.transitionSupportLaneBlend * nearbySupport);
-        adjusted.x += direction
-            * mentality.attackingTransitionAdvanceMeters
-            * roleProfile.supportLaneWeight
-            * nearbySupport;
 
         adjusted = enforceRestDefenseSpacing(
             adjusted,
