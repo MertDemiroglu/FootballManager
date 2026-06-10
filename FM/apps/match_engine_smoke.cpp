@@ -1,6 +1,7 @@
 #include"fm/match_engine/MatchEngine.h"
 #include"fm/match_engine/MatchEngineInputBuilder.h"
 #include"fm/match_engine/geometry/PitchGeometry.h"
+#include"fm/match_engine/movement/TeamShapeModel.h"
 #include"fm/match_engine/ball/ShotQualityModel.h"
 #include"fm/match_engine/decision/ActionSelector.h"
 #include"fm/match_engine/decision/BallCarrierDecisionModel.h"
@@ -1265,6 +1266,174 @@ namespace {
             "same pass candidates and seed should select the same behavior");
     }
 
+    TeamSheet makeShapeSmokeSheet(FormationId formationId = FormationId::FourThreeThree) {
+        TeamSheet sheet;
+        sheet.teamId = 6001;
+        sheet.formation = formationId;
+        const std::vector<FormationSlotRole>& roles = getFormationSlotTemplate(formationId);
+        for (std::size_t i = 0; i < roles.size(); ++i) {
+            sheet.startingAssignments.push_back(TeamSheetSlotAssignment{
+                i,
+                roles[i],
+                static_cast<PlayerId>(7001 + i)
+            });
+        }
+
+        return sheet;
+    }
+
+    TeamShapeContext makeShapeSmokeContext(
+        TeamShapePhase phase,
+        PitchPoint ballPosition,
+        TeamMentality mentality = TeamMentality::Balanced) {
+        TeamShapeContext context;
+        context.teamId = 6001;
+        context.isHomeTeam = true;
+        context.hasPossession = phase == TeamShapePhase::InPossession
+            || phase == TeamShapePhase::AttackingTransition;
+        context.phase = phase;
+        context.attackingDirection = AttackingDirection::HomeToAway;
+        context.tacticalSetup.mentality = mentality;
+        context.ballPosition = ballPosition;
+        return context;
+    }
+
+    const PlayerShapeTarget& firstTargetForRole(
+        const std::vector<PlayerShapeTarget>& targets,
+        FormationSlotRole role) {
+        const auto it = std::find_if(
+            targets.begin(),
+            targets.end(),
+            [role](const PlayerShapeTarget& target) {
+                return target.slotRole == role;
+            });
+        require(it != targets.end(), "shape smoke expected role target");
+        return *it;
+    }
+
+    double averageTargetYExcludingGoalkeeper(const std::vector<PlayerShapeTarget>& targets) {
+        double totalY = 0.0;
+        int count = 0;
+        for (const PlayerShapeTarget& target : targets) {
+            if (target.slotRole == FormationSlotRole::Goalkeeper) {
+                continue;
+            }
+
+            totalY += target.finalTarget.y;
+            ++count;
+        }
+
+        require(count > 0, "shape smoke expected non-goalkeeper targets");
+        return totalY / static_cast<double>(count);
+    }
+
+    double averageSignedProgressForRoles(
+        const std::vector<PlayerShapeTarget>& targets,
+        const std::vector<FormationSlotRole>& roles) {
+        double totalX = 0.0;
+        int count = 0;
+        for (const PlayerShapeTarget& target : targets) {
+            if (std::find(roles.begin(), roles.end(), target.slotRole) == roles.end()) {
+                continue;
+            }
+
+            totalX += target.finalTarget.x;
+            ++count;
+        }
+
+        require(count > 0, "shape smoke expected role-group targets");
+        return totalX / static_cast<double>(count);
+    }
+
+    void requireTargetsInsidePitch(const std::vector<PlayerShapeTarget>& targets) {
+        for (const PlayerShapeTarget& target : targets) {
+            require(PitchGeometry::isInsidePitch(target.finalTarget),
+                "team shape smoke finalTarget should remain inside pitch");
+        }
+    }
+
+    void runTeamShapeDynamicTargetsSmoke() {
+        const TeamSheet sheet = makeShapeSmokeSheet();
+        const TeamShapeModel model;
+
+        const std::vector<PlayerShapeTarget> inPossession = model.buildTargets(
+            makeShapeSmokeContext(TeamShapePhase::InPossession, PitchPoint{ 62.0, 18.0 }),
+            sheet);
+        const std::vector<PlayerShapeTarget> outOfPossession = model.buildTargets(
+            makeShapeSmokeContext(TeamShapePhase::OutOfPossession, PitchPoint{ 62.0, 18.0 }),
+            sheet);
+
+        int changedNonGoalkeeperTargets = 0;
+        for (std::size_t i = 0; i < inPossession.size() && i < outOfPossession.size(); ++i) {
+            if (inPossession[i].slotRole == FormationSlotRole::Goalkeeper) {
+                continue;
+            }
+
+            if (PitchGeometry::distance(inPossession[i].finalTarget, outOfPossession[i].finalTarget) > 0.10) {
+                ++changedNonGoalkeeperTargets;
+            }
+        }
+        require(changedNonGoalkeeperTargets >= 5,
+            "in-possession and out-of-possession shapes should differ for several non-GK players");
+
+        const std::vector<PlayerShapeTarget> leftBall = model.buildTargets(
+            makeShapeSmokeContext(TeamShapePhase::InPossession, PitchPoint{ 58.0, 10.0 }),
+            sheet);
+        const std::vector<PlayerShapeTarget> rightBall = model.buildTargets(
+            makeShapeSmokeContext(TeamShapePhase::InPossession, PitchPoint{ 58.0, 58.0 }),
+            sheet);
+        require(averageTargetYExcludingGoalkeeper(rightBall)
+                > averageTargetYExcludingGoalkeeper(leftBall) + 0.25,
+            "ball side should shift team shape laterally");
+
+        const std::vector<PlayerShapeTarget> attackingShape = model.buildTargets(
+            makeShapeSmokeContext(TeamShapePhase::InPossession, PitchPoint{ 68.0, 34.0 }, TeamMentality::Attacking),
+            sheet);
+        const std::vector<PlayerShapeTarget> defensiveShape = model.buildTargets(
+            makeShapeSmokeContext(TeamShapePhase::InPossession, PitchPoint{ 68.0, 34.0 }, TeamMentality::Defensive),
+            sheet);
+        const std::vector<FormationSlotRole> supportRoles{
+            FormationSlotRole::CentralMidfielder,
+            FormationSlotRole::LeftWinger,
+            FormationSlotRole::RightWinger,
+            FormationSlotRole::Striker
+        };
+        require(averageSignedProgressForRoles(attackingShape, supportRoles)
+                > averageSignedProgressForRoles(defensiveShape, supportRoles) + 0.25,
+            "attacking mentality should create more forward support than defensive mentality");
+        require(firstTargetForRole(attackingShape, FormationSlotRole::CenterBack).finalTarget.x
+                < firstTargetForRole(attackingShape, FormationSlotRole::Striker).finalTarget.x,
+            "center backs should remain behind attackers in attacking possession shape");
+
+        const std::vector<PlayerShapeTarget> defensiveTransition = model.buildTargets(
+            makeShapeSmokeContext(TeamShapePhase::DefensiveTransition, PitchPoint{ 56.0, 9.0 }),
+            sheet);
+        const PlayerShapeTarget& nearSideWinger =
+            firstTargetForRole(defensiveTransition, FormationSlotRole::LeftWinger);
+        const PlayerShapeTarget& farSideWinger =
+            firstTargetForRole(defensiveTransition, FormationSlotRole::RightWinger);
+        require(PitchGeometry::distance(nearSideWinger.finalTarget, PitchPoint{ 56.0, 9.0 })
+                < PitchGeometry::distance(farSideWinger.finalTarget, PitchPoint{ 56.0, 9.0 }),
+            "defensive transition should pull nearby players closer to the ball than far-side players");
+
+        int playersNotCollapsedToBall = 0;
+        for (const PlayerShapeTarget& target : defensiveTransition) {
+            if (PitchGeometry::distance(target.finalTarget, PitchPoint{ 56.0, 9.0 }) > 8.0) {
+                ++playersNotCollapsedToBall;
+            }
+        }
+        require(playersNotCollapsedToBall >= 6,
+            "defensive transition should not move every player to the ball");
+
+        requireTargetsInsidePitch(inPossession);
+        requireTargetsInsidePitch(outOfPossession);
+        requireTargetsInsidePitch(leftBall);
+        requireTargetsInsidePitch(rightBall);
+        requireTargetsInsidePitch(attackingShape);
+        requireTargetsInsidePitch(defensiveShape);
+        requireTargetsInsidePitch(defensiveTransition);
+    }
+
     void runDetailedCoordinateBalanceSmoke() {
         int assistedGoalSamples = 0;
         int goalScorerRatingSamples = 0;
@@ -1582,6 +1751,7 @@ int main() {
         runShotDecisionEvaluatorSmoke();
         runBallCarrierDecisionModelSmoke();
         runPassSelectionDeterminismSmoke();
+        runTeamShapeDynamicTargetsSmoke();
         runDetailedCoordinateBalanceSmoke();
         runHandlerIntegrationSmoke();
         runPlayerAttributesPersistenceSmoke();
