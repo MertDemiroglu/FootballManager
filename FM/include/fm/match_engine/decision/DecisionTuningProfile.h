@@ -111,19 +111,22 @@ struct CarryDecisionTuning {
 struct ShotDecisionTuning {
     double openPlayShotBaseline = 1.0;
     double pressurePenaltyScale = 1.0;
-    double minimumOpenPlayXG = 0.012;
-    double nonAttackingThirdMinimumXG = 0.06;
-    double weakShotXG = 0.08;
-    double defensiveRoleLowXG = 0.12;
-    double optionScoreMinimum = 6.0;
-    double strongChanceAlwaysIncludeXG = 0.16;
+    double minimumOpenPlayXG = 0.04;
+    double nonAttackingThirdMinimumXG = 0.10;
+    double earlyActionMinimumXG = 0.22;
+    double pressuredShotMinimumXG = 0.24;
+    double weakShotXG = 0.12;
+    double defensiveRoleLowXG = 0.16;
+    double inappropriateRoleMinimumXG = 0.22;
+    double optionScoreMinimum = 14.0;
+    double strongChanceAlwaysIncludeXG = 0.24;
     double distanceScoreBaseline = 50.0;
     double distanceScoreContribution = 0.05;
     double angleScoreBaseline = 20.0;
     double angleScoreContribution = 0.04;
     double shooterConfidenceBaseline = 55.0;
     double shooterConfidenceContribution = 0.08;
-    double pressurePenaltyToScoreCost = 0.16;
+    double pressurePenaltyToScoreCost = 0.26;
     double riskToleranceMinimum = 0.45;
     double riskToleranceMaximum = 1.35;
     double shotBiasBlend = 0.34;
@@ -138,19 +141,21 @@ struct ShotDecisionTuning {
     double tacticalShotBiasMaximum = 1.16;
     double weakShotBiasBlend = 0.65;
     double weakShotBiasMinimum = 0.62;
-    double weakShotBiasMaximum = 1.18;
-    double defensiveRoleWeakShotMultiplier = 0.78;
+    double weakShotBiasMaximum = 1.08;
+    double defensiveRoleWeakShotMultiplier = 0.45;
+    double earlyActionWeakShotMultiplier = 0.58;
+    double pressuredWeakShotMultiplier = 0.56;
     double xgVeryWeakThreshold = 0.02;
     double xgWeakThreshold = 0.05;
     double xgLowThreshold = 0.08;
     double xgMediumThreshold = 0.18;
     double xgGoodThreshold = 0.30;
-    double xgVeryWeakBase = 4.0;
-    double xgVeryWeakSlope = 300.0;
-    double xgWeakBase = 10.0;
-    double xgWeakSlope = 300.0;
-    double xgLowBase = 19.0;
-    double xgLowSlope = 230.0;
+    double xgVeryWeakBase = 1.0;
+    double xgVeryWeakSlope = 180.0;
+    double xgWeakBase = 5.0;
+    double xgWeakSlope = 190.0;
+    double xgLowBase = 12.0;
+    double xgLowSlope = 180.0;
     double xgMediumBase = 28.0;
     double xgMediumSlope = 170.0;
     double xgGoodBase = 46.0;
@@ -158,6 +163,337 @@ struct ShotDecisionTuning {
     double xgGreatBase = 62.0;
     double xgGreatSlope = 70.0;
     double xgDesireMaximum = 82.0;
+};
+
+struct ShotContextTuning {
+    double blockLaneWidthMeters = 2.8;
+    double lanePressureExtraWidthMeters = 2.0;
+    double lanePressureReactionDistanceMeters = 24.0;
+    double lanePressureDistanceWeight = 62.0;
+    double lanePressureReactionWeight = 38.0;
+    double minimumSegmentLengthSquared = 0.0001;
+    double fallbackNearestDefenderDistance = 100.0;
+};
+
+struct ShotTypeSelectionTuning {
+    double shootingSkillWeight = 0.35;
+    double techniqueSkillWeight = 0.28;
+    double composureSkillWeight = 0.22;
+    double decisionsSkillWeight = 0.15;
+    double skillBaseline = 50.0;
+    double skillScale = 50.0;
+    double minimumSkillLift = -0.6;
+    double maximumSkillLift = 0.8;
+    double pressureScale = 100.0;
+    double closeShotDistance = 10.0;
+    double longShotDistance = 24.0;
+    double veryLongShotDistance = 32.0;
+    double tightAngleCentralityScale = 4.2;
+    double closeCentralMinimumCentrality = 0.22;
+    double controlledFinishBaseWeight = 28.0;
+    double controlledFinishCloseCentralBonus = 22.0;
+    double controlledFinishSkillBonus = 8.0;
+    double controlledFinishPressurePenalty = 8.0;
+    double placedShotBaseWeight = 26.0;
+    double placedShotSkillBonus = 12.0;
+    double placedShotCentralityBonus = 12.0;
+    double powerShotBaseWeight = 18.0;
+    double powerShotPressureBonus = 8.0;
+    double powerShotSkillBonus = 5.0;
+    double longShotBaseWeight = 4.0;
+    double longShotDistanceBonus = 30.0;
+    double veryLongShotDistanceBonus = 16.0;
+    double tightAngleShotBaseWeight = 2.0;
+    double tightAngleShotTightAngleBonus = 36.0;
+    double desperationShotBaseWeight = 2.0;
+    double desperationShotPressureBonus = 12.0;
+    double desperationShotVeryLongBonus = 10.0;
+    double desperationShotLanePressureBonus = 0.08;
+    double controlledFinishDifficulty = 12.0;
+    double placedShotDifficulty = 18.0;
+    double powerShotDifficulty = 24.0;
+    double longShotDifficulty = 34.0;
+    double tightAngleShotDifficulty = 38.0;
+    double desperationShotDifficulty = 48.0;
+};
+
+struct ShotTargetSelectionTuning {
+    double shootingSkillWeight = 0.30;
+    double techniqueSkillWeight = 0.25;
+    double composureSkillWeight = 0.25;
+    double decisionsSkillWeight = 0.20;
+    double skillBaseline = 50.0;
+    double skillScale = 50.0;
+    double minimumSkillLift = -0.7;
+    double maximumSkillLift = 0.9;
+    double pressureScale = 100.0;
+    double tightAngleCentralityScale = 4.0;
+    double nearPostBaseWeight = 24.0;
+    double nearPostTightAngleBonus = 18.0;
+    double nearPostPressureBonus = 8.0;
+    double centerBaseWeight = 18.0;
+    double centerSkillPenalty = 5.0;
+    double centerPressureBonus = 8.0;
+    double farPostBaseWeight = 30.0;
+    double farPostSkillBonus = 16.0;
+    double farPostCentralityBonus = 10.0;
+    double farPostTightAnglePenalty = 6.0;
+    double lowHeightBaseWeight = 34.0;
+    double lowHeightSkillBonus = 10.0;
+    double midHeightBaseWeight = 24.0;
+    double midHeightPressureBonus = 6.0;
+    double highHeightBaseWeight = 15.0;
+    double highHeightPowerShotBonus = 8.0;
+    double highHeightSkillPenalty = 4.0;
+    double goalLaneOffsetShare = 0.72;
+    double controlledFinishTargetDifficulty = 8.0;
+    double placedShotTargetDifficulty = 18.0;
+    double powerShotTargetDifficulty = 15.0;
+    double longShotTargetDifficulty = 30.0;
+    double tightAngleShotTargetDifficulty = 34.0;
+    double desperationShotTargetDifficulty = 42.0;
+    double centerLaneDifficulty = 4.0;
+    double postLaneDifficulty = 10.0;
+    double lowHeightDifficulty = 6.0;
+    double midHeightDifficulty = 4.0;
+    double highHeightDifficulty = 12.0;
+    double placementPressurePenalty = 0.24;
+    double distanceDifficultyWeight = 0.55;
+    double tightAngleDifficultyWeight = 16.0;
+};
+
+struct ShotExecutionTuning {
+    double shootingSkillWeight = 0.34;
+    double techniqueSkillWeight = 0.26;
+    double composureSkillWeight = 0.19;
+    double decisionsSkillWeight = 0.13;
+    double agilitySkillWeight = 0.08;
+    double controlledFinishDifficulty = 10.0;
+    double placedShotDifficulty = 17.0;
+    double powerShotDifficulty = 23.0;
+    double longShotDifficulty = 34.0;
+    double tightAngleShotDifficulty = 38.0;
+    double desperationShotDifficulty = 48.0;
+    double pressureDifficultyWeight = 0.32;
+    double distanceDifficultyWeight = 0.42;
+    double angleDifficultyWeight = 24.0;
+    double lanePressureDifficultyWeight = 0.12;
+    double executionQualityBase = 62.0;
+    double skillDifficultyBlend = 0.72;
+    double executionNoiseRange = 9.0;
+    double minimumExecutionQuality = 1.0;
+    double maximumExecutionQuality = 99.0;
+    double baseDeviationMeters = 0.35;
+    double qualityDeviationScale = 4.1;
+    double pressureDeviationScale = 1.35;
+    double distanceDeviationScale = 0.065;
+    double angleDeviationScale = 1.15;
+    double typeDeviationScale = 0.90;
+    double difficultyScale = 100.0;
+    double laneShiftThreshold = 1.55;
+    double heightShiftThreshold = 0.85;
+    double heightErrorBase = 0.35;
+    double heightErrorQualityScale = 1.8;
+    double minimumShotPower = 18.0;
+    double maximumShotPower = 34.0;
+    double powerBase = 24.0;
+    double powerSkillBaseline = 50.0;
+    double shootingPowerWeight = 0.045;
+    double techniquePowerWeight = 0.025;
+    double powerShotPowerBonus = 4.0;
+    double longShotPowerBonus = 4.0;
+    double controlledFinishPowerPenalty = 1.8;
+    double placedShotPowerPenalty = 1.8;
+    double powerNoiseRange = 2.5;
+    double placementExecutionBlend = 0.35;
+    double placementExecutionBaseline = 55.0;
+    double cleanStrikeThreshold = 58.0;
+};
+
+struct ShotQualityTuning {
+    double openPlayXGIntercept = -2.75;
+    double openPlayXGDistanceCoefficient = 0.120;
+    double openPlayXGAngleCoefficient = 1.05;
+    double openPlayXGPressureCoefficient = 0.022;
+    double openPlayXGMinimum = 0.004;
+    double openPlayXGMaximum = 0.28;
+    double pressureScale = 100.0;
+    double lanePressureScale = 100.0;
+    double tightAngleCentralityScale = 4.0;
+    double longShotTypePenalty = 0.10;
+    double tightAngleShotTypePenalty = 0.12;
+    double desperationShotTypePenalty = 0.18;
+    double powerShotTypePenalty = 0.04;
+    double adjustedXGPressurePenalty = 0.30;
+    double adjustedXGLanePressurePenalty = 0.18;
+    double adjustedXGTightAnglePenalty = 0.18;
+    double adjustedXGMinimum = 0.003;
+    double adjustedXGMaximum = 0.42;
+    double blockRiskBase = 0.04;
+    double blockRiskLanePressureWeight = 0.34;
+    double blockRiskPressureWeight = 0.12;
+    double nearestDefenderDistanceReference = 22.0;
+    double nearestDefenderDistanceScale = 45.0;
+    double nearestDefenderRiskMaximum = 0.22;
+    double blockRiskPowerBaseline = 24.0;
+    double blockRiskPowerReduction = 0.006;
+    double blockRiskMinimum = 0.02;
+    double blockRiskMaximum = 0.58;
+    double onTargetDifficultyBase = 18.0;
+    double onTargetDifficultyDistanceWeight = 1.25;
+    double onTargetDifficultyPressureWeight = 0.34;
+    double onTargetDifficultyTightAngleWeight = 30.0;
+    double onTargetDifficultyTypeWeight = 70.0;
+    double onTargetDifficultyDeviationWeight = 6.0;
+    double onTargetDifficultyHeightErrorWeight = 7.0;
+    double saveDifficultyBase = 34.0;
+    double saveDifficultyAdjustedXGWeight = 92.0;
+    double saveDifficultyPlacementWeight = 0.18;
+    double saveDifficultyPowerBaseline = 22.0;
+    double saveDifficultyPowerWeight = 1.4;
+    double saveDifficultyTightAngleWeight = 8.0;
+    double reboundRiskBase = 0.18;
+    double reboundRiskPowerBaseline = 22.0;
+    double reboundRiskPowerWeight = 0.018;
+    double reboundRiskGoalkeeperWeaknessWeight = 0.18;
+    double reboundRiskPressureWeight = 0.08;
+    double reboundRiskMinimum = 0.05;
+    double reboundRiskMaximum = 0.62;
+};
+
+struct ShotOutcomeTuning {
+    double offTargetBaseProbability = 0.06;
+    double executionMissWeight = 0.30;
+    double pressureMissWeight = 0.12;
+    double angleMissWeight = 0.14;
+    double difficultyMissWeight = 0.12;
+    double deviationMissWeight = 0.16;
+    double heightErrorMissWeight = 0.20;
+    double deviationFactorMaximum = 0.45;
+    double longShotMissPenalty = 0.08;
+    double tightAngleShotMissPenalty = 0.10;
+    double desperationShotMissPenalty = 0.14;
+    double offTargetMinimumProbability = 0.02;
+    double offTargetMaximumProbability = 0.62;
+    double goalkeeperShotStoppingWeight = 0.36;
+    double goalkeeperOneOnOnesWeight = 0.22;
+    double goalkeeperHandlingWeight = 0.18;
+    double goalkeeperAerialAbilityWeight = 0.08;
+    double goalkeeperPositioningWeight = 0.08;
+    double goalkeeperConcentrationWeight = 0.08;
+    double goalkeeperFallbackStrengthWeight = 0.10;
+    double saveProbabilityBase = 0.56;
+    double saveSkillBaseline = 55.0;
+    double saveSkillWeight = 0.006;
+    double saveChanceQualityWeight = 0.30;
+    double savePlacementWeight = 0.13;
+    double savePowerWeight = 0.08;
+    double saveDifficultyWeight = 0.10;
+    double maximumShotThreatPenalty = 0.38;
+    double saveMinimumProbability = 0.18;
+    double saveMaximumProbability = 0.82;
+    double chanceQualityScale = 0.42;
+    double shotPowerBaseline = 18.0;
+    double shotPowerScale = 18.0;
+    double heldReboundBase = 0.48;
+    double handlingBaseline = 50.0;
+    double handlingHeldScale = 0.38;
+    double keeperSkillHeldScale = 0.18;
+    double reboundPowerScale = 0.22;
+    double reboundRiskHeldPenalty = 0.28;
+    double heldMinimumProbability = 0.12;
+    double heldMaximumProbability = 0.88;
+};
+
+struct ShotBlockTuning {
+    double blockLaneWidthMeters = 2.8;
+    double extraBlockLaneWidthMeters = 2.5;
+    double blockReactionWindowSeconds = 0.42;
+    double baseBlockProbability = 0.05;
+    double maximumBlockProbability = 0.58;
+    double defenderPositioningWeight = 0.28;
+    double defenderConcentrationWeight = 0.22;
+    double defenderMarkingWeight = 0.18;
+    double defenderTacklingWeight = 0.16;
+    double defenderAgilityWeight = 0.10;
+    double defenderOverallWeight = 0.06;
+    double minimumSegmentLengthSquared = 0.0001;
+    double defenderSkillBaseline = 50.0;
+    double defenderSkillScale = 100.0;
+    double minimumReactionAdjustment = -0.12;
+    double maximumReactionAdjustment = 0.24;
+    double defenderInterventionSpeed = 6.5;
+    double timingMinimumWindowSeconds = 0.05;
+    double shotPowerSpeedPenaltyBaseline = 18.0;
+    double shotPowerSpeedPenaltyScale = 26.0;
+    double maximumSpeedPenalty = 0.45;
+    double qualityBlockRiskWeight = 0.44;
+    double laneFactorWeight = 0.20;
+    double timingFactorWeight = 0.15;
+    double skillFactorWeight = 0.12;
+    double lanePressureWeight = 0.10;
+    double speedPenaltyWeight = 0.18;
+    double deflectionStrengthBase = 0.35;
+    double deflectionStrengthPowerBaseline = 18.0;
+    double deflectionStrengthPowerScale = 30.0;
+    double deflectionStrengthLaneWeight = 0.20;
+    double minimumDeflectionStrength = 0.25;
+    double maximumDeflectionStrength = 0.95;
+};
+
+struct ReboundModelTuning {
+    double savedReboundBaseDistance = 5.0;
+    double blockedDeflectionBaseDistance = 7.0;
+    double savedReboundPowerDistanceScale = 12.0;
+    double blockedDeflectionPowerDistanceScale = 14.0;
+    double handlingDistanceReductionScale = 8.0;
+    double randomDistanceScale = 7.0;
+    double savedReboundAngleSpread = 0.95;
+    double blockedDeflectionAngleSpread = 1.25;
+    double reboundBackwardAngleRadians = 3.14159265358979323846;
+    double savedReboundLateralAngleRadians = 1.57079632679489661923;
+    double savedReboundBackwardBlend = 0.35;
+    double shotPowerBaseline = 18.0;
+    double shotPowerScale = 18.0;
+    double deflectionStrengthDistanceScale = 6.0;
+    double deflectionStrengthSpeedScale = 3.0;
+    double minimumReboundSpeed = 1.0;
+    double reboundSpeedBase = 7.0;
+    double reboundSpeedPowerScale = 8.0;
+    double savedReboundApexBase = 0.45;
+    double savedReboundApexPowerScale = 0.9;
+    double blockedDeflectionApexBase = 1.4;
+    double blockedDeflectionApexPowerScale = 1.0;
+};
+
+struct ShotTrajectoryTuning {
+    double minimumShotSpeedMetersPerSecond = 1.0;
+    double lowShotApexMeters = 0.45;
+    double midShotApexMeters = 1.15;
+    double highShotApexMeters = 2.25;
+};
+
+struct ShotFlowTuning {
+    double offTargetRestartSeconds = 18.0;
+    double savedHeldRestartSeconds = 10.0;
+    double saveContactGoalLineOffsetMeters = 1.2;
+    double saveContactGoalkeeperBlend = 0.35;
+    double saveContactLateralPaddingMeters = 1.5;
+    double minimumSaveContactDeltaX = 0.001;
+};
+
+struct ShootingModelTuning {
+    double defaultAttribute = 50.0;
+    ShotContextTuning context;
+    ShotTypeSelectionTuning typeSelection;
+    ShotTargetSelectionTuning targetSelection;
+    ShotExecutionTuning execution;
+    ShotQualityTuning quality;
+    ShotOutcomeTuning outcome;
+    ShotBlockTuning block;
+    ShotTrajectoryTuning trajectory;
+    ReboundModelTuning rebound;
+    ShotFlowTuning flow;
 };
 
 struct ActionScoringWeights {
@@ -204,13 +540,16 @@ struct CarryActionScoringProfile {
 };
 
 struct ShotActionScoringProfile {
-    double xgToChanceValue = 80.0;
+    double xgToChanceValue = 30.0;
     double angleToChanceValue = 0.08;
     double distanceToChanceValue = 0.08;
-    double tacticalChanceFit = 5.0;
-    double roleChanceFit = 8.0;
-    double shooterConfidenceToSkillFit = 0.10;
-    double pressurePenaltyToPressureCost = 0.16;
+    double tacticalChanceFit = 2.0;
+    double roleChanceFit = 4.0;
+    double shooterConfidenceToSkillFit = 0.08;
+    double pressurePenaltyToPressureCost = 0.22;
+    double safeCirculationShotCost = 28.0;
+    double earlyActionShotCost = 18.0;
+    double nonClearChanceXG = 0.28;
     double riskToleranceMinimum = 0.45;
 };
 
@@ -234,10 +573,10 @@ struct ClearActionScoringProfile {
 };
 
 struct PhaseFitProfile {
-    double shotBoxEntry = 8.0;
-    double shotChanceCreation = 8.0;
-    double shotFinalThird = 4.0;
-    double shotBuildUp = -8.0;
+    double shotBoxEntry = 3.0;
+    double shotChanceCreation = 3.0;
+    double shotFinalThird = -4.0;
+    double shotBuildUp = -14.0;
     double carryProgressionAvailable = 4.0;
 };
 
@@ -270,13 +609,13 @@ struct ActionSelectionTuning {
     double shotSkillInfluence = 180.0;
     double passSkillBaseline = 0.85;
     double carrySkillBaseline = 0.90;
-    double shotSkillBaseline = 0.88;
+    double shotSkillBaseline = 0.30;
     double passSkillMinimum = 0.78;
     double passSkillMaximum = 1.18;
     double carrySkillMinimum = 0.82;
     double carrySkillMaximum = 1.14;
-    double shotSkillMinimum = 0.80;
-    double shotSkillMaximum = 1.16;
+    double shotSkillMinimum = 0.12;
+    double shotSkillMaximum = 0.82;
 };
 
 struct CarryRoleDecisionProfile {
@@ -785,16 +1124,16 @@ inline ShotTacticalDecisionProfile shotTacticalDecisionProfile(const TacticalSet
         profile.shotBias -= 0.16;
         profile.weakShotBias -= 0.22;
     } else if (tactics.mentality == TeamMentality::Attacking) {
-        profile.shotBias += 0.14;
-        profile.weakShotBias += 0.08;
+        profile.shotBias += 0.08;
+        profile.weakShotBias -= 0.02;
     }
 
     if (tactics.tempo == TeamTempo::Low) {
         profile.shotBias -= 0.06;
         profile.weakShotBias -= 0.12;
     } else if (tactics.tempo == TeamTempo::High) {
-        profile.shotBias += 0.07;
-        profile.weakShotBias += 0.05;
+        profile.shotBias += 0.03;
+        profile.weakShotBias -= 0.02;
     }
 
     if (tactics.passingDirectness == PassingDirectness::Direct) {
@@ -804,6 +1143,6 @@ inline ShotTacticalDecisionProfile shotTacticalDecisionProfile(const TacticalSet
     }
 
     profile.shotBias = std::clamp(profile.shotBias, 0.55, 1.35);
-    profile.weakShotBias = std::clamp(profile.weakShotBias, 0.50, 1.25);
+    profile.weakShotBias = std::clamp(profile.weakShotBias, 0.45, 1.05);
     return profile;
 }

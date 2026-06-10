@@ -1,7 +1,6 @@
 #include"fm/match_engine/decision/ShotDecisionEvaluator.h"
 
 #include"fm/match_engine/ball/ShotQualityModel.h"
-#include"fm/match_engine/ball/ShotTargetModel.h"
 #include"fm/match_engine/decision/DecisionTuningProfile.h"
 #include"fm/match_engine/geometry/TacticalZones.h"
 
@@ -139,6 +138,11 @@ namespace {
             || role == FormationSlotRole::DefensiveMidfielder;
     }
 
+    bool isAdvancedShootingPhase(DecisionMatchPhase phase) {
+        return phase == DecisionMatchPhase::BoxEntry
+            || phase == DecisionMatchPhase::ChanceCreation;
+    }
+
 }
 
 std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
@@ -165,6 +169,24 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     if (!attackingThird && xg < tuning.nonAttackingThirdMinimumXG) {
         return output;
     }
+    const bool advancedPhase = isAdvancedShootingPhase(context.phase);
+    const bool clearChance = xg >= tuning.strongChanceAlwaysIncludeXG && distance <= 16.0;
+    const bool earlyPossessionShot =
+        context.possessionActionCount <= 1
+        && !advancedPhase
+        && context.safeCirculationAvailable;
+    if (earlyPossessionShot && !clearChance && xg < tuning.earlyActionMinimumXG) {
+        return output;
+    }
+    if (context.carrierPressure >= 35.0 && !clearChance && xg < tuning.pressuredShotMinimumXG) {
+        return output;
+    }
+    if (distance > tuning.longShotDistance && xg < tuning.weakShotXG) {
+        return output;
+    }
+    if (isDefensiveRole(context.carrierRole) && xg < tuning.inappropriateRoleMinimumXG) {
+        return output;
+    }
     const PlayerAttributes attributes = attributesFor(context.teamSnapshot, context.carrierState);
     const ShotRoleDecisionProfile role = shotRoleDecisionProfile(context.carrierRole);
     const ShotTacticalDecisionProfile tactics = shotTacticalDecisionProfile(context.tacticalSetup);
@@ -174,14 +196,6 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     const double pressurePenalty =
         std::clamp(context.carrierPressure * tuning.pressurePenaltyScale, 0.0, 100.0);
     const bool weakShot = xg < tuning.weakShotXG;
-    const ShotTargetResult shotTarget = ShotTargetModel{}.chooseTarget(ShotTargetContext{
-        context.ballPosition,
-        context.attackingDirection,
-        static_cast<double>(attributes.technical.shooting),
-        static_cast<double>(attributes.technical.technique),
-        static_cast<double>(attributes.mental.composure),
-        context.carrierPressure
-    });
 
     double score = xgDesire(xg, tuning) * tuning.openPlayShotBaseline
         + (distanceScore - tuning.distanceScoreBaseline) * tuning.distanceScoreContribution
@@ -209,6 +223,12 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
             1.0 + (tactics.weakShotBias - 1.0) * tuning.weakShotBiasBlend,
             tuning.weakShotBiasMinimum,
             tuning.weakShotBiasMaximum);
+        if (earlyPossessionShot) {
+            score *= tuning.earlyActionWeakShotMultiplier;
+        }
+        if (context.carrierPressure >= 35.0) {
+            score *= tuning.pressuredWeakShotMultiplier;
+        }
     }
     if (isDefensiveRole(context.carrierRole) && xg < tuning.defensiveRoleLowXG) {
         score *= tuning.defensiveRoleWeakShotMultiplier;
@@ -217,7 +237,7 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     ShotOption option;
     option.kind = ShotOptionKind::OpenPlayShot;
     option.actionType = BallCarrierActionType::Shoot;
-    option.targetPoint = shotTarget.intendedTarget;
+    option.targetPoint = goalCenterFor(context.attackingDirection);
     option.score = std::clamp(score, 0.0, 100.0);
     option.estimatedXG = xg;
     option.angleScore = angleScore;

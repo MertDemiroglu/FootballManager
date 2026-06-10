@@ -1,29 +1,40 @@
 #pragma once
 
+#include"fm/match_engine/ball/ShotTypes.h"
+
 #include<cstdint>
 
 struct ShotOutcomeContext {
-    double xg = 0.0;
-    double placementQuality = 0.0;
-    double targetDifficulty = 0.0;
-    double shooterFinishing = 0.0;
-    double shooterComposure = 0.0;
-    double goalkeeperStrength = 0.0;
-    double pressure = 0.0;
+    ShotContext shotContext;
+    ShotType shotType = ShotType::ControlledFinish;
+    ShotExecutionResult execution;
+    ShotQualityResult quality;
     std::uint64_t seed = 0;
 };
 
 enum class ShotOutcomeKind {
-    OffTarget,
-    Saved,
     Goal,
-    Blocked
+    OffTarget,
+    Blocked,
+    SavedHeld,
+    SavedRebound
 };
 
 struct ShotOutcomeResult {
-    ShotOutcomeKind kind = ShotOutcomeKind::Saved;
-    bool onTarget = true;
+    ShotOutcomeKind kind = ShotOutcomeKind::SavedHeld;
+    bool onTarget = false;
     bool goal = false;
+    bool rebound = false;
+};
+
+class ShotAccuracyResolver {
+public:
+    bool isOnTarget(const ShotOutcomeContext& context) const;
+};
+
+class GoalkeeperSaveResolver {
+public:
+    ShotOutcomeResult resolveOnTarget(const ShotOutcomeContext& context) const;
 };
 
 class ShotOutcomeResolver {

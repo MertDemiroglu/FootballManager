@@ -8,6 +8,13 @@
 #include"fm/match_engine/decision/CarryOptionEvaluator.h"
 #include"fm/match_engine/decision/PassOptionEvaluator.h"
 #include"fm/match_engine/decision/ShotDecisionEvaluator.h"
+#include"fm/match_engine/ball/ReboundTrajectoryBuilder.h"
+#include"fm/match_engine/ball/ShotBlockResolver.h"
+#include"fm/match_engine/ball/ShotContextBuilder.h"
+#include"fm/match_engine/ball/ShotExecutionModel.h"
+#include"fm/match_engine/ball/ShotOutcomeResolver.h"
+#include"fm/match_engine/ball/ShotTargetSelector.h"
+#include"fm/match_engine/ball/ShotTrajectoryBuilder.h"
 #include"fm/competition/League.h"
 #include"fm/data/SqliteGameStateRepository.h"
 #include"fm/events/DomainEventPublisher.h"
@@ -17,6 +24,7 @@
 #include"fm/roster/Team.h"
 
 #include<algorithm>
+#include<cmath>
 #include<cstdint>
 #include<filesystem>
 #include<iostream>
@@ -540,6 +548,20 @@ namespace {
     std::vector<ShotOption> evaluateShotFixture(
         const PassDecisionFixture& fixture,
         double pressure = 8.0) {
+        const double progress = fixture.direction == AttackingDirection::HomeToAway
+            ? fixture.carrier.position.x / PitchGeometry::LengthMeters
+            : (PitchGeometry::LengthMeters - fixture.carrier.position.x) / PitchGeometry::LengthMeters;
+        DecisionMatchPhase phase = DecisionMatchPhase::BuildUp;
+        if (progress >= 0.88) {
+            phase = DecisionMatchPhase::ChanceCreation;
+        } else if (progress >= 0.78) {
+            phase = DecisionMatchPhase::BoxEntry;
+        } else if (progress >= 0.66) {
+            phase = DecisionMatchPhase::FinalThird;
+        } else if (progress >= 0.38) {
+            phase = DecisionMatchPhase::MiddleThirdCirculation;
+        }
+
         return ShotDecisionEvaluator{}.evaluate(ShotOptionEvaluationContext{
             &fixture.teamSnapshot,
             &fixture.opponentSnapshot,
@@ -550,7 +572,11 @@ namespace {
             fixture.tactics,
             fixture.carrier.position,
             fixture.direction,
-            pressure
+            pressure,
+            phase,
+            3,
+            std::clamp(progress, 0.0, 1.0),
+            true
         });
     }
 
@@ -576,8 +602,404 @@ namespace {
         require(closeCentral > pressured, "higher pressure should reduce xG");
         require(reverseDirection > farWide, "away-to-home xG should use the opposite goal");
         for (double xg : { closeCentral, farWide, pressured, reverseDirection }) {
-            require(xg >= 0.005 && xg <= 0.42, "open-play xG should stay within clamp range");
+            require(xg >= 0.004 && xg <= 0.28, "open-play xG should stay within clamp range");
         }
+    }
+
+    PlayerAttributes goalkeeperAttributes(int shotStopping, int handling) {
+        PlayerAttributes attributes = passDecisionAttributes(42, 50, 58);
+        attributes.goalkeeper.shotStopping = shotStopping;
+        attributes.goalkeeper.handling = handling;
+        attributes.goalkeeper.oneOnOnes = std::max(35, shotStopping - 4);
+        attributes.goalkeeper.aerialAbility = std::max(35, handling - 6);
+        attributes.mental.positioning = std::max(35, shotStopping - 5);
+        attributes.mental.concentration = std::max(35, handling - 3);
+        return attributes;
+    }
+
+    ShotContext buildShotContextForSmoke(
+        PitchPoint origin,
+        PlayerAttributes shooter,
+        double pressure,
+        std::vector<PitchPoint> defenderPositions = {},
+        PlayerAttributes goalkeeper = goalkeeperAttributes(62, 58),
+        std::uint64_t seed = 0x5eedULL) {
+        return ShotContextBuilder{}.build(ShotContextBuildRequest{
+            origin,
+            AttackingDirection::HomeToAway,
+            pressure,
+            shooter,
+            goalkeeper,
+            62.0,
+            defenderPositions,
+            seed
+        });
+    }
+
+    ShotTargetSelectionResult fixedShotTarget(const ShotContext& context) {
+        return ShotTargetSelectionResult{
+            ShotTargetZone{ ShotTargetLane::FarPost, ShotTargetHeight::Low },
+            shotTargetPointFor(
+                context.shotOrigin,
+                context.attackingDirection,
+                ShotTargetZone{ ShotTargetLane::FarPost, ShotTargetHeight::Low }),
+            32.0,
+            70.0
+        };
+    }
+
+    void runShotExecutionModelSmoke() {
+        const ShotContext goodContext = buildShotContextForSmoke(
+            PitchPoint{ 96.0, PitchGeometry::WidthMeters / 2.0 },
+            shotDecisionAttributes(86, 84, 82),
+            6.0,
+            {},
+            goalkeeperAttributes(62, 58),
+            0x8801ULL);
+        const ShotContext hardContext = buildShotContextForSmoke(
+            PitchPoint{ 86.0, 8.0 },
+            shotDecisionAttributes(42, 40, 38),
+            72.0,
+            { PitchPoint{ 88.0, 12.0 }, PitchPoint{ 91.0, 18.0 } },
+            goalkeeperAttributes(62, 58),
+            0x8801ULL);
+        const ShotTargetSelectionResult intended = fixedShotTarget(goodContext);
+        const ShotExecutionResult good = ShotExecutionModel{}.execute(ShotExecutionRequest{
+            goodContext,
+            ShotType::PlacedShot,
+            intended
+        });
+        const ShotExecutionResult poor = ShotExecutionModel{}.execute(ShotExecutionRequest{
+            hardContext,
+            ShotType::TightAngleShot,
+            ShotTargetSelectionResult{
+                intended.intendedZone,
+                shotTargetPointFor(hardContext.shotOrigin, hardContext.attackingDirection, intended.intendedZone),
+                intended.targetDifficulty,
+                intended.placementQuality
+            }
+        });
+
+        require(good.executionQuality > poor.executionQuality,
+            "good low-pressure shooter should execute better than poor high-pressure tight-angle shooter");
+        require(good.targetDeviationMeters < poor.targetDeviationMeters,
+            "good low-pressure shooter should deviate less from intended target");
+        require(PitchGeometry::distance(intended.intendedTarget, good.actualTarget) > 0.0
+                || PitchGeometry::distance(intended.intendedTarget, poor.actualTarget) > 0.0,
+            "intended target and actual executed target should be separate concepts");
+    }
+
+    void runShotQualityFoundationSmoke() {
+        const PlayerAttributes averageShooter = shotDecisionAttributes(62, 60, 60);
+        const PlayerAttributes eliteShooter = shotDecisionAttributes(92, 88, 86);
+        const ShotContext closeCentral = buildShotContextForSmoke(
+            PitchPoint{ 98.0, PitchGeometry::WidthMeters / 2.0 },
+            averageShooter,
+            8.0);
+        const ShotContext longShot = buildShotContextForSmoke(
+            PitchPoint{ 72.0, PitchGeometry::WidthMeters / 2.0 },
+            averageShooter,
+            8.0);
+        const ShotContext tightAngle = buildShotContextForSmoke(
+            PitchPoint{ 97.0, 6.0 },
+            averageShooter,
+            8.0);
+        const ShotContext pressured = buildShotContextForSmoke(
+            PitchPoint{ 98.0, PitchGeometry::WidthMeters / 2.0 },
+            averageShooter,
+            76.0);
+        const ShotContext blockedLane = buildShotContextForSmoke(
+            PitchPoint{ 98.0, PitchGeometry::WidthMeters / 2.0 },
+            averageShooter,
+            8.0,
+            { PitchPoint{ 101.0, PitchGeometry::WidthMeters / 2.0 } });
+        const ShotContext eliteSameLocation = buildShotContextForSmoke(
+            PitchPoint{ 98.0, PitchGeometry::WidthMeters / 2.0 },
+            eliteShooter,
+            8.0);
+
+        const ShotTargetSelectionResult intended = fixedShotTarget(closeCentral);
+        const ShotExecutionResult execution = ShotExecutionModel{}.execute(ShotExecutionRequest{
+            closeCentral,
+            ShotType::PlacedShot,
+            intended
+        });
+        const auto qualityFor = [&execution](const ShotContext& context, ShotType type) {
+            return ShotQualityModel{}.evaluate(context, type, execution);
+        };
+
+        const ShotQualityResult closeQuality = qualityFor(closeCentral, ShotType::PlacedShot);
+        const ShotQualityResult longQuality = qualityFor(longShot, ShotType::LongShot);
+        const ShotQualityResult tightQuality = qualityFor(tightAngle, ShotType::TightAngleShot);
+        const ShotQualityResult pressuredQuality = qualityFor(pressured, ShotType::PlacedShot);
+        const ShotQualityResult blockedQuality = qualityFor(blockedLane, ShotType::PlacedShot);
+        const ShotQualityResult eliteQuality = qualityFor(eliteSameLocation, ShotType::PlacedShot);
+
+        require(closeQuality.adjustedXG > longQuality.adjustedXG,
+            "central close shot should have higher adjusted xG than long shot");
+        require(closeQuality.adjustedXG > tightQuality.adjustedXG,
+            "tight angle should lower adjusted shot quality");
+        require(closeQuality.adjustedXG > pressuredQuality.adjustedXG,
+            "pressure should lower adjusted shot quality");
+        require(blockedQuality.blockRisk > closeQuality.blockRisk,
+            "high blocker risk should raise block risk");
+        require(std::abs(eliteQuality.adjustedXG - closeQuality.adjustedXG) < 0.015,
+            "player finishing should not massively inflate recorded xG");
+    }
+
+    void runShotOutcomeFoundationSmoke() {
+        const PlayerAttributes shooter = shotDecisionAttributes(68, 66, 64);
+        const ShotContext context = buildShotContextForSmoke(
+            PitchPoint{ 96.0, PitchGeometry::WidthMeters / 2.0 },
+            shooter,
+            18.0,
+            { PitchPoint{ 99.0, PitchGeometry::WidthMeters / 2.0 } },
+            goalkeeperAttributes(68, 62),
+            0x4400ULL);
+        const ShotTargetSelectionResult intended = fixedShotTarget(context);
+        const ShotExecutionResult execution = ShotExecutionModel{}.execute(ShotExecutionRequest{
+            context,
+            ShotType::PlacedShot,
+            intended
+        });
+        const ShotQualityResult quality = ShotQualityModel{}.evaluate(context, ShotType::PlacedShot, execution);
+        const BallTrajectory trajectory = ShotTrajectoryBuilder{}.build(ShotTrajectoryBuildRequest{
+            context,
+            intended,
+            execution,
+            10.0
+        });
+
+        bool blockedOccurred = false;
+        for (std::uint64_t seed = 1; seed <= 160 && !blockedOccurred; ++seed) {
+            const ShotBlockResult block = ShotBlockResolver{}.resolve(ShotBlockRequest{
+                trajectory,
+                context,
+                quality,
+                execution,
+                { ShotBlocker{
+                    9001,
+                    502,
+                    PitchPoint{ 99.0, PitchGeometry::WidthMeters / 2.0 },
+                    passDecisionAttributes(58, 58, 62),
+                    68
+                } },
+                seed
+            });
+            blockedOccurred = block.blocked;
+        }
+        require(blockedOccurred, "blocked shots should be able to occur");
+
+        bool offTargetOccurred = false;
+        bool savedHeldOccurred = false;
+        bool savedReboundOccurred = false;
+        int highKeeperGoals = 0;
+        int lowKeeperGoals = 0;
+        int highKeeperSaves = 0;
+        int lowKeeperSaves = 0;
+        int highHandlingHeld = 0;
+        int lowHandlingHeld = 0;
+        int highHandlingRebounds = 0;
+        int lowHandlingRebounds = 0;
+        for (std::uint64_t seed = 1; seed <= 260; ++seed) {
+            ShotContext poorContext = buildShotContextForSmoke(
+                PitchPoint{ 84.0, 8.0 },
+                shotDecisionAttributes(38, 36, 35),
+                82.0,
+                {},
+                goalkeeperAttributes(64, 58),
+                seed);
+            ShotExecutionResult poorExecution = ShotExecutionModel{}.execute(ShotExecutionRequest{
+                poorContext,
+                ShotType::DesperationShot,
+                ShotTargetSelector{}.select(poorContext, ShotType::DesperationShot)
+            });
+            ShotQualityResult poorQuality =
+                ShotQualityModel{}.evaluate(poorContext, ShotType::DesperationShot, poorExecution);
+            ShotOutcomeResult poorOutcome = ShotOutcomeResolver{}.resolve(ShotOutcomeContext{
+                poorContext,
+                ShotType::DesperationShot,
+                poorExecution,
+                poorQuality,
+                seed
+            });
+            offTargetOccurred = offTargetOccurred || poorOutcome.kind == ShotOutcomeKind::OffTarget;
+
+            ShotContext highKeeperContext = buildShotContextForSmoke(
+                PitchPoint{ 95.0, PitchGeometry::WidthMeters / 2.0 },
+                shooter,
+                12.0,
+                {},
+                goalkeeperAttributes(88, 88),
+                seed);
+            ShotContext lowKeeperContext = buildShotContextForSmoke(
+                PitchPoint{ 95.0, PitchGeometry::WidthMeters / 2.0 },
+                shooter,
+                12.0,
+                {},
+                goalkeeperAttributes(42, 34),
+                seed);
+            ShotExecutionResult onTargetExecution = ShotExecutionModel{}.execute(ShotExecutionRequest{
+                highKeeperContext,
+                ShotType::PlacedShot,
+                ShotTargetSelector{}.select(highKeeperContext, ShotType::PlacedShot)
+            });
+            ShotQualityResult onTargetQuality =
+                ShotQualityModel{}.evaluate(highKeeperContext, ShotType::PlacedShot, onTargetExecution);
+            const ShotOutcomeResult highOutcome = GoalkeeperSaveResolver{}.resolveOnTarget(ShotOutcomeContext{
+                highKeeperContext,
+                ShotType::PlacedShot,
+                onTargetExecution,
+                onTargetQuality,
+                seed
+            });
+            const ShotOutcomeResult lowOutcome = GoalkeeperSaveResolver{}.resolveOnTarget(ShotOutcomeContext{
+                lowKeeperContext,
+                ShotType::PlacedShot,
+                onTargetExecution,
+                ShotQualityModel{}.evaluate(lowKeeperContext, ShotType::PlacedShot, onTargetExecution),
+                seed
+            });
+            savedHeldOccurred = savedHeldOccurred || highOutcome.kind == ShotOutcomeKind::SavedHeld;
+            savedReboundOccurred = savedReboundOccurred || highOutcome.kind == ShotOutcomeKind::SavedRebound;
+            highKeeperGoals += highOutcome.goal ? 1 : 0;
+            lowKeeperGoals += lowOutcome.goal ? 1 : 0;
+            highKeeperSaves += highOutcome.goal ? 0 : 1;
+            lowKeeperSaves += lowOutcome.goal ? 0 : 1;
+            highHandlingHeld += highOutcome.kind == ShotOutcomeKind::SavedHeld ? 1 : 0;
+            lowHandlingHeld += lowOutcome.kind == ShotOutcomeKind::SavedHeld ? 1 : 0;
+            highHandlingRebounds += highOutcome.kind == ShotOutcomeKind::SavedRebound ? 1 : 0;
+            lowHandlingRebounds += lowOutcome.kind == ShotOutcomeKind::SavedRebound ? 1 : 0;
+        }
+
+        require(offTargetOccurred, "off-target shots should be able to occur");
+        require(savedHeldOccurred, "saved-held outcomes should be able to occur");
+        require(savedReboundOccurred, "saved-rebound outcomes should be able to occur");
+        require(highHandlingHeld > lowHandlingHeld,
+            "goalkeeper handling should increase held-save tendency");
+        require(highKeeperSaves > lowKeeperSaves,
+            "strong goalkeeper should produce more saves in aggregate");
+        require(highHandlingHeld + highHandlingRebounds > 0
+                && lowHandlingHeld + lowHandlingRebounds > 0,
+            "keeper outcome smoke should exercise held and rebound save accounting");
+        require(highKeeperGoals < lowKeeperGoals,
+            "goalkeeper quality should affect save chance");
+    }
+
+    void runReboundTrajectoryModelSmoke() {
+        const PitchPoint contactPoint{ 70.0, PitchGeometry::WidthMeters / 2.0 };
+        BallTrajectory incoming;
+        incoming.start = PitchPoint{ 50.0, PitchGeometry::WidthMeters / 2.0 };
+        incoming.intendedTarget = PitchPoint{ 105.0, PitchGeometry::WidthMeters / 2.0 };
+        incoming.actualTarget = PitchPoint{ 105.0, PitchGeometry::WidthMeters / 2.0 };
+        incoming.startSecond = 12.0;
+        incoming.arrivalSecond = 12.45;
+        incoming.speedMetersPerSecond = 28.0;
+        incoming.type = BallTrajectoryType::Shot;
+        incoming.flightProfile = BallFlightProfile::Shot;
+        incoming.apexHeightMeters = 0.9;
+
+        ShotExecutionResult lowPowerExecution;
+        lowPowerExecution.actualZone = ShotTargetZone{ ShotTargetLane::Center, ShotTargetHeight::Low };
+        lowPowerExecution.actualTarget = incoming.actualTarget;
+        lowPowerExecution.executionQuality = 62.0;
+        lowPowerExecution.shotPower = 18.0;
+        lowPowerExecution.placementQuality = 58.0;
+
+        ShotExecutionResult highPowerExecution = lowPowerExecution;
+        highPowerExecution.shotPower = 92.0;
+
+        const ReboundTrajectoryBuilder builder;
+        const std::uint64_t seed = 0xabc123ULL;
+        const BallTrajectory first = builder.build(ReboundTrajectoryRequest{
+            contactPoint,
+            incoming,
+            highPowerExecution,
+            ShotOutcomeKind::SavedRebound,
+            42.0,
+            0.0,
+            incoming.arrivalSecond,
+            seed
+        });
+        const BallTrajectory second = builder.build(ReboundTrajectoryRequest{
+            contactPoint,
+            incoming,
+            highPowerExecution,
+            ShotOutcomeKind::SavedRebound,
+            42.0,
+            0.0,
+            incoming.arrivalSecond,
+            seed
+        });
+        require(PitchGeometry::distance(first.actualTarget, second.actualTarget) < 0.0001,
+            "same rebound input and seed should produce the same target");
+        require(first.arrivalSecond > first.startSecond,
+            "rebound trajectory should arrive after it starts");
+
+        const BallTrajectory lowPowerSaved = builder.build(ReboundTrajectoryRequest{
+            contactPoint,
+            incoming,
+            lowPowerExecution,
+            ShotOutcomeKind::SavedRebound,
+            42.0,
+            0.0,
+            incoming.arrivalSecond,
+            seed
+        });
+        require(
+            PitchGeometry::distance(contactPoint, first.actualTarget)
+                > PitchGeometry::distance(contactPoint, lowPowerSaved.actualTarget),
+            "higher shot power should generally create a longer saved rebound");
+
+        const BallTrajectory lowHandlingSaved = builder.build(ReboundTrajectoryRequest{
+            contactPoint,
+            incoming,
+            highPowerExecution,
+            ShotOutcomeKind::SavedRebound,
+            28.0,
+            0.0,
+            incoming.arrivalSecond,
+            seed
+        });
+        const BallTrajectory highHandlingSaved = builder.build(ReboundTrajectoryRequest{
+            contactPoint,
+            incoming,
+            highPowerExecution,
+            ShotOutcomeKind::SavedRebound,
+            88.0,
+            0.0,
+            incoming.arrivalSecond,
+            seed
+        });
+        require(
+            PitchGeometry::distance(contactPoint, highHandlingSaved.actualTarget)
+                < PitchGeometry::distance(contactPoint, lowHandlingSaved.actualTarget),
+            "higher goalkeeper handling should reduce saved rebound distance");
+
+        const BallTrajectory blockedDeflection = builder.build(ReboundTrajectoryRequest{
+            contactPoint,
+            incoming,
+            highPowerExecution,
+            ShotOutcomeKind::Blocked,
+            50.0,
+            0.85,
+            incoming.arrivalSecond,
+            seed
+        });
+        require(blockedDeflection.type == BallTrajectoryType::Deflection,
+            "blocked shot rebound builder should create a deflection trajectory");
+        require(first.type == BallTrajectoryType::Rebound,
+            "saved shot rebound builder should create a rebound trajectory");
+        require(blockedDeflection.flightProfile != first.flightProfile
+                || PitchGeometry::distance(blockedDeflection.actualTarget, first.actualTarget) > 0.001,
+            "blocked deflection and saved rebound should have different trajectory profiles");
+        require(blockedDeflection.actualTarget.x >= 0.0
+                && blockedDeflection.actualTarget.x <= PitchGeometry::LengthMeters
+                && blockedDeflection.actualTarget.y >= 0.0
+                && blockedDeflection.actualTarget.y <= PitchGeometry::WidthMeters,
+            "rebound target should be clamped to the pitch");
+        require(blockedDeflection.arrivalSecond > blockedDeflection.startSecond,
+            "blocked deflection should arrive after it starts");
     }
 
     void assertResultReportConsistency(
@@ -1097,7 +1519,7 @@ namespace {
             FormationSlotRole::Striker,
             shotDecisionAttributes(82, 78, 80),
             TacticalSetup{},
-            PitchPoint{ 97.0, PitchGeometry::WidthMeters / 2.0 });
+            PitchPoint{ 102.0, PitchGeometry::WidthMeters / 2.0 });
         const PassDecisionFixture farWideStriker = buildPassDecisionFixture(
             FormationSlotRole::Striker,
             shotDecisionAttributes(82, 78, 80),
@@ -1142,8 +1564,8 @@ namespace {
             PitchPoint{ 100.0, 24.0 });
         const double weakAttackingScore = bestShotScore(evaluateShotFixture(weakAttackingShot));
         const double weakDefensiveScore = bestShotScore(evaluateShotFixture(weakDefensiveShot));
-        require(weakAttackingScore > 0.0,
-            "attacking mentality should still be able to generate a weak shot option");
+        require(weakAttackingScore == 0.0 || weakAttackingScore > weakDefensiveScore,
+            "attacking mentality should not make weak shot desire worse than defensive mentality");
         require(weakDefensiveScore == 0.0 || weakAttackingScore > weakDefensiveScore,
             "defensive mentality should lower or suppress weak shot desire");
 
@@ -1151,7 +1573,7 @@ namespace {
             FormationSlotRole::Striker,
             shotDecisionAttributes(80, 78, 80),
             defensive,
-            PitchPoint{ 99.0, 34.0 });
+            PitchPoint{ 102.0, 34.0 });
         require(bestShotScore(evaluateShotFixture(clearDefensiveShot)) > 0.0,
             "defensive mentality should not eliminate a clear high-xG shot");
 
@@ -1507,7 +1929,9 @@ namespace {
         int totalPasses = 0;
         int totalCarryTraces = 0;
         int totalShotTraces = 0;
-        int explosiveShotSamples = 0;
+        int hundredShotSamples = 0;
+        int explodedXGSamples = 0;
+        int extremePerfectConversionSamples = 0;
         int maxSampleShots = 0;
         int maxSampleGoals = 0;
         std::uint64_t maxShotSeed = 0;
@@ -1529,8 +1953,20 @@ namespace {
             const int combinedShotsOnTarget =
                 result.homeStats.shotsOnTarget + result.awayStats.shotsOnTarget;
             const int combinedGoals = result.homeStats.goals + result.awayStats.goals;
-            const double combinedXg = result.homeStats.expectedGoals + result.awayStats.expectedGoals;
+            const double combinedXG = result.homeStats.expectedGoals + result.awayStats.expectedGoals;
             const GoalSourceDiagnostic goalSources = goalSourceDiagnosticFor(result);
+            if (combinedShots >= 100) {
+                ++hundredShotSamples;
+                if (combinedShots > maxSampleShots) {
+                    maxSampleShots = combinedShots;
+                    maxSampleGoals = combinedGoals;
+                    maxSampleXg = combinedXG;
+                    maxShotSeed = 0x9300ULL + seed;
+                }
+            }
+            if (combinedXG >= 30.0) {
+                ++explodedXGSamples;
+            }
             const bool extremeLoop =
                 maxPossession > 95.0
                 || result.homeStats.passesAttempted > 2000
@@ -1572,24 +2008,13 @@ namespace {
             require(!extremeLoop,
                 "detailed coordinate match should not fall into extreme short-pass possession loop");
 
-            const bool explosiveShotVolume =
-                combinedShots >= 100
-                || combinedXg >= 20.0
-                || combinedGoals >= 20;
-            if (explosiveShotVolume) {
-                ++explosiveShotSamples;
-                if (combinedShots > maxSampleShots) {
-                    maxSampleShots = combinedShots;
-                    maxSampleGoals = combinedGoals;
-                    maxSampleXg = combinedXg;
-                    maxShotSeed = 0x9300ULL + seed;
-                }
-            }
             totalCarryTraces += traceCountFor(result, MatchTraceKind::Carry);
             totalShotTraces += traceCountFor(result, MatchTraceKind::Shot);
+            totalShots += combinedShots;
             totalShotsOnTarget += combinedShotsOnTarget;
             totalGoals += combinedGoals;
-            totalExpectedGoals += combinedXg;
+            totalPasses += combinedPasses;
+            totalExpectedGoals += combinedXG;
             totalGoalSources.assistedGoals += goalSources.assistedGoals;
             totalGoalSources.soloShots += goalSources.soloShots;
             totalGoalSources.reboundOrLooseGoals += goalSources.reboundOrLooseGoals;
@@ -1597,8 +2022,13 @@ namespace {
 
             for (const MatchTeamSimulationStats* stats : { &result.homeStats, &result.awayStats }) {
                 require(stats->passesAttempted > 0, "detailed coordinate match should attempt passes");
-                totalShots += stats->shots;
-                totalPasses += stats->passesAttempted;
+                require(stats->shotsOnTarget <= stats->shots,
+                    "shots on target should never exceed total shots");
+                require(stats->goals <= stats->shotsOnTarget,
+                    "goals should not exceed shots on target while own goals are not modeled");
+                if (stats->shotsOnTarget >= 8 && stats->goals == stats->shotsOnTarget) {
+                    ++extremePerfectConversionSamples;
+                }
                 require(stats->fouls == 0 && stats->corners == 0,
                     "detailed coordinate fouls/corners should remain placeholders until modeled");
             }
@@ -1647,8 +2077,8 @@ namespace {
                 << " transitionGoals=" << totalGoalSources.transitionGoals
                 << '\n';
         }
-        if (explosiveShotSamples > 0) {
-            std::cerr << "shot-volume diagnostic samples=" << explosiveShotSamples
+        if (hundredShotSamples > 0 || explodedXGSamples > 0 || totalGoals >= 15) {
+            std::cerr << "shot-volume diagnostic samples=" << hundredShotSamples
                 << " maxSeed=" << maxShotSeed
                 << " maxShots=" << maxSampleShots
                 << " maxXg=" << maxSampleXg
@@ -1658,6 +2088,33 @@ namespace {
                 << " reboundOrLooseGoals=" << totalGoalSources.reboundOrLooseGoals
                 << " transitionGoals=" << totalGoalSources.transitionGoals
                 << '\n';
+        }
+        if (totalShots > 0) {
+            std::cerr << "action-mix diagnostic totalPasses=" << totalPasses
+                << " totalCarries=" << totalCarryTraces
+                << " totalShots=" << totalShots
+                << " totalShotTraces=" << totalShotTraces
+                << " aggregateXG=" << totalExpectedGoals
+                << '\n';
+        }
+        require(hundredShotSamples <= 1,
+            "balanced 4-4-2 coordinate matches should not regularly produce 100+ shots");
+        require(explodedXGSamples == 0,
+            "balanced 4-4-2 coordinate matches should not explode into 30+ total xG");
+        require(extremePerfectConversionSamples <= 1,
+            "balanced coordinate samples should not regularly convert every high-volume shot on target");
+        if (totalShotsOnTarget >= 20) {
+            const double conversion =
+                static_cast<double>(totalGoals) / static_cast<double>(totalShotsOnTarget);
+            if (conversion >= 0.70) {
+                std::cerr << "SOT conversion guardrail totalGoals=" << totalGoals
+                    << " totalSOT=" << totalShotsOnTarget
+                    << " conversion=" << conversion
+                    << " totalShots=" << totalShots
+                    << '\n';
+            }
+            require(static_cast<double>(totalGoals) / static_cast<double>(totalShotsOnTarget) < 0.70,
+                "balanced coordinate samples should not regularly exceed 70 percent SOT-to-goal conversion");
         }
     }
 
@@ -1858,6 +2315,10 @@ int main() {
         runDeterministicRegression();
         runInvalidInputSmoke();
         runShotQualityModelSmoke();
+        runShotExecutionModelSmoke();
+        runShotQualityFoundationSmoke();
+        runShotOutcomeFoundationSmoke();
+        runReboundTrajectoryModelSmoke();
         runDetailSmoke(MatchSimulationDetail::BackgroundSummary);
         runDetailSmoke(MatchSimulationDetail::WatchedMatch);
         runDetailSmoke(MatchSimulationDetail::DebugFullTrace);

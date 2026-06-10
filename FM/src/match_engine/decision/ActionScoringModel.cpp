@@ -186,6 +186,14 @@ ActionCandidate ActionScoringModel::buildShotCandidate(
     breakdown.skillFit = option.shooterConfidence * scoring.shooterConfidenceToSkillFit;
     breakdown.pressureCost = option.pressurePenalty * scoring.pressurePenaltyToPressureCost
         / std::max(scoring.riskToleranceMinimum, role.shotRiskTolerance);
+    if (option.estimatedXG < scoring.nonClearChanceXG) {
+        if (context.player.possession.safeCirculationAvailable) {
+            breakdown.turnoverRiskCost += scoring.safeCirculationShotCost;
+        }
+        if (context.player.possession.possessionActionCount <= 2) {
+            breakdown.turnoverRiskCost += scoring.earlyActionShotCost;
+        }
+    }
     breakdown.phaseFit = phaseFitFor(context.player, option.actionType, phase);
 
     return candidateFromBreakdown(option.actionType, option.targetPoint, 0, breakdown);
