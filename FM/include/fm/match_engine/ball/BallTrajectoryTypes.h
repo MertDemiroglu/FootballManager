@@ -10,7 +10,8 @@ enum class BallTrajectoryType {
     Cutback,
     Shot,
     Clearance,
-    Deflection
+    Deflection,
+    Rebound
 };
 
 enum class BallFlightProfile {

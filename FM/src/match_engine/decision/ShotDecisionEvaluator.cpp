@@ -1,7 +1,6 @@
 #include"fm/match_engine/decision/ShotDecisionEvaluator.h"
 
 #include"fm/match_engine/ball/ShotQualityModel.h"
-#include"fm/match_engine/ball/ShotTargetModel.h"
 #include"fm/match_engine/decision/DecisionTuningProfile.h"
 #include"fm/match_engine/geometry/TacticalZones.h"
 
@@ -174,14 +173,6 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     const double pressurePenalty =
         std::clamp(context.carrierPressure * tuning.pressurePenaltyScale, 0.0, 100.0);
     const bool weakShot = xg < tuning.weakShotXG;
-    const ShotTargetResult shotTarget = ShotTargetModel{}.chooseTarget(ShotTargetContext{
-        context.ballPosition,
-        context.attackingDirection,
-        static_cast<double>(attributes.technical.shooting),
-        static_cast<double>(attributes.technical.technique),
-        static_cast<double>(attributes.mental.composure),
-        context.carrierPressure
-    });
 
     double score = xgDesire(xg, tuning) * tuning.openPlayShotBaseline
         + (distanceScore - tuning.distanceScoreBaseline) * tuning.distanceScoreContribution
@@ -217,7 +208,7 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     ShotOption option;
     option.kind = ShotOptionKind::OpenPlayShot;
     option.actionType = BallCarrierActionType::Shoot;
-    option.targetPoint = shotTarget.intendedTarget;
+    option.targetPoint = goalCenterFor(context.attackingDirection);
     option.score = std::clamp(score, 0.0, 100.0);
     option.estimatedXG = xg;
     option.angleScore = angleScore;
