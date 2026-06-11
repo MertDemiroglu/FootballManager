@@ -13,6 +13,7 @@
 struct MatchPlayerSnapshot {
     PlayerId playerId = 0;
     TeamId teamId = 0;
+    std::string playerName;
     PlayerPosition position = PlayerPosition::Unknown;
     PlayerAttributes attributes;
     PlayerConditionState conditionState;

@@ -32,6 +32,7 @@
 #include<numeric>
 #include<stdexcept>
 #include<string>
+#include<unordered_map>
 #include<vector>
 
 namespace {
@@ -261,6 +262,7 @@ namespace {
         fixture.teamSnapshot.players.push_back(MatchPlayerSnapshot{
             playerId,
             fixture.teamState.teamId,
+            "Fixture Player " + std::to_string(playerId),
             PlayerPosition::Unknown,
             attributes,
             PlayerConditionState{},
@@ -294,6 +296,7 @@ namespace {
         fixture.opponentSnapshot.players.push_back(MatchPlayerSnapshot{
             playerId,
             fixture.opponentState.teamId,
+            "Fixture Opponent " + std::to_string(playerId),
             PlayerPosition::Unknown,
             passDecisionAttributes(55, 55, 55),
             PlayerConditionState{},
@@ -481,6 +484,172 @@ namespace {
         int soloShots = 0;
     };
 
+    enum class RoleBucket {
+        Goalkeeper,
+        CenterBack,
+        FullbackWingback,
+        CentralMidfield,
+        Wide,
+        Striker,
+        Unknown
+    };
+
+    struct RoleBucketDiagnostic {
+        int playerSamples = 0;
+        int passesAttempted = 0;
+        int passesCompleted = 0;
+        int shortPassesAttempted = 0;
+        int shortPassesCompleted = 0;
+        int throughBalls = 0;
+        int lowCrosses = 0;
+        int cutbacks = 0;
+        int finalBalls = 0;
+        int shots = 0;
+        int shotsOnTarget = 0;
+        int goals = 0;
+        int assistedShotsReceived = 0;
+        int assists = 0;
+        int carryTraces = 0;
+        int dribbleTraces = 0;
+        int progressiveCarries = 0;
+        int interceptions = 0;
+        int tackles = 0;
+        double preShotXG = 0.0;
+        double effectiveXG = 0.0;
+        double totalDistance = 0.0;
+        double onBallDistance = 0.0;
+        double offBallDistance = 0.0;
+    };
+
+    struct PlayerLeaderDiagnostic {
+        PlayerId playerId = 0;
+        TeamId teamId = 0;
+        std::string playerName;
+        std::string teamName;
+        RoleBucket roleBucket = RoleBucket::Unknown;
+        int passesAttempted = 0;
+        int passesCompleted = 0;
+        int finalBalls = 0;
+        int carryTraces = 0;
+        int dribbleTraces = 0;
+        int shots = 0;
+        int interceptions = 0;
+        int tackles = 0;
+        double expectedGoals = 0.0;
+        double totalDistance = 0.0;
+    };
+
+    struct TraceMixDiagnostic {
+        int carryTraces = 0;
+        int dribbleTraces = 0;
+        int shotTraces = 0;
+    };
+
+    struct SmokeAggregateDiagnostic {
+        std::unordered_map<int, RoleBucketDiagnostic> roleBuckets;
+        std::unordered_map<std::string, PlayerLeaderDiagnostic> playerLeaders;
+    };
+
+    const char* roleBucketName(RoleBucket bucket) {
+        switch (bucket) {
+        case RoleBucket::Goalkeeper:
+            return "GK";
+        case RoleBucket::CenterBack:
+            return "CB";
+        case RoleBucket::FullbackWingback:
+            return "FB/WB";
+        case RoleBucket::CentralMidfield:
+            return "DM/CM/AM";
+        case RoleBucket::Wide:
+            return "Wide Mid/Winger";
+        case RoleBucket::Striker:
+            return "ST";
+        case RoleBucket::Unknown:
+            return "Unknown";
+        }
+        return "Unknown";
+    }
+
+    RoleBucket bucketForRole(FormationSlotRole role) {
+        switch (role) {
+        case FormationSlotRole::Goalkeeper:
+            return RoleBucket::Goalkeeper;
+        case FormationSlotRole::CenterBack:
+            return RoleBucket::CenterBack;
+        case FormationSlotRole::LeftBack:
+        case FormationSlotRole::RightBack:
+        case FormationSlotRole::LeftWingBack:
+        case FormationSlotRole::RightWingBack:
+            return RoleBucket::FullbackWingback;
+        case FormationSlotRole::DefensiveMidfielder:
+        case FormationSlotRole::CentralMidfielder:
+        case FormationSlotRole::AttackingMidfielder:
+            return RoleBucket::CentralMidfield;
+        case FormationSlotRole::LeftMidfielder:
+        case FormationSlotRole::RightMidfielder:
+        case FormationSlotRole::LeftWinger:
+        case FormationSlotRole::RightWinger:
+            return RoleBucket::Wide;
+        case FormationSlotRole::Striker:
+            return RoleBucket::Striker;
+        case FormationSlotRole::Unknown:
+            return RoleBucket::Unknown;
+        }
+        return RoleBucket::Unknown;
+    }
+
+    const char* actionTypeName(BallCarrierActionType type) {
+        switch (type) {
+        case BallCarrierActionType::ShortPass:
+            return "ShortPass";
+        case BallCarrierActionType::BackPass:
+            return "BackPass";
+        case BallCarrierActionType::ThroughBall:
+            return "ThroughBall";
+        case BallCarrierActionType::SwitchPlay:
+            return "SwitchPlay";
+        case BallCarrierActionType::Carry:
+            return "Carry";
+        case BallCarrierActionType::Dribble:
+            return "Dribble";
+        case BallCarrierActionType::CutInside:
+            return "CutInside";
+        case BallCarrierActionType::LowCross:
+            return "LowCross";
+        case BallCarrierActionType::HighCross:
+            return "HighCross";
+        case BallCarrierActionType::Cutback:
+            return "Cutback";
+        case BallCarrierActionType::Shoot:
+            return "Shoot";
+        case BallCarrierActionType::Hold:
+            return "Hold";
+        case BallCarrierActionType::Clear:
+            return "Clear";
+        }
+        return "Unknown";
+    }
+
+    const char* goalSourceCategoryName(MatchGoalSourceCategory category) {
+        switch (category) {
+        case MatchGoalSourceCategory::AssistedFinalBall:
+            return "AssistedFinalBall";
+        case MatchGoalSourceCategory::AssistedSimplePass:
+            return "AssistedSimplePass";
+        case MatchGoalSourceCategory::CarryAfterReceive:
+            return "CarryAfterReceive";
+        case MatchGoalSourceCategory::SoloCarry:
+            return "SoloCarry";
+        case MatchGoalSourceCategory::Rebound:
+            return "Rebound";
+        case MatchGoalSourceCategory::Turnover:
+            return "Turnover";
+        case MatchGoalSourceCategory::Unknown:
+            return "Unknown";
+        }
+        return "Unknown";
+    }
+
     MatchTraceKind previousSignificantTraceKind(
         const MatchEngineResult& result,
         std::size_t index) {
@@ -597,6 +766,308 @@ namespace {
         diagnostic.reboundGoals = result.homeStats.reboundGoals + result.awayStats.reboundGoals;
         diagnostic.transitionGoals = result.homeStats.transitionGoals + result.awayStats.transitionGoals;
         return diagnostic;
+    }
+
+    const MatchTeamSnapshot* teamSnapshotFor(
+        const MatchEngineInput& input,
+        TeamId teamId) {
+        if (input.homeTeam.teamId == teamId) {
+            return &input.homeTeam;
+        }
+        if (input.awayTeam.teamId == teamId) {
+            return &input.awayTeam;
+        }
+        return nullptr;
+    }
+
+    const MatchPlayerSnapshot* playerSnapshotFor(
+        const MatchEngineInput& input,
+        PlayerId playerId) {
+        for (const MatchPlayerSnapshot& player : input.homeTeam.players) {
+            if (player.playerId == playerId) {
+                return &player;
+            }
+        }
+        for (const MatchPlayerSnapshot& player : input.awayTeam.players) {
+            if (player.playerId == playerId) {
+                return &player;
+            }
+        }
+        return nullptr;
+    }
+
+    FormationSlotRole roleForPlayerInInput(
+        const MatchEngineInput& input,
+        TeamId teamId,
+        PlayerId playerId) {
+        const MatchTeamSnapshot* team = teamSnapshotFor(input, teamId);
+        if (team == nullptr) {
+            return FormationSlotRole::Unknown;
+        }
+
+        for (const TeamSheetSlotAssignment& assignment : team->teamSheet.startingAssignments) {
+            if (assignment.playerId == playerId) {
+                return assignment.slotRole;
+            }
+        }
+        return FormationSlotRole::Unknown;
+    }
+
+    std::string playerDisplayName(
+        const MatchEngineInput& input,
+        PlayerId playerId) {
+        const MatchPlayerSnapshot* player = playerSnapshotFor(input, playerId);
+        if (player != nullptr && !player->playerName.empty()) {
+            return player->playerName;
+        }
+        return "Player " + std::to_string(playerId);
+    }
+
+    std::string teamDisplayName(
+        const MatchEngineInput& input,
+        TeamId teamId) {
+        const MatchTeamSnapshot* team = teamSnapshotFor(input, teamId);
+        if (team != nullptr && !team->teamName.empty()) {
+            return team->teamName;
+        }
+        return "Team " + std::to_string(teamId);
+    }
+
+    void addResultToAggregate(
+        SmokeAggregateDiagnostic& aggregate,
+        const MatchEngineInput& input,
+        const MatchEngineResult& result,
+        TeamId teamFilter = 0) {
+        for (const MatchPlayerSimulationStats& stats : result.playerStats) {
+            if (stats.playerId == 0 || (teamFilter != 0 && stats.teamId != teamFilter)) {
+                continue;
+            }
+
+            const RoleBucket bucket =
+                bucketForRole(roleForPlayerInInput(input, stats.teamId, stats.playerId));
+            RoleBucketDiagnostic& role = aggregate.roleBuckets[static_cast<int>(bucket)];
+            ++role.playerSamples;
+            role.passesAttempted += stats.passesAttempted;
+            role.passesCompleted += stats.passesCompleted;
+            role.shortPassesAttempted += stats.shortPassesAttempted;
+            role.shortPassesCompleted += stats.shortPassesCompleted;
+            role.throughBalls += stats.throughBalls;
+            role.lowCrosses += stats.lowCrosses;
+            role.cutbacks += stats.cutbacks;
+            role.finalBalls += stats.finalBalls;
+            role.shots += stats.shots;
+            role.shotsOnTarget += stats.shotsOnTarget;
+            role.goals += stats.goals;
+            role.assistedShotsReceived += stats.assistedShotsReceived;
+            role.assists += stats.assists;
+            role.carryTraces += stats.carryTraces;
+            role.dribbleTraces += stats.dribbleTraces;
+            role.progressiveCarries += stats.progressiveCarries;
+            role.interceptions += stats.interceptions;
+            role.tackles += stats.tackles;
+            role.preShotXG += stats.preShotExpectedGoals;
+            role.effectiveXG += stats.expectedGoals;
+            role.totalDistance += stats.totalDistanceCoveredMeters;
+            role.onBallDistance += stats.onBallCarryDistanceMeters;
+            role.offBallDistance += stats.offBallMovementDistanceMeters;
+
+            const std::string playerName = playerDisplayName(input, stats.playerId);
+            const std::string teamName = teamDisplayName(input, stats.teamId);
+            const std::string leaderKey =
+                teamName + "#" + playerName + "#" + roleBucketName(bucket);
+            PlayerLeaderDiagnostic& leader = aggregate.playerLeaders[leaderKey];
+            leader.playerId = stats.playerId;
+            leader.teamId = stats.teamId;
+            leader.playerName = playerName;
+            leader.teamName = teamName;
+            leader.roleBucket = bucket;
+            leader.passesAttempted += stats.passesAttempted;
+            leader.passesCompleted += stats.passesCompleted;
+            leader.finalBalls += stats.finalBalls;
+            leader.carryTraces += stats.carryTraces;
+            leader.dribbleTraces += stats.dribbleTraces;
+            leader.shots += stats.shots;
+            leader.interceptions += stats.interceptions;
+            leader.tackles += stats.tackles;
+            leader.expectedGoals += stats.expectedGoals;
+            leader.totalDistance += stats.totalDistanceCoveredMeters;
+        }
+    }
+
+    TraceMixDiagnostic traceMixFor(const MatchEngineResult& result, TeamId teamFilter = 0) {
+        TraceMixDiagnostic mix;
+        for (const MatchTraceFrame& frame : result.traceFrames) {
+            if (teamFilter != 0 && frame.teamId != teamFilter) {
+                continue;
+            }
+            if (frame.kind == MatchTraceKind::Carry) {
+                ++mix.carryTraces;
+            } else if (frame.kind == MatchTraceKind::Dribble) {
+                ++mix.dribbleTraces;
+            } else if (frame.kind == MatchTraceKind::Shot) {
+                ++mix.shotTraces;
+            }
+        }
+        return mix;
+    }
+
+    double ratio(int numerator, int denominator) {
+        return denominator > 0
+            ? static_cast<double>(numerator) / static_cast<double>(denominator)
+            : 0.0;
+    }
+
+    void printRoleBuckets(
+        const SmokeAggregateDiagnostic& aggregate,
+        int sampleCount,
+        const std::string& label) {
+        std::cerr << "[Role buckets] " << label << '\n';
+        for (RoleBucket bucket : {
+            RoleBucket::Goalkeeper,
+            RoleBucket::CenterBack,
+            RoleBucket::FullbackWingback,
+            RoleBucket::CentralMidfield,
+            RoleBucket::Wide,
+            RoleBucket::Striker,
+            RoleBucket::Unknown }) {
+            const auto it = aggregate.roleBuckets.find(static_cast<int>(bucket));
+            if (it == aggregate.roleBuckets.end()) {
+                continue;
+            }
+            const RoleBucketDiagnostic& stats = it->second;
+            const double perMatch = 1.0 / static_cast<double>(std::max(sampleCount, 1));
+            std::cerr << "  " << roleBucketName(bucket)
+                << " playersSampled=" << stats.playerSamples
+                << " passes=" << stats.passesCompleted << "/" << stats.passesAttempted
+                << " passAcc=" << ratio(stats.passesCompleted, stats.passesAttempted)
+                << " shortPasses=" << stats.shortPassesCompleted << "/" << stats.shortPassesAttempted
+                << " throughBalls=" << stats.throughBalls
+                << " lowCrosses=" << stats.lowCrosses
+                << " cutbacks=" << stats.cutbacks
+                << " finalBalls=" << stats.finalBalls
+                << " shots=" << stats.shots
+                << " shotsOnTarget=" << stats.shotsOnTarget
+                << " goals=" << stats.goals
+                << " preShotXG=" << stats.preShotXG
+                << " effectiveXG=" << stats.effectiveXG
+                << " assistedShotsReceived=" << stats.assistedShotsReceived
+                << " assists=" << stats.assists
+                << " carryTraces=" << stats.carryTraces
+                << " dribbleTraces=" << stats.dribbleTraces
+                << " progressiveCarries=" << stats.progressiveCarries
+                << " interceptions=" << stats.interceptions
+                << " tackles=" << stats.tackles
+                << " distanceMeters=" << stats.totalDistance
+                << " avgDistancePerMatch=" << stats.totalDistance * perMatch
+                << " onBallCarryMeters=" << stats.onBallDistance
+                << " offBallMeters=" << stats.offBallDistance
+                << '\n';
+        }
+        std::cerr << "  TODO: coordinate duels, blocks/clearances, and per-player touches are not tracked yet.\n";
+    }
+
+    template<typename ValueFn>
+    void printTopPlayers(
+        const SmokeAggregateDiagnostic& aggregate,
+        const std::string& title,
+        ValueFn valueFn,
+        int limit = 5) {
+        std::vector<PlayerLeaderDiagnostic> players;
+        players.reserve(aggregate.playerLeaders.size());
+        for (const auto& [_, player] : aggregate.playerLeaders) {
+            if (valueFn(player) > 0.0) {
+                players.push_back(player);
+            }
+        }
+        std::sort(
+            players.begin(),
+            players.end(),
+            [&](const PlayerLeaderDiagnostic& lhs, const PlayerLeaderDiagnostic& rhs) {
+                return valueFn(lhs) > valueFn(rhs);
+            });
+
+        std::cerr << "  " << title << ':';
+        if (players.empty()) {
+            std::cerr << " none\n";
+            return;
+        }
+        std::cerr << '\n';
+        const int count = std::min(limit, static_cast<int>(players.size()));
+        for (int i = 0; i < count; ++i) {
+            const PlayerLeaderDiagnostic& player = players[static_cast<std::size_t>(i)];
+            std::cerr << "    " << player.playerName
+                << " (" << player.teamName
+                << ", " << roleBucketName(player.roleBucket)
+                << ") value=" << valueFn(player)
+                << '\n';
+        }
+    }
+
+    void printPlayerLeaders(
+        const SmokeAggregateDiagnostic& aggregate,
+        const std::string& label) {
+        std::cerr << "[Player leaders] " << label << '\n';
+        printTopPlayers(aggregate, "passAttempts", [](const PlayerLeaderDiagnostic& p) {
+            return static_cast<double>(p.passesAttempted);
+        });
+        printTopPlayers(aggregate, "passCompletions", [](const PlayerLeaderDiagnostic& p) {
+            return static_cast<double>(p.passesCompleted);
+        });
+        printTopPlayers(aggregate, "finalBalls", [](const PlayerLeaderDiagnostic& p) {
+            return static_cast<double>(p.finalBalls);
+        });
+        printTopPlayers(aggregate, "carryTraces", [](const PlayerLeaderDiagnostic& p) {
+            return static_cast<double>(p.carryTraces);
+        });
+        printTopPlayers(aggregate, "dribbleTraces", [](const PlayerLeaderDiagnostic& p) {
+            return static_cast<double>(p.dribbleTraces);
+        });
+        printTopPlayers(aggregate, "shots", [](const PlayerLeaderDiagnostic& p) {
+            return static_cast<double>(p.shots);
+        });
+        printTopPlayers(aggregate, "xG", [](const PlayerLeaderDiagnostic& p) {
+            return p.expectedGoals;
+        });
+        printTopPlayers(aggregate, "interceptions", [](const PlayerLeaderDiagnostic& p) {
+            return static_cast<double>(p.interceptions);
+        });
+        printTopPlayers(aggregate, "tackles", [](const PlayerLeaderDiagnostic& p) {
+            return static_cast<double>(p.tackles);
+        });
+        printTopPlayers(aggregate, "distanceCoveredMeters", [](const PlayerLeaderDiagnostic& p) {
+            return p.totalDistance;
+        });
+    }
+
+    void printGoalChains(
+        const MatchEngineInput& input,
+        const MatchEngineResult& result,
+        const std::string& label) {
+        if (result.goalChains.empty()) {
+            return;
+        }
+
+        std::cerr << "[Goal chains] " << label << '\n';
+        for (const MatchGoalChainDiagnostic& chain : result.goalChains) {
+            std::cerr << "  minute=" << chain.minute
+                << " team=" << teamDisplayName(input, chain.teamId)
+                << " scorer=" << playerDisplayName(input, chain.scorerPlayerId)
+                << " assist=" << (chain.assistPlayerId != 0
+                    ? playerDisplayName(input, chain.assistPlayerId)
+                    : "none")
+                << " sourceAction=" << actionTypeName(chain.sourceActionType)
+                << " sourceCategory=" << goalSourceCategoryName(chain.sourceCategory)
+                << " shotDistance=" << chain.shotDistanceMeters
+                << " preShotXG=" << chain.preShotXG
+                << " effectiveXG=" << chain.effectiveXG
+                << " carriedAfterReceive=" << chain.followedControlledCarryAfterReceive
+                << " throughBall=" << chain.finalBallThroughBall
+                << " lowCross=" << chain.finalBallLowCross
+                << " cutback=" << chain.finalBallCutback
+                << " highCross=" << chain.finalBallHighCross
+                << " simplePass=" << chain.finalBallSimplePass
+                << '\n';
+        }
     }
 
     void printUnassistedGoalChains(const MatchEngineResult& result, int maxGoals = 4) {
@@ -2165,6 +2636,7 @@ namespace {
         int weakPassesAttempted = 0;
         int weakPassesCompleted = 0;
         int totalCarryTraces = 0;
+        int totalDribbleTraces = 0;
         int totalShotTraces = 0;
         int hundredShotSamples = 0;
         int explodedXGSamples = 0;
@@ -2181,6 +2653,7 @@ namespace {
         double totalBlockedExpectedGoals = 0.0;
         GoalSourceDiagnostic totalGoalSources;
         ShotOutcomeDiagnostic totalShotOutcomes;
+        SmokeAggregateDiagnostic watchedAggregate;
         for (std::uint64_t seed = 1; seed <= 8; ++seed) {
             const MatchEngineInput input =
                 buildInput(MatchSimulationDetail::WatchedMatch, 0x9300ULL + seed);
@@ -2298,8 +2771,12 @@ namespace {
             require(!extremeLoop,
                 "detailed coordinate match should not fall into extreme short-pass possession loop");
 
-            totalCarryTraces += traceCountFor(result, MatchTraceKind::Carry);
-            totalShotTraces += traceCountFor(result, MatchTraceKind::Shot);
+            const TraceMixDiagnostic traceMix = traceMixFor(result);
+            totalCarryTraces += traceMix.carryTraces;
+            totalDribbleTraces += traceMix.dribbleTraces;
+            totalShotTraces += traceMix.shotTraces;
+            addResultToAggregate(watchedAggregate, input, result);
+            printGoalChains(input, result, "watched balance seed=" + std::to_string(0x9300ULL + seed));
             totalShots += combinedShots;
             totalShotsOnTarget += combinedShotsOnTarget;
             totalGoals += combinedGoals;
@@ -2415,13 +2892,20 @@ namespace {
                 << '\n';
         }
         if (totalShots == 0) {
-            std::cerr << "action-mix diagnostic totalPasses=" << totalPasses
-                << " totalCarries=" << totalCarryTraces
+            std::cerr << "[Samples] watchedBalanceMatches=8 scope=bothTeamsAggregate\n"
+                << "[Action mix]\n"
+                << "  totalPasses=" << totalPasses
+                << " carryTraces=" << totalCarryTraces
+                << " dribbleTraces=" << totalDribbleTraces
                 << " totalShots=0"
-                << " totalShotTraces=" << totalShotTraces
-                << " strongPasses=" << strongPassesCompleted << "/" << strongPassesAttempted
+                << " shotTraces=" << totalShotTraces
+                << '\n'
+                << "[Possession/Passing]\n"
+                << "  strongPasses=" << strongPassesCompleted << "/" << strongPassesAttempted
                 << " weakPasses=" << weakPassesCompleted << "/" << weakPassesAttempted
-                << " goals=" << totalGoals
+                << '\n'
+                << "[Score]\n"
+                << "  goals=" << totalGoals
                 << '\n';
         }
         if (totalShots > 0) {
@@ -2451,13 +2935,23 @@ namespace {
             const double weakPassAccuracy =
                 static_cast<double>(weakPassesCompleted)
                 / static_cast<double>(std::max(weakPassesAttempted, 1));
-            std::cerr << "action-mix diagnostic totalPasses=" << totalPasses
-                << " totalCarries=" << totalCarryTraces
-                << " totalShots=" << totalShots
-                << " totalShotTraces=" << totalShotTraces
+            std::cerr << "[Samples]\n"
+                << "  watchedBalanceMatches=8 scope=bothTeamsAggregate\n"
+                << "[Score]\n"
+                << "  goals=" << totalGoals
+                << " shots=" << totalShots
+                << " shotsOnTarget=" << totalShotsOnTarget
+                << " shotOnTargetRate=" << shotOnTargetRate
+                << '\n'
+                << "[Possession/Passing]\n"
+                << "  totalPasses=" << totalPasses
                 << " strongPasses=" << strongPassesCompleted << "/" << strongPassesAttempted
+                << " strongPassAccuracy=" << strongPassAccuracy
                 << " weakPasses=" << weakPassesCompleted << "/" << weakPassesAttempted
-                << " rawXG=" << totalRawExpectedGoals
+                << " weakPassAccuracy=" << weakPassAccuracy
+                << '\n'
+                << "[xG]\n"
+                << "  rawXG=" << totalRawExpectedGoals
                 << " preShotXG=" << totalPreShotExpectedGoals
                 << " keeperFacingXG=" << totalKeeperFacingExpectedGoals
                 << " effectiveXG=" << totalExpectedGoals
@@ -2465,20 +2959,23 @@ namespace {
                 << " xgPerShot=" << xgPerShot
                 << " preShotXgPerShot=" << preShotXgPerShot
                 << " effectiveXgPerShot=" << effectiveXgPerShot
-                << " shotOnTargetRate=" << shotOnTargetRate
-                << " goals=" << totalGoals
-                << " shotsOnTarget=" << totalShotsOnTarget
-                << " assistedGoals=" << totalGoalSources.assistedGoals
-                << " unassistedOpenPlayGoals=" << totalGoalSources.unassistedOpenPlayGoals
-                << " reboundGoals=" << totalGoalSources.reboundGoals
-                << " transitionGoals=" << totalGoalSources.transitionGoals
-                << " reboundShots=" << totalShotOutcomes.reboundShots
-                << " offTarget=" << totalShotOutcomes.offTarget
+                << '\n'
+                << "  preShotLt003=" << totalShotOutcomes.preShotUnder003
+                << " preShot003To008=" << totalShotOutcomes.preShot003To008
+                << " preShot008To015=" << totalShotOutcomes.preShot008To015
+                << " preShot015To030=" << totalShotOutcomes.preShot015To030
+                << " preShotGt030=" << totalShotOutcomes.preShotAbove030
+                << '\n'
+                << "[Shot outcome]\n"
+                << "  offTarget=" << totalShotOutcomes.offTarget
                 << " savedHeld=" << totalShotOutcomes.savedHeld
                 << " savedParried=" << totalShotOutcomes.savedParried
                 << " woodwork=" << totalShotOutcomes.woodwork
                 << " blockedShots=" << totalShotOutcomes.blockedShots
-                << " avgShotDistance=" << averageShotDistance
+                << " reboundShots=" << totalShotOutcomes.reboundShots
+                << '\n'
+                << "[Shot distance]\n"
+                << "  avgShotDistance=" << averageShotDistance
                 << " shots0To4m=" << totalShotOutcomes.shotsInsideFourMeters
                 << " shots4To8m=" << totalShotOutcomes.shotsFourToEightMeters
                 << " shots8To12m=" << totalShotOutcomes.shotsEightToTwelveMeters
@@ -2486,24 +2983,37 @@ namespace {
                 << " shots18mPlus=" << totalShotOutcomes.shotsBeyondEighteenMeters
                 << " shots0To4mRate=" << shotsInsideFourRate
                 << " shots4To8mRate=" << shotsFourToEightRate
-                << " preShotLt003=" << totalShotOutcomes.preShotUnder003
-                << " preShot003To008=" << totalShotOutcomes.preShot003To008
-                << " preShot008To015=" << totalShotOutcomes.preShot008To015
-                << " preShot015To030=" << totalShotOutcomes.preShot015To030
-                << " preShotGt030=" << totalShotOutcomes.preShotAbove030
-                << " carryShots=" << totalShotOutcomes.carryShots
+                << '\n'
+                << "[Shot source]\n"
+                << "  assistedShots=" << totalShotOutcomes.assistedShots
+                << " soloCarryShots=" << totalShotOutcomes.soloShots
                 << " simplePassShots=" << totalShotOutcomes.simplePassShots
                 << " finalBallShots=" << totalShotOutcomes.finalBallShots
                 << " throughBallShots=" << totalShotOutcomes.throughBallShots
                 << " lowCrossShots=" << totalShotOutcomes.lowCrossShots
                 << " cutbackShots=" << totalShotOutcomes.cutbackShots
-                << " reboundOrLooseShots=" << totalShotOutcomes.reboundOrLooseShots
+                << " reboundShots=" << totalShotOutcomes.reboundOrLooseShots
                 << " turnoverShots=" << totalShotOutcomes.turnoverShots
-                << " assistedShots=" << totalShotOutcomes.assistedShots
-                << " soloShots=" << totalShotOutcomes.soloShots
-                << " strongPassAccuracy=" << strongPassAccuracy
-                << " weakPassAccuracy=" << weakPassAccuracy
+                << '\n'
+                << "[Goal source]\n"
+                << "  assistedGoals=" << totalGoalSources.assistedGoals
+                << " unassistedOpenPlayGoals=" << totalGoalSources.unassistedOpenPlayGoals
+                << " reboundGoals=" << totalGoalSources.reboundGoals
+                << " transitionGoals=" << totalGoalSources.transitionGoals
+                << '\n'
+                << "[Action mix]\n"
+                << "  passesAttempted=" << totalPasses
+                << " carryTraces=" << totalCarryTraces
+                << " dribbleTraces=" << totalDribbleTraces
+                << " carryPlusDribbleTraces=" << (totalCarryTraces + totalDribbleTraces)
+                << " shotTraces=" << totalShotTraces
                 << '\n';
+            printRoleBuckets(watchedAggregate, 8, "watched balance both-teams aggregate");
+            printPlayerLeaders(watchedAggregate, "watched balance both-teams aggregate");
+            std::cerr << "[Guardrail summary]\n"
+                << "  active=watched-shot-distance, watched-xg-mix, watched-sot-rate,"
+                << " watched-pass-flow, assist-source, xg-sot-consistency,"
+                << " shot-volume, conversion\n";
             const int mediumOrBetterPreShotShots =
                 totalShotOutcomes.preShot015To030 + totalShotOutcomes.preShotAbove030;
             const int usefulBoxCorridorShots =
@@ -2561,10 +3071,16 @@ namespace {
         int dominantPassesAttempted = 0;
         int dominantPassesCompleted = 0;
         int dominantCarryTraces = 0;
+        int dominantDribbleTraces = 0;
         double dominantPossession = 0.0;
+        double dominantRawExpectedGoals = 0.0;
         double dominantPreShotExpectedGoals = 0.0;
+        double dominantKeeperFacingExpectedGoals = 0.0;
         double dominantEffectiveExpectedGoals = 0.0;
+        double dominantBlockedExpectedGoals = 0.0;
+        GoalSourceDiagnostic dominantGoalSources;
         ShotOutcomeDiagnostic dominantShotOutcomes;
+        SmokeAggregateDiagnostic dominantAggregate;
         for (std::uint64_t seed = 1; seed <= 3; ++seed) {
             const MatchEngineInput input =
                 buildInput(MatchSimulationDetail::WatchedMatch, 0x9400ULL + seed, 28, -6);
@@ -2579,8 +3095,15 @@ namespace {
             dominantPassesAttempted += result.homeStats.passesAttempted;
             dominantPassesCompleted += result.homeStats.passesCompleted;
             dominantPossession += result.homeStats.possessionShare;
+            dominantRawExpectedGoals += result.homeStats.rawExpectedGoals;
             dominantPreShotExpectedGoals += result.homeStats.preShotExpectedGoals;
+            dominantKeeperFacingExpectedGoals += result.homeStats.keeperFacingExpectedGoals;
             dominantEffectiveExpectedGoals += result.homeStats.expectedGoals;
+            dominantBlockedExpectedGoals += result.homeStats.blockedExpectedGoals;
+            dominantGoalSources.assistedGoals += result.homeStats.assistedGoals;
+            dominantGoalSources.unassistedOpenPlayGoals += result.homeStats.unassistedOpenPlayGoals;
+            dominantGoalSources.reboundGoals += result.homeStats.reboundGoals;
+            dominantGoalSources.transitionGoals += result.homeStats.transitionGoals;
             dominantShotOutcomes.offTarget += shotOutcomes.offTarget;
             dominantShotOutcomes.savedHeld += shotOutcomes.savedHeld;
             dominantShotOutcomes.savedParried += shotOutcomes.savedParried;
@@ -2610,13 +3133,12 @@ namespace {
             dominantShotOutcomes.turnoverShots += result.homeStats.turnoverShots;
             dominantShotOutcomes.assistedShots += result.homeStats.assistedShots;
             dominantShotOutcomes.soloShots += result.homeStats.soloCarryShots;
+            addResultToAggregate(dominantAggregate, input, result, result.homeStats.teamId);
+            printGoalChains(input, result, "dominant seed=" + std::to_string(0x9400ULL + seed));
 
-            for (const MatchTraceFrame& frame : result.traceFrames) {
-                if (frame.teamId == result.homeStats.teamId
-                    && (frame.kind == MatchTraceKind::Carry || frame.kind == MatchTraceKind::Dribble)) {
-                    ++dominantCarryTraces;
-                }
-            }
+            const TraceMixDiagnostic dominantTraceMix = traceMixFor(result, result.homeStats.teamId);
+            dominantCarryTraces += dominantTraceMix.carryTraces;
+            dominantDribbleTraces += dominantTraceMix.dribbleTraces;
         }
 
         const double dominantPreShotXgPerShot =
@@ -2638,25 +3160,52 @@ namespace {
             / static_cast<double>(std::max(dominantPassesAttempted, 1));
         const int dominantMediumOrBetterShots =
             dominantShotOutcomes.preShot015To030 + dominantShotOutcomes.preShotAbove030;
-        std::cerr << "dominant-chance diagnostic shots=" << dominantShots
+        std::cerr << "[Samples]\n"
+            << "  dominantMatches=3 scope=dominantTeamOnly\n"
+            << "[Score]\n"
+            << "  goals=" << dominantGoals
+            << " shots=" << dominantShots
             << " shotsOnTarget=" << dominantShotsOnTarget
-            << " goals=" << dominantGoals
+            << " shotOnTargetRate=" << dominantShotOnTargetRate
+            << '\n'
+            << "[Possession/Passing]\n"
+            << "  averagePossession=" << (dominantPossession / 3.0)
+            << " passes=" << dominantPassesCompleted << "/" << dominantPassesAttempted
+            << " passAccuracy=" << dominantPassAccuracy
+            << '\n'
+            << "[xG]\n"
+            << "  rawXG=" << dominantRawExpectedGoals
             << " preShotXG=" << dominantPreShotExpectedGoals
+            << " keeperFacingXG=" << dominantKeeperFacingExpectedGoals
             << " effectiveXG=" << dominantEffectiveExpectedGoals
+            << " blockedXG=" << dominantBlockedExpectedGoals
             << " preShotXgPerShot=" << dominantPreShotXgPerShot
             << " effectiveXgPerShot=" << dominantEffectiveXgPerShot
-            << " avgShotDistance=" << dominantAverageShotDistance
+            << '\n'
+            << "  preShotLt003=" << dominantShotOutcomes.preShotUnder003
+            << " preShot003To008=" << dominantShotOutcomes.preShot003To008
+            << " preShot008To015=" << dominantShotOutcomes.preShot008To015
+            << " preShot015To030=" << dominantShotOutcomes.preShot015To030
+            << " preShotGt030=" << dominantShotOutcomes.preShotAbove030
+            << '\n'
+            << "[Shot outcome]\n"
+            << "  offTarget=" << dominantShotOutcomes.offTarget
+            << " savedHeld=" << dominantShotOutcomes.savedHeld
+            << " savedParried=" << dominantShotOutcomes.savedParried
+            << " woodwork=" << dominantShotOutcomes.woodwork
+            << " blockedShots=" << dominantShotOutcomes.blockedShots
+            << " reboundShots=" << dominantShotOutcomes.reboundShots
+            << '\n'
+            << "[Shot distance]\n"
+            << "  avgShotDistance=" << dominantAverageShotDistance
             << " shots0To4m=" << dominantShotOutcomes.shotsInsideFourMeters
             << " shots4To8m=" << dominantShotOutcomes.shotsFourToEightMeters
             << " shots8To12m=" << dominantShotOutcomes.shotsEightToTwelveMeters
             << " shots12To18m=" << dominantShotOutcomes.shotsTwelveToEighteenMeters
             << " shots18mPlus=" << dominantShotOutcomes.shotsBeyondEighteenMeters
-            << " preShotLt003=" << dominantShotOutcomes.preShotUnder003
-            << " preShot003To008=" << dominantShotOutcomes.preShot003To008
-            << " preShot008To015=" << dominantShotOutcomes.preShot008To015
-            << " preShot015To030=" << dominantShotOutcomes.preShot015To030
-            << " preShotGt030=" << dominantShotOutcomes.preShotAbove030
-            << " carryShots=" << dominantShotOutcomes.carryShots
+            << '\n'
+            << "[Shot source]\n"
+            << "  carryShots=" << dominantShotOutcomes.carryShots
             << " simplePassShots=" << dominantShotOutcomes.simplePassShots
             << " finalBallShots=" << dominantShotOutcomes.finalBallShots
             << " throughBallShots=" << dominantShotOutcomes.throughBallShots
@@ -2666,12 +3215,23 @@ namespace {
             << " turnoverShots=" << dominantShotOutcomes.turnoverShots
             << " assistedShots=" << dominantShotOutcomes.assistedShots
             << " soloShots=" << dominantShotOutcomes.soloShots
-            << " shotOnTargetRate=" << dominantShotOnTargetRate
-            << " possession=" << (dominantPossession / 3.0)
-            << " passes=" << dominantPassesCompleted << "/" << dominantPassesAttempted
-            << " carries=" << dominantCarryTraces
-            << " passAccuracy=" << dominantPassAccuracy
+            << '\n'
+            << "[Goal source]\n"
+            << "  assistedGoals=" << dominantGoalSources.assistedGoals
+            << " unassistedOpenPlayGoals=" << dominantGoalSources.unassistedOpenPlayGoals
+            << " reboundGoals=" << dominantGoalSources.reboundGoals
+            << " transitionGoals=" << dominantGoalSources.transitionGoals
+            << '\n'
+            << "[Action mix]\n"
+            << "  carryTraces=" << dominantCarryTraces
+            << " dribbleTraces=" << dominantDribbleTraces
+            << " carryPlusDribbleTraces=" << (dominantCarryTraces + dominantDribbleTraces)
             << '\n';
+        printRoleBuckets(dominantAggregate, 3, "dominant team only");
+        printPlayerLeaders(dominantAggregate, "dominant team only");
+        std::cerr << "[Guardrail summary]\n"
+            << "  active=dominant-shot-volume, dominant-xg-creation,"
+            << " dominant-shot-distance, dominant-sot-rate, dominant-pass-flow\n";
         require(dominantShots > 0,
             "dominant watched samples should generate shots");
         require(dominantPreShotExpectedGoals >= 2.0,
@@ -2752,6 +3312,113 @@ namespace {
             require(static_cast<double>(totalGoals) / static_cast<double>(totalShotsOnTarget) < 0.70,
                 "balanced coordinate samples should not regularly exceed 70 percent SOT-to-goal conversion");
         }
+    }
+
+    void runGoalSourceDiagnosticMetadataSmoke() {
+        MatchEngineResult result;
+        result.homeStats.teamId = 1;
+        result.homeStats.assistedGoals = 2;
+        result.homeStats.reboundGoals = 1;
+        result.homeStats.transitionGoals = 1;
+        result.homeStats.assistedShots = 2;
+        result.homeStats.finalBallShots = 1;
+        result.homeStats.lowCrossShots = 1;
+        result.homeStats.reboundShots = 1;
+        result.homeStats.turnoverShots = 1;
+
+        result.goalChains.push_back(MatchGoalChainDiagnostic{
+            12,
+            1,
+            9,
+            8,
+            BallCarrierActionType::LowCross,
+            MatchGoalSourceCategory::AssistedFinalBall,
+            7.5,
+            0.24,
+            0.18,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false
+        });
+        result.goalChains.push_back(MatchGoalChainDiagnostic{
+            24,
+            1,
+            10,
+            6,
+            BallCarrierActionType::ShortPass,
+            MatchGoalSourceCategory::AssistedSimplePass,
+            11.0,
+            0.14,
+            0.10,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true
+        });
+        result.goalChains.push_back(MatchGoalChainDiagnostic{
+            53,
+            1,
+            11,
+            0,
+            BallCarrierActionType::Hold,
+            MatchGoalSourceCategory::Rebound,
+            5.5,
+            0.36,
+            0.28,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+        });
+        result.goalChains.push_back(MatchGoalChainDiagnostic{
+            71,
+            1,
+            7,
+            0,
+            BallCarrierActionType::Carry,
+            MatchGoalSourceCategory::Turnover,
+            14.0,
+            0.08,
+            0.05,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false
+        });
+
+        const GoalSourceDiagnostic sources = goalSourceDiagnosticFor(result);
+        require(sources.assistedGoals == 2,
+            "goal source diagnostics should preserve assisted goal count");
+        require(sources.reboundGoals == 1,
+            "goal source diagnostics should preserve rebound goal count");
+        require(sources.transitionGoals == 1,
+            "goal source diagnostics should preserve transition goal count");
+        require(result.homeStats.finalBallShots == 1 && result.homeStats.lowCrossShots == 1,
+            "final-ball source diagnostics should preserve low-cross shot counts");
+        require(result.homeStats.reboundShots == 1,
+            "rebound source diagnostics should preserve rebound shot counts");
+        require(result.homeStats.turnoverShots == 1,
+            "turnover source diagnostics should preserve turnover shot counts");
+        require(result.goalChains[0].sourceCategory == MatchGoalSourceCategory::AssistedFinalBall
+                && result.goalChains[0].finalBallLowCross,
+            "goal chain diagnostics should preserve final-ball source metadata");
+        require(result.goalChains[1].sourceCategory == MatchGoalSourceCategory::AssistedSimplePass
+                && result.goalChains[1].finalBallSimplePass,
+            "goal chain diagnostics should preserve simple assist source metadata");
+        require(result.goalChains[2].sourceCategory == MatchGoalSourceCategory::Rebound,
+            "goal chain diagnostics should preserve rebound source metadata");
+        require(result.goalChains[3].sourceCategory == MatchGoalSourceCategory::Turnover
+                && result.goalChains[3].followedControlledCarryAfterReceive,
+            "goal chain diagnostics should preserve turnover carry source metadata");
     }
 
     void runInvalidInputSmoke() {
@@ -2971,6 +3638,7 @@ int main() {
         runPassSelectionDeterminismSmoke();
         runTeamShapeDynamicTargetsSmoke();
         runDetailedCoordinateBalanceSmoke();
+        runGoalSourceDiagnosticMetadataSmoke();
         runHandlerIntegrationSmoke();
         runPlayerAttributesPersistenceSmoke();
         runMatchReportStatsPersistenceSmoke();

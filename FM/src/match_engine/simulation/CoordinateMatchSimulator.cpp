@@ -827,6 +827,7 @@ namespace {
 
     void moveTeamPlayers(
         const MovementResolver& resolver,
+        MatchEngineResult& result,
         TeamSimState& team,
         const std::vector<ResolvedPlayerIntent>& intents,
         double deltaSeconds,
@@ -850,6 +851,9 @@ namespace {
             player.position = movement.newPosition;
             player.targetPosition = movement.targetPosition;
             player.currentIntent = resolved->intent;
+            MatchPlayerSimulationStats& stats = playerStatsFor(result, player.playerId, player.teamId);
+            stats.totalDistanceCoveredMeters += movement.distanceMoved;
+            stats.offBallMovementDistanceMeters += movement.distanceMoved;
         }
     }
 
@@ -1959,6 +1963,56 @@ namespace {
         });
     }
 
+    MatchGoalSourceCategory goalSourceCategoryFor(
+        const PendingBallAction& pending,
+        PlayerId assistPlayerId) {
+        if (pending.shotFromRebound) {
+            return MatchGoalSourceCategory::Rebound;
+        }
+        if (pending.shotFromTurnover) {
+            return MatchGoalSourceCategory::Turnover;
+        }
+        if (assistPlayerId != 0 && pending.shotFromReceiverCarry) {
+            return MatchGoalSourceCategory::CarryAfterReceive;
+        }
+        if (assistPlayerId != 0 && pending.shotFromFinalBall) {
+            return MatchGoalSourceCategory::AssistedFinalBall;
+        }
+        if (assistPlayerId != 0) {
+            return MatchGoalSourceCategory::AssistedSimplePass;
+        }
+        return MatchGoalSourceCategory::SoloCarry;
+    }
+
+    void appendGoalChainDiagnostic(
+        MatchEngineResult& result,
+        const MatchSimulationState& state,
+        const PendingBallAction& pending,
+        const BallTrajectory& trajectory,
+        PlayerId assistPlayerId,
+        AttackingDirection direction) {
+        MatchGoalChainDiagnostic chain;
+        chain.minute = eventMinuteForSecond(state.currentSecond);
+        chain.teamId = pending.sourceTeamId;
+        chain.scorerPlayerId = pending.sourcePlayerId;
+        chain.assistPlayerId = assistPlayerId;
+        chain.sourceActionType = pending.chanceSourceActionType;
+        chain.sourceCategory = goalSourceCategoryFor(pending, assistPlayerId);
+        chain.shotDistanceMeters =
+            PitchGeometry::distance(trajectory.start, goalCenterForDirection(direction));
+        chain.preShotXG = pending.shotQuality.preShotXG;
+        chain.effectiveXG = pending.shotQuality.effectiveXG;
+        chain.followedControlledCarryAfterReceive = pending.shotFromReceiverCarry;
+        chain.finalBallThroughBall = pending.chanceSourceActionType == BallCarrierActionType::ThroughBall;
+        chain.finalBallLowCross = pending.chanceSourceActionType == BallCarrierActionType::LowCross;
+        chain.finalBallCutback = pending.chanceSourceActionType == BallCarrierActionType::Cutback;
+        chain.finalBallHighCross = pending.chanceSourceActionType == BallCarrierActionType::HighCross;
+        chain.finalBallSimplePass =
+            pending.chanceSourceActionType == BallCarrierActionType::ShortPass
+            || pending.chanceSourceActionType == BallCarrierActionType::SwitchPlay;
+        result.goalChains.push_back(chain);
+    }
+
     bool chanceSourceStillValidForShot(
         const MatchSimulationState& state,
         const PendingBallAction& pending,
@@ -2183,6 +2237,7 @@ namespace {
 
     void moveReceiverTowardPass(
         MatchSimulationState& state,
+        MatchEngineResult& result,
         const MatchEngineInput& input,
         const PendingBallAction& pending,
         const BallTrajectory& trajectory) {
@@ -2214,10 +2269,16 @@ namespace {
         }
 
         const double ratio = std::min(1.0, maxDistance / distance);
+        const PitchPoint previousPosition = receiver->position;
         receiver->position = PitchGeometry::clampToPitch(PitchPoint{
             receiver->position.x + ((trajectory.actualTarget.x - receiver->position.x) * ratio),
             receiver->position.y + ((trajectory.actualTarget.y - receiver->position.y) * ratio)
         });
+        const double distanceMoved = PitchGeometry::distance(previousPosition, receiver->position);
+        MatchPlayerSimulationStats& receiverStats =
+            playerStatsFor(result, receiver->playerId, receiver->teamId);
+        receiverStats.totalDistanceCoveredMeters += distanceMoved;
+        receiverStats.offBallMovementDistanceMeters += distanceMoved;
         receiver->targetPosition = trajectory.actualTarget;
         receiver->currentIntent = PlayerIntent{
             PlayerIntentType::ReceivePass,
@@ -2253,16 +2314,17 @@ namespace {
             ++scoringStats.unassistedOpenPlayGoals;
         }
         appendOfficialGoalEvent(result, state, pending, assistPlayerId);
+        const AttackingDirection direction =
+            state.homeTeam.teamId == pending.sourceTeamId
+                ? AttackingDirection::HomeToAway
+                : AttackingDirection::AwayToHome;
+        appendGoalChainDiagnostic(result, state, pending, trajectory, assistPlayerId, direction);
         clearChanceChain(chanceTracker);
 
         if (TeamSimState* scoringTeam = findTeamState(state, pending.sourceTeamId)) {
             ++scoringTeam->goals;
         }
 
-        const AttackingDirection direction =
-            state.homeTeam.teamId == pending.sourceTeamId
-                ? AttackingDirection::HomeToAway
-                : AttackingDirection::AwayToHome;
         appendTrace(
             result,
             input.options.detail,
@@ -2425,6 +2487,22 @@ namespace {
                 *carrier,
                 action.intendedTarget,
                 (actionType == BallCarrierActionType::Carry ? 5.5 : 4.0) * elapsedSeconds);
+            const double carryDistance = PitchGeometry::distance(carryStart, state.ball.position);
+            MatchPlayerSimulationStats& carrierStats =
+                playerStatsFor(result, carrier->playerId, carrier->teamId);
+            carrierStats.totalDistanceCoveredMeters += carryDistance;
+            carrierStats.onBallCarryDistanceMeters += carryDistance;
+            if (actionType == BallCarrierActionType::Carry) {
+                ++carrierStats.carryTraces;
+                if (forwardMetersForDirection(
+                        carryStart,
+                        state.ball.position,
+                        carrierShapeContext.attackingDirection) >= 5.0) {
+                    ++carrierStats.progressiveCarries;
+                }
+            } else {
+                ++carrierStats.dribbleTraces;
+            }
             noteControlledCarryAfterReceive(
                 chanceTracker,
                 *carrier,
@@ -2475,7 +2553,23 @@ namespace {
             });
             trajectory = trajectoryResult.trajectory;
             ++teamStatsFor(result, carrier->teamId).passesAttempted;
-            ++playerStatsFor(result, carrier->playerId, carrier->teamId).passesAttempted;
+            MatchPlayerSimulationStats& passerStats =
+                playerStatsFor(result, carrier->playerId, carrier->teamId);
+            ++passerStats.passesAttempted;
+            if (actionType == BallCarrierActionType::ShortPass) {
+                ++passerStats.shortPassesAttempted;
+            } else if (actionType == BallCarrierActionType::ThroughBall) {
+                ++passerStats.throughBalls;
+                ++passerStats.finalBalls;
+            } else if (actionType == BallCarrierActionType::LowCross) {
+                ++passerStats.lowCrosses;
+                ++passerStats.finalBalls;
+            } else if (actionType == BallCarrierActionType::Cutback) {
+                ++passerStats.cutbacks;
+                ++passerStats.finalBalls;
+            } else if (actionType == BallCarrierActionType::HighCross) {
+                ++passerStats.finalBalls;
+            }
         } else if (actionType == BallCarrierActionType::Shoot) {
             PendingBallAction shotPendingForSource = pendingPlayerAction(
                 carrier->teamId,
@@ -2547,6 +2641,7 @@ namespace {
                 std::max(0.0, shotQuality.keeperFacingXG - shotQuality.effectiveXG);
             if (assistCandidatePlayerId != 0) {
                 ++shootingStats.assistedShots;
+                ++playerStatsFor(result, carrier->playerId, carrier->teamId).assistedShotsReceived;
             } else if (shotFromRebound) {
                 ++shootingStats.reboundShots;
             } else if (shotFromTurnover) {
@@ -2556,6 +2651,7 @@ namespace {
             }
             if (shotFromFinalBallSource) {
                 ++shootingStats.finalBallShots;
+                ++playerStatsFor(result, carrier->playerId, carrier->teamId).finalBallShotsReceived;
             }
             if (chanceSourceActionType == BallCarrierActionType::Cutback) {
                 ++shootingStats.cutbackShots;
@@ -2564,7 +2660,11 @@ namespace {
             } else if (chanceSourceActionType == BallCarrierActionType::LowCross) {
                 ++shootingStats.lowCrossShots;
             }
-            ++playerStatsFor(result, carrier->playerId, carrier->teamId).shots;
+            MatchPlayerSimulationStats& shooterStats =
+                playerStatsFor(result, carrier->playerId, carrier->teamId);
+            ++shooterStats.shots;
+            shooterStats.expectedGoals += shotQuality.effectiveXG;
+            shooterStats.preShotExpectedGoals += shotQuality.preShotXG;
         } else {
             const BallTrajectoryBuildResult trajectoryResult = trajectoryBuilder.build(BallTrajectoryBuildRequest{
                 state.ball.position,
@@ -2859,6 +2959,7 @@ namespace {
         }
 
         ++teamStatsFor(result, pending->sourceTeamId).shotsOnTarget;
+        ++playerStatsFor(result, pending->sourcePlayerId, pending->sourceTeamId).shotsOnTarget;
 
         const PitchPoint savePoint = goalkeeperSaveContactPoint(
             trajectory,
@@ -3007,7 +3108,7 @@ namespace {
         }
 
         if (pending) {
-            moveReceiverTowardPass(state, input, *pending, trajectory);
+            moveReceiverTowardPass(state, result, input, *pending, trajectory);
         }
 
         if (pending && isPassLike(pending->actionType)) {
@@ -3149,10 +3250,14 @@ namespace {
                 state.ball.position);
             if (target->teamId == pending->sourceTeamId) {
                 ++teamStatsFor(result, pending->sourceTeamId).passesCompleted;
-                ++playerStatsFor(
+                MatchPlayerSimulationStats& passerStats = playerStatsFor(
                     result,
                     pending->sourcePlayerId,
-                    pending->sourceTeamId).passesCompleted;
+                    pending->sourceTeamId);
+                ++passerStats.passesCompleted;
+                if (pending->actionType == BallCarrierActionType::ShortPass) {
+                    ++passerStats.shortPassesCompleted;
+                }
                 const TeamSimState* receivingTeam = findTeamState(state, target->teamId);
                 rememberCompletedPass(
                     chanceTracker,
@@ -3699,12 +3804,14 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
 
         moveTeamPlayers(
             movementResolver,
+            result,
             state.homeTeam,
             homeIntents,
             deltaSeconds,
             movementSkipPlayerId);
         moveTeamPlayers(
             movementResolver,
+            result,
             state.awayTeam,
             awayIntents,
             deltaSeconds,
