@@ -31,6 +31,18 @@ struct MatchTeamSimulationStats {
     double preShotExpectedGoals = 0.0;
     double keeperFacingExpectedGoals = 0.0;
     double blockedExpectedGoals = 0.0;
+    int assistedGoals = 0;
+    int unassistedOpenPlayGoals = 0;
+    int reboundGoals = 0;
+    int transitionGoals = 0;
+    int assistedShots = 0;
+    int soloCarryShots = 0;
+    int reboundShots = 0;
+    int turnoverShots = 0;
+    int finalBallShots = 0;
+    int cutbackShots = 0;
+    int throughBallShots = 0;
+    int lowCrossShots = 0;
 };
 
 struct MatchPlayerSimulationStats {

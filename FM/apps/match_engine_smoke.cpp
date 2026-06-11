@@ -445,8 +445,8 @@ namespace {
 
     struct GoalSourceDiagnostic {
         int assistedGoals = 0;
-        int soloShots = 0;
-        int reboundOrLooseGoals = 0;
+        int unassistedOpenPlayGoals = 0;
+        int reboundGoals = 0;
         int transitionGoals = 0;
     };
 
@@ -471,6 +471,7 @@ namespace {
         int preShotAbove030 = 0;
         int carryShots = 0;
         int simplePassShots = 0;
+        int finalBallShots = 0;
         int throughBallShots = 0;
         int lowCrossShots = 0;
         int cutbackShots = 0;
@@ -507,14 +508,6 @@ namespace {
         return teamId == input.homeTeam.teamId
             ? AttackingDirection::HomeToAway
             : AttackingDirection::AwayToHome;
-    }
-
-    bool isAssistedShotSource(MatchTraceKind kind) {
-        return kind == MatchTraceKind::Pass
-            || kind == MatchTraceKind::ThroughBall
-            || kind == MatchTraceKind::LowCross
-            || kind == MatchTraceKind::HighCross
-            || kind == MatchTraceKind::Cutback;
     }
 
     ShotOutcomeDiagnostic shotOutcomeDiagnosticFor(
@@ -586,52 +579,6 @@ namespace {
             }
 
             const MatchTraceKind previousKind = previousSignificantTraceKind(result, i);
-            if (isAssistedShotSource(previousKind)) {
-                ++diagnostic.assistedShots;
-            } else {
-                ++diagnostic.soloShots;
-            }
-            switch (previousKind) {
-            case MatchTraceKind::Carry:
-            case MatchTraceKind::Dribble:
-                ++diagnostic.carryShots;
-                break;
-            case MatchTraceKind::Pass:
-                ++diagnostic.simplePassShots;
-                break;
-            case MatchTraceKind::ThroughBall:
-                ++diagnostic.throughBallShots;
-                break;
-            case MatchTraceKind::LowCross:
-            case MatchTraceKind::HighCross:
-                ++diagnostic.lowCrossShots;
-                break;
-            case MatchTraceKind::Cutback:
-                ++diagnostic.cutbackShots;
-                break;
-            case MatchTraceKind::SaveParried:
-            case MatchTraceKind::LooseBall:
-            case MatchTraceKind::BlockedShot:
-                ++diagnostic.reboundOrLooseShots;
-                break;
-            case MatchTraceKind::Turnover:
-            case MatchTraceKind::Interception:
-                ++diagnostic.turnoverShots;
-                break;
-            case MatchTraceKind::PossessionStart:
-            case MatchTraceKind::Shot:
-            case MatchTraceKind::ShotOffTarget:
-            case MatchTraceKind::Woodwork:
-            case MatchTraceKind::Save:
-            case MatchTraceKind::SaveHeld:
-            case MatchTraceKind::Goal:
-            case MatchTraceKind::Tackle:
-            case MatchTraceKind::Foul:
-            case MatchTraceKind::Card:
-            case MatchTraceKind::SetPiece:
-            case MatchTraceKind::Clearance:
-                break;
-            }
             if (previousKind == MatchTraceKind::SaveParried
                 || previousKind == MatchTraceKind::LooseBall
                 || previousKind == MatchTraceKind::BlockedShot) {
@@ -644,64 +591,36 @@ namespace {
 
     GoalSourceDiagnostic goalSourceDiagnosticFor(const MatchEngineResult& result) {
         GoalSourceDiagnostic diagnostic;
-        diagnostic.assistedGoals = static_cast<int>(std::count_if(
-            result.events.begin(),
-            result.events.end(),
-            [](const MatchEventRecord& event) {
-                return event.kind == MatchEventKind::Goal && event.secondaryPlayerId != 0;
-            }));
+        diagnostic.assistedGoals = result.homeStats.assistedGoals + result.awayStats.assistedGoals;
+        diagnostic.unassistedOpenPlayGoals =
+            result.homeStats.unassistedOpenPlayGoals + result.awayStats.unassistedOpenPlayGoals;
+        diagnostic.reboundGoals = result.homeStats.reboundGoals + result.awayStats.reboundGoals;
+        diagnostic.transitionGoals = result.homeStats.transitionGoals + result.awayStats.transitionGoals;
+        return diagnostic;
+    }
 
-        for (std::size_t i = 0; i < result.traceFrames.size(); ++i) {
+    void printUnassistedGoalChains(const MatchEngineResult& result, int maxGoals = 4) {
+        int printed = 0;
+        for (std::size_t i = 0; i < result.traceFrames.size() && printed < maxGoals; ++i) {
             const MatchTraceFrame& frame = result.traceFrames[i];
             if (frame.kind != MatchTraceKind::Goal) {
                 continue;
             }
 
-            MatchTraceKind previousKind = MatchTraceKind::PossessionStart;
-            for (std::size_t previous = i; previous > 0; --previous) {
-                const MatchTraceFrame& previousFrame = result.traceFrames[previous - 1];
-                if (previousFrame.kind != MatchTraceKind::Goal) {
-                    previousKind = previousFrame.kind;
-                    break;
-                }
+            const std::size_t begin = i > 8 ? i - 8 : 0;
+            std::cerr << "unassisted-goal-chain goalPlayer=" << frame.primaryPlayerId
+                << " team=" << frame.teamId;
+            for (std::size_t j = begin; j <= i; ++j) {
+                const MatchTraceFrame& chainFrame = result.traceFrames[j];
+                std::cerr << " [kind=" << static_cast<int>(chainFrame.kind)
+                    << " p=" << chainFrame.primaryPlayerId
+                    << " s=" << chainFrame.secondaryPlayerId
+                    << " x=" << chainFrame.ballPosition.x
+                    << " y=" << chainFrame.ballPosition.y << "]";
             }
-
-            switch (previousKind) {
-            case MatchTraceKind::Pass:
-            case MatchTraceKind::ThroughBall:
-            case MatchTraceKind::LowCross:
-            case MatchTraceKind::HighCross:
-            case MatchTraceKind::Cutback:
-                break;
-            case MatchTraceKind::Save:
-            case MatchTraceKind::SaveParried:
-            case MatchTraceKind::LooseBall:
-                ++diagnostic.reboundOrLooseGoals;
-                break;
-            case MatchTraceKind::Interception:
-            case MatchTraceKind::Turnover:
-                ++diagnostic.transitionGoals;
-                break;
-            case MatchTraceKind::PossessionStart:
-            case MatchTraceKind::Carry:
-            case MatchTraceKind::Dribble:
-            case MatchTraceKind::Shot:
-            case MatchTraceKind::ShotOffTarget:
-            case MatchTraceKind::Woodwork:
-            case MatchTraceKind::BlockedShot:
-            case MatchTraceKind::SaveHeld:
-            case MatchTraceKind::Goal:
-            case MatchTraceKind::Tackle:
-            case MatchTraceKind::Foul:
-            case MatchTraceKind::Card:
-            case MatchTraceKind::SetPiece:
-            case MatchTraceKind::Clearance:
-                ++diagnostic.soloShots;
-                break;
-            }
+            std::cerr << '\n';
+            ++printed;
         }
-
-        return diagnostic;
     }
 
     int countKind(const std::vector<PassOption>& options, PassOptionKind kind) {
@@ -2250,6 +2169,7 @@ namespace {
         int hundredShotSamples = 0;
         int explodedXGSamples = 0;
         int extremePerfectConversionSamples = 0;
+        int threeOpenPlayGoalZeroAssistSamples = 0;
         int maxSampleShots = 0;
         int maxSampleGoals = 0;
         std::uint64_t maxShotSeed = 0;
@@ -2287,6 +2207,12 @@ namespace {
                 result.homeStats.blockedExpectedGoals + result.awayStats.blockedExpectedGoals;
             const GoalSourceDiagnostic goalSources = goalSourceDiagnosticFor(result);
             const ShotOutcomeDiagnostic shotOutcomes = shotOutcomeDiagnosticFor(input, result);
+            const int openPlayGoals =
+                goalSources.assistedGoals + goalSources.unassistedOpenPlayGoals;
+            if (openPlayGoals >= 3 && goalSources.assistedGoals == 0) {
+                ++threeOpenPlayGoalZeroAssistSamples;
+                printUnassistedGoalChains(result, 3);
+            }
             if (combinedShots > maxSampleShots || combinedXG > maxSampleXg || combinedGoals > maxSampleGoals) {
                 maxSampleShots = std::max(maxSampleShots, combinedShots);
                 maxSampleGoals = std::max(maxSampleGoals, combinedGoals);
@@ -2388,15 +2314,16 @@ namespace {
             totalKeeperFacingExpectedGoals += combinedKeeperFacingXG;
             totalBlockedExpectedGoals += combinedBlockedXG;
             totalGoalSources.assistedGoals += goalSources.assistedGoals;
-            totalGoalSources.soloShots += goalSources.soloShots;
-            totalGoalSources.reboundOrLooseGoals += goalSources.reboundOrLooseGoals;
+            totalGoalSources.unassistedOpenPlayGoals += goalSources.unassistedOpenPlayGoals;
+            totalGoalSources.reboundGoals += goalSources.reboundGoals;
             totalGoalSources.transitionGoals += goalSources.transitionGoals;
             totalShotOutcomes.offTarget += shotOutcomes.offTarget;
             totalShotOutcomes.savedHeld += shotOutcomes.savedHeld;
             totalShotOutcomes.savedParried += shotOutcomes.savedParried;
             totalShotOutcomes.woodwork += shotOutcomes.woodwork;
             totalShotOutcomes.blockedShots += shotOutcomes.blockedShots;
-            totalShotOutcomes.reboundShots += shotOutcomes.reboundShots;
+            totalShotOutcomes.reboundShots +=
+                result.homeStats.reboundShots + result.awayStats.reboundShots;
             totalShotOutcomes.totalShotDistance += shotOutcomes.totalShotDistance;
             totalShotOutcomes.distanceSamples += shotOutcomes.distanceSamples;
             totalShotOutcomes.shotsInsideFourMeters += shotOutcomes.shotsInsideFourMeters;
@@ -2409,15 +2336,27 @@ namespace {
             totalShotOutcomes.preShot008To015 += shotOutcomes.preShot008To015;
             totalShotOutcomes.preShot015To030 += shotOutcomes.preShot015To030;
             totalShotOutcomes.preShotAbove030 += shotOutcomes.preShotAbove030;
-            totalShotOutcomes.carryShots += shotOutcomes.carryShots;
-            totalShotOutcomes.simplePassShots += shotOutcomes.simplePassShots;
-            totalShotOutcomes.throughBallShots += shotOutcomes.throughBallShots;
-            totalShotOutcomes.lowCrossShots += shotOutcomes.lowCrossShots;
-            totalShotOutcomes.cutbackShots += shotOutcomes.cutbackShots;
-            totalShotOutcomes.reboundOrLooseShots += shotOutcomes.reboundOrLooseShots;
-            totalShotOutcomes.turnoverShots += shotOutcomes.turnoverShots;
-            totalShotOutcomes.assistedShots += shotOutcomes.assistedShots;
-            totalShotOutcomes.soloShots += shotOutcomes.soloShots;
+            const int statAssistedShots =
+                result.homeStats.assistedShots + result.awayStats.assistedShots;
+            const int statFinalBallShots =
+                result.homeStats.finalBallShots + result.awayStats.finalBallShots;
+            totalShotOutcomes.carryShots +=
+                result.homeStats.soloCarryShots + result.awayStats.soloCarryShots;
+            totalShotOutcomes.simplePassShots += std::max(0, statAssistedShots - statFinalBallShots);
+            totalShotOutcomes.finalBallShots += statFinalBallShots;
+            totalShotOutcomes.throughBallShots +=
+                result.homeStats.throughBallShots + result.awayStats.throughBallShots;
+            totalShotOutcomes.lowCrossShots +=
+                result.homeStats.lowCrossShots + result.awayStats.lowCrossShots;
+            totalShotOutcomes.cutbackShots +=
+                result.homeStats.cutbackShots + result.awayStats.cutbackShots;
+            totalShotOutcomes.reboundOrLooseShots +=
+                result.homeStats.reboundShots + result.awayStats.reboundShots;
+            totalShotOutcomes.turnoverShots +=
+                result.homeStats.turnoverShots + result.awayStats.turnoverShots;
+            totalShotOutcomes.assistedShots += statAssistedShots;
+            totalShotOutcomes.soloShots +=
+                result.homeStats.soloCarryShots + result.awayStats.soloCarryShots;
 
             for (const MatchTeamSimulationStats* stats : { &result.homeStats, &result.awayStats }) {
                 require(stats->passesAttempted > 0, "detailed coordinate match should attempt passes");
@@ -2470,8 +2409,8 @@ namespace {
                 << " maxXg=" << maxSampleXg
                 << " maxGoals=" << maxSampleGoals
                 << " assistedGoals=" << totalGoalSources.assistedGoals
-                << " soloShots=" << totalGoalSources.soloShots
-                << " reboundOrLooseGoals=" << totalGoalSources.reboundOrLooseGoals
+                << " unassistedOpenPlayGoals=" << totalGoalSources.unassistedOpenPlayGoals
+                << " reboundGoals=" << totalGoalSources.reboundGoals
                 << " transitionGoals=" << totalGoalSources.transitionGoals
                 << '\n';
         }
@@ -2530,8 +2469,8 @@ namespace {
                 << " goals=" << totalGoals
                 << " shotsOnTarget=" << totalShotsOnTarget
                 << " assistedGoals=" << totalGoalSources.assistedGoals
-                << " soloGoals=" << totalGoalSources.soloShots
-                << " reboundGoals=" << totalGoalSources.reboundOrLooseGoals
+                << " unassistedOpenPlayGoals=" << totalGoalSources.unassistedOpenPlayGoals
+                << " reboundGoals=" << totalGoalSources.reboundGoals
                 << " transitionGoals=" << totalGoalSources.transitionGoals
                 << " reboundShots=" << totalShotOutcomes.reboundShots
                 << " offTarget=" << totalShotOutcomes.offTarget
@@ -2554,6 +2493,7 @@ namespace {
                 << " preShotGt030=" << totalShotOutcomes.preShotAbove030
                 << " carryShots=" << totalShotOutcomes.carryShots
                 << " simplePassShots=" << totalShotOutcomes.simplePassShots
+                << " finalBallShots=" << totalShotOutcomes.finalBallShots
                 << " throughBallShots=" << totalShotOutcomes.throughBallShots
                 << " lowCrossShots=" << totalShotOutcomes.lowCrossShots
                 << " cutbackShots=" << totalShotOutcomes.cutbackShots
@@ -2594,6 +2534,25 @@ namespace {
                 "strong smoke team should retain plausible pass completion");
             require(weakPassAccuracy >= 0.52,
                 "weaker smoke team should still complete ordinary circulation often enough");
+            const int openPlayGoals =
+                totalGoalSources.assistedGoals + totalGoalSources.unassistedOpenPlayGoals;
+            if (openPlayGoals >= 6) {
+                const double assistedOpenPlayGoalRate =
+                    static_cast<double>(totalGoalSources.assistedGoals)
+                    / static_cast<double>(std::max(openPlayGoals, 1));
+                require(assistedOpenPlayGoalRate >= 0.40,
+                    "watched open-play goals should retain plausible assisted source attribution");
+            }
+            const double assistedShotShare =
+                static_cast<double>(totalShotOutcomes.assistedShots)
+                / static_cast<double>(std::max(totalShots, 1));
+            require(assistedShotShare >= 0.30,
+                "assisted/final-ball shot source attribution should not collapse");
+            if (totalGoals >= 4) {
+                require(totalGoalSources.reboundGoals + totalGoalSources.transitionGoals
+                        <= std::max(1, totalGoals / 2),
+                    "rebound and transition goals should not dominate watched samples");
+            }
         }
 
         int dominantShots = 0;
@@ -2627,7 +2586,7 @@ namespace {
             dominantShotOutcomes.savedParried += shotOutcomes.savedParried;
             dominantShotOutcomes.woodwork += shotOutcomes.woodwork;
             dominantShotOutcomes.blockedShots += shotOutcomes.blockedShots;
-            dominantShotOutcomes.reboundShots += shotOutcomes.reboundShots;
+            dominantShotOutcomes.reboundShots += result.homeStats.reboundShots;
             dominantShotOutcomes.totalShotDistance += shotOutcomes.totalShotDistance;
             dominantShotOutcomes.distanceSamples += shotOutcomes.distanceSamples;
             dominantShotOutcomes.shotsInsideFourMeters += shotOutcomes.shotsInsideFourMeters;
@@ -2640,15 +2599,17 @@ namespace {
             dominantShotOutcomes.preShot008To015 += shotOutcomes.preShot008To015;
             dominantShotOutcomes.preShot015To030 += shotOutcomes.preShot015To030;
             dominantShotOutcomes.preShotAbove030 += shotOutcomes.preShotAbove030;
-            dominantShotOutcomes.carryShots += shotOutcomes.carryShots;
-            dominantShotOutcomes.simplePassShots += shotOutcomes.simplePassShots;
-            dominantShotOutcomes.throughBallShots += shotOutcomes.throughBallShots;
-            dominantShotOutcomes.lowCrossShots += shotOutcomes.lowCrossShots;
-            dominantShotOutcomes.cutbackShots += shotOutcomes.cutbackShots;
-            dominantShotOutcomes.reboundOrLooseShots += shotOutcomes.reboundOrLooseShots;
-            dominantShotOutcomes.turnoverShots += shotOutcomes.turnoverShots;
-            dominantShotOutcomes.assistedShots += shotOutcomes.assistedShots;
-            dominantShotOutcomes.soloShots += shotOutcomes.soloShots;
+            dominantShotOutcomes.carryShots += result.homeStats.soloCarryShots;
+            dominantShotOutcomes.simplePassShots +=
+                std::max(0, result.homeStats.assistedShots - result.homeStats.finalBallShots);
+            dominantShotOutcomes.finalBallShots += result.homeStats.finalBallShots;
+            dominantShotOutcomes.throughBallShots += result.homeStats.throughBallShots;
+            dominantShotOutcomes.lowCrossShots += result.homeStats.lowCrossShots;
+            dominantShotOutcomes.cutbackShots += result.homeStats.cutbackShots;
+            dominantShotOutcomes.reboundOrLooseShots += result.homeStats.reboundShots;
+            dominantShotOutcomes.turnoverShots += result.homeStats.turnoverShots;
+            dominantShotOutcomes.assistedShots += result.homeStats.assistedShots;
+            dominantShotOutcomes.soloShots += result.homeStats.soloCarryShots;
 
             for (const MatchTraceFrame& frame : result.traceFrames) {
                 if (frame.teamId == result.homeStats.teamId
@@ -2697,6 +2658,7 @@ namespace {
             << " preShotGt030=" << dominantShotOutcomes.preShotAbove030
             << " carryShots=" << dominantShotOutcomes.carryShots
             << " simplePassShots=" << dominantShotOutcomes.simplePassShots
+            << " finalBallShots=" << dominantShotOutcomes.finalBallShots
             << " throughBallShots=" << dominantShotOutcomes.throughBallShots
             << " lowCrossShots=" << dominantShotOutcomes.lowCrossShots
             << " cutbackShots=" << dominantShotOutcomes.cutbackShots
@@ -2739,6 +2701,8 @@ namespace {
         }
         require(totalShots > 0 && totalShotTraces > 0,
             "detailed coordinate samples should include terminal shot actions");
+        require(threeOpenPlayGoalZeroAssistSamples == 0,
+            "matches with 3+ non-rebound open-play goals should not have zero assists");
         require(totalCarryTraces > 0,
             "detailed coordinate samples should include carry actions without suppressing shots");
         require(totalPasses > totalShots,
@@ -2749,8 +2713,8 @@ namespace {
                 << " totalSOT=" << totalShotsOnTarget
                 << " totalXg=" << totalExpectedGoals
                 << " assistedGoals=" << totalGoalSources.assistedGoals
-                << " soloShots=" << totalGoalSources.soloShots
-                << " reboundOrLooseGoals=" << totalGoalSources.reboundOrLooseGoals
+                << " unassistedOpenPlayGoals=" << totalGoalSources.unassistedOpenPlayGoals
+                << " reboundGoals=" << totalGoalSources.reboundGoals
                 << " transitionGoals=" << totalGoalSources.transitionGoals
                 << '\n';
         }
