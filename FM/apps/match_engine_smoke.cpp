@@ -450,6 +450,69 @@ namespace {
         int transitionGoals = 0;
     };
 
+    struct ShotOutcomeDiagnostic {
+        int offTarget = 0;
+        int savedHeld = 0;
+        int savedParried = 0;
+        int woodwork = 0;
+        int blockedShots = 0;
+        int reboundShots = 0;
+        double totalShotDistance = 0.0;
+        int distanceSamples = 0;
+    };
+
+    MatchTraceKind previousSignificantTraceKind(
+        const MatchEngineResult& result,
+        std::size_t index) {
+        for (std::size_t previous = index; previous > 0; --previous) {
+            const MatchTraceFrame& frame = result.traceFrames[previous - 1];
+            if (frame.kind != MatchTraceKind::PossessionStart) {
+                return frame.kind;
+            }
+        }
+
+        return MatchTraceKind::PossessionStart;
+    }
+
+    PitchPoint goalCenterForTraceTeam(
+        const MatchEngineInput& input,
+        TeamId teamId) {
+        return teamId == input.homeTeam.teamId
+            ? PitchGeometry::awayGoalCenter()
+            : PitchGeometry::homeGoalCenter();
+    }
+
+    ShotOutcomeDiagnostic shotOutcomeDiagnosticFor(
+        const MatchEngineInput& input,
+        const MatchEngineResult& result) {
+        ShotOutcomeDiagnostic diagnostic;
+        diagnostic.offTarget = traceCountFor(result, MatchTraceKind::ShotOffTarget);
+        diagnostic.savedHeld = traceCountFor(result, MatchTraceKind::SaveHeld);
+        diagnostic.savedParried = traceCountFor(result, MatchTraceKind::SaveParried);
+        diagnostic.woodwork = traceCountFor(result, MatchTraceKind::Woodwork);
+        diagnostic.blockedShots = traceCountFor(result, MatchTraceKind::BlockedShot);
+
+        for (std::size_t i = 0; i < result.traceFrames.size(); ++i) {
+            const MatchTraceFrame& frame = result.traceFrames[i];
+            if (frame.kind != MatchTraceKind::Shot) {
+                continue;
+            }
+
+            diagnostic.totalShotDistance +=
+                PitchGeometry::distance(frame.ballPosition, goalCenterForTraceTeam(input, frame.teamId));
+            ++diagnostic.distanceSamples;
+
+            const MatchTraceKind previousKind = previousSignificantTraceKind(result, i);
+            if (previousKind == MatchTraceKind::SaveParried
+                || previousKind == MatchTraceKind::LooseBall
+                || previousKind == MatchTraceKind::BlockedShot) {
+                ++diagnostic.reboundShots;
+            }
+        }
+
+        return diagnostic;
+    }
+
     GoalSourceDiagnostic goalSourceDiagnosticFor(const MatchEngineResult& result) {
         GoalSourceDiagnostic diagnostic;
         diagnostic.assistedGoals = static_cast<int>(std::count_if(
@@ -482,6 +545,7 @@ namespace {
             case MatchTraceKind::Cutback:
                 break;
             case MatchTraceKind::Save:
+            case MatchTraceKind::SaveParried:
             case MatchTraceKind::LooseBall:
                 ++diagnostic.reboundOrLooseGoals;
                 break;
@@ -493,6 +557,10 @@ namespace {
             case MatchTraceKind::Carry:
             case MatchTraceKind::Dribble:
             case MatchTraceKind::Shot:
+            case MatchTraceKind::ShotOffTarget:
+            case MatchTraceKind::Woodwork:
+            case MatchTraceKind::BlockedShot:
+            case MatchTraceKind::SaveHeld:
             case MatchTraceKind::Goal:
             case MatchTraceKind::Tackle:
             case MatchTraceKind::Foul:
@@ -602,7 +670,7 @@ namespace {
         require(closeCentral > pressured, "higher pressure should reduce xG");
         require(reverseDirection > farWide, "away-to-home xG should use the opposite goal");
         for (double xg : { closeCentral, farWide, pressured, reverseDirection }) {
-            require(xg >= 0.004 && xg <= 0.28, "open-play xG should stay within clamp range");
+            require(xg > 0.0 && xg < 1.0, "open-play xG should remain a probability without an upper clamp");
         }
     }
 
@@ -637,12 +705,14 @@ namespace {
     }
 
     ShotTargetSelectionResult fixedShotTarget(const ShotContext& context) {
+        const ShotTargetZone zone{ ShotTargetLane::FarPost, ShotTargetHeight::Low };
         return ShotTargetSelectionResult{
-            ShotTargetZone{ ShotTargetLane::FarPost, ShotTargetHeight::Low },
+            zone,
             shotTargetPointFor(
                 context.shotOrigin,
                 context.attackingDirection,
-                ShotTargetZone{ ShotTargetLane::FarPost, ShotTargetHeight::Low }),
+                zone),
+            shotTargetFramePointFor(context.shotOrigin, zone),
             32.0,
             70.0
         };
@@ -675,6 +745,7 @@ namespace {
             ShotTargetSelectionResult{
                 intended.intendedZone,
                 shotTargetPointFor(hardContext.shotOrigin, hardContext.attackingDirection, intended.intendedZone),
+                shotTargetFramePointFor(hardContext.shotOrigin, intended.intendedZone),
                 intended.targetDifficulty,
                 intended.placementQuality
             }
@@ -769,6 +840,28 @@ namespace {
             execution,
             10.0
         });
+        require(
+            ShotAccuracyResolver{}.isOnTarget(ShotOutcomeContext{
+                context,
+                ShotType::PlacedShot,
+                execution,
+                quality,
+                0x4401ULL
+            }) == GoalFrame{}.contains(execution.actualFrameTarget),
+            "shot accuracy should be resolved from actual frame target geometry");
+
+        ShotExecutionResult woodworkExecution = execution;
+        woodworkExecution.actualFrameTarget =
+            ShotTargetPoint{ GoalFrame{}.width / 2.0 + 0.05, GoalFrame{}.height - 0.10 };
+        const ShotOutcomeResult woodworkOutcome = ShotOutcomeResolver{}.resolve(ShotOutcomeContext{
+            context,
+            ShotType::PlacedShot,
+            woodworkExecution,
+            quality,
+            0x4402ULL
+        });
+        require(woodworkOutcome.kind == ShotOutcomeKind::Woodwork,
+            "actual target near the frame should resolve as woodwork");
 
         bool blockedOccurred = false;
         for (std::uint64_t seed = 1; seed <= 160 && !blockedOccurred; ++seed) {
@@ -1938,6 +2031,7 @@ namespace {
         double maxSampleXg = 0.0;
         double totalExpectedGoals = 0.0;
         GoalSourceDiagnostic totalGoalSources;
+        ShotOutcomeDiagnostic totalShotOutcomes;
         for (std::uint64_t seed = 1; seed <= 8; ++seed) {
             const MatchEngineInput input =
                 buildInput(MatchSimulationDetail::WatchedMatch, 0x9300ULL + seed);
@@ -1955,6 +2049,7 @@ namespace {
             const int combinedGoals = result.homeStats.goals + result.awayStats.goals;
             const double combinedXG = result.homeStats.expectedGoals + result.awayStats.expectedGoals;
             const GoalSourceDiagnostic goalSources = goalSourceDiagnosticFor(result);
+            const ShotOutcomeDiagnostic shotOutcomes = shotOutcomeDiagnosticFor(input, result);
             if (combinedShots >= 100) {
                 ++hundredShotSamples;
                 if (combinedShots > maxSampleShots) {
@@ -2019,6 +2114,14 @@ namespace {
             totalGoalSources.soloShots += goalSources.soloShots;
             totalGoalSources.reboundOrLooseGoals += goalSources.reboundOrLooseGoals;
             totalGoalSources.transitionGoals += goalSources.transitionGoals;
+            totalShotOutcomes.offTarget += shotOutcomes.offTarget;
+            totalShotOutcomes.savedHeld += shotOutcomes.savedHeld;
+            totalShotOutcomes.savedParried += shotOutcomes.savedParried;
+            totalShotOutcomes.woodwork += shotOutcomes.woodwork;
+            totalShotOutcomes.blockedShots += shotOutcomes.blockedShots;
+            totalShotOutcomes.reboundShots += shotOutcomes.reboundShots;
+            totalShotOutcomes.totalShotDistance += shotOutcomes.totalShotDistance;
+            totalShotOutcomes.distanceSamples += shotOutcomes.distanceSamples;
 
             for (const MatchTeamSimulationStats* stats : { &result.homeStats, &result.awayStats }) {
                 require(stats->passesAttempted > 0, "detailed coordinate match should attempt passes");
@@ -2090,11 +2193,32 @@ namespace {
                 << '\n';
         }
         if (totalShots > 0) {
+            const double xgPerShot =
+                totalExpectedGoals / static_cast<double>(std::max(totalShots, 1));
+            const double averageShotDistance =
+                totalShotOutcomes.distanceSamples > 0
+                    ? totalShotOutcomes.totalShotDistance
+                        / static_cast<double>(totalShotOutcomes.distanceSamples)
+                    : 0.0;
             std::cerr << "action-mix diagnostic totalPasses=" << totalPasses
                 << " totalCarries=" << totalCarryTraces
                 << " totalShots=" << totalShots
                 << " totalShotTraces=" << totalShotTraces
                 << " aggregateXG=" << totalExpectedGoals
+                << " xgPerShot=" << xgPerShot
+                << " goals=" << totalGoals
+                << " shotsOnTarget=" << totalShotsOnTarget
+                << " assistedGoals=" << totalGoalSources.assistedGoals
+                << " soloGoals=" << totalGoalSources.soloShots
+                << " reboundGoals=" << totalGoalSources.reboundOrLooseGoals
+                << " transitionGoals=" << totalGoalSources.transitionGoals
+                << " reboundShots=" << totalShotOutcomes.reboundShots
+                << " offTarget=" << totalShotOutcomes.offTarget
+                << " savedHeld=" << totalShotOutcomes.savedHeld
+                << " savedParried=" << totalShotOutcomes.savedParried
+                << " woodwork=" << totalShotOutcomes.woodwork
+                << " blockedShots=" << totalShotOutcomes.blockedShots
+                << " avgShotDistance=" << averageShotDistance
                 << '\n';
         }
         require(hundredShotSamples <= 1,

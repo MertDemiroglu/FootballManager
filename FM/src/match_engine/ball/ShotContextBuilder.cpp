@@ -77,6 +77,7 @@ ShotContext ShotContextBuilder::build(const ShotContextBuildRequest& request) co
     context.seed = request.seed;
 
     const PitchPoint goalCenter = goalCenterFor(request.attackingDirection);
+    context.goalkeeperPosition = goalCenter;
     context.distanceMeters = PitchGeometry::distance(context.shotOrigin, goalCenter);
     context.angleRadians = goalAngleRadians(context.shotOrigin, request.attackingDirection);
     context.centrality = clampDouble(context.angleRadians / Pi, 0.0, 1.0);

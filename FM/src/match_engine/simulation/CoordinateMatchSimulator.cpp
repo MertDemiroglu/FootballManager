@@ -1454,26 +1454,6 @@ namespace {
         }
     }
 
-    bool isInsideGoalMouthY(double y) {
-        const double halfGoalWidth = PitchGeometry::GoalWidthMeters / 2.0;
-        const double centerY = PitchGeometry::WidthMeters / 2.0;
-        return y >= centerY - halfGoalWidth && y <= centerY + halfGoalWidth;
-    }
-
-    bool shotCrossesGoalMouth(
-        const BallTrajectory& trajectory,
-        AttackingDirection attackingDirection) {
-        if (!isInsideGoalMouthY(trajectory.actualTarget.y)) {
-            return false;
-        }
-
-        if (attackingDirection == AttackingDirection::HomeToAway) {
-            return trajectory.actualTarget.x >= PitchGeometry::LengthMeters - 1.0;
-        }
-
-        return trajectory.actualTarget.x <= 1.0;
-    }
-
     PitchPoint goalkeeperSaveContactPoint(
         const BallTrajectory& trajectory,
         AttackingDirection attackingDirection,
@@ -2117,6 +2097,9 @@ namespace {
                 defenderPositionsFor(input, *opponentState),
                 shotSeed
             });
+            if (goalkeeper != nullptr) {
+                shotContext.goalkeeperPosition = goalkeeper->position;
+            }
             const ShotTypeSelectionResult selectedShotType = ShotTypeSelector{}.select(shotContext);
             shotType = selectedShotType.type;
             shotTarget = ShotTargetSelector{}.select(shotContext, shotType);
@@ -2346,21 +2329,30 @@ namespace {
         }
 
         const AttackingDirection direction = attackingDirectionForTeam(*attackingTeam);
-        const bool crossesGoalMouth = shotCrossesGoalMouth(trajectory, direction);
         const PlayerSimState* goalkeeper = findGoalkeeperOrNearestOwnGoal(input, defendingTeam);
         const ShootingModelTuning shootingTuning;
-        ShotOutcomeResult outcome = crossesGoalMouth
-            ? ShotOutcomeResolver{}.resolve(ShotOutcomeContext{
+        ShotOutcomeResult outcome = ShotOutcomeResolver{}.resolve(ShotOutcomeContext{
                 pending->shotContext,
                 pending->shotType,
                 pending->shotExecution,
                 pending->shotQuality,
                 stepSeed(baseSeed, state, pending->sourcePlayerId ^ 0x9010ULL)
-            })
-            : ShotOutcomeResult{ ShotOutcomeKind::OffTarget, false, false, false };
+            });
 
         if (!outcome.onTarget) {
             clearAssist(assistTracker);
+            appendTrace(
+                result,
+                input.options.detail,
+                state,
+                outcome.kind == ShotOutcomeKind::Woodwork
+                    ? MatchTraceKind::Woodwork
+                    : MatchTraceKind::ShotOffTarget,
+                pending->sourceTeamId,
+                pending->sourcePlayerId,
+                0,
+                trajectory.actualTarget,
+                trajectory.actualTarget);
             if (goalkeeper != nullptr) {
                 setControlledBy(state, goalkeeper->playerId, goalkeeper->teamId, goalkeeper->position);
                 appendTrace(
@@ -2423,7 +2415,7 @@ namespace {
                 result,
                 input.options.detail,
                 state,
-                MatchTraceKind::Save,
+                MatchTraceKind::SaveHeld,
                 goalkeeper->teamId,
                 goalkeeper->playerId,
                 pending->sourcePlayerId,
@@ -2458,7 +2450,7 @@ namespace {
                 result,
                 input.options.detail,
                 state,
-                MatchTraceKind::Save,
+                MatchTraceKind::SaveParried,
                 goalkeeper->teamId,
                 goalkeeper->playerId,
                 pending->sourcePlayerId,
@@ -2724,7 +2716,7 @@ namespace {
                     result,
                     input.options.detail,
                     state,
-                    MatchTraceKind::Interception,
+                    MatchTraceKind::BlockedShot,
                     block.blockerTeamId,
                     block.blockerPlayerId,
                     pending->sourcePlayerId,

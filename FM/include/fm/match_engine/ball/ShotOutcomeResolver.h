@@ -15,6 +15,7 @@ struct ShotOutcomeContext {
 enum class ShotOutcomeKind {
     Goal,
     OffTarget,
+    Woodwork,
     Blocked,
     SavedHeld,
     SavedRebound
@@ -25,11 +26,13 @@ struct ShotOutcomeResult {
     bool onTarget = false;
     bool goal = false;
     bool rebound = false;
+    bool woodwork = false;
 };
 
 class ShotAccuracyResolver {
 public:
     bool isOnTarget(const ShotOutcomeContext& context) const;
+    bool isWoodwork(const ShotOutcomeContext& context) const;
 };
 
 class GoalkeeperSaveResolver {

@@ -76,6 +76,34 @@ PitchPoint shotTargetPointFor(
     return PitchPoint{ goalLineXFor(attackingDirection), centerY + laneOffset };
 }
 
+ShotTargetPoint shotTargetFramePointFor(
+    PitchPoint shotOrigin,
+    ShotTargetZone zone) {
+    const double halfGoal = PitchGeometry::GoalWidthMeters / 2.0;
+    const ShotTargetSelectionTuning tuning;
+    const bool nearIsLowerY = shotOrigin.y < PitchGeometry::WidthMeters / 2.0;
+
+    double lateral = 0.0;
+    if (zone.lane == ShotTargetLane::NearPost) {
+        lateral = nearIsLowerY
+            ? -halfGoal * tuning.goalLaneOffsetShare
+            : halfGoal * tuning.goalLaneOffsetShare;
+    } else if (zone.lane == ShotTargetLane::FarPost) {
+        lateral = nearIsLowerY
+            ? halfGoal * tuning.goalLaneOffsetShare
+            : -halfGoal * tuning.goalLaneOffsetShare;
+    }
+
+    double height = tuning.midTargetHeightMeters;
+    if (zone.height == ShotTargetHeight::Low) {
+        height = tuning.lowTargetHeightMeters;
+    } else if (zone.height == ShotTargetHeight::High) {
+        height = tuning.highTargetHeightMeters;
+    }
+
+    return ShotTargetPoint{ lateral, height };
+}
+
 ShotTargetSelectionResult ShotTargetSelector::select(
     const ShotContext& context,
     ShotType shotType) const {
@@ -152,6 +180,7 @@ ShotTargetSelectionResult ShotTargetSelector::select(
     return ShotTargetSelectionResult{
         zone,
         shotTargetPointFor(context.shotOrigin, context.attackingDirection, zone),
+        shotTargetFramePointFor(context.shotOrigin, zone),
         targetDifficulty,
         placementQuality
     };

@@ -66,7 +66,7 @@ double ShotQualityModel::calculateOpenPlayXG(
         + (tuning.openPlayXGAngleCoefficient * angleRadians)
         - (tuning.openPlayXGPressureCoefficient * clampedPressure);
     const double xg = 1.0 / (1.0 + std::exp(-logit));
-    return clampDouble(xg, tuning.openPlayXGMinimum, tuning.openPlayXGMaximum);
+    return std::max(tuning.openPlayXGMinimum, xg);
 }
 
 ShotQualityResult ShotQualityModel::evaluate(
@@ -108,14 +108,13 @@ ShotQualityResult ShotQualityModel::evaluate(
             - ((execution.shotPower - tuning.blockRiskPowerBaseline) * tuning.blockRiskPowerReduction),
         tuning.blockRiskMinimum,
         tuning.blockRiskMaximum);
-    const double adjustedXG = clampDouble(
+    const double adjustedXG = std::max(
+        tuning.adjustedXGMinimum,
         baseXG
             * (1.0 - pressureFactor * tuning.adjustedXGPressurePenalty)
             * (1.0 - lanePressureFactor * tuning.adjustedXGLanePressurePenalty)
             * (1.0 - typePenalty)
-            * (1.0 - tightAngleFactor * tuning.adjustedXGTightAnglePenalty),
-        tuning.adjustedXGMinimum,
-        tuning.adjustedXGMaximum);
+            * (1.0 - tightAngleFactor * tuning.adjustedXGTightAnglePenalty));
 
     const double onTargetDifficulty = clampDouble(
         tuning.onTargetDifficultyBase

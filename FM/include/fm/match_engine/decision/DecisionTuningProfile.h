@@ -145,6 +145,12 @@ struct ShotDecisionTuning {
     double defensiveRoleWeakShotMultiplier = 0.45;
     double earlyActionWeakShotMultiplier = 0.58;
     double pressuredWeakShotMultiplier = 0.56;
+    double belowMinimumXGPenalty = 18.0;
+    double nonAttackingThirdLowXGPenalty = 18.0;
+    double earlyActionLowXGPenalty = 24.0;
+    double pressuredLowXGPenalty = 20.0;
+    double longRangeWeakXGPenalty = 18.0;
+    double defensiveRoleLowXGPenalty = 24.0;
     double xgVeryWeakThreshold = 0.02;
     double xgWeakThreshold = 0.05;
     double xgLowThreshold = 0.08;
@@ -162,7 +168,6 @@ struct ShotDecisionTuning {
     double xgGoodSlope = 135.0;
     double xgGreatBase = 62.0;
     double xgGreatSlope = 70.0;
-    double xgDesireMaximum = 82.0;
 };
 
 struct ShotContextTuning {
@@ -246,6 +251,9 @@ struct ShotTargetSelectionTuning {
     double highHeightPowerShotBonus = 8.0;
     double highHeightSkillPenalty = 4.0;
     double goalLaneOffsetShare = 0.72;
+    double lowTargetHeightMeters = 0.35;
+    double midTargetHeightMeters = 1.15;
+    double highTargetHeightMeters = 1.95;
     double controlledFinishTargetDifficulty = 8.0;
     double placedShotTargetDifficulty = 18.0;
     double powerShotTargetDifficulty = 15.0;
@@ -285,6 +293,17 @@ struct ShotExecutionTuning {
     double maximumExecutionQuality = 99.0;
     double baseDeviationMeters = 0.35;
     double qualityDeviationScale = 4.1;
+    double frameBaseLateralDeviationMeters = 0.20;
+    double frameQualityLateralDeviationScale = 1.20;
+    double framePressureLateralDeviationScale = 0.52;
+    double frameDistanceLateralDeviationScale = 0.030;
+    double frameAngleLateralDeviationScale = 0.46;
+    double frameBaseHeightDeviationMeters = 0.12;
+    double frameQualityHeightDeviationScale = 0.64;
+    double framePressureHeightDeviationScale = 0.30;
+    double frameDistanceHeightDeviationScale = 0.012;
+    double highXGDeviationReduction = 0.45;
+    double highXGDeviationReference = 0.35;
     double pressureDeviationScale = 1.35;
     double distanceDeviationScale = 0.065;
     double angleDeviationScale = 1.15;
@@ -316,7 +335,6 @@ struct ShotQualityTuning {
     double openPlayXGAngleCoefficient = 1.05;
     double openPlayXGPressureCoefficient = 0.022;
     double openPlayXGMinimum = 0.004;
-    double openPlayXGMaximum = 0.28;
     double pressureScale = 100.0;
     double lanePressureScale = 100.0;
     double tightAngleCentralityScale = 4.0;
@@ -328,7 +346,6 @@ struct ShotQualityTuning {
     double adjustedXGLanePressurePenalty = 0.18;
     double adjustedXGTightAnglePenalty = 0.18;
     double adjustedXGMinimum = 0.003;
-    double adjustedXGMaximum = 0.42;
     double blockRiskBase = 0.04;
     double blockRiskLanePressureWeight = 0.34;
     double blockRiskPressureWeight = 0.12;
@@ -362,19 +379,7 @@ struct ShotQualityTuning {
 };
 
 struct ShotOutcomeTuning {
-    double offTargetBaseProbability = 0.06;
-    double executionMissWeight = 0.30;
-    double pressureMissWeight = 0.12;
-    double angleMissWeight = 0.14;
-    double difficultyMissWeight = 0.12;
-    double deviationMissWeight = 0.16;
-    double heightErrorMissWeight = 0.20;
-    double deviationFactorMaximum = 0.45;
-    double longShotMissPenalty = 0.08;
-    double tightAngleShotMissPenalty = 0.10;
-    double desperationShotMissPenalty = 0.14;
-    double offTargetMinimumProbability = 0.02;
-    double offTargetMaximumProbability = 0.62;
+    double woodworkToleranceMeters = 0.16;
     double goalkeeperShotStoppingWeight = 0.36;
     double goalkeeperOneOnOnesWeight = 0.22;
     double goalkeeperHandlingWeight = 0.18;
@@ -389,6 +394,10 @@ struct ShotOutcomeTuning {
     double savePlacementWeight = 0.13;
     double savePowerWeight = 0.08;
     double saveDifficultyWeight = 0.10;
+    double framePlacementWeight = 0.16;
+    double keeperLateralReachMeters = 2.6;
+    double keeperVerticalReachMeters = 2.15;
+    double keeperReachDifficultyWeight = 0.32;
     double maximumShotThreatPenalty = 0.38;
     double saveMinimumProbability = 0.18;
     double saveMaximumProbability = 0.82;

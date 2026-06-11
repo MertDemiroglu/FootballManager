@@ -123,9 +123,7 @@ namespace {
         if (xg < tuning.xgGoodThreshold) {
             return tuning.xgGoodBase + (xg - tuning.xgMediumThreshold) * tuning.xgGoodSlope;
         }
-        return std::min(
-            tuning.xgDesireMaximum,
-            tuning.xgGreatBase + (xg - tuning.xgGoodThreshold) * tuning.xgGreatSlope);
+        return tuning.xgGreatBase + (xg - tuning.xgGoodThreshold) * tuning.xgGreatSlope;
     }
 
     bool isDefensiveRole(FormationSlotRole role) {
@@ -163,30 +161,12 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     const bool attackingThird = isAttackingThird(zone);
 
     const ShotDecisionTuning tuning;
-    if (xg < tuning.minimumOpenPlayXG) {
-        return output;
-    }
-    if (!attackingThird && xg < tuning.nonAttackingThirdMinimumXG) {
-        return output;
-    }
     const bool advancedPhase = isAdvancedShootingPhase(context.phase);
     const bool clearChance = xg >= tuning.strongChanceAlwaysIncludeXG && distance <= 16.0;
     const bool earlyPossessionShot =
         context.possessionActionCount <= 1
         && !advancedPhase
         && context.safeCirculationAvailable;
-    if (earlyPossessionShot && !clearChance && xg < tuning.earlyActionMinimumXG) {
-        return output;
-    }
-    if (context.carrierPressure >= 35.0 && !clearChance && xg < tuning.pressuredShotMinimumXG) {
-        return output;
-    }
-    if (distance > tuning.longShotDistance && xg < tuning.weakShotXG) {
-        return output;
-    }
-    if (isDefensiveRole(context.carrierRole) && xg < tuning.inappropriateRoleMinimumXG) {
-        return output;
-    }
     const PlayerAttributes attributes = attributesFor(context.teamSnapshot, context.carrierState);
     const ShotRoleDecisionProfile role = shotRoleDecisionProfile(context.carrierRole);
     const ShotTacticalDecisionProfile tactics = shotTacticalDecisionProfile(context.tacticalSetup);
@@ -232,6 +212,26 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     }
     if (isDefensiveRole(context.carrierRole) && xg < tuning.defensiveRoleLowXG) {
         score *= tuning.defensiveRoleWeakShotMultiplier;
+    }
+    if (!clearChance) {
+        if (xg < tuning.minimumOpenPlayXG) {
+            score -= tuning.belowMinimumXGPenalty;
+        }
+        if (!attackingThird && xg < tuning.nonAttackingThirdMinimumXG) {
+            score -= tuning.nonAttackingThirdLowXGPenalty;
+        }
+        if (earlyPossessionShot && xg < tuning.earlyActionMinimumXG) {
+            score -= tuning.earlyActionLowXGPenalty;
+        }
+        if (context.carrierPressure >= 35.0 && xg < tuning.pressuredShotMinimumXG) {
+            score -= tuning.pressuredLowXGPenalty;
+        }
+        if (distance > tuning.longShotDistance && xg < tuning.weakShotXG) {
+            score -= tuning.longRangeWeakXGPenalty;
+        }
+        if (isDefensiveRole(context.carrierRole) && xg < tuning.inappropriateRoleMinimumXG) {
+            score -= tuning.defensiveRoleLowXGPenalty;
+        }
     }
 
     ShotOption option;
