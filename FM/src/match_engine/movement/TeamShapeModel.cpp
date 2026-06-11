@@ -31,6 +31,11 @@ namespace {
         double transitionCounterPressBlend = 0.08;
         double counterPressProximityMeters = 28.0;
         double goalkeeperDefensiveShiftMeters = 0.10;
+        double advancedCentralMinimumGoalDistance = 9.0;
+        double advancedWideMinimumGoalDistance = 6.5;
+        double supportCentralMinimumGoalDistance = 12.0;
+        double supportWideMinimumGoalDistance = 8.5;
+        double restDefenseMinimumGoalDistance = 22.0;
     };
 
     constexpr DynamicShapeProfile kDynamicShapeProfile;
@@ -83,6 +88,12 @@ namespace {
         }
 
         return 0.0;
+    }
+
+    double centralChannelShare(PitchPoint point) {
+        const double distanceFromCenter =
+            std::abs(point.y - PitchGeometry::WidthMeters / 2.0);
+        return std::clamp(1.0 - (distanceFromCenter / (PitchGeometry::WidthMeters * 0.24)), 0.0, 1.0);
     }
 
     bool isWideRole(FormationSlotRole role) {
@@ -155,6 +166,42 @@ namespace {
         }
 
         return false;
+    }
+
+    double minimumShapeGoalDistance(FormationSlotRole role, PitchPoint target) {
+        if (isRestDefenseRole(role)) {
+            return kDynamicShapeProfile.restDefenseMinimumGoalDistance;
+        }
+
+        const double centralShare = centralChannelShare(target);
+        if (isAdvancedSupportRole(role)) {
+            return kDynamicShapeProfile.advancedCentralMinimumGoalDistance * centralShare
+                + kDynamicShapeProfile.advancedWideMinimumGoalDistance * (1.0 - centralShare);
+        }
+
+        return kDynamicShapeProfile.supportCentralMinimumGoalDistance * centralShare
+            + kDynamicShapeProfile.supportWideMinimumGoalDistance * (1.0 - centralShare);
+    }
+
+    PitchPoint enforceOpenPlayShapeDepth(
+        PitchPoint target,
+        FormationSlotRole role,
+        AttackingDirection direction) {
+        if (role == FormationSlotRole::Goalkeeper) {
+            return target;
+        }
+
+        const double minimumDistance = minimumShapeGoalDistance(role, target);
+        const double maxProgress = PitchGeometry::LengthMeters - minimumDistance;
+        const double progress = signedProgressX(target, direction);
+        if (progress <= maxProgress) {
+            return target;
+        }
+
+        return PitchPoint{
+            xFromSignedProgress(std::clamp(maxProgress, 0.0, PitchGeometry::LengthMeters), direction),
+            target.y
+        };
     }
 
     MentalityShapeProfile mentalityProfile(TeamMentality mentality) {
@@ -452,7 +499,8 @@ namespace {
             break;
         }
 
-        return PitchGeometry::clampToPitch(adjusted);
+        return PitchGeometry::clampToPitch(
+            enforceOpenPlayShapeDepth(adjusted, role, context.attackingDirection));
     }
 
     PitchPoint toPitchPoint(FormationPitchCoordinate coordinate, AttackingDirection direction) {

@@ -76,6 +76,11 @@ struct PassDecisionTuning {
     double throughBallProgressionBonus = 13.0;
     double crossOrCutbackProgressionBonus = 10.0;
     double backPassProgressionMultiplier = 0.18;
+    double centralSimpleReceptionMinimumGoalDistance = 11.0;
+    double centralThroughBallMinimumGoalDistance = 11.5;
+    double centralCrossOrCutbackMinimumGoalDistance = 12.0;
+    double halfSpaceReceptionMinimumGoalDistance = 10.0;
+    double minimumReceptionGoalLineDistance = 7.0;
 };
 
 struct CarryDecisionTuning {
@@ -106,20 +111,33 @@ struct CarryDecisionTuning {
     double minimumSafeCarryScore = 18.0;
     double minimumProgressiveCarryScore = 12.0;
     double minimumDribbleScore = 8.0;
+    double minimumUsefulCarryDistance = 1.25;
+    double centralSafeCarryMinimumGoalDistance = 14.0;
+    double centralProgressiveCarryMinimumGoalDistance = 11.0;
+    double centralDribbleMinimumGoalDistance = 10.5;
+    double halfSpaceCarryMinimumGoalDistance = 10.0;
+    double minimumCarryGoalLineDistance = 7.0;
+    double goalmouthPressureRiskDistance = 12.0;
+    double sixYardPressureRisk = 44.0;
+    double closeBoxPressureRisk = 30.0;
+    double boxPressureRisk = 14.0;
+    double nearbyCollapseRisk = 7.0;
+    double goalkeeperCloseDownRisk = 16.0;
+    double eliteCarryRiskReduction = 0.25;
 };
 
 struct ShotDecisionTuning {
     double openPlayShotBaseline = 1.0;
     double pressurePenaltyScale = 1.0;
-    double minimumOpenPlayXG = 0.04;
-    double nonAttackingThirdMinimumXG = 0.10;
-    double earlyActionMinimumXG = 0.22;
-    double pressuredShotMinimumXG = 0.24;
+    double minimumOpenPlayXG = 0.025;
+    double nonAttackingThirdMinimumXG = 0.075;
+    double earlyActionMinimumXG = 0.16;
+    double pressuredShotMinimumXG = 0.18;
     double weakShotXG = 0.12;
     double defensiveRoleLowXG = 0.16;
     double inappropriateRoleMinimumXG = 0.22;
-    double optionScoreMinimum = 14.0;
-    double strongChanceAlwaysIncludeXG = 0.24;
+    double optionScoreMinimum = 8.0;
+    double strongChanceAlwaysIncludeXG = 0.30;
     double distanceScoreBaseline = 50.0;
     double distanceScoreContribution = 0.05;
     double angleScoreBaseline = 20.0;
@@ -145,29 +163,29 @@ struct ShotDecisionTuning {
     double defensiveRoleWeakShotMultiplier = 0.45;
     double earlyActionWeakShotMultiplier = 0.58;
     double pressuredWeakShotMultiplier = 0.56;
-    double belowMinimumXGPenalty = 18.0;
-    double nonAttackingThirdLowXGPenalty = 18.0;
-    double earlyActionLowXGPenalty = 24.0;
-    double pressuredLowXGPenalty = 20.0;
-    double longRangeWeakXGPenalty = 18.0;
-    double defensiveRoleLowXGPenalty = 24.0;
+    double belowMinimumXGPenalty = 10.0;
+    double nonAttackingThirdLowXGPenalty = 12.0;
+    double earlyActionLowXGPenalty = 14.0;
+    double pressuredLowXGPenalty = 14.0;
+    double longRangeWeakXGPenalty = 12.0;
+    double defensiveRoleLowXGPenalty = 16.0;
     double xgVeryWeakThreshold = 0.02;
     double xgWeakThreshold = 0.05;
     double xgLowThreshold = 0.08;
     double xgMediumThreshold = 0.18;
     double xgGoodThreshold = 0.30;
-    double xgVeryWeakBase = 1.0;
-    double xgVeryWeakSlope = 180.0;
-    double xgWeakBase = 5.0;
-    double xgWeakSlope = 190.0;
-    double xgLowBase = 12.0;
-    double xgLowSlope = 180.0;
-    double xgMediumBase = 28.0;
-    double xgMediumSlope = 170.0;
-    double xgGoodBase = 46.0;
-    double xgGoodSlope = 135.0;
-    double xgGreatBase = 62.0;
-    double xgGreatSlope = 70.0;
+    double xgVeryWeakBase = 2.0;
+    double xgVeryWeakSlope = 150.0;
+    double xgWeakBase = 8.0;
+    double xgWeakSlope = 165.0;
+    double xgLowBase = 18.0;
+    double xgLowSlope = 165.0;
+    double xgMediumBase = 34.0;
+    double xgMediumSlope = 110.0;
+    double xgGoodBase = 45.0;
+    double xgGoodSlope = 55.0;
+    double xgGreatBase = 52.0;
+    double xgGreatSlope = 18.0;
 };
 
 struct ShotContextTuning {
@@ -293,17 +311,19 @@ struct ShotExecutionTuning {
     double maximumExecutionQuality = 99.0;
     double baseDeviationMeters = 0.35;
     double qualityDeviationScale = 4.1;
-    double frameBaseLateralDeviationMeters = 0.20;
-    double frameQualityLateralDeviationScale = 1.20;
-    double framePressureLateralDeviationScale = 0.52;
-    double frameDistanceLateralDeviationScale = 0.030;
-    double frameAngleLateralDeviationScale = 0.46;
-    double frameBaseHeightDeviationMeters = 0.12;
-    double frameQualityHeightDeviationScale = 0.64;
-    double framePressureHeightDeviationScale = 0.30;
-    double frameDistanceHeightDeviationScale = 0.012;
-    double highXGDeviationReduction = 0.45;
-    double highXGDeviationReference = 0.35;
+    double frameBaseLateralDeviationMeters = 0.85;
+    double frameQualityLateralDeviationScale = 3.10;
+    double framePressureLateralDeviationScale = 1.20;
+    double frameDistanceLateralDeviationScale = 0.080;
+    double frameAngleLateralDeviationScale = 1.20;
+    double frameTypeLateralDeviationScale = 1.05;
+    double frameBaseHeightDeviationMeters = 0.46;
+    double frameQualityHeightDeviationScale = 1.70;
+    double framePressureHeightDeviationScale = 0.62;
+    double frameDistanceHeightDeviationScale = 0.034;
+    double frameTypeHeightDeviationScale = 0.56;
+    double highXGDeviationReduction = 0.0;
+    double highXGDeviationReference = 0.55;
     double pressureDeviationScale = 1.35;
     double distanceDeviationScale = 0.065;
     double angleDeviationScale = 1.15;
@@ -330,9 +350,9 @@ struct ShotExecutionTuning {
 };
 
 struct ShotQualityTuning {
-    double openPlayXGIntercept = -2.75;
-    double openPlayXGDistanceCoefficient = 0.120;
-    double openPlayXGAngleCoefficient = 1.05;
+    double openPlayXGIntercept = -2.00;
+    double openPlayXGDistanceCoefficient = 0.085;
+    double openPlayXGAngleCoefficient = 1.00;
     double openPlayXGPressureCoefficient = 0.022;
     double openPlayXGMinimum = 0.004;
     double pressureScale = 100.0;
@@ -551,16 +571,16 @@ struct CarryActionScoringProfile {
 };
 
 struct ShotActionScoringProfile {
-    double xgToChanceValue = 30.0;
+    double xgToChanceValue = 24.0;
     double angleToChanceValue = 0.08;
     double distanceToChanceValue = 0.08;
     double tacticalChanceFit = 2.0;
     double roleChanceFit = 4.0;
     double shooterConfidenceToSkillFit = 0.08;
     double pressurePenaltyToPressureCost = 0.22;
-    double safeCirculationShotCost = 28.0;
-    double earlyActionShotCost = 18.0;
-    double nonClearChanceXG = 0.28;
+    double safeCirculationShotCost = 10.0;
+    double earlyActionShotCost = 6.0;
+    double nonClearChanceXG = 0.16;
     double riskToleranceMinimum = 0.45;
 };
 
@@ -584,10 +604,13 @@ struct ClearActionScoringProfile {
 };
 
 struct PhaseFitProfile {
-    double shotBoxEntry = 3.0;
-    double shotChanceCreation = 3.0;
-    double shotFinalThird = -4.0;
+    double shotBoxEntry = 6.0;
+    double shotChanceCreation = 5.0;
+    double shotFinalThird = 3.0;
     double shotBuildUp = -14.0;
+    double shotStalledFinalThird = 38.0;
+    int shotStalledActionCount = 5;
+    double shotStalledSeconds = 14.0;
     double carryProgressionAvailable = 4.0;
 };
 

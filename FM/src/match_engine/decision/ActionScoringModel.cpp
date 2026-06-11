@@ -40,15 +40,28 @@ namespace {
         const PlayerDecisionContext& context,
         BallCarrierActionType type,
         const PhaseFitProfile& profile) {
+        const bool staleAdvancedPossession =
+            !context.possession.progressionAvailable
+            || context.possession.possessionActionCount >= profile.shotStalledActionCount
+            || context.possession.secondsSinceLastMeaningfulProgression >= profile.shotStalledSeconds;
         if (type == BallCarrierActionType::Shoot) {
             if (context.phase == DecisionMatchPhase::BoxEntry) {
-                return profile.shotBoxEntry;
+                return profile.shotBoxEntry
+                    + (staleAdvancedPossession
+                        ? profile.shotStalledFinalThird
+                        : 0.0);
             }
             if (context.phase == DecisionMatchPhase::ChanceCreation) {
-                return profile.shotChanceCreation;
+                return profile.shotChanceCreation
+                    + (staleAdvancedPossession
+                        ? profile.shotStalledFinalThird
+                        : 0.0);
             }
             if (context.phase == DecisionMatchPhase::FinalThird) {
-                return profile.shotFinalThird;
+                return profile.shotFinalThird
+                    + (staleAdvancedPossession
+                        ? profile.shotStalledFinalThird
+                        : 0.0);
             }
             if (context.phase == DecisionMatchPhase::BuildUp) {
                 return profile.shotBuildUp;

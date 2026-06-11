@@ -259,6 +259,8 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     const double pressurePenalty =
         std::clamp(context.carrierPressure * tuning.pressurePenaltyScale, 0.0, 100.0);
     const bool weakShot = xg < tuning.weakShotXG;
+    const bool shootingZone =
+        advancedPhase || (attackingThird && distance <= 22.0);
 
     double score = xgDesire(xg, tuning) * tuning.openPlayShotBaseline
         + (distanceScore - tuning.distanceScoreBaseline) * tuning.distanceScoreContribution
@@ -306,7 +308,7 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
         if (earlyPossessionShot && xg < tuning.earlyActionMinimumXG) {
             score -= tuning.earlyActionLowXGPenalty;
         }
-        if (context.carrierPressure >= 35.0 && xg < tuning.pressuredShotMinimumXG) {
+        if (!shootingZone && context.carrierPressure >= 35.0 && xg < tuning.pressuredShotMinimumXG) {
             score -= tuning.pressuredLowXGPenalty;
         }
         if (distance > tuning.longShotDistance && xg < tuning.weakShotXG) {

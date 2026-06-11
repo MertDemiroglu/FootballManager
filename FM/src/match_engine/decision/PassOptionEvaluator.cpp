@@ -19,6 +19,12 @@ namespace {
         return (to.x - from.x) * directionSign(direction);
     }
 
+    double signedProgressX(PitchPoint point, AttackingDirection direction) {
+        return direction == AttackingDirection::HomeToAway
+            ? point.x
+            : PitchGeometry::LengthMeters - point.x;
+    }
+
     bool isAhead(PitchPoint from, PitchPoint to, AttackingDirection direction) {
         return forwardMeters(from, to, direction) > 1.0;
     }
@@ -79,6 +85,54 @@ namespace {
             receiverPosition.x + directionSign(direction) * 7.5,
             receiverPosition.y
         });
+    }
+
+    PitchPoint goalCenterFor(AttackingDirection direction) {
+        return direction == AttackingDirection::HomeToAway
+            ? PitchGeometry::awayGoalCenter()
+            : PitchGeometry::homeGoalCenter();
+    }
+
+    double centralChannelShare(PitchPoint point) {
+        const double distanceFromCenter =
+            std::abs(point.y - PitchGeometry::WidthMeters / 2.0);
+        return std::clamp(1.0 - (distanceFromCenter / (PitchGeometry::WidthMeters * 0.24)), 0.0, 1.0);
+    }
+
+    double receptionMinimumGoalDistance(PassOptionKind kind, const PassDecisionTuning& tuning) {
+        if (kind == PassOptionKind::ThroughBall) {
+            return tuning.centralThroughBallMinimumGoalDistance;
+        }
+        if (kind == PassOptionKind::Cross || kind == PassOptionKind::Cutback) {
+            return tuning.centralCrossOrCutbackMinimumGoalDistance;
+        }
+        return tuning.centralSimpleReceptionMinimumGoalDistance;
+    }
+
+    PitchPoint constrainCentralReceptionTarget(
+        PitchPoint target,
+        PassOptionKind kind,
+        AttackingDirection direction,
+        const PassDecisionTuning& tuning) {
+        const double centralShare = centralChannelShare(target);
+        const double minimumGoalDistance =
+            receptionMinimumGoalDistance(kind, tuning) * centralShare
+            + tuning.halfSpaceReceptionMinimumGoalDistance * (1.0 - centralShare);
+        const double maxGoalLineProgress =
+            PitchGeometry::LengthMeters - tuning.minimumReceptionGoalLineDistance;
+        if (PitchGeometry::distance(target, goalCenterFor(direction)) >= minimumGoalDistance
+            && signedProgressX(target, direction) <= maxGoalLineProgress) {
+            return target;
+        }
+
+        const double goalX = direction == AttackingDirection::HomeToAway
+            ? PitchGeometry::LengthMeters
+            : 0.0;
+        PitchPoint adjusted = target;
+        adjusted.x = goalX - directionSign(direction) * std::max(
+            minimumGoalDistance,
+            tuning.minimumReceptionGoalLineDistance);
+        return PitchGeometry::clampToPitch(adjusted);
     }
 
     double distancePointToSegment(PitchPoint point, PitchPoint a, PitchPoint b) {
@@ -385,9 +439,11 @@ namespace {
         const RoleRiskProfile& role,
         const TacticalBiasProfile& tactics,
         const PassDecisionTuning& tuning) {
-        const double distance = PitchGeometry::distance(context.ballPosition, targetPoint);
-        const double lane = laneRisk(context.ballPosition, targetPoint, kind, context.opponentState);
-        const double pressure = receiverPressure(receiver.position, context.opponentState);
+        const PitchPoint adjustedTarget =
+            constrainCentralReceptionTarget(targetPoint, kind, context.attackingDirection, tuning);
+        const double distance = PitchGeometry::distance(context.ballPosition, adjustedTarget);
+        const double lane = laneRisk(context.ballPosition, adjustedTarget, kind, context.opponentState);
+        const double pressure = receiverPressure(adjustedTarget, context.opponentState);
         const double skill = executionSkill(passerAttributes, kind);
         const double difficulty =
             executionDifficulty(distance, lane, pressure, context.carrierPressure, kind, skill);
@@ -405,7 +461,7 @@ namespace {
 
         const double forward = std::max(0.0, forwardMeters(
             context.ballPosition,
-            receiver.position,
+            adjustedTarget,
             context.attackingDirection));
         double progression = std::min(tuning.progressionForwardCap, forward * tuning.progressionForwardMultiplier)
             + (isFinalThird(receiver.position, context.attackingDirection)
@@ -470,7 +526,7 @@ namespace {
         option.kind = kind;
         option.actionType = actionTypeFor(kind);
         option.targetPlayerId = receiver.playerId;
-        option.targetPoint = PitchGeometry::clampToPitch(targetPoint);
+        option.targetPoint = PitchGeometry::clampToPitch(adjustedTarget);
         option.score = clampScore(score);
         option.safetyScore = safety;
         option.progressionScore = progression;

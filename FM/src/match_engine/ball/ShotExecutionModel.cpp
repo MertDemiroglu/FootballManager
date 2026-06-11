@@ -118,14 +118,18 @@ ShotExecutionResult ShotExecutionModel::execute(const ShotExecutionRequest& requ
             + qualityPenalty * tuning.frameQualityLateralDeviationScale
             + context.pressure / 100.0 * tuning.framePressureLateralDeviationScale
             + context.distanceMeters * tuning.frameDistanceLateralDeviationScale
-            + (1.0 - context.centrality) * tuning.frameAngleLateralDeviationScale)
+            + (1.0 - context.centrality) * tuning.frameAngleLateralDeviationScale
+            + (typeDifficulty(request.shotType, tuning) / tuning.difficultyScale
+                * tuning.frameTypeLateralDeviationScale))
         * deviationReduction;
     const double frameHeightDeviation =
         signedUnit(context.seed ^ 0x827acdULL)
         * (tuning.frameBaseHeightDeviationMeters
             + qualityPenalty * tuning.frameQualityHeightDeviationScale
             + context.pressure / 100.0 * tuning.framePressureHeightDeviationScale
-            + context.distanceMeters * tuning.frameDistanceHeightDeviationScale)
+            + context.distanceMeters * tuning.frameDistanceHeightDeviationScale
+            + (typeDifficulty(request.shotType, tuning) / tuning.difficultyScale
+                * tuning.frameTypeHeightDeviationScale))
         * deviationReduction;
 
     ShotTargetZone actualZone = request.intendedTarget.intendedZone;

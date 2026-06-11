@@ -7,6 +7,10 @@
 namespace {
     struct PassResolutionProfile {
         double routinePassSafetyBonus = 8.0;
+        double routineShortPassDistance = 16.0;
+        double routineLowPressureLimit = 28.0;
+        double routineMisplacedMultiplier = 0.48;
+        double routineContestRelief = 10.0;
         double highPressureThreshold = 36.0;
         double closeDefenderMeters = 3.0;
         double closeLaneMeters = 2.8;
@@ -16,6 +20,13 @@ namespace {
         return type == BallCarrierActionType::ShortPass
             || type == BallCarrierActionType::BackPass
             || type == BallCarrierActionType::SwitchPlay;
+    }
+
+    bool isRoutineShortSafePass(const PassResolutionContext& context) {
+        const PassResolutionProfile profile;
+        return isRoutinePass(context.actionType)
+            && context.passDistance <= profile.routineShortPassDistance
+            && context.pressure <= profile.routineLowPressureLimit;
     }
 
     double clampDouble(double value, double minimum, double maximum) {
@@ -106,8 +117,11 @@ PassResolutionResult PassResolutionModel::resolve(const PassResolutionContext& c
         clampDouble(context.pressure * 0.10, 0.0, 18.0);
     const double reachSlack =
         context.receiverControlRange - context.receiverDistanceToArrival;
-    const double misplacedChance =
+    double misplacedChance =
         clampDouble(executionError + pressureError - (reachSlack * 7.0), 0.0, 38.0);
+    if (isRoutineShortSafePass(context)) {
+        misplacedChance *= PassResolutionProfile{}.routineMisplacedMultiplier;
+    }
     if (unitRoll(context.seed, 0x7f96a33e1f2d71ULL) * 100.0 < misplacedChance) {
         return resultFor(PassResolutionOutcome::MisplacedLoose);
     }
@@ -118,7 +132,10 @@ PassResolutionResult PassResolutionModel::resolve(const PassResolutionContext& c
             : resultFor(PassResolutionOutcome::CleanReceive);
     }
 
-    const double contestBalance = defenderThreat(context) - receiverSecurity(context);
+    double contestBalance = defenderThreat(context) - receiverSecurity(context);
+    if (isRoutineShortSafePass(context)) {
+        contestBalance -= PassResolutionProfile{}.routineContestRelief;
+    }
     const double interceptChance =
         clampDouble((contestBalance * 1.15) + (context.pressure * 0.08), 0.0, 48.0);
     const double deflectChance =

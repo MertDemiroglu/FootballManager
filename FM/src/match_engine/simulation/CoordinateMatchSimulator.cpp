@@ -983,6 +983,10 @@ namespace {
     }
 
     double nearestOpponentPressure(PitchPoint position, const std::vector<PlayerSimState>& opponents);
+    double closeGoalAreaPressure(
+        PitchPoint position,
+        const std::vector<PlayerSimState>& opponents,
+        AttackingDirection direction);
     double ballProgression(PitchPoint point, AttackingDirection direction);
     AttackingDirection attackingDirectionForTeam(const TeamSimState& team);
     DecisionMatchPhase decisionPhaseFor(
@@ -1046,7 +1050,9 @@ namespace {
         const ContextProfile profile;
         const double blockCompactness = opponentBlockCompactness(carrier.position, opponents);
         const double pressure = std::clamp(
-            nearestOpponentPressure(carrier.position, opponents) + blockCompactness * 0.16,
+            nearestOpponentPressure(carrier.position, opponents)
+                + blockCompactness * 0.16
+                + closeGoalAreaPressure(carrier.position, opponents, shapeContext.attackingDirection),
             0.0,
             100.0);
         const double progress = ballProgression(carrier.position, shapeContext.attackingDirection);
@@ -1216,6 +1222,51 @@ namespace {
             return 10.0;
         }
         return opponents.empty() ? 0.0 : 3.0;
+    }
+
+    double centralGoalChannelShare(PitchPoint position) {
+        const double distanceFromCenter =
+            std::abs(position.y - PitchGeometry::WidthMeters / 2.0);
+        return std::clamp(1.0 - (distanceFromCenter / (PitchGeometry::WidthMeters * 0.24)), 0.0, 1.0);
+    }
+
+    double opponentGoalDistance(PitchPoint position, AttackingDirection direction) {
+        return PitchGeometry::distance(position, opponentGoalCenter(direction));
+    }
+
+    double closeGoalAreaPressure(
+        PitchPoint position,
+        const std::vector<PlayerSimState>& opponents,
+        AttackingDirection direction) {
+        const double distance = opponentGoalDistance(position, direction);
+        if (distance > 14.0) {
+            return 0.0;
+        }
+
+        const double centralShare = centralGoalChannelShare(position);
+        if (centralShare <= 0.05) {
+            return 0.0;
+        }
+
+        double pressure = 0.0;
+        if (distance <= 4.0) {
+            pressure += 50.0;
+        } else if (distance <= 8.0) {
+            pressure += 34.0;
+        } else {
+            pressure += 16.0;
+        }
+
+        for (const PlayerSimState& opponent : opponents) {
+            const double opponentDistance = PitchGeometry::distance(position, opponent.position);
+            if (opponentDistance <= 6.0) {
+                pressure += 7.0;
+            } else if (opponentDistance <= 11.0) {
+                pressure += 3.0;
+            }
+        }
+
+        return std::clamp(pressure * centralShare, 0.0, 70.0);
     }
 
     double ballProgression(PitchPoint point, AttackingDirection direction) {
@@ -1435,6 +1486,40 @@ namespace {
             }
         }
         return false;
+    }
+
+    double closeGoalCarryTurnoverProbability(
+        PitchPoint target,
+        const std::vector<PlayerSimState>& opponents,
+        AttackingDirection direction,
+        double pressure,
+        BallCarrierActionType actionType) {
+        const double distance = opponentGoalDistance(target, direction);
+        const double centralShare = centralGoalChannelShare(target);
+        if (distance > 10.0 || centralShare <= 0.05) {
+            return 0.0;
+        }
+
+        int nearbyDefenders = 0;
+        for (const PlayerSimState& opponent : opponents) {
+            if (PitchGeometry::distance(target, opponent.position) <= 7.0) {
+                ++nearbyDefenders;
+            }
+        }
+
+        const double depthRisk = (10.0 - distance) / 10.0;
+        const double dribbleRisk =
+            actionType == BallCarrierActionType::Dribble
+                || actionType == BallCarrierActionType::CutInside ? 0.06 : 0.0;
+        return std::clamp(
+            0.03
+                + depthRisk * 0.24
+                + centralShare * 0.10
+                + std::clamp(pressure, 0.0, 100.0) / 100.0 * 0.28
+                + std::min(nearbyDefenders, 5) * 0.035
+                + dribbleRisk,
+            0.0,
+            0.58);
     }
 
     void updateMeaningfulProgression(MatchSimulationState& state) {
@@ -2034,6 +2119,32 @@ namespace {
                 carrier->effectivePace,
                 2.0,
                 actionType == BallCarrierActionType::Carry ? 6.0 : 5.0);
+            const double closeCarryTurnoverProbability = closeGoalCarryTurnoverProbability(
+                action.intendedTarget,
+                opponentState->players,
+                carrierShapeContext.attackingDirection,
+                action.pressurePenalty,
+                actionType);
+            const double closeCarryRoll = matchEngineDeterministicUnitInterval(
+                stepSeed(baseSeed, state, carrier->playerId ^ 0x6cc991ULL));
+            if (closeCarryRoll < closeCarryTurnoverProbability) {
+                const PitchPoint loosePoint = PitchGeometry::clampToPitch(PitchPoint{
+                    (carrier->position.x * 0.35) + (action.intendedTarget.x * 0.65),
+                    (carrier->position.y * 0.35) + (action.intendedTarget.y * 0.65)
+                });
+                setLooseBall(state, loosePoint);
+                appendTrace(
+                    result,
+                    input.options.detail,
+                    state,
+                    MatchTraceKind::Turnover,
+                    carrier->teamId,
+                    carrier->playerId,
+                    0,
+                    carrier->position,
+                    loosePoint);
+                return SimulationStepResult{ elapsedSeconds, true };
+            }
             moveControlledBall(
                 state,
                 *carrier,

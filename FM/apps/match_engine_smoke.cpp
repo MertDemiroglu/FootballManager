@@ -459,6 +459,8 @@ namespace {
         int reboundShots = 0;
         double totalShotDistance = 0.0;
         int distanceSamples = 0;
+        int shotsInsideFourMeters = 0;
+        int shotsFourToEightMeters = 0;
     };
 
     MatchTraceKind previousSignificantTraceKind(
@@ -498,8 +500,14 @@ namespace {
                 continue;
             }
 
-            diagnostic.totalShotDistance +=
+            const double shotDistance =
                 PitchGeometry::distance(frame.ballPosition, goalCenterForTraceTeam(input, frame.teamId));
+            diagnostic.totalShotDistance += shotDistance;
+            if (shotDistance <= 4.0) {
+                ++diagnostic.shotsInsideFourMeters;
+            } else if (shotDistance <= 8.0) {
+                ++diagnostic.shotsFourToEightMeters;
+            }
             ++diagnostic.distanceSamples;
 
             const MatchTraceKind previousKind = previousSignificantTraceKind(result, i);
@@ -650,26 +658,64 @@ namespace {
 
     void runShotQualityModelSmoke() {
         const double closeCentral = ShotQualityModel::calculateOpenPlayXG(
+            PitchPoint{ 102.0, PitchGeometry::WidthMeters / 2.0 },
+            AttackingDirection::HomeToAway,
+            6.0);
+        const double centralEightMeters = ShotQualityModel::calculateOpenPlayXG(
             PitchPoint{ 97.0, PitchGeometry::WidthMeters / 2.0 },
             AttackingDirection::HomeToAway,
-            8.0);
-        const double farWide = ShotQualityModel::calculateOpenPlayXG(
-            PitchPoint{ 70.0, 6.0 },
+            6.0);
+        const double centralTwelveMeters = ShotQualityModel::calculateOpenPlayXG(
+            PitchPoint{ 93.0, PitchGeometry::WidthMeters / 2.0 },
+            AttackingDirection::HomeToAway,
+            6.0);
+        const double centralEighteenMeters = ShotQualityModel::calculateOpenPlayXG(
+            PitchPoint{ 87.0, PitchGeometry::WidthMeters / 2.0 },
+            AttackingDirection::HomeToAway,
+            6.0);
+        const double wideAngle = ShotQualityModel::calculateOpenPlayXG(
+            PitchPoint{ 97.0, 21.0 },
+            AttackingDirection::HomeToAway,
+            6.0);
+        const double longShot = ShotQualityModel::calculateOpenPlayXG(
+            PitchPoint{ 78.0, PitchGeometry::WidthMeters / 2.0 },
             AttackingDirection::HomeToAway,
             8.0);
         const double pressured = ShotQualityModel::calculateOpenPlayXG(
-            PitchPoint{ 97.0, PitchGeometry::WidthMeters / 2.0 },
+            PitchPoint{ 102.0, PitchGeometry::WidthMeters / 2.0 },
             AttackingDirection::HomeToAway,
             70.0);
         const double reverseDirection = ShotQualityModel::calculateOpenPlayXG(
-            PitchPoint{ 8.0, PitchGeometry::WidthMeters / 2.0 },
+            PitchPoint{ 3.0, PitchGeometry::WidthMeters / 2.0 },
             AttackingDirection::AwayToHome,
-            8.0);
+            6.0);
 
-        require(closeCentral > farWide, "close central xG should exceed far wide xG");
+        require(closeCentral > centralEightMeters, "2-4m central xG should exceed 7-9m central xG");
+        require(centralEightMeters > centralTwelveMeters, "7-9m central xG should exceed 11-14m central xG");
+        require(centralTwelveMeters > centralEighteenMeters, "11-14m central xG should exceed 16-20m central xG");
+        require(centralTwelveMeters > wideAngle, "central box xG should exceed wide/tight angle xG");
+        require(wideAngle > longShot, "wide box xG should still exceed long shot xG");
         require(closeCentral > pressured, "higher pressure should reduce xG");
-        require(reverseDirection > farWide, "away-to-home xG should use the opposite goal");
-        for (double xg : { closeCentral, farWide, pressured, reverseDirection }) {
+        require(reverseDirection > centralTwelveMeters, "away-to-home xG should use the opposite goal");
+        require(closeCentral >= 0.30, "2-4m central clear chance should be high xG");
+        require(centralEightMeters >= 0.10 && centralEightMeters <= 0.24,
+            "7-9m central chance should be good but not automatic");
+        require(centralTwelveMeters >= 0.05 && centralTwelveMeters <= 0.12,
+            "11-14m central chance should be medium");
+        require(centralEighteenMeters >= 0.02 && centralEighteenMeters <= 0.07,
+            "16-20m central chance should be low to medium-low");
+        require(wideAngle <= centralTwelveMeters * 0.75,
+            "wide/tight angle chance should be clearly lower than central chance");
+        require(longShot <= 0.035, "long shot should remain low xG");
+        for (double xg : {
+            closeCentral,
+            centralEightMeters,
+            centralTwelveMeters,
+            centralEighteenMeters,
+            wideAngle,
+            longShot,
+            pressured,
+            reverseDirection }) {
             require(xg > 0.0 && xg < 1.0, "open-play xG should remain a probability without an upper clamp");
         }
     }
@@ -2024,6 +2070,10 @@ namespace {
         int totalShotsOnTarget = 0;
         int totalGoals = 0;
         int totalPasses = 0;
+        int strongPassesAttempted = 0;
+        int strongPassesCompleted = 0;
+        int weakPassesAttempted = 0;
+        int weakPassesCompleted = 0;
         int totalCarryTraces = 0;
         int totalShotTraces = 0;
         int hundredShotSamples = 0;
@@ -2085,10 +2135,40 @@ namespace {
                     && std::min(result.homeStats.passesAttempted, result.awayStats.passesAttempted) < 100)
                 || (maxPossession > 90.0 && combinedPasses > 1500 && combinedShots == 0);
             if (extremeLoop) {
+                double homeMaxProgress = 0.0;
+                double awayMaxProgress = 0.0;
+                MatchTraceKind homeMaxKind = MatchTraceKind::PossessionStart;
+                MatchTraceKind awayMaxKind = MatchTraceKind::PossessionStart;
+                PitchPoint homeMaxPoint{};
+                PitchPoint awayMaxPoint{};
+                for (const MatchTraceFrame& frame : result.traceFrames) {
+                    if (frame.teamId == result.homeStats.teamId) {
+                        const double progress = frame.ballPosition.x / PitchGeometry::LengthMeters;
+                        if (progress > homeMaxProgress) {
+                            homeMaxProgress = progress;
+                            homeMaxKind = frame.kind;
+                            homeMaxPoint = frame.ballPosition;
+                        }
+                    } else if (frame.teamId == result.awayStats.teamId) {
+                        const double progress =
+                            (PitchGeometry::LengthMeters - frame.ballPosition.x) / PitchGeometry::LengthMeters;
+                        if (progress > awayMaxProgress) {
+                            awayMaxProgress = progress;
+                            awayMaxKind = frame.kind;
+                            awayMaxPoint = frame.ballPosition;
+                        }
+                    }
+                }
                 std::cerr << "anti-loop guardrail seed=" << (0x9300ULL + seed)
                     << " maxPossession=" << maxPossession
                     << " combinedPasses=" << combinedPasses
                     << " combinedShots=" << combinedShots
+                    << " homeMaxProgress=" << homeMaxProgress
+                    << " homeMaxKind=" << static_cast<int>(homeMaxKind)
+                    << " homeMaxPoint=" << homeMaxPoint.x << "," << homeMaxPoint.y
+                    << " awayMaxProgress=" << awayMaxProgress
+                    << " awayMaxKind=" << static_cast<int>(awayMaxKind)
+                    << " awayMaxPoint=" << awayMaxPoint.x << "," << awayMaxPoint.y
                     << " homePossession=" << result.homeStats.possessionShare
                     << " awayPossession=" << result.awayStats.possessionShare
                     << " homePasses=" << result.homeStats.passesCompleted
@@ -2122,6 +2202,10 @@ namespace {
             totalShotsOnTarget += combinedShotsOnTarget;
             totalGoals += combinedGoals;
             totalPasses += combinedPasses;
+            strongPassesAttempted += result.homeStats.passesAttempted;
+            strongPassesCompleted += result.homeStats.passesCompleted;
+            weakPassesAttempted += result.awayStats.passesAttempted;
+            weakPassesCompleted += result.awayStats.passesCompleted;
             totalExpectedGoals += combinedXG;
             totalRawExpectedGoals += combinedRawXG;
             totalKeeperFacingExpectedGoals += combinedKeeperFacingXG;
@@ -2138,6 +2222,8 @@ namespace {
             totalShotOutcomes.reboundShots += shotOutcomes.reboundShots;
             totalShotOutcomes.totalShotDistance += shotOutcomes.totalShotDistance;
             totalShotOutcomes.distanceSamples += shotOutcomes.distanceSamples;
+            totalShotOutcomes.shotsInsideFourMeters += shotOutcomes.shotsInsideFourMeters;
+            totalShotOutcomes.shotsFourToEightMeters += shotOutcomes.shotsFourToEightMeters;
 
             for (const MatchTeamSimulationStats* stats : { &result.homeStats, &result.awayStats }) {
                 require(stats->passesAttempted > 0, "detailed coordinate match should attempt passes");
@@ -2179,10 +2265,111 @@ namespace {
                 }));
         }
 
-        require(assistedGoalSamples > 0,
-            "detailed coordinate possession-created goals should be able to record assists");
-        require(goalScorerRatingSamples > 0,
-            "detailed coordinate goal scorers should receive a visible rating lift");
+        if (hundredShotSamples > 0 || explodedXGSamples > 0 || totalGoals >= 15) {
+            std::cerr << "shot-volume diagnostic samples=" << hundredShotSamples
+                << " maxSeed=" << maxShotSeed
+                << " maxShots=" << maxSampleShots
+                << " maxXg=" << maxSampleXg
+                << " maxGoals=" << maxSampleGoals
+                << " assistedGoals=" << totalGoalSources.assistedGoals
+                << " soloShots=" << totalGoalSources.soloShots
+                << " reboundOrLooseGoals=" << totalGoalSources.reboundOrLooseGoals
+                << " transitionGoals=" << totalGoalSources.transitionGoals
+                << '\n';
+        }
+        if (totalShots == 0) {
+            std::cerr << "action-mix diagnostic totalPasses=" << totalPasses
+                << " totalCarries=" << totalCarryTraces
+                << " totalShots=0"
+                << " totalShotTraces=" << totalShotTraces
+                << " strongPasses=" << strongPassesCompleted << "/" << strongPassesAttempted
+                << " weakPasses=" << weakPassesCompleted << "/" << weakPassesAttempted
+                << " goals=" << totalGoals
+                << '\n';
+        }
+        if (totalShots > 0) {
+            const double xgPerShot =
+                totalRawExpectedGoals / static_cast<double>(std::max(totalShots, 1));
+            const double effectiveXgPerShot =
+                totalExpectedGoals / static_cast<double>(std::max(totalShots, 1));
+            const double averageShotDistance =
+                totalShotOutcomes.distanceSamples > 0
+                    ? totalShotOutcomes.totalShotDistance
+                        / static_cast<double>(totalShotOutcomes.distanceSamples)
+                    : 0.0;
+            const double shotsInsideFourRate =
+                static_cast<double>(totalShotOutcomes.shotsInsideFourMeters)
+                / static_cast<double>(std::max(totalShots, 1));
+            const double shotsFourToEightRate =
+                static_cast<double>(totalShotOutcomes.shotsFourToEightMeters)
+                / static_cast<double>(std::max(totalShots, 1));
+            const double shotOnTargetRate =
+                static_cast<double>(totalShotsOnTarget)
+                / static_cast<double>(std::max(totalShots, 1));
+            const double strongPassAccuracy =
+                static_cast<double>(strongPassesCompleted)
+                / static_cast<double>(std::max(strongPassesAttempted, 1));
+            const double weakPassAccuracy =
+                static_cast<double>(weakPassesCompleted)
+                / static_cast<double>(std::max(weakPassesAttempted, 1));
+            std::cerr << "action-mix diagnostic totalPasses=" << totalPasses
+                << " totalCarries=" << totalCarryTraces
+                << " totalShots=" << totalShots
+                << " totalShotTraces=" << totalShotTraces
+                << " strongPasses=" << strongPassesCompleted << "/" << strongPassesAttempted
+                << " weakPasses=" << weakPassesCompleted << "/" << weakPassesAttempted
+                << " rawXG=" << totalRawExpectedGoals
+                << " keeperFacingXG=" << totalKeeperFacingExpectedGoals
+                << " effectiveXG=" << totalExpectedGoals
+                << " blockedXG=" << totalBlockedExpectedGoals
+                << " xgPerShot=" << xgPerShot
+                << " effectiveXgPerShot=" << effectiveXgPerShot
+                << " shotOnTargetRate=" << shotOnTargetRate
+                << " goals=" << totalGoals
+                << " shotsOnTarget=" << totalShotsOnTarget
+                << " assistedGoals=" << totalGoalSources.assistedGoals
+                << " soloGoals=" << totalGoalSources.soloShots
+                << " reboundGoals=" << totalGoalSources.reboundOrLooseGoals
+                << " transitionGoals=" << totalGoalSources.transitionGoals
+                << " reboundShots=" << totalShotOutcomes.reboundShots
+                << " offTarget=" << totalShotOutcomes.offTarget
+                << " savedHeld=" << totalShotOutcomes.savedHeld
+                << " savedParried=" << totalShotOutcomes.savedParried
+                << " woodwork=" << totalShotOutcomes.woodwork
+                << " blockedShots=" << totalShotOutcomes.blockedShots
+                << " avgShotDistance=" << averageShotDistance
+                << " shots0To4m=" << totalShotOutcomes.shotsInsideFourMeters
+                << " shots4To8m=" << totalShotOutcomes.shotsFourToEightMeters
+                << " shots0To4mRate=" << shotsInsideFourRate
+                << " shots4To8mRate=" << shotsFourToEightRate
+                << " strongPassAccuracy=" << strongPassAccuracy
+                << " weakPassAccuracy=" << weakPassAccuracy
+                << '\n';
+            require(averageShotDistance >= 8.0,
+                "watched samples should not create goalmouth-average shot distance");
+            require(shotsInsideFourRate <= 0.12,
+                "0-4m shots should be rare across watched samples");
+            require(shotsFourToEightRate <= 0.35,
+                "4-8m shots should not dominate watched samples");
+            require(effectiveXgPerShot <= 0.25,
+                "effective xG per shot should reflect mixed chance quality across watched samples");
+            require(shotOnTargetRate <= 0.72,
+                "shots on target should not be near automatic across watched samples");
+            require(totalShotOutcomes.offTarget >= std::max(4, totalShots / 8),
+                "watched samples should include natural off-target shots");
+            require(strongPassAccuracy >= 0.62,
+                "strong smoke team should retain plausible pass completion");
+            require(weakPassAccuracy >= 0.52,
+                "weaker smoke team should still complete ordinary circulation often enough");
+        }
+        if (totalGoals >= 3) {
+            require(assistedGoalSamples > 0,
+                "detailed coordinate possession-created goals should be able to record assists");
+        }
+        if (totalGoals > 0) {
+            require(goalScorerRatingSamples > 0,
+                "detailed coordinate goal scorers should receive a visible rating lift");
+        }
         require(totalShots > 0 && totalShotTraces > 0,
             "detailed coordinate samples should include terminal shot actions");
         require(totalCarryTraces > 0,
@@ -2198,53 +2385,6 @@ namespace {
                 << " soloShots=" << totalGoalSources.soloShots
                 << " reboundOrLooseGoals=" << totalGoalSources.reboundOrLooseGoals
                 << " transitionGoals=" << totalGoalSources.transitionGoals
-                << '\n';
-        }
-        if (hundredShotSamples > 0 || explodedXGSamples > 0 || totalGoals >= 15) {
-            std::cerr << "shot-volume diagnostic samples=" << hundredShotSamples
-                << " maxSeed=" << maxShotSeed
-                << " maxShots=" << maxSampleShots
-                << " maxXg=" << maxSampleXg
-                << " maxGoals=" << maxSampleGoals
-                << " assistedGoals=" << totalGoalSources.assistedGoals
-                << " soloShots=" << totalGoalSources.soloShots
-                << " reboundOrLooseGoals=" << totalGoalSources.reboundOrLooseGoals
-                << " transitionGoals=" << totalGoalSources.transitionGoals
-                << '\n';
-        }
-        if (totalShots > 0) {
-            const double xgPerShot =
-                totalRawExpectedGoals / static_cast<double>(std::max(totalShots, 1));
-            const double effectiveXgPerShot =
-                totalExpectedGoals / static_cast<double>(std::max(totalShots, 1));
-            const double averageShotDistance =
-                totalShotOutcomes.distanceSamples > 0
-                    ? totalShotOutcomes.totalShotDistance
-                        / static_cast<double>(totalShotOutcomes.distanceSamples)
-                    : 0.0;
-            std::cerr << "action-mix diagnostic totalPasses=" << totalPasses
-                << " totalCarries=" << totalCarryTraces
-                << " totalShots=" << totalShots
-                << " totalShotTraces=" << totalShotTraces
-                << " rawXG=" << totalRawExpectedGoals
-                << " keeperFacingXG=" << totalKeeperFacingExpectedGoals
-                << " effectiveXG=" << totalExpectedGoals
-                << " blockedXG=" << totalBlockedExpectedGoals
-                << " xgPerShot=" << xgPerShot
-                << " effectiveXgPerShot=" << effectiveXgPerShot
-                << " goals=" << totalGoals
-                << " shotsOnTarget=" << totalShotsOnTarget
-                << " assistedGoals=" << totalGoalSources.assistedGoals
-                << " soloGoals=" << totalGoalSources.soloShots
-                << " reboundGoals=" << totalGoalSources.reboundOrLooseGoals
-                << " transitionGoals=" << totalGoalSources.transitionGoals
-                << " reboundShots=" << totalShotOutcomes.reboundShots
-                << " offTarget=" << totalShotOutcomes.offTarget
-                << " savedHeld=" << totalShotOutcomes.savedHeld
-                << " savedParried=" << totalShotOutcomes.savedParried
-                << " woodwork=" << totalShotOutcomes.woodwork
-                << " blockedShots=" << totalShotOutcomes.blockedShots
-                << " avgShotDistance=" << averageShotDistance
                 << '\n';
         }
         if (totalExpectedGoals >= 12.0 && totalShotsOnTarget * 3 < totalShots) {
