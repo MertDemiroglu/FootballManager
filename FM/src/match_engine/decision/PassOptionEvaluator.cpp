@@ -66,14 +66,22 @@ namespace {
 
     PitchPoint lowCrossTarget(AttackingDirection direction) {
         const double x = direction == AttackingDirection::HomeToAway
-            ? PitchGeometry::LengthMeters - 11.0
-            : 11.0;
+            ? PitchGeometry::LengthMeters - 8.0
+            : 8.0;
 
         return PitchPoint{ x, PitchGeometry::WidthMeters / 2.0 };
     }
 
     PitchPoint cutbackTarget(PitchPoint ballPosition, AttackingDirection direction) {
-        const double x = ballPosition.x - directionSign(direction) * 8.0;
+        const double goalX = direction == AttackingDirection::HomeToAway
+            ? PitchGeometry::LengthMeters
+            : 0.0;
+        const double targetX = goalX - directionSign(direction) * 9.0;
+        const double currentProgress = signedProgressX(ballPosition, direction);
+        const double targetProgress = signedProgressX(PitchPoint{ targetX, ballPosition.y }, direction);
+        const double x = currentProgress > targetProgress
+            ? targetX
+            : ballPosition.x - directionSign(direction) * 5.0;
         return PitchGeometry::clampToPitch(PitchPoint{
             x,
             PitchGeometry::WidthMeters / 2.0
@@ -109,6 +117,16 @@ namespace {
         return tuning.centralSimpleReceptionMinimumGoalDistance;
     }
 
+    double halfSpaceReceptionMinimumGoalDistance(PassOptionKind kind, const PassDecisionTuning& tuning) {
+        if (kind == PassOptionKind::ThroughBall
+            || kind == PassOptionKind::Cross
+            || kind == PassOptionKind::Cutback) {
+            return tuning.halfSpaceFinalBallReceptionMinimumGoalDistance;
+        }
+
+        return tuning.halfSpaceReceptionMinimumGoalDistance;
+    }
+
     PitchPoint constrainCentralReceptionTarget(
         PitchPoint target,
         PassOptionKind kind,
@@ -117,7 +135,7 @@ namespace {
         const double centralShare = centralChannelShare(target);
         const double minimumGoalDistance =
             receptionMinimumGoalDistance(kind, tuning) * centralShare
-            + tuning.halfSpaceReceptionMinimumGoalDistance * (1.0 - centralShare);
+            + halfSpaceReceptionMinimumGoalDistance(kind, tuning) * (1.0 - centralShare);
         const double maxGoalLineProgress =
             PitchGeometry::LengthMeters - tuning.minimumReceptionGoalLineDistance;
         if (PitchGeometry::distance(target, goalCenterFor(direction)) >= minimumGoalDistance

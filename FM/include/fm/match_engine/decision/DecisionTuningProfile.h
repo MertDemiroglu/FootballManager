@@ -77,9 +77,10 @@ struct PassDecisionTuning {
     double crossOrCutbackProgressionBonus = 10.0;
     double backPassProgressionMultiplier = 0.18;
     double centralSimpleReceptionMinimumGoalDistance = 11.0;
-    double centralThroughBallMinimumGoalDistance = 11.5;
-    double centralCrossOrCutbackMinimumGoalDistance = 12.0;
-    double halfSpaceReceptionMinimumGoalDistance = 10.0;
+    double centralThroughBallMinimumGoalDistance = 8.5;
+    double centralCrossOrCutbackMinimumGoalDistance = 7.5;
+    double halfSpaceReceptionMinimumGoalDistance = 9.5;
+    double halfSpaceFinalBallReceptionMinimumGoalDistance = 7.0;
     double minimumReceptionGoalLineDistance = 7.0;
 };
 
@@ -112,10 +113,10 @@ struct CarryDecisionTuning {
     double minimumProgressiveCarryScore = 12.0;
     double minimumDribbleScore = 8.0;
     double minimumUsefulCarryDistance = 1.25;
-    double centralSafeCarryMinimumGoalDistance = 14.0;
-    double centralProgressiveCarryMinimumGoalDistance = 11.0;
-    double centralDribbleMinimumGoalDistance = 10.5;
-    double halfSpaceCarryMinimumGoalDistance = 10.0;
+    double centralSafeCarryMinimumGoalDistance = 13.0;
+    double centralProgressiveCarryMinimumGoalDistance = 9.5;
+    double centralDribbleMinimumGoalDistance = 8.5;
+    double halfSpaceCarryMinimumGoalDistance = 8.0;
     double minimumCarryGoalLineDistance = 7.0;
     double goalmouthPressureRiskDistance = 12.0;
     double sixYardPressureRisk = 44.0;

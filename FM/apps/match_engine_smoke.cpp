@@ -461,6 +461,23 @@ namespace {
         int distanceSamples = 0;
         int shotsInsideFourMeters = 0;
         int shotsFourToEightMeters = 0;
+        int shotsEightToTwelveMeters = 0;
+        int shotsTwelveToEighteenMeters = 0;
+        int shotsBeyondEighteenMeters = 0;
+        int preShotUnder003 = 0;
+        int preShot003To008 = 0;
+        int preShot008To015 = 0;
+        int preShot015To030 = 0;
+        int preShotAbove030 = 0;
+        int carryShots = 0;
+        int simplePassShots = 0;
+        int throughBallShots = 0;
+        int lowCrossShots = 0;
+        int cutbackShots = 0;
+        int reboundOrLooseShots = 0;
+        int turnoverShots = 0;
+        int assistedShots = 0;
+        int soloShots = 0;
     };
 
     MatchTraceKind previousSignificantTraceKind(
@@ -484,18 +501,54 @@ namespace {
             : PitchGeometry::homeGoalCenter();
     }
 
+    AttackingDirection attackingDirectionForTraceTeam(
+        const MatchEngineInput& input,
+        TeamId teamId) {
+        return teamId == input.homeTeam.teamId
+            ? AttackingDirection::HomeToAway
+            : AttackingDirection::AwayToHome;
+    }
+
+    bool isAssistedShotSource(MatchTraceKind kind) {
+        return kind == MatchTraceKind::Pass
+            || kind == MatchTraceKind::ThroughBall
+            || kind == MatchTraceKind::LowCross
+            || kind == MatchTraceKind::HighCross
+            || kind == MatchTraceKind::Cutback;
+    }
+
     ShotOutcomeDiagnostic shotOutcomeDiagnosticFor(
         const MatchEngineInput& input,
-        const MatchEngineResult& result) {
+        const MatchEngineResult& result,
+        TeamId teamFilter = 0) {
         ShotOutcomeDiagnostic diagnostic;
-        diagnostic.offTarget = traceCountFor(result, MatchTraceKind::ShotOffTarget);
-        diagnostic.savedHeld = traceCountFor(result, MatchTraceKind::SaveHeld);
-        diagnostic.savedParried = traceCountFor(result, MatchTraceKind::SaveParried);
-        diagnostic.woodwork = traceCountFor(result, MatchTraceKind::Woodwork);
-        diagnostic.blockedShots = traceCountFor(result, MatchTraceKind::BlockedShot);
 
         for (std::size_t i = 0; i < result.traceFrames.size(); ++i) {
             const MatchTraceFrame& frame = result.traceFrames[i];
+            if (teamFilter != 0 && frame.teamId != teamFilter) {
+                continue;
+            }
+
+            switch (frame.kind) {
+            case MatchTraceKind::ShotOffTarget:
+                ++diagnostic.offTarget;
+                break;
+            case MatchTraceKind::SaveHeld:
+                ++diagnostic.savedHeld;
+                break;
+            case MatchTraceKind::SaveParried:
+                ++diagnostic.savedParried;
+                break;
+            case MatchTraceKind::Woodwork:
+                ++diagnostic.woodwork;
+                break;
+            case MatchTraceKind::BlockedShot:
+                ++diagnostic.blockedShots;
+                break;
+            default:
+                break;
+            }
+
             if (frame.kind != MatchTraceKind::Shot) {
                 continue;
             }
@@ -507,10 +560,78 @@ namespace {
                 ++diagnostic.shotsInsideFourMeters;
             } else if (shotDistance <= 8.0) {
                 ++diagnostic.shotsFourToEightMeters;
+            } else if (shotDistance <= 12.0) {
+                ++diagnostic.shotsEightToTwelveMeters;
+            } else if (shotDistance <= 18.0) {
+                ++diagnostic.shotsTwelveToEighteenMeters;
+            } else {
+                ++diagnostic.shotsBeyondEighteenMeters;
             }
             ++diagnostic.distanceSamples;
 
+            const double approximatePreShotXG = ShotQualityModel::calculateOpenPlayXG(
+                frame.ballPosition,
+                attackingDirectionForTraceTeam(input, frame.teamId),
+                0.0);
+            if (approximatePreShotXG < 0.03) {
+                ++diagnostic.preShotUnder003;
+            } else if (approximatePreShotXG < 0.08) {
+                ++diagnostic.preShot003To008;
+            } else if (approximatePreShotXG < 0.15) {
+                ++diagnostic.preShot008To015;
+            } else if (approximatePreShotXG < 0.30) {
+                ++diagnostic.preShot015To030;
+            } else {
+                ++diagnostic.preShotAbove030;
+            }
+
             const MatchTraceKind previousKind = previousSignificantTraceKind(result, i);
+            if (isAssistedShotSource(previousKind)) {
+                ++diagnostic.assistedShots;
+            } else {
+                ++diagnostic.soloShots;
+            }
+            switch (previousKind) {
+            case MatchTraceKind::Carry:
+            case MatchTraceKind::Dribble:
+                ++diagnostic.carryShots;
+                break;
+            case MatchTraceKind::Pass:
+                ++diagnostic.simplePassShots;
+                break;
+            case MatchTraceKind::ThroughBall:
+                ++diagnostic.throughBallShots;
+                break;
+            case MatchTraceKind::LowCross:
+            case MatchTraceKind::HighCross:
+                ++diagnostic.lowCrossShots;
+                break;
+            case MatchTraceKind::Cutback:
+                ++diagnostic.cutbackShots;
+                break;
+            case MatchTraceKind::SaveParried:
+            case MatchTraceKind::LooseBall:
+            case MatchTraceKind::BlockedShot:
+                ++diagnostic.reboundOrLooseShots;
+                break;
+            case MatchTraceKind::Turnover:
+            case MatchTraceKind::Interception:
+                ++diagnostic.turnoverShots;
+                break;
+            case MatchTraceKind::PossessionStart:
+            case MatchTraceKind::Shot:
+            case MatchTraceKind::ShotOffTarget:
+            case MatchTraceKind::Woodwork:
+            case MatchTraceKind::Save:
+            case MatchTraceKind::SaveHeld:
+            case MatchTraceKind::Goal:
+            case MatchTraceKind::Tackle:
+            case MatchTraceKind::Foul:
+            case MatchTraceKind::Card:
+            case MatchTraceKind::SetPiece:
+            case MatchTraceKind::Clearance:
+                break;
+            }
             if (previousKind == MatchTraceKind::SaveParried
                 || previousKind == MatchTraceKind::LooseBall
                 || previousKind == MatchTraceKind::BlockedShot) {
@@ -598,6 +719,17 @@ namespace {
         PlayerId targetPlayerId) {
         for (const PassOption& option : options) {
             if (option.kind == kind && option.targetPlayerId == targetPlayerId) {
+                return &option;
+            }
+        }
+        return nullptr;
+    }
+
+    const PassOption* findOptionForKind(
+        const std::vector<PassOption>& options,
+        PassOptionKind kind) {
+        for (const PassOption& option : options) {
+            if (option.kind == kind) {
                 return &option;
             }
         }
@@ -1497,12 +1629,12 @@ namespace {
             FormationSlotRole::RightWinger,
             passDecisionAttributes(76, 74, 72),
             attackingWide,
-            PitchPoint{ 82.0, 8.0 });
+            PitchPoint{ 100.0, 8.0 });
         PassDecisionFixture defensiveFinalThird = buildPassDecisionFixture(
             FormationSlotRole::RightWinger,
             passDecisionAttributes(76, 74, 72),
             defensiveWide,
-            PitchPoint{ 82.0, 8.0 });
+            PitchPoint{ 100.0, 8.0 });
         addPassDecisionPlayer(
             attackingFinalThird,
             6,
@@ -1535,6 +1667,34 @@ namespace {
             + bestScoreForKind(evaluatePassFixture(defensiveFinalThird), PassOptionKind::Cutback);
         require(attackingWideRisk > defensiveWideRisk,
             "attacking wide tactics should increase cross/cutback desire");
+
+        const std::vector<PassOption> finalBallOptions = evaluatePassFixture(attackingFinalThird);
+        const PassOption* strikerCross = findOptionForKind(finalBallOptions, PassOptionKind::Cross);
+        const PassOption* midfielderCutback = findOptionForKind(finalBallOptions, PassOptionKind::Cutback);
+        const PassOption* strikerSimple =
+            findOptionForTarget(finalBallOptions, PassOptionKind::ProgressivePass, 6);
+        require(strikerCross != nullptr,
+            "final-third wide fixture should expose a striker low-cross target");
+        require(midfielderCutback != nullptr,
+            "final-third wide fixture should expose a trailing cutback target");
+        if (strikerCross != nullptr) {
+            const double crossGoalDistance =
+                PitchGeometry::distance(strikerCross->targetPoint, PitchGeometry::awayGoalCenter());
+            require(crossGoalDistance >= 7.0 && crossGoalDistance <= 10.0,
+                "low-cross target should be allowed into a realistic 7-10m chance corridor");
+        }
+        if (midfielderCutback != nullptr) {
+            const double cutbackGoalDistance =
+                PitchGeometry::distance(midfielderCutback->targetPoint, PitchGeometry::awayGoalCenter());
+            require(cutbackGoalDistance >= 7.0 && cutbackGoalDistance <= 10.0,
+                "cutback target should be allowed into a realistic 7-10m chance corridor");
+        }
+        if (strikerSimple != nullptr) {
+            const double simpleGoalDistance =
+                PitchGeometry::distance(strikerSimple->targetPoint, PitchGeometry::awayGoalCenter());
+            require(simpleGoalDistance >= 11.0,
+                "ordinary central pass target should keep static reception depth safer than final balls");
+        }
     }
 
     void runPassLaneRiskSmoke() {
@@ -2241,6 +2401,23 @@ namespace {
             totalShotOutcomes.distanceSamples += shotOutcomes.distanceSamples;
             totalShotOutcomes.shotsInsideFourMeters += shotOutcomes.shotsInsideFourMeters;
             totalShotOutcomes.shotsFourToEightMeters += shotOutcomes.shotsFourToEightMeters;
+            totalShotOutcomes.shotsEightToTwelveMeters += shotOutcomes.shotsEightToTwelveMeters;
+            totalShotOutcomes.shotsTwelveToEighteenMeters += shotOutcomes.shotsTwelveToEighteenMeters;
+            totalShotOutcomes.shotsBeyondEighteenMeters += shotOutcomes.shotsBeyondEighteenMeters;
+            totalShotOutcomes.preShotUnder003 += shotOutcomes.preShotUnder003;
+            totalShotOutcomes.preShot003To008 += shotOutcomes.preShot003To008;
+            totalShotOutcomes.preShot008To015 += shotOutcomes.preShot008To015;
+            totalShotOutcomes.preShot015To030 += shotOutcomes.preShot015To030;
+            totalShotOutcomes.preShotAbove030 += shotOutcomes.preShotAbove030;
+            totalShotOutcomes.carryShots += shotOutcomes.carryShots;
+            totalShotOutcomes.simplePassShots += shotOutcomes.simplePassShots;
+            totalShotOutcomes.throughBallShots += shotOutcomes.throughBallShots;
+            totalShotOutcomes.lowCrossShots += shotOutcomes.lowCrossShots;
+            totalShotOutcomes.cutbackShots += shotOutcomes.cutbackShots;
+            totalShotOutcomes.reboundOrLooseShots += shotOutcomes.reboundOrLooseShots;
+            totalShotOutcomes.turnoverShots += shotOutcomes.turnoverShots;
+            totalShotOutcomes.assistedShots += shotOutcomes.assistedShots;
+            totalShotOutcomes.soloShots += shotOutcomes.soloShots;
 
             for (const MatchTeamSimulationStats* stats : { &result.homeStats, &result.awayStats }) {
                 require(stats->passesAttempted > 0, "detailed coordinate match should attempt passes");
@@ -2365,11 +2542,34 @@ namespace {
                 << " avgShotDistance=" << averageShotDistance
                 << " shots0To4m=" << totalShotOutcomes.shotsInsideFourMeters
                 << " shots4To8m=" << totalShotOutcomes.shotsFourToEightMeters
+                << " shots8To12m=" << totalShotOutcomes.shotsEightToTwelveMeters
+                << " shots12To18m=" << totalShotOutcomes.shotsTwelveToEighteenMeters
+                << " shots18mPlus=" << totalShotOutcomes.shotsBeyondEighteenMeters
                 << " shots0To4mRate=" << shotsInsideFourRate
                 << " shots4To8mRate=" << shotsFourToEightRate
+                << " preShotLt003=" << totalShotOutcomes.preShotUnder003
+                << " preShot003To008=" << totalShotOutcomes.preShot003To008
+                << " preShot008To015=" << totalShotOutcomes.preShot008To015
+                << " preShot015To030=" << totalShotOutcomes.preShot015To030
+                << " preShotGt030=" << totalShotOutcomes.preShotAbove030
+                << " carryShots=" << totalShotOutcomes.carryShots
+                << " simplePassShots=" << totalShotOutcomes.simplePassShots
+                << " throughBallShots=" << totalShotOutcomes.throughBallShots
+                << " lowCrossShots=" << totalShotOutcomes.lowCrossShots
+                << " cutbackShots=" << totalShotOutcomes.cutbackShots
+                << " reboundOrLooseShots=" << totalShotOutcomes.reboundOrLooseShots
+                << " turnoverShots=" << totalShotOutcomes.turnoverShots
+                << " assistedShots=" << totalShotOutcomes.assistedShots
+                << " soloShots=" << totalShotOutcomes.soloShots
                 << " strongPassAccuracy=" << strongPassAccuracy
                 << " weakPassAccuracy=" << weakPassAccuracy
                 << '\n';
+            const int mediumOrBetterPreShotShots =
+                totalShotOutcomes.preShot015To030 + totalShotOutcomes.preShotAbove030;
+            const int usefulBoxCorridorShots =
+                totalShotOutcomes.shotsFourToEightMeters
+                + totalShotOutcomes.shotsEightToTwelveMeters
+                + totalShotOutcomes.shotsTwelveToEighteenMeters;
             require(averageShotDistance >= 8.0,
                 "watched samples should not create goalmouth-average shot distance");
             require(shotsInsideFourRate <= 0.12,
@@ -2382,6 +2582,10 @@ namespace {
                 "pre-shot xG per shot should not collapse to weak long-shot quality across watched samples");
             require(totalPreShotExpectedGoals >= 3.0,
                 "watched samples should create some meaningful pre-shot chance value");
+            require(mediumOrBetterPreShotShots >= std::max(2, totalShots / 20),
+                "watched samples should include some medium/high pre-shot chance positions");
+            require(usefulBoxCorridorShots >= std::max(4, totalShots / 3),
+                "watched samples should include realistic 4-18m shot locations");
             require(shotOnTargetRate <= 0.72,
                 "shots on target should not be near automatic across watched samples");
             require(totalShotOutcomes.offTarget >= std::max(4, totalShots / 8),
@@ -2391,6 +2595,140 @@ namespace {
             require(weakPassAccuracy >= 0.52,
                 "weaker smoke team should still complete ordinary circulation often enough");
         }
+
+        int dominantShots = 0;
+        int dominantShotsOnTarget = 0;
+        int dominantGoals = 0;
+        int dominantPassesAttempted = 0;
+        int dominantPassesCompleted = 0;
+        int dominantCarryTraces = 0;
+        double dominantPossession = 0.0;
+        double dominantPreShotExpectedGoals = 0.0;
+        double dominantEffectiveExpectedGoals = 0.0;
+        ShotOutcomeDiagnostic dominantShotOutcomes;
+        for (std::uint64_t seed = 1; seed <= 3; ++seed) {
+            const MatchEngineInput input =
+                buildInput(MatchSimulationDetail::WatchedMatch, 0x9400ULL + seed, 28, -6);
+            const MatchEngineResult result = MatchEngine{}.simulate(input);
+            assertResultReportConsistency(input, result);
+
+            const ShotOutcomeDiagnostic shotOutcomes =
+                shotOutcomeDiagnosticFor(input, result, result.homeStats.teamId);
+            dominantShots += result.homeStats.shots;
+            dominantShotsOnTarget += result.homeStats.shotsOnTarget;
+            dominantGoals += result.homeStats.goals;
+            dominantPassesAttempted += result.homeStats.passesAttempted;
+            dominantPassesCompleted += result.homeStats.passesCompleted;
+            dominantPossession += result.homeStats.possessionShare;
+            dominantPreShotExpectedGoals += result.homeStats.preShotExpectedGoals;
+            dominantEffectiveExpectedGoals += result.homeStats.expectedGoals;
+            dominantShotOutcomes.offTarget += shotOutcomes.offTarget;
+            dominantShotOutcomes.savedHeld += shotOutcomes.savedHeld;
+            dominantShotOutcomes.savedParried += shotOutcomes.savedParried;
+            dominantShotOutcomes.woodwork += shotOutcomes.woodwork;
+            dominantShotOutcomes.blockedShots += shotOutcomes.blockedShots;
+            dominantShotOutcomes.reboundShots += shotOutcomes.reboundShots;
+            dominantShotOutcomes.totalShotDistance += shotOutcomes.totalShotDistance;
+            dominantShotOutcomes.distanceSamples += shotOutcomes.distanceSamples;
+            dominantShotOutcomes.shotsInsideFourMeters += shotOutcomes.shotsInsideFourMeters;
+            dominantShotOutcomes.shotsFourToEightMeters += shotOutcomes.shotsFourToEightMeters;
+            dominantShotOutcomes.shotsEightToTwelveMeters += shotOutcomes.shotsEightToTwelveMeters;
+            dominantShotOutcomes.shotsTwelveToEighteenMeters += shotOutcomes.shotsTwelveToEighteenMeters;
+            dominantShotOutcomes.shotsBeyondEighteenMeters += shotOutcomes.shotsBeyondEighteenMeters;
+            dominantShotOutcomes.preShotUnder003 += shotOutcomes.preShotUnder003;
+            dominantShotOutcomes.preShot003To008 += shotOutcomes.preShot003To008;
+            dominantShotOutcomes.preShot008To015 += shotOutcomes.preShot008To015;
+            dominantShotOutcomes.preShot015To030 += shotOutcomes.preShot015To030;
+            dominantShotOutcomes.preShotAbove030 += shotOutcomes.preShotAbove030;
+            dominantShotOutcomes.carryShots += shotOutcomes.carryShots;
+            dominantShotOutcomes.simplePassShots += shotOutcomes.simplePassShots;
+            dominantShotOutcomes.throughBallShots += shotOutcomes.throughBallShots;
+            dominantShotOutcomes.lowCrossShots += shotOutcomes.lowCrossShots;
+            dominantShotOutcomes.cutbackShots += shotOutcomes.cutbackShots;
+            dominantShotOutcomes.reboundOrLooseShots += shotOutcomes.reboundOrLooseShots;
+            dominantShotOutcomes.turnoverShots += shotOutcomes.turnoverShots;
+            dominantShotOutcomes.assistedShots += shotOutcomes.assistedShots;
+            dominantShotOutcomes.soloShots += shotOutcomes.soloShots;
+
+            for (const MatchTraceFrame& frame : result.traceFrames) {
+                if (frame.teamId == result.homeStats.teamId
+                    && (frame.kind == MatchTraceKind::Carry || frame.kind == MatchTraceKind::Dribble)) {
+                    ++dominantCarryTraces;
+                }
+            }
+        }
+
+        const double dominantPreShotXgPerShot =
+            dominantPreShotExpectedGoals / static_cast<double>(std::max(dominantShots, 1));
+        const double dominantEffectiveXgPerShot =
+            dominantEffectiveExpectedGoals / static_cast<double>(std::max(dominantShots, 1));
+        const double dominantAverageShotDistance =
+            dominantShotOutcomes.distanceSamples > 0
+                ? dominantShotOutcomes.totalShotDistance
+                    / static_cast<double>(dominantShotOutcomes.distanceSamples)
+                : 0.0;
+        const double dominantShotsInsideFourRate =
+            static_cast<double>(dominantShotOutcomes.shotsInsideFourMeters)
+            / static_cast<double>(std::max(dominantShots, 1));
+        const double dominantShotOnTargetRate =
+            static_cast<double>(dominantShotsOnTarget) / static_cast<double>(std::max(dominantShots, 1));
+        const double dominantPassAccuracy =
+            static_cast<double>(dominantPassesCompleted)
+            / static_cast<double>(std::max(dominantPassesAttempted, 1));
+        const int dominantMediumOrBetterShots =
+            dominantShotOutcomes.preShot015To030 + dominantShotOutcomes.preShotAbove030;
+        std::cerr << "dominant-chance diagnostic shots=" << dominantShots
+            << " shotsOnTarget=" << dominantShotsOnTarget
+            << " goals=" << dominantGoals
+            << " preShotXG=" << dominantPreShotExpectedGoals
+            << " effectiveXG=" << dominantEffectiveExpectedGoals
+            << " preShotXgPerShot=" << dominantPreShotXgPerShot
+            << " effectiveXgPerShot=" << dominantEffectiveXgPerShot
+            << " avgShotDistance=" << dominantAverageShotDistance
+            << " shots0To4m=" << dominantShotOutcomes.shotsInsideFourMeters
+            << " shots4To8m=" << dominantShotOutcomes.shotsFourToEightMeters
+            << " shots8To12m=" << dominantShotOutcomes.shotsEightToTwelveMeters
+            << " shots12To18m=" << dominantShotOutcomes.shotsTwelveToEighteenMeters
+            << " shots18mPlus=" << dominantShotOutcomes.shotsBeyondEighteenMeters
+            << " preShotLt003=" << dominantShotOutcomes.preShotUnder003
+            << " preShot003To008=" << dominantShotOutcomes.preShot003To008
+            << " preShot008To015=" << dominantShotOutcomes.preShot008To015
+            << " preShot015To030=" << dominantShotOutcomes.preShot015To030
+            << " preShotGt030=" << dominantShotOutcomes.preShotAbove030
+            << " carryShots=" << dominantShotOutcomes.carryShots
+            << " simplePassShots=" << dominantShotOutcomes.simplePassShots
+            << " throughBallShots=" << dominantShotOutcomes.throughBallShots
+            << " lowCrossShots=" << dominantShotOutcomes.lowCrossShots
+            << " cutbackShots=" << dominantShotOutcomes.cutbackShots
+            << " reboundOrLooseShots=" << dominantShotOutcomes.reboundOrLooseShots
+            << " turnoverShots=" << dominantShotOutcomes.turnoverShots
+            << " assistedShots=" << dominantShotOutcomes.assistedShots
+            << " soloShots=" << dominantShotOutcomes.soloShots
+            << " shotOnTargetRate=" << dominantShotOnTargetRate
+            << " possession=" << (dominantPossession / 3.0)
+            << " passes=" << dominantPassesCompleted << "/" << dominantPassesAttempted
+            << " carries=" << dominantCarryTraces
+            << " passAccuracy=" << dominantPassAccuracy
+            << '\n';
+        require(dominantShots > 0,
+            "dominant watched samples should generate shots");
+        require(dominantPreShotExpectedGoals >= 2.0,
+            "dominant watched samples should not collapse to very low pre-shot xG");
+        require(dominantPreShotXgPerShot >= 0.08,
+            "dominant watched samples should find some useful shooting positions");
+        require(dominantMediumOrBetterShots >= 2,
+            "dominant watched samples should create some medium/high pre-shot chance positions");
+        require(dominantAverageShotDistance >= 8.0,
+            "dominant watched samples should not rely on goalmouth-average shot distance");
+        require(dominantShotsInsideFourRate <= 0.15,
+            "dominant watched samples should keep 0-4m shots rare");
+        require(dominantEffectiveXgPerShot <= 0.30,
+            "dominant watched samples should not revive repeated extreme xG shots");
+        require(dominantShotOnTargetRate <= 0.78,
+            "dominant watched samples should not make every shot hit the target");
+        require(dominantPassAccuracy >= 0.64,
+            "dominant watched samples should retain sane passing flow");
+
         if (totalGoals >= 3) {
             require(assistedGoalSamples > 0,
                 "detailed coordinate possession-created goals should be able to record assists");
