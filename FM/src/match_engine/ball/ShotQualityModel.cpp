@@ -69,6 +69,28 @@ double ShotQualityModel::calculateOpenPlayXG(
     return std::max(tuning.openPlayXGMinimum, xg);
 }
 
+double ShotQualityModel::calculatePreShotXG(const ShotContext& context) {
+    const ShootingModelTuning modelTuning;
+    const ShotQualityTuning& tuning = modelTuning.quality;
+    const double lanePressureFactor =
+        clampDouble(context.lanePressure / tuning.lanePressureScale, 0.0, 1.0);
+    const double nearbyDefenderFactor =
+        clampDouble(
+            (tuning.nearestDefenderDistanceReference - context.nearestDefenderDistance)
+                / tuning.nearestDefenderDistanceScale,
+            0.0,
+            1.0);
+    const double baseXG = calculateOpenPlayXG(
+        context.shotOrigin,
+        context.attackingDirection,
+        context.pressure);
+    return std::max(
+        tuning.xGMinimum,
+        baseXG
+            * (1.0 - lanePressureFactor * tuning.preShotLanePressurePenalty)
+            * (1.0 - nearbyDefenderFactor * tuning.preShotNearestDefenderPenalty));
+}
+
 ShotQualityResult ShotQualityModel::evaluate(
     const ShotContext& context,
     ShotType shotType,
@@ -108,10 +130,10 @@ ShotQualityResult ShotQualityModel::evaluate(
             - ((execution.shotPower - tuning.blockRiskPowerBaseline) * tuning.blockRiskPowerReduction),
         tuning.blockRiskMinimum,
         tuning.blockRiskMaximum);
+    const double preShotXG = calculatePreShotXG(context);
     const double keeperFacingXG = std::max(
         tuning.xGMinimum,
-        rawXG
-            * (1.0 - pressureFactor * tuning.keeperFacingXGPressurePenalty)
+        preShotXG
             * (1.0 - typePenalty)
             * (1.0 - tightAngleFactor * tuning.keeperFacingXGTightAnglePenalty));
     const double effectiveXG = std::max(
@@ -146,6 +168,7 @@ ShotQualityResult ShotQualityModel::evaluate(
 
     return ShotQualityResult{
         rawXG,
+        preShotXG,
         keeperFacingXG,
         effectiveXG,
         blockRisk,

@@ -350,13 +350,15 @@ struct ShotExecutionTuning {
 };
 
 struct ShotQualityTuning {
-    double openPlayXGIntercept = -2.00;
-    double openPlayXGDistanceCoefficient = 0.085;
-    double openPlayXGAngleCoefficient = 1.00;
-    double openPlayXGPressureCoefficient = 0.022;
+    double openPlayXGIntercept = -1.25;
+    double openPlayXGDistanceCoefficient = 0.130;
+    double openPlayXGAngleCoefficient = 1.55;
+    double openPlayXGPressureCoefficient = 0.012;
     double openPlayXGMinimum = 0.004;
     double pressureScale = 100.0;
     double lanePressureScale = 100.0;
+    double preShotLanePressurePenalty = 0.22;
+    double preShotNearestDefenderPenalty = 0.12;
     double tightAngleCentralityScale = 4.0;
     double longShotTypePenalty = 0.10;
     double tightAngleShotTypePenalty = 0.12;

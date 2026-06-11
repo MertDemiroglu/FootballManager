@@ -2231,6 +2231,7 @@ namespace {
             ++teamStatsFor(result, carrier->teamId).shots;
             teamStatsFor(result, carrier->teamId).expectedGoals += shotXG;
             teamStatsFor(result, carrier->teamId).rawExpectedGoals += shotQuality.rawXG;
+            teamStatsFor(result, carrier->teamId).preShotExpectedGoals += shotQuality.preShotXG;
             teamStatsFor(result, carrier->teamId).keeperFacingExpectedGoals += shotQuality.keeperFacingXG;
             teamStatsFor(result, carrier->teamId).blockedExpectedGoals +=
                 std::max(0.0, shotQuality.keeperFacingXG - shotQuality.effectiveXG);

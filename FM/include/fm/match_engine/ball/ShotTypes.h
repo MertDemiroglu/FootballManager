@@ -123,6 +123,7 @@ struct ShotExecutionResult {
 
 struct ShotQualityResult {
     double rawXG = 0.0;
+    double preShotXG = 0.0;
     double keeperFacingXG = 0.0;
     double effectiveXG = 0.0;
     double blockRisk = 0.0;

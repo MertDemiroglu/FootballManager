@@ -2,10 +2,7 @@
 
 #include"../DeterministicRandom.h"
 #include"fm/match_engine/ball/ShotContextBuilder.h"
-#include"fm/match_engine/ball/ShotExecutionModel.h"
 #include"fm/match_engine/ball/ShotQualityModel.h"
-#include"fm/match_engine/ball/ShotTargetSelector.h"
-#include"fm/match_engine/ball/ShotTypeSelector.h"
 #include"fm/match_engine/decision/DecisionTuningProfile.h"
 #include"fm/match_engine/geometry/TacticalZones.h"
 
@@ -123,7 +120,7 @@ namespace {
         return positions;
     }
 
-    ShotQualityResult expectedShotQualityFor(
+    ShotContext expectedShotContextFor(
         const ShotOptionEvaluationContext& context,
         const PlayerAttributes& shooterAttributes) {
         const MatchPlayerSnapshot* goalkeeper = goalkeeperSnapshotFor(context.opponentSnapshot);
@@ -147,14 +144,7 @@ namespace {
             }
         }
 
-        const ShotType shotType = ShotTypeSelector{}.select(shotContext).type;
-        const ShotTargetSelectionResult target = ShotTargetSelector{}.select(shotContext, shotType);
-        const ShotExecutionResult execution = ShotExecutionModel{}.execute(ShotExecutionRequest{
-            shotContext,
-            shotType,
-            target
-        });
-        return ShotQualityModel{}.evaluate(shotContext, shotType, execution);
+        return shotContext;
     }
 
     double shootingConfidence(const PlayerAttributes& attributes) {
@@ -243,8 +233,8 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
 
     const ShotDecisionTuning tuning;
     const PlayerAttributes attributes = attributesFor(context.teamSnapshot, context.carrierState);
-    const ShotQualityResult expectedQuality = expectedShotQualityFor(context, attributes);
-    const double xg = expectedQuality.effectiveXG;
+    const ShotContext expectedShotContext = expectedShotContextFor(context, attributes);
+    const double xg = ShotQualityModel::calculatePreShotXG(expectedShotContext);
     const bool advancedPhase = isAdvancedShootingPhase(context.phase);
     const bool clearChance = xg >= tuning.strongChanceAlwaysIncludeXG && distance <= 16.0;
     const bool earlyPossessionShot =

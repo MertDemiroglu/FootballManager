@@ -697,12 +697,13 @@ namespace {
         require(wideAngle > longShot, "wide box xG should still exceed long shot xG");
         require(closeCentral > pressured, "higher pressure should reduce xG");
         require(reverseDirection > centralTwelveMeters, "away-to-home xG should use the opposite goal");
-        require(closeCentral >= 0.30, "2-4m central clear chance should be high xG");
-        require(centralEightMeters >= 0.10 && centralEightMeters <= 0.24,
+        require(closeCentral >= 0.60 && closeCentral <= 0.90,
+            "2-4m central clear chance should be very high xG");
+        require(centralEightMeters >= 0.25 && centralEightMeters <= 0.50,
             "7-9m central chance should be good but not automatic");
-        require(centralTwelveMeters >= 0.05 && centralTwelveMeters <= 0.12,
-            "11-14m central chance should be medium");
-        require(centralEighteenMeters >= 0.02 && centralEighteenMeters <= 0.07,
+        require(centralTwelveMeters >= 0.12 && centralTwelveMeters <= 0.30,
+            "11-14m central chance should be medium to good");
+        require(centralEighteenMeters >= 0.04 && centralEighteenMeters <= 0.12,
             "16-20m central chance should be low to medium-low");
         require(wideAngle <= centralTwelveMeters * 0.75,
             "wide/tight angle chance should be clearly lower than central chance");
@@ -854,12 +855,22 @@ namespace {
 
         require(closeQuality.rawXG > longQuality.rawXG,
             "central close shot should have higher raw xG than long shot");
+        require(closeQuality.rawXG + 0.0001 >= closeQuality.preShotXG,
+            "pre-shot xG should not exceed raw location xG");
+        require(closeQuality.preShotXG + 0.0001 >= closeQuality.keeperFacingXG,
+            "keeper-facing xG should not exceed pre-shot chance quality");
+        require(closeQuality.preShotXG > longQuality.preShotXG,
+            "central close shot should have higher pre-shot xG than long shot");
         require(closeQuality.keeperFacingXG > tightQuality.keeperFacingXG,
             "tight angle should lower keeper-facing shot quality");
+        require(closeQuality.preShotXG > pressuredQuality.preShotXG,
+            "pressure should lower pre-shot chance quality");
         require(closeQuality.keeperFacingXG > pressuredQuality.keeperFacingXG,
             "pressure should lower keeper-facing shot quality");
         require(blockedQuality.blockRisk > closeQuality.blockRisk,
             "high blocker risk should raise block risk");
+        require(blockedQuality.preShotXG < closeQuality.preShotXG,
+            "crowded lanes should lower pre-shot chance quality");
         require(blockedQuality.rawXG > blockedQuality.effectiveXG,
             "crowded lane should lower effective xG below raw xG");
         require(closeQuality.effectiveXG > longQuality.effectiveXG,
@@ -2085,6 +2096,7 @@ namespace {
         double maxSampleXg = 0.0;
         double totalExpectedGoals = 0.0;
         double totalRawExpectedGoals = 0.0;
+        double totalPreShotExpectedGoals = 0.0;
         double totalKeeperFacingExpectedGoals = 0.0;
         double totalBlockedExpectedGoals = 0.0;
         GoalSourceDiagnostic totalGoalSources;
@@ -2107,6 +2119,8 @@ namespace {
             const double combinedXG = result.homeStats.expectedGoals + result.awayStats.expectedGoals;
             const double combinedRawXG =
                 result.homeStats.rawExpectedGoals + result.awayStats.rawExpectedGoals;
+            const double combinedPreShotXG =
+                result.homeStats.preShotExpectedGoals + result.awayStats.preShotExpectedGoals;
             const double combinedKeeperFacingXG =
                 result.homeStats.keeperFacingExpectedGoals + result.awayStats.keeperFacingExpectedGoals;
             const double combinedBlockedXG =
@@ -2181,6 +2195,8 @@ namespace {
                     << " awaySOT=" << result.awayStats.shotsOnTarget
                     << " homeXg=" << result.homeStats.expectedGoals
                     << " awayXg=" << result.awayStats.expectedGoals
+                    << " homePreShotXg=" << result.homeStats.preShotExpectedGoals
+                    << " awayPreShotXg=" << result.awayStats.preShotExpectedGoals
                     << " interceptions="
                     << (result.homeStats.interceptions + result.awayStats.interceptions)
                     << " turnovers=" << traceCountFor(result, MatchTraceKind::Turnover)
@@ -2208,6 +2224,7 @@ namespace {
             weakPassesCompleted += result.awayStats.passesCompleted;
             totalExpectedGoals += combinedXG;
             totalRawExpectedGoals += combinedRawXG;
+            totalPreShotExpectedGoals += combinedPreShotXG;
             totalKeeperFacingExpectedGoals += combinedKeeperFacingXG;
             totalBlockedExpectedGoals += combinedBlockedXG;
             totalGoalSources.assistedGoals += goalSources.assistedGoals;
@@ -2233,6 +2250,10 @@ namespace {
                     "goals should not exceed shots on target while own goals are not modeled");
                 require(stats->rawExpectedGoals + 0.0001 >= stats->keeperFacingExpectedGoals,
                     "raw xG should be at least keeper-facing xG");
+                require(stats->rawExpectedGoals + 0.0001 >= stats->preShotExpectedGoals,
+                    "raw xG should be at least pre-shot xG");
+                require(stats->preShotExpectedGoals + 0.0001 >= stats->keeperFacingExpectedGoals,
+                    "pre-shot xG should be at least keeper-facing xG");
                 require(stats->keeperFacingExpectedGoals + 0.0001 >= stats->expectedGoals,
                     "keeper-facing xG should be at least effective xG");
                 if (stats->shotsOnTarget >= 8 && stats->goals == stats->shotsOnTarget) {
@@ -2290,6 +2311,8 @@ namespace {
         if (totalShots > 0) {
             const double xgPerShot =
                 totalRawExpectedGoals / static_cast<double>(std::max(totalShots, 1));
+            const double preShotXgPerShot =
+                totalPreShotExpectedGoals / static_cast<double>(std::max(totalShots, 1));
             const double effectiveXgPerShot =
                 totalExpectedGoals / static_cast<double>(std::max(totalShots, 1));
             const double averageShotDistance =
@@ -2319,10 +2342,12 @@ namespace {
                 << " strongPasses=" << strongPassesCompleted << "/" << strongPassesAttempted
                 << " weakPasses=" << weakPassesCompleted << "/" << weakPassesAttempted
                 << " rawXG=" << totalRawExpectedGoals
+                << " preShotXG=" << totalPreShotExpectedGoals
                 << " keeperFacingXG=" << totalKeeperFacingExpectedGoals
                 << " effectiveXG=" << totalExpectedGoals
                 << " blockedXG=" << totalBlockedExpectedGoals
                 << " xgPerShot=" << xgPerShot
+                << " preShotXgPerShot=" << preShotXgPerShot
                 << " effectiveXgPerShot=" << effectiveXgPerShot
                 << " shotOnTargetRate=" << shotOnTargetRate
                 << " goals=" << totalGoals
@@ -2353,6 +2378,10 @@ namespace {
                 "4-8m shots should not dominate watched samples");
             require(effectiveXgPerShot <= 0.25,
                 "effective xG per shot should reflect mixed chance quality across watched samples");
+            require(preShotXgPerShot >= 0.08,
+                "pre-shot xG per shot should not collapse to weak long-shot quality across watched samples");
+            require(totalPreShotExpectedGoals >= 3.0,
+                "watched samples should create some meaningful pre-shot chance value");
             require(shotOnTargetRate <= 0.72,
                 "shots on target should not be near automatic across watched samples");
             require(totalShotOutcomes.offTarget >= std::max(4, totalShots / 8),
