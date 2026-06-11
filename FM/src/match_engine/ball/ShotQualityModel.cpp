@@ -73,7 +73,7 @@ ShotQualityResult ShotQualityModel::evaluate(
     const ShotContext& context,
     ShotType shotType,
     const ShotExecutionResult& execution) const {
-    const double baseXG = calculateOpenPlayXG(
+    const double rawXG = calculateOpenPlayXG(
         context.shotOrigin,
         context.attackingDirection,
         0.0);
@@ -108,13 +108,15 @@ ShotQualityResult ShotQualityModel::evaluate(
             - ((execution.shotPower - tuning.blockRiskPowerBaseline) * tuning.blockRiskPowerReduction),
         tuning.blockRiskMinimum,
         tuning.blockRiskMaximum);
-    const double adjustedXG = std::max(
-        tuning.adjustedXGMinimum,
-        baseXG
-            * (1.0 - pressureFactor * tuning.adjustedXGPressurePenalty)
-            * (1.0 - lanePressureFactor * tuning.adjustedXGLanePressurePenalty)
+    const double keeperFacingXG = std::max(
+        tuning.xGMinimum,
+        rawXG
+            * (1.0 - pressureFactor * tuning.keeperFacingXGPressurePenalty)
             * (1.0 - typePenalty)
-            * (1.0 - tightAngleFactor * tuning.adjustedXGTightAnglePenalty));
+            * (1.0 - tightAngleFactor * tuning.keeperFacingXGTightAnglePenalty));
+    const double effectiveXG = std::max(
+        tuning.xGMinimum,
+        keeperFacingXG * (1.0 - blockRisk));
 
     const double onTargetDifficulty = clampDouble(
         tuning.onTargetDifficultyBase
@@ -128,7 +130,7 @@ ShotQualityResult ShotQualityModel::evaluate(
         100.0);
     const double saveDifficulty = clampDouble(
         tuning.saveDifficultyBase
-            + adjustedXG * tuning.saveDifficultyAdjustedXGWeight
+            + keeperFacingXG * tuning.saveDifficultyAdjustedXGWeight
             + execution.placementQuality * tuning.saveDifficultyPlacementWeight
             + (execution.shotPower - tuning.saveDifficultyPowerBaseline) * tuning.saveDifficultyPowerWeight
             + tightAngleFactor * tuning.saveDifficultyTightAngleWeight,
@@ -143,8 +145,9 @@ ShotQualityResult ShotQualityModel::evaluate(
         tuning.reboundRiskMaximum);
 
     return ShotQualityResult{
-        baseXG,
-        adjustedXG,
+        rawXG,
+        keeperFacingXG,
+        effectiveXG,
         blockRisk,
         onTargetDifficulty,
         saveDifficulty,

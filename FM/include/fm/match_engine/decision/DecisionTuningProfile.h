@@ -171,8 +171,8 @@ struct ShotDecisionTuning {
 };
 
 struct ShotContextTuning {
-    double blockLaneWidthMeters = 2.8;
-    double lanePressureExtraWidthMeters = 2.0;
+    double blockLaneWidthMeters = 0.9;
+    double lanePressureExtraWidthMeters = 0.8;
     double lanePressureReactionDistanceMeters = 24.0;
     double lanePressureDistanceWeight = 62.0;
     double lanePressureReactionWeight = 38.0;
@@ -342,20 +342,19 @@ struct ShotQualityTuning {
     double tightAngleShotTypePenalty = 0.12;
     double desperationShotTypePenalty = 0.18;
     double powerShotTypePenalty = 0.04;
-    double adjustedXGPressurePenalty = 0.30;
-    double adjustedXGLanePressurePenalty = 0.18;
-    double adjustedXGTightAnglePenalty = 0.18;
-    double adjustedXGMinimum = 0.003;
-    double blockRiskBase = 0.04;
-    double blockRiskLanePressureWeight = 0.34;
-    double blockRiskPressureWeight = 0.12;
+    double keeperFacingXGPressurePenalty = 0.30;
+    double keeperFacingXGTightAnglePenalty = 0.18;
+    double xGMinimum = 0.003;
+    double blockRiskBase = 0.02;
+    double blockRiskLanePressureWeight = 0.13;
+    double blockRiskPressureWeight = 0.05;
     double nearestDefenderDistanceReference = 22.0;
     double nearestDefenderDistanceScale = 45.0;
-    double nearestDefenderRiskMaximum = 0.22;
+    double nearestDefenderRiskMaximum = 0.10;
     double blockRiskPowerBaseline = 24.0;
     double blockRiskPowerReduction = 0.006;
-    double blockRiskMinimum = 0.02;
-    double blockRiskMaximum = 0.58;
+    double blockRiskMinimum = 0.01;
+    double blockRiskMaximum = 0.26;
     double onTargetDifficultyBase = 18.0;
     double onTargetDifficultyDistanceWeight = 1.25;
     double onTargetDifficultyPressureWeight = 0.34;
@@ -387,21 +386,18 @@ struct ShotOutcomeTuning {
     double goalkeeperPositioningWeight = 0.08;
     double goalkeeperConcentrationWeight = 0.08;
     double goalkeeperFallbackStrengthWeight = 0.10;
-    double saveProbabilityBase = 0.56;
     double saveSkillBaseline = 55.0;
-    double saveSkillWeight = 0.006;
-    double saveChanceQualityWeight = 0.30;
-    double savePlacementWeight = 0.13;
-    double savePowerWeight = 0.08;
-    double saveDifficultyWeight = 0.10;
-    double framePlacementWeight = 0.16;
+    double goalProbabilityKeeperFacingWeight = 0.82;
+    double keeperSkillGoalReductionWeight = 0.0035;
+    double placementGoalWeight = 0.03;
+    double powerGoalWeight = 0.02;
+    double framePlacementGoalWeight = 0.03;
+    double saveDifficultyGoalWeight = 0.0;
     double keeperLateralReachMeters = 2.6;
     double keeperVerticalReachMeters = 2.15;
-    double keeperReachDifficultyWeight = 0.32;
-    double maximumShotThreatPenalty = 0.38;
-    double saveMinimumProbability = 0.18;
-    double saveMaximumProbability = 0.82;
-    double chanceQualityScale = 0.42;
+    double keeperReachGoalWeight = 0.04;
+    double goalProbabilityMinimum = 0.02;
+    double goalProbabilityMaximum = 0.92;
     double shotPowerBaseline = 18.0;
     double shotPowerScale = 18.0;
     double heldReboundBase = 0.48;
@@ -415,8 +411,8 @@ struct ShotOutcomeTuning {
 };
 
 struct ShotBlockTuning {
-    double blockLaneWidthMeters = 2.8;
-    double extraBlockLaneWidthMeters = 2.5;
+    double blockLaneWidthMeters = 0.75;
+    double extraBlockLaneWidthMeters = 0.85;
     double blockReactionWindowSeconds = 0.42;
     double baseBlockProbability = 0.05;
     double maximumBlockProbability = 0.58;
@@ -448,6 +444,12 @@ struct ShotBlockTuning {
     double deflectionStrengthLaneWeight = 0.20;
     double minimumDeflectionStrength = 0.25;
     double maximumDeflectionStrength = 0.95;
+    double minimumBlockPathProgress = 0.04;
+    double maximumBlockPathProgress = 0.96;
+    double groundBlockReachHeightMeters = 1.15;
+    double jumpingReachHeightBaseMeters = 1.25;
+    double jumpingReachHeightScaleMeters = 1.25;
+    double emergencyReachMarginMeters = 0.20;
 };
 
 struct ReboundModelTuning {

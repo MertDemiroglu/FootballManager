@@ -27,6 +27,9 @@ struct MatchTeamSimulationStats {
     int redCards = 0;
     double possessionShare = 0.0;
     double expectedGoals = 0.0;
+    double rawExpectedGoals = 0.0;
+    double keeperFacingExpectedGoals = 0.0;
+    double blockedExpectedGoals = 0.0;
 };
 
 struct MatchPlayerSimulationStats {

@@ -806,15 +806,19 @@ namespace {
         const ShotQualityResult blockedQuality = qualityFor(blockedLane, ShotType::PlacedShot);
         const ShotQualityResult eliteQuality = qualityFor(eliteSameLocation, ShotType::PlacedShot);
 
-        require(closeQuality.adjustedXG > longQuality.adjustedXG,
-            "central close shot should have higher adjusted xG than long shot");
-        require(closeQuality.adjustedXG > tightQuality.adjustedXG,
-            "tight angle should lower adjusted shot quality");
-        require(closeQuality.adjustedXG > pressuredQuality.adjustedXG,
-            "pressure should lower adjusted shot quality");
+        require(closeQuality.rawXG > longQuality.rawXG,
+            "central close shot should have higher raw xG than long shot");
+        require(closeQuality.keeperFacingXG > tightQuality.keeperFacingXG,
+            "tight angle should lower keeper-facing shot quality");
+        require(closeQuality.keeperFacingXG > pressuredQuality.keeperFacingXG,
+            "pressure should lower keeper-facing shot quality");
         require(blockedQuality.blockRisk > closeQuality.blockRisk,
             "high blocker risk should raise block risk");
-        require(std::abs(eliteQuality.adjustedXG - closeQuality.adjustedXG) < 0.015,
+        require(blockedQuality.rawXG > blockedQuality.effectiveXG,
+            "crowded lane should lower effective xG below raw xG");
+        require(closeQuality.effectiveXG > longQuality.effectiveXG,
+            "central close shot should keep higher effective xG than long shot");
+        require(std::abs(eliteQuality.effectiveXG - closeQuality.effectiveXG) < 0.015,
             "player finishing should not massively inflate recorded xG");
     }
 
@@ -2030,6 +2034,9 @@ namespace {
         std::uint64_t maxShotSeed = 0;
         double maxSampleXg = 0.0;
         double totalExpectedGoals = 0.0;
+        double totalRawExpectedGoals = 0.0;
+        double totalKeeperFacingExpectedGoals = 0.0;
+        double totalBlockedExpectedGoals = 0.0;
         GoalSourceDiagnostic totalGoalSources;
         ShotOutcomeDiagnostic totalShotOutcomes;
         for (std::uint64_t seed = 1; seed <= 8; ++seed) {
@@ -2048,16 +2055,22 @@ namespace {
                 result.homeStats.shotsOnTarget + result.awayStats.shotsOnTarget;
             const int combinedGoals = result.homeStats.goals + result.awayStats.goals;
             const double combinedXG = result.homeStats.expectedGoals + result.awayStats.expectedGoals;
+            const double combinedRawXG =
+                result.homeStats.rawExpectedGoals + result.awayStats.rawExpectedGoals;
+            const double combinedKeeperFacingXG =
+                result.homeStats.keeperFacingExpectedGoals + result.awayStats.keeperFacingExpectedGoals;
+            const double combinedBlockedXG =
+                result.homeStats.blockedExpectedGoals + result.awayStats.blockedExpectedGoals;
             const GoalSourceDiagnostic goalSources = goalSourceDiagnosticFor(result);
             const ShotOutcomeDiagnostic shotOutcomes = shotOutcomeDiagnosticFor(input, result);
+            if (combinedShots > maxSampleShots || combinedXG > maxSampleXg || combinedGoals > maxSampleGoals) {
+                maxSampleShots = std::max(maxSampleShots, combinedShots);
+                maxSampleGoals = std::max(maxSampleGoals, combinedGoals);
+                maxSampleXg = std::max(maxSampleXg, combinedXG);
+                maxShotSeed = 0x9300ULL + seed;
+            }
             if (combinedShots >= 100) {
                 ++hundredShotSamples;
-                if (combinedShots > maxSampleShots) {
-                    maxSampleShots = combinedShots;
-                    maxSampleGoals = combinedGoals;
-                    maxSampleXg = combinedXG;
-                    maxShotSeed = 0x9300ULL + seed;
-                }
             }
             if (combinedXG >= 30.0) {
                 ++explodedXGSamples;
@@ -2110,6 +2123,9 @@ namespace {
             totalGoals += combinedGoals;
             totalPasses += combinedPasses;
             totalExpectedGoals += combinedXG;
+            totalRawExpectedGoals += combinedRawXG;
+            totalKeeperFacingExpectedGoals += combinedKeeperFacingXG;
+            totalBlockedExpectedGoals += combinedBlockedXG;
             totalGoalSources.assistedGoals += goalSources.assistedGoals;
             totalGoalSources.soloShots += goalSources.soloShots;
             totalGoalSources.reboundOrLooseGoals += goalSources.reboundOrLooseGoals;
@@ -2129,6 +2145,10 @@ namespace {
                     "shots on target should never exceed total shots");
                 require(stats->goals <= stats->shotsOnTarget,
                     "goals should not exceed shots on target while own goals are not modeled");
+                require(stats->rawExpectedGoals + 0.0001 >= stats->keeperFacingExpectedGoals,
+                    "raw xG should be at least keeper-facing xG");
+                require(stats->keeperFacingExpectedGoals + 0.0001 >= stats->expectedGoals,
+                    "keeper-facing xG should be at least effective xG");
                 if (stats->shotsOnTarget >= 8 && stats->goals == stats->shotsOnTarget) {
                     ++extremePerfectConversionSamples;
                 }
@@ -2194,6 +2214,8 @@ namespace {
         }
         if (totalShots > 0) {
             const double xgPerShot =
+                totalRawExpectedGoals / static_cast<double>(std::max(totalShots, 1));
+            const double effectiveXgPerShot =
                 totalExpectedGoals / static_cast<double>(std::max(totalShots, 1));
             const double averageShotDistance =
                 totalShotOutcomes.distanceSamples > 0
@@ -2204,8 +2226,12 @@ namespace {
                 << " totalCarries=" << totalCarryTraces
                 << " totalShots=" << totalShots
                 << " totalShotTraces=" << totalShotTraces
-                << " aggregateXG=" << totalExpectedGoals
+                << " rawXG=" << totalRawExpectedGoals
+                << " keeperFacingXG=" << totalKeeperFacingExpectedGoals
+                << " effectiveXG=" << totalExpectedGoals
+                << " blockedXG=" << totalBlockedExpectedGoals
                 << " xgPerShot=" << xgPerShot
+                << " effectiveXgPerShot=" << effectiveXgPerShot
                 << " goals=" << totalGoals
                 << " shotsOnTarget=" << totalShotsOnTarget
                 << " assistedGoals=" << totalGoalSources.assistedGoals
@@ -2220,6 +2246,21 @@ namespace {
                 << " blockedShots=" << totalShotOutcomes.blockedShots
                 << " avgShotDistance=" << averageShotDistance
                 << '\n';
+        }
+        if (totalExpectedGoals >= 12.0 && totalShotsOnTarget * 3 < totalShots) {
+            const double explainedByBlocks =
+                totalBlockedExpectedGoals / std::max(totalKeeperFacingExpectedGoals, 0.001);
+            if (explainedByBlocks < 0.35) {
+                std::cerr << "xg-sot consistency guardrail effectiveXG=" << totalExpectedGoals
+                    << " keeperFacingXG=" << totalKeeperFacingExpectedGoals
+                    << " blockedXG=" << totalBlockedExpectedGoals
+                    << " totalShots=" << totalShots
+                    << " totalSOT=" << totalShotsOnTarget
+                    << " blockedShots=" << totalShotOutcomes.blockedShots
+                    << '\n';
+            }
+            require(explainedByBlocks >= 0.35,
+                "high effective xG with low SOT should be explained by blocked xG");
         }
         require(hundredShotSamples <= 1,
             "balanced 4-4-2 coordinate matches should not regularly produce 100+ shots");

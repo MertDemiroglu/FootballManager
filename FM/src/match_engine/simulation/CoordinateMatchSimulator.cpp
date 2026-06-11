@@ -2116,9 +2116,13 @@ namespace {
                 static_cast<double>(state.currentSecond)
             });
             executionQuality = shotExecution.executionQuality;
-            shotXG = shotQuality.adjustedXG;
+            shotXG = shotQuality.effectiveXG;
             ++teamStatsFor(result, carrier->teamId).shots;
             teamStatsFor(result, carrier->teamId).expectedGoals += shotXG;
+            teamStatsFor(result, carrier->teamId).rawExpectedGoals += shotQuality.rawXG;
+            teamStatsFor(result, carrier->teamId).keeperFacingExpectedGoals += shotQuality.keeperFacingXG;
+            teamStatsFor(result, carrier->teamId).blockedExpectedGoals +=
+                std::max(0.0, shotQuality.keeperFacingXG - shotQuality.effectiveXG);
             ++playerStatsFor(result, carrier->playerId, carrier->teamId).shots;
         } else {
             const BallTrajectoryBuildResult trajectoryResult = trajectoryBuilder.build(BallTrajectoryBuildRequest{

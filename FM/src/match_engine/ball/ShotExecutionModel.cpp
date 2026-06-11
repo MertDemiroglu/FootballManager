@@ -90,12 +90,12 @@ ShotExecutionResult ShotExecutionModel::execute(const ShotExecutionRequest& requ
         tuning.maximumExecutionQuality);
 
     const double qualityPenalty = (100.0 - executionQuality) / 100.0;
-    const double baseXG = ShotQualityModel::calculateOpenPlayXG(
+    const double rawXG = ShotQualityModel::calculateOpenPlayXG(
         context.shotOrigin,
         context.attackingDirection,
         context.pressure);
     const double highXGControl = std::clamp(
-        baseXG / std::max(tuning.highXGDeviationReference, 0.001),
+        rawXG / std::max(tuning.highXGDeviationReference, 0.001),
         0.0,
         1.0);
     const double deviationReduction = 1.0 - highXGControl * tuning.highXGDeviationReduction;

@@ -56,7 +56,6 @@ ShotOutcomeResult GoalkeeperSaveResolver::resolveOnTarget(const ShotOutcomeConte
         (context.execution.shotPower - tuning.shotPowerBaseline) / tuning.shotPowerScale,
         0.0,
         1.0);
-    const double chanceQuality = clampDouble(context.quality.adjustedXG / tuning.chanceQualityScale, 0.0, 1.0);
     const double saveDifficulty = clampDouble(context.quality.saveDifficulty / 100.0, 0.0, 1.0);
     const double frameHalfWidth = GoalFrame{}.width / 2.0;
     const double keeperLateral =
@@ -75,24 +74,18 @@ ShotOutcomeResult GoalkeeperSaveResolver::resolveOnTarget(const ShotOutcomeConte
         0.0,
         1.0);
 
-    const double shotThreatPenalty = clampDouble(
-        chanceQuality * tuning.saveChanceQualityWeight
-            + placement * tuning.savePlacementWeight
-            + power * tuning.savePowerWeight
-            + saveDifficulty * tuning.saveDifficultyWeight
-            + framePlacement * tuning.framePlacementWeight
-            + reachDifficulty * tuning.keeperReachDifficultyWeight,
-        0.0,
-        tuning.maximumShotThreatPenalty);
-
-    const double saveProbability = clampDouble(
-        tuning.saveProbabilityBase
-            + (keeperSkill - tuning.saveSkillBaseline) * tuning.saveSkillWeight
-            - shotThreatPenalty,
-        tuning.saveMinimumProbability,
-        tuning.saveMaximumProbability);
-    const double saveRoll = matchEngineDeterministicUnitInterval(context.seed ^ 0x5a9eULL);
-    if (saveRoll >= saveProbability) {
+    const double goalProbability = clampDouble(
+        context.quality.keeperFacingXG * tuning.goalProbabilityKeeperFacingWeight
+            + placement * tuning.placementGoalWeight
+            + power * tuning.powerGoalWeight
+            + framePlacement * tuning.framePlacementGoalWeight
+            + reachDifficulty * tuning.keeperReachGoalWeight
+            + saveDifficulty * tuning.saveDifficultyGoalWeight
+            - (keeperSkill - tuning.saveSkillBaseline) * tuning.keeperSkillGoalReductionWeight,
+        tuning.goalProbabilityMinimum,
+        tuning.goalProbabilityMaximum);
+    const double goalRoll = matchEngineDeterministicUnitInterval(context.seed ^ 0x5a9eULL);
+    if (goalRoll < goalProbability) {
         return ShotOutcomeResult{ ShotOutcomeKind::Goal, true, true, false, false };
     }
 

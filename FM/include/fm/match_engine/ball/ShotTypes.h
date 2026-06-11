@@ -122,8 +122,9 @@ struct ShotExecutionResult {
 };
 
 struct ShotQualityResult {
-    double baseXG = 0.0;
-    double adjustedXG = 0.0;
+    double rawXG = 0.0;
+    double keeperFacingXG = 0.0;
+    double effectiveXG = 0.0;
     double blockRisk = 0.0;
     double onTargetDifficulty = 0.0;
     double saveDifficulty = 0.0;
