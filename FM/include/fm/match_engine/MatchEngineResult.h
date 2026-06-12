@@ -30,6 +30,11 @@ struct MatchTeamSimulationStats {
     int passInterceptions = 0;
     int looseBallRecoveries = 0;
     int keeperClaims = 0;
+    int keeperSavesHeld = 0;
+    int keeperSavesParried = 0;
+    int keeperSweeps = 0;
+    int keeperOneOnOnes = 0;
+    int keeperSmothers = 0;
     int passBlocks = 0;
     int shotBlocks = 0;
     int clearances = 0;
@@ -43,6 +48,9 @@ struct MatchTeamSimulationStats {
     int passesIntercepted = 0;
     int passesDeflected = 0;
     int passesLoose = 0;
+    int passesOutOfPlay = 0;
+    int passesKeeperClaimed = 0;
+    int passesFailedOther = 0;
     int passesReceiverOutOfRange = 0;
     int fouls = 0;
     int corners = 0;
@@ -94,6 +102,11 @@ struct MatchPlayerSimulationStats {
     int passInterceptions = 0;
     int looseBallRecoveries = 0;
     int keeperClaims = 0;
+    int keeperSavesHeld = 0;
+    int keeperSavesParried = 0;
+    int keeperSweeps = 0;
+    int keeperOneOnOnes = 0;
+    int keeperSmothers = 0;
     int passBlocks = 0;
     int shotBlocks = 0;
     int clearances = 0;
@@ -130,6 +143,8 @@ struct MatchGoalChainDiagnostic {
     double effectiveXG = 0.0;
     double shotPressure = 0.0;
     double closestDefenderDistance = 0.0;
+    double closestOutfieldDefenderDistance = -1.0;
+    const char* closestDefenderRole = "none";
     double carryAfterReceiveMeters = 0.0;
     int touchesAfterReceive = 0;
     int defendersBeatenAfterReceive = 0;
