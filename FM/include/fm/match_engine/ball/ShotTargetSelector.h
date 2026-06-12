@@ -13,3 +13,7 @@ PitchPoint shotTargetPointFor(
     PitchPoint shotOrigin,
     AttackingDirection attackingDirection,
     ShotTargetZone zone);
+
+ShotTargetPoint shotTargetFramePointFor(
+    PitchPoint shotOrigin,
+    ShotTargetZone zone);

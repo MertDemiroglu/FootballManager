@@ -4,6 +4,7 @@
 #include"fm/match_engine/decision/DecisionTuningProfile.h"
 
 #include<algorithm>
+#include<cmath>
 
 namespace {
     double clampDouble(double value, double minimum, double maximum) {
@@ -33,39 +34,14 @@ namespace {
 }
 
 bool ShotAccuracyResolver::isOnTarget(const ShotOutcomeContext& context) const {
+    return GoalFrame{}.contains(context.execution.actualFrameTarget);
+}
+
+bool ShotAccuracyResolver::isWoodwork(const ShotOutcomeContext& context) const {
     const ShootingModelTuning modelTuning;
-    const ShotOutcomeTuning& tuning = modelTuning.outcome;
-    const double executionMissFactor = (100.0 - context.execution.executionQuality) / 100.0;
-    const double pressureFactor = clampDouble(context.shotContext.pressure / 100.0, 0.0, 1.0);
-    const double angleFactor = clampDouble(1.0 - (context.shotContext.centrality * 4.0), 0.0, 1.0);
-    const double difficultyFactor = clampDouble(context.quality.onTargetDifficulty / 100.0, 0.0, 1.0);
-    const double deviationFactor = clampDouble(
-        (context.execution.targetDeviationMeters * tuning.deviationMissWeight)
-            + (context.execution.heightError * tuning.heightErrorMissWeight),
-        0.0,
-        tuning.deviationFactorMaximum);
-
-    double typePenalty = 0.0;
-    if (context.shotType == ShotType::LongShot) {
-        typePenalty = tuning.longShotMissPenalty;
-    } else if (context.shotType == ShotType::TightAngleShot) {
-        typePenalty = tuning.tightAngleShotMissPenalty;
-    } else if (context.shotType == ShotType::DesperationShot) {
-        typePenalty = tuning.desperationShotMissPenalty;
-    }
-
-    const double offTargetProbability = clampDouble(
-        tuning.offTargetBaseProbability
-            + executionMissFactor * tuning.executionMissWeight
-            + pressureFactor * tuning.pressureMissWeight
-            + angleFactor * tuning.angleMissWeight
-            + difficultyFactor * tuning.difficultyMissWeight
-            + deviationFactor
-            + typePenalty,
-        tuning.offTargetMinimumProbability,
-        tuning.offTargetMaximumProbability);
-
-    return matchEngineDeterministicUnitInterval(context.seed ^ 0xacc0ULL) >= offTargetProbability;
+    return GoalFrame{}.touchesFrame(
+        context.execution.actualFrameTarget,
+        modelTuning.outcome.woodworkToleranceMeters);
 }
 
 ShotOutcomeResult GoalkeeperSaveResolver::resolveOnTarget(const ShotOutcomeContext& context) const {
@@ -80,26 +56,37 @@ ShotOutcomeResult GoalkeeperSaveResolver::resolveOnTarget(const ShotOutcomeConte
         (context.execution.shotPower - tuning.shotPowerBaseline) / tuning.shotPowerScale,
         0.0,
         1.0);
-    const double chanceQuality = clampDouble(context.quality.adjustedXG / tuning.chanceQualityScale, 0.0, 1.0);
     const double saveDifficulty = clampDouble(context.quality.saveDifficulty / 100.0, 0.0, 1.0);
-
-    const double shotThreatPenalty = clampDouble(
-        chanceQuality * tuning.saveChanceQualityWeight
-            + placement * tuning.savePlacementWeight
-            + power * tuning.savePowerWeight
-            + saveDifficulty * tuning.saveDifficultyWeight,
+    const double frameHalfWidth = GoalFrame{}.width / 2.0;
+    const double keeperLateral =
+        context.shotContext.goalkeeperPosition.y - PitchGeometry::WidthMeters / 2.0;
+    const double lateralReachDemand = std::abs(context.execution.actualFrameTarget.lateral - keeperLateral)
+        / std::max(tuning.keeperLateralReachMeters, 0.001);
+    const double verticalReachDemand =
+        context.execution.actualFrameTarget.height / std::max(tuning.keeperVerticalReachMeters, 0.001);
+    const double reachDifficulty = clampDouble(
+        (lateralReachDemand + verticalReachDemand) * 0.5,
         0.0,
-        tuning.maximumShotThreatPenalty);
+        1.0);
+    const double framePlacement = clampDouble(
+        (std::abs(context.execution.actualFrameTarget.lateral) / std::max(frameHalfWidth, 0.001)) * 0.65
+            + (context.execution.actualFrameTarget.height / std::max(GoalFrame{}.height, 0.001)) * 0.35,
+        0.0,
+        1.0);
 
-    const double saveProbability = clampDouble(
-        tuning.saveProbabilityBase
-            + (keeperSkill - tuning.saveSkillBaseline) * tuning.saveSkillWeight
-            - shotThreatPenalty,
-        tuning.saveMinimumProbability,
-        tuning.saveMaximumProbability);
-    const double saveRoll = matchEngineDeterministicUnitInterval(context.seed ^ 0x5a9eULL);
-    if (saveRoll >= saveProbability) {
-        return ShotOutcomeResult{ ShotOutcomeKind::Goal, true, true, false };
+    const double goalProbability = clampDouble(
+        context.quality.keeperFacingXG * tuning.goalProbabilityKeeperFacingWeight
+            + placement * tuning.placementGoalWeight
+            + power * tuning.powerGoalWeight
+            + framePlacement * tuning.framePlacementGoalWeight
+            + reachDifficulty * tuning.keeperReachGoalWeight
+            + saveDifficulty * tuning.saveDifficultyGoalWeight
+            - (keeperSkill - tuning.saveSkillBaseline) * tuning.keeperSkillGoalReductionWeight,
+        tuning.goalProbabilityMinimum,
+        tuning.goalProbabilityMaximum);
+    const double goalRoll = matchEngineDeterministicUnitInterval(context.seed ^ 0x5a9eULL);
+    if (goalRoll < goalProbability) {
+        return ShotOutcomeResult{ ShotOutcomeKind::Goal, true, true, false, false };
     }
 
     const double handling = attributeOrDefault(context.shotContext.goalkeeperAttributes.goalkeeper.handling);
@@ -113,13 +100,18 @@ ShotOutcomeResult GoalkeeperSaveResolver::resolveOnTarget(const ShotOutcomeConte
         tuning.heldMaximumProbability);
     const bool held = matchEngineDeterministicUnitInterval(context.seed ^ 0xadd5ULL) < heldProbability;
     return held
-        ? ShotOutcomeResult{ ShotOutcomeKind::SavedHeld, true, false, false }
-        : ShotOutcomeResult{ ShotOutcomeKind::SavedRebound, true, false, true };
+        ? ShotOutcomeResult{ ShotOutcomeKind::SavedHeld, true, false, false, false }
+        : ShotOutcomeResult{ ShotOutcomeKind::SavedRebound, true, false, true, false };
 }
 
 ShotOutcomeResult ShotOutcomeResolver::resolve(const ShotOutcomeContext& context) const {
-    if (!ShotAccuracyResolver{}.isOnTarget(context)) {
-        return ShotOutcomeResult{ ShotOutcomeKind::OffTarget, false, false, false };
+    const ShotAccuracyResolver accuracy;
+    if (!accuracy.isOnTarget(context)) {
+        if (accuracy.isWoodwork(context)) {
+            return ShotOutcomeResult{ ShotOutcomeKind::Woodwork, false, false, false, true };
+        }
+
+        return ShotOutcomeResult{ ShotOutcomeKind::OffTarget, false, false, false, false };
     }
     return GoalkeeperSaveResolver{}.resolveOnTarget(context);
 }

@@ -77,7 +77,11 @@ std::vector<ActionCandidate> BallCarrierDecisionModel::evaluate(
             player.tacticalSetup,
             player.ballPosition,
             context.attackingDirection,
-            player.localPressure
+            player.localPressure,
+            player.phase,
+            player.possession.possessionActionCount,
+            player.possession.ballProgression,
+            player.possession.safeCirculationAvailable
         });
     for (const ShotOption& option : shotOptions) {
         candidates.push_back(scoringModel.buildShotCandidate(option, scoringContext));

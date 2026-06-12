@@ -28,6 +28,12 @@ namespace {
         return (to.x - from.x) * directionSign(direction);
     }
 
+    double signedProgressX(PitchPoint point, AttackingDirection direction) {
+        return direction == AttackingDirection::HomeToAway
+            ? point.x
+            : PitchGeometry::LengthMeters - point.x;
+    }
+
     bool isWide(PitchPoint point) {
         return point.y <= PitchGeometry::WidthMeters * 0.28
             || point.y >= PitchGeometry::WidthMeters * 0.72;
@@ -38,15 +44,64 @@ namespace {
             <= PitchGeometry::WidthMeters * 0.24;
     }
 
-    PitchPoint carryTarget(
+    double centralChannelShare(PitchPoint point) {
+        const double distanceFromCenter =
+            std::abs(point.y - PitchGeometry::WidthMeters / 2.0);
+        return std::clamp(1.0 - (distanceFromCenter / (PitchGeometry::WidthMeters * 0.24)), 0.0, 1.0);
+    }
+
+    PitchPoint goalCenterFor(AttackingDirection direction) {
+        return direction == AttackingDirection::HomeToAway
+            ? PitchGeometry::awayGoalCenter()
+            : PitchGeometry::homeGoalCenter();
+    }
+
+    double goalDistance(PitchPoint point, AttackingDirection direction) {
+        return PitchGeometry::distance(point, goalCenterFor(direction));
+    }
+
+    double minimumCentralCarryGoalDistance(CarryOptionKind kind, const CarryDecisionTuning& tuning) {
+        switch (kind) {
+        case CarryOptionKind::SafeCarry:
+            return tuning.centralSafeCarryMinimumGoalDistance;
+        case CarryOptionKind::ProgressiveCarry:
+            return tuning.centralProgressiveCarryMinimumGoalDistance;
+        case CarryOptionKind::Dribble:
+            return tuning.centralDribbleMinimumGoalDistance;
+        }
+        return tuning.centralProgressiveCarryMinimumGoalDistance;
+    }
+
+    PitchPoint contextAwareCarryTarget(
         PitchPoint position,
         AttackingDirection direction,
         double forward,
-        double lateral) {
-        return PitchGeometry::clampToPitch(PitchPoint{
+        double lateral,
+        CarryOptionKind kind,
+        const CarryDecisionTuning& tuning) {
+        PitchPoint target = PitchGeometry::clampToPitch(PitchPoint{
             position.x + directionSign(direction) * forward,
             std::clamp(position.y + lateral, 2.0, PitchGeometry::WidthMeters - 2.0)
         });
+
+        const double centralShare = centralChannelShare(target);
+        const double minimumGoalDistance =
+            (minimumCentralCarryGoalDistance(kind, tuning) * centralShare)
+            + (tuning.halfSpaceCarryMinimumGoalDistance * (1.0 - centralShare));
+        const double maxGoalLineProgress =
+            PitchGeometry::LengthMeters - tuning.minimumCarryGoalLineDistance;
+        if (goalDistance(target, direction) >= minimumGoalDistance
+            && signedProgressX(target, direction) <= maxGoalLineProgress) {
+            return target;
+        }
+
+        const double goalX = direction == AttackingDirection::HomeToAway
+            ? PitchGeometry::LengthMeters
+            : 0.0;
+        target.x = goalX - directionSign(direction) * std::max(
+            minimumGoalDistance,
+            tuning.minimumCarryGoalLineDistance);
+        return PitchGeometry::clampToPitch(target);
     }
 
     const MatchPlayerSnapshot* snapshotForPlayer(
@@ -173,6 +228,50 @@ namespace {
         return std::clamp(risk, 0.0, 100.0);
     }
 
+    double goalmouthCarryPressureRisk(
+        PitchPoint target,
+        AttackingDirection direction,
+        const TeamSimState* opponentState,
+        double skill,
+        const CarryDecisionTuning& tuning) {
+        const double distance = goalDistance(target, direction);
+        if (distance > tuning.goalmouthPressureRiskDistance) {
+            return 0.0;
+        }
+
+        const double centralShare = centralChannelShare(target);
+        if (centralShare <= 0.05) {
+            return 0.0;
+        }
+
+        double risk = 0.0;
+        if (distance <= 4.0) {
+            risk += tuning.sixYardPressureRisk;
+        } else if (distance <= 8.0) {
+            risk += tuning.closeBoxPressureRisk;
+        } else {
+            risk += tuning.boxPressureRisk;
+        }
+
+        if (opponentState != nullptr) {
+            for (const PlayerSimState& opponent : opponentState->players) {
+                const double opponentDistance = PitchGeometry::distance(target, opponent.position);
+                if (opponentDistance <= 6.0) {
+                    risk += tuning.nearbyCollapseRisk;
+                } else if (opponentDistance <= 11.0) {
+                    risk += tuning.nearbyCollapseRisk * 0.45;
+                }
+            }
+        }
+
+        if (distance <= 8.0) {
+            risk += tuning.goalkeeperCloseDownRisk;
+        }
+
+        risk -= std::max(0.0, skill - 70.0) * tuning.eliteCarryRiskReduction;
+        return std::clamp(risk * centralShare, 0.0, 100.0);
+    }
+
     double zoneLimitRiskFor(
         FormationSlotRole role,
         PitchPoint from,
@@ -204,6 +303,9 @@ namespace {
                 deepFinalThirdRisk *= 0.80;
             }
             risk += deepFinalThirdRisk;
+        }
+        if (goalDistance(target, direction) <= 10.0 && isCentral(target)) {
+            risk += (10.0 - goalDistance(target, direction)) * 8.0;
         }
         return std::clamp(risk, 0.0, 100.0);
     }
@@ -305,12 +407,29 @@ namespace {
         const CarryTacticalDecisionProfile& tactics,
         const CarryDecisionTuning& tuning) {
         const double distance = PitchGeometry::distance(context.ballPosition, target);
+        if (distance < tuning.minimumUsefulCarryDistance) {
+            CarryOption option;
+            option.kind = kind;
+            option.actionType = actionTypeFor(kind);
+            option.targetPoint = PitchGeometry::clampToPitch(target);
+            return option;
+        }
+
         const double skill = kind == CarryOptionKind::Dribble
             ? dribbleSkill(attributes)
             : carrySkill(attributes);
         const double space = spaceScoreFor(target, context.opponentState);
         const double pressureRisk =
-            pressureRiskFor(context.ballPosition, target, context.opponentState, context.carrierPressure);
+            std::clamp(
+                pressureRiskFor(context.ballPosition, target, context.opponentState, context.carrierPressure)
+                    + goalmouthCarryPressureRisk(
+                        target,
+                        context.attackingDirection,
+                        context.opponentState,
+                        skill,
+                        tuning),
+                0.0,
+                100.0);
         const double progression =
             progressionScoreFor(kind, context.ballPosition, target, context.attackingDirection);
         const double zoneRisk =
@@ -398,7 +517,13 @@ std::vector<CarryOption> CarryOptionEvaluator::evaluate(
     const CarryOption safe = makeOption(
         CarryOptionKind::SafeCarry,
         context,
-        carryTarget(context.ballPosition, context.attackingDirection, 6.0, lateralTowardLane),
+        contextAwareCarryTarget(
+            context.ballPosition,
+            context.attackingDirection,
+            6.0,
+            lateralTowardLane,
+            CarryOptionKind::SafeCarry,
+            tuning),
         attributes,
         role,
         tactics,
@@ -414,7 +539,13 @@ std::vector<CarryOption> CarryOptionEvaluator::evaluate(
         const CarryOption progressive = makeOption(
             CarryOptionKind::ProgressiveCarry,
             context,
-            carryTarget(context.ballPosition, context.attackingDirection, wideCarrier ? 15.0 : 13.0, lateralTowardLane),
+            contextAwareCarryTarget(
+                context.ballPosition,
+                context.attackingDirection,
+                wideCarrier ? 15.0 : 13.0,
+                lateralTowardLane,
+                CarryOptionKind::ProgressiveCarry,
+                tuning),
             attributes,
             role,
             tactics,
@@ -424,7 +555,13 @@ std::vector<CarryOption> CarryOptionEvaluator::evaluate(
         const CarryOption dribble = makeOption(
             CarryOptionKind::Dribble,
             context,
-            carryTarget(context.ballPosition, context.attackingDirection, wideCarrier ? 11.0 : 9.0, lateralDribble),
+            contextAwareCarryTarget(
+                context.ballPosition,
+                context.attackingDirection,
+                wideCarrier ? 11.0 : 9.0,
+                lateralDribble,
+                CarryOptionKind::Dribble,
+                tuning),
             attributes,
             role,
             tactics,

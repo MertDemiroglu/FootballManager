@@ -29,25 +29,37 @@ namespace {
             100.0);
     }
 
+    double blockerReachHeightMeters(const ShotBlocker& blocker, const ShotBlockTuning& tuning) {
+        const double jumpingReach =
+            attributeOrDefault(blocker.attributes.physical.jumpingReach) / 100.0;
+        return std::max(
+            tuning.groundBlockReachHeightMeters,
+            tuning.jumpingReachHeightBaseMeters
+                + jumpingReach * tuning.jumpingReachHeightScaleMeters
+                + tuning.emergencyReachMarginMeters);
+    }
+
     double distancePointToSegment(
         PitchPoint point,
         PitchPoint start,
         PitchPoint end,
+        double& segmentProgress,
         PitchPoint& closest,
         const ShotBlockTuning& tuning) {
         const double dx = end.x - start.x;
         const double dy = end.y - start.y;
         const double lengthSquared = dx * dx + dy * dy;
         if (lengthSquared <= tuning.minimumSegmentLengthSquared) {
+            segmentProgress = 0.0;
             closest = start;
             return PitchGeometry::distance(point, start);
         }
 
-        const double t = clampDouble(
+        segmentProgress = clampDouble(
             ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared,
             0.0,
             1.0);
-        closest = PitchPoint{ start.x + dx * t, start.y + dy * t };
+        closest = PitchPoint{ start.x + dx * segmentProgress, start.y + dy * segmentProgress };
         return PitchGeometry::distance(point, closest);
     }
 }
@@ -64,12 +76,18 @@ ShotBlockResult ShotBlockResolver::resolve(const ShotBlockRequest& request) cons
         }
 
         PitchPoint contactPoint;
+        double pathProgress = 0.0;
         const double laneDistance = distancePointToSegment(
             blocker.position,
             request.trajectory.start,
             request.trajectory.actualTarget,
+            pathProgress,
             contactPoint,
             tuning);
+        if (pathProgress < tuning.minimumBlockPathProgress
+            || pathProgress > tuning.maximumBlockPathProgress) {
+            continue;
+        }
         if (laneDistance > tuning.blockLaneWidthMeters + tuning.extraBlockLaneWidthMeters) {
             continue;
         }
@@ -77,6 +95,10 @@ ShotBlockResult ShotBlockResolver::resolve(const ShotBlockRequest& request) cons
         const double ballDistance = PitchGeometry::distance(request.trajectory.start, contactPoint);
         const double ballArrival = request.trajectory.startSecond
             + (ballDistance / std::max(request.trajectory.speedMetersPerSecond, 1.0));
+        const double ballHeight = ballHeightAtSecond(request.trajectory, ballArrival);
+        if (ballHeight > blockerReachHeightMeters(blocker, tuning)) {
+            continue;
+        }
         const double defenderDistance = PitchGeometry::distance(blocker.position, contactPoint);
         const double reactionWindow =
             tuning.blockReactionWindowSeconds

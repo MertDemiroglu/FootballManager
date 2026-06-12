@@ -73,6 +73,7 @@ namespace {
         MatchPlayerSnapshot snapshot;
         snapshot.playerId = player.getId();
         snapshot.teamId = player.getTeamId();
+        snapshot.playerName = player.getName();
         snapshot.position = player.getPlayerPosition();
         snapshot.attributes = player.getAttributes();
         snapshot.conditionState = player.getConditionState();

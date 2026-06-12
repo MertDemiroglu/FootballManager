@@ -1,5 +1,7 @@
 #include"fm/match_engine/decision/ShotDecisionEvaluator.h"
 
+#include"../DeterministicRandom.h"
+#include"fm/match_engine/ball/ShotContextBuilder.h"
 #include"fm/match_engine/ball/ShotQualityModel.h"
 #include"fm/match_engine/decision/DecisionTuningProfile.h"
 #include"fm/match_engine/geometry/TacticalZones.h"
@@ -72,6 +74,79 @@ namespace {
         return playerSnapshot != nullptr ? playerSnapshot->attributes : PlayerAttributes{};
     }
 
+    double goalkeeperStrengthFor(const MatchPlayerSnapshot& goalkeeper) {
+        return std::clamp(
+            goalkeeper.attributes.goalkeeper.shotStopping * 0.36
+                + goalkeeper.attributes.goalkeeper.oneOnOnes * 0.22
+                + goalkeeper.attributes.goalkeeper.handling * 0.18
+                + goalkeeper.attributes.goalkeeper.aerialAbility * 0.10
+                + goalkeeper.attributes.mental.concentration * 0.08
+                + goalkeeper.baseOverall * 0.06,
+            25.0,
+            95.0);
+    }
+
+    const MatchPlayerSnapshot* goalkeeperSnapshotFor(const MatchTeamSnapshot* snapshot) {
+        if (snapshot == nullptr) {
+            return nullptr;
+        }
+
+        for (const MatchPlayerSnapshot& player : snapshot->players) {
+            if (player.position == PlayerPosition::Goalkeeper) {
+                return &player;
+            }
+        }
+
+        return nullptr;
+    }
+
+    std::vector<PitchPoint> defenderPositionsFor(const ShotOptionEvaluationContext& context) {
+        std::vector<PitchPoint> positions;
+        if (context.opponentState == nullptr) {
+            return positions;
+        }
+
+        positions.reserve(context.opponentState->players.size());
+        for (const PlayerSimState& defender : context.opponentState->players) {
+            const MatchPlayerSnapshot* snapshot =
+                snapshotForPlayer(context.opponentSnapshot, defender.playerId);
+            if (snapshot != nullptr && snapshot->position == PlayerPosition::Goalkeeper) {
+                continue;
+            }
+
+            positions.push_back(defender.position);
+        }
+
+        return positions;
+    }
+
+    ShotContext expectedShotContextFor(
+        const ShotOptionEvaluationContext& context,
+        const PlayerAttributes& shooterAttributes) {
+        const MatchPlayerSnapshot* goalkeeper = goalkeeperSnapshotFor(context.opponentSnapshot);
+        ShotContext shotContext = ShotContextBuilder{}.build(ShotContextBuildRequest{
+            context.ballPosition,
+            context.attackingDirection,
+            context.carrierPressure,
+            shooterAttributes,
+            goalkeeper != nullptr ? goalkeeper->attributes : PlayerAttributes{},
+            goalkeeper != nullptr ? goalkeeperStrengthFor(*goalkeeper) : 50.0,
+            defenderPositionsFor(context),
+            matchEngineMix64(static_cast<std::uint64_t>(
+                context.carrierState != nullptr ? context.carrierState->playerId : 0))
+        });
+        if (goalkeeper != nullptr && context.opponentState != nullptr) {
+            for (const PlayerSimState& defender : context.opponentState->players) {
+                if (defender.playerId == goalkeeper->playerId) {
+                    shotContext.goalkeeperPosition = defender.position;
+                    break;
+                }
+            }
+        }
+
+        return shotContext;
+    }
+
     double shootingConfidence(const PlayerAttributes& attributes) {
         return std::clamp(
             attributes.technical.shooting * 0.34
@@ -123,9 +198,7 @@ namespace {
         if (xg < tuning.xgGoodThreshold) {
             return tuning.xgGoodBase + (xg - tuning.xgMediumThreshold) * tuning.xgGoodSlope;
         }
-        return std::min(
-            tuning.xgDesireMaximum,
-            tuning.xgGreatBase + (xg - tuning.xgGoodThreshold) * tuning.xgGreatSlope);
+        return tuning.xgGreatBase + (xg - tuning.xgGoodThreshold) * tuning.xgGreatSlope;
     }
 
     bool isDefensiveRole(FormationSlotRole role) {
@@ -136,6 +209,11 @@ namespace {
             || role == FormationSlotRole::LeftWingBack
             || role == FormationSlotRole::RightWingBack
             || role == FormationSlotRole::DefensiveMidfielder;
+    }
+
+    bool isAdvancedShootingPhase(DecisionMatchPhase phase) {
+        return phase == DecisionMatchPhase::BoxEntry
+            || phase == DecisionMatchPhase::ChanceCreation;
     }
 
 }
@@ -149,22 +227,20 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
 
     const double distance =
         PitchGeometry::distance(context.ballPosition, goalCenterFor(context.attackingDirection));
-    const double xg = ShotQualityModel::calculateOpenPlayXG(
-        context.ballPosition,
-        context.attackingDirection,
-        context.carrierPressure);
     const TacticalZone zone =
         tacticalZoneForPoint(context.ballPosition, context.attackingDirection);
     const bool attackingThird = isAttackingThird(zone);
 
     const ShotDecisionTuning tuning;
-    if (xg < tuning.minimumOpenPlayXG) {
-        return output;
-    }
-    if (!attackingThird && xg < tuning.nonAttackingThirdMinimumXG) {
-        return output;
-    }
     const PlayerAttributes attributes = attributesFor(context.teamSnapshot, context.carrierState);
+    const ShotContext expectedShotContext = expectedShotContextFor(context, attributes);
+    const double xg = ShotQualityModel::calculatePreShotXG(expectedShotContext);
+    const bool advancedPhase = isAdvancedShootingPhase(context.phase);
+    const bool clearChance = xg >= tuning.strongChanceAlwaysIncludeXG && distance <= 16.0;
+    const bool earlyPossessionShot =
+        context.possessionActionCount <= 1
+        && !advancedPhase
+        && context.safeCirculationAvailable;
     const ShotRoleDecisionProfile role = shotRoleDecisionProfile(context.carrierRole);
     const ShotTacticalDecisionProfile tactics = shotTacticalDecisionProfile(context.tacticalSetup);
     const double shooter = shootingConfidence(attributes);
@@ -173,6 +249,8 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     const double pressurePenalty =
         std::clamp(context.carrierPressure * tuning.pressurePenaltyScale, 0.0, 100.0);
     const bool weakShot = xg < tuning.weakShotXG;
+    const bool shootingZone =
+        advancedPhase || (attackingThird && distance <= 22.0);
 
     double score = xgDesire(xg, tuning) * tuning.openPlayShotBaseline
         + (distanceScore - tuning.distanceScoreBaseline) * tuning.distanceScoreContribution
@@ -200,9 +278,35 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
             1.0 + (tactics.weakShotBias - 1.0) * tuning.weakShotBiasBlend,
             tuning.weakShotBiasMinimum,
             tuning.weakShotBiasMaximum);
+        if (earlyPossessionShot) {
+            score *= tuning.earlyActionWeakShotMultiplier;
+        }
+        if (context.carrierPressure >= 35.0) {
+            score *= tuning.pressuredWeakShotMultiplier;
+        }
     }
     if (isDefensiveRole(context.carrierRole) && xg < tuning.defensiveRoleLowXG) {
         score *= tuning.defensiveRoleWeakShotMultiplier;
+    }
+    if (!clearChance) {
+        if (xg < tuning.minimumOpenPlayXG) {
+            score -= tuning.belowMinimumXGPenalty;
+        }
+        if (!attackingThird && xg < tuning.nonAttackingThirdMinimumXG) {
+            score -= tuning.nonAttackingThirdLowXGPenalty;
+        }
+        if (earlyPossessionShot && xg < tuning.earlyActionMinimumXG) {
+            score -= tuning.earlyActionLowXGPenalty;
+        }
+        if (!shootingZone && context.carrierPressure >= 35.0 && xg < tuning.pressuredShotMinimumXG) {
+            score -= tuning.pressuredLowXGPenalty;
+        }
+        if (distance > tuning.longShotDistance && xg < tuning.weakShotXG) {
+            score -= tuning.longRangeWeakXGPenalty;
+        }
+        if (isDefensiveRole(context.carrierRole) && xg < tuning.inappropriateRoleMinimumXG) {
+            score -= tuning.defensiveRoleLowXGPenalty;
+        }
     }
 
     ShotOption option;

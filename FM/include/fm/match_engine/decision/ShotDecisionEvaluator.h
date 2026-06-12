@@ -3,6 +3,7 @@
 #include"fm/match_engine/MatchEngineSnapshots.h"
 #include"fm/match_engine/MatchSimulationState.h"
 #include"fm/match_engine/decision/BallCarrierDecisionTypes.h"
+#include"fm/match_engine/decision/DecisionContext.h"
 #include"fm/match_engine/movement/TeamShapeModel.h"
 
 #include<vector>
@@ -30,6 +31,10 @@ struct ShotOptionEvaluationContext {
     PitchPoint ballPosition;
     AttackingDirection attackingDirection = AttackingDirection::HomeToAway;
     double carrierPressure = 0.0;
+    DecisionMatchPhase phase = DecisionMatchPhase::BuildUp;
+    int possessionActionCount = 0;
+    double ballProgression = 0.0;
+    bool safeCirculationAvailable = false;
 };
 
 class ShotDecisionEvaluator {

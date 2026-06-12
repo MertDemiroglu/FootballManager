@@ -11,6 +11,8 @@ public:
         AttackingDirection attackingDirection,
         double pressure);
 
+    static double calculatePreShotXG(const ShotContext& context);
+
     ShotQualityResult evaluate(
         const ShotContext& context,
         ShotType shotType,
