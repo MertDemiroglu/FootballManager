@@ -1062,8 +1062,8 @@ namespace {
             label + " dribble attempts should equal dribbles won + dribbles lost");
         require(tackleOutcomes == defensive.tackleAttempts,
             label + " tackle attempts should equal tackles won + tackles lost");
-        require(defensive.duels == defensive.tackleAttempts,
-            label + " current coordinate duel diagnostics should map one duel to one tackle attempt");
+        require(defensive.duels >= defensive.tackleAttempts,
+            label + " tackle attempts should be a subset of defensive duels");
     }
 
     const MatchTeamSnapshot* teamSnapshotFor(

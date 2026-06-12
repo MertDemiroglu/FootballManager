@@ -169,6 +169,68 @@ namespace {
         bool turnoverSequenceActive = false;
     };
 
+    enum class PressureDangerZone {
+        Midfield,
+        FinalThird,
+        Box,
+        CentralBox,
+        Goalmouth
+    };
+
+    enum class DefensiveActionType {
+        Contain,
+        Press,
+        Tackle,
+        LaneBlock,
+        Cover
+    };
+
+    enum class DuelOutcomeType {
+        NoDuel,
+        AttackerKeepsBall,
+        AttackerBeatsDefender,
+        DefenderWinsTackle,
+        BallLoose,
+        ForcedSideways,
+        ForcedBackward
+    };
+
+    struct PressureContext {
+        const PlayerSimState* closestOutfieldDefender = nullptr;
+        double closestOutfieldDefenderDistance = -1.0;
+        double defenderAngleToGoalDegrees = 180.0;
+        bool defenderBetweenBallAndGoal = false;
+        bool defenderBetweenBallAndPath = false;
+        int supportDefendersNearby = 0;
+        double pressureStrength = 0.0;
+        PressureDangerZone dangerZone = PressureDangerZone::Midfield;
+    };
+
+    struct DuelResolutionRequest {
+        BallCarrierActionType actionType = BallCarrierActionType::Carry;
+        const PlayerSimState* attacker = nullptr;
+        PlayerAttributes attackerAttributes;
+        int attackerBaseOverall = 0;
+        const PlayerSimState* defender = nullptr;
+        PlayerAttributes defenderAttributes;
+        int defenderBaseOverall = 0;
+        PressureContext pressure;
+        PitchPoint start;
+        PitchPoint intendedTarget;
+        AttackingDirection direction = AttackingDirection::HomeToAway;
+        std::uint64_t seed = 0;
+    };
+
+    struct DuelResolutionResult {
+        bool duelOccurred = false;
+        bool tackleAttempted = false;
+        DefensiveActionType defensiveAction = DefensiveActionType::Contain;
+        DuelOutcomeType outcome = DuelOutcomeType::NoDuel;
+        PitchPoint resolvedTarget;
+        PitchPoint loosePoint;
+        double addedExecutionPressure = 0.0;
+    };
+
     bool isPassLike(BallCarrierActionType type);
 
     PitchPoint pitchCenter() {
@@ -2088,6 +2150,397 @@ namespace {
         return closest;
     }
 
+    double weightedAttributeAverage(
+        int baseOverall,
+        std::initializer_list<std::pair<int, double>> values) {
+        double total = 0.0;
+        double weight = 0.0;
+        for (const auto& [value, valueWeight] : values) {
+            if (valueWeight <= 0.0) {
+                continue;
+            }
+            total += clampedAttribute(value) * valueWeight;
+            weight += valueWeight;
+        }
+        if (weight <= 0.0) {
+            return clampedAttribute(baseOverall);
+        }
+        return (total / weight) * 0.84 + clampedAttribute(baseOverall) * 0.16;
+    }
+
+    double angleBetweenDegrees(PitchPoint origin, PitchPoint a, PitchPoint b) {
+        const double ax = a.x - origin.x;
+        const double ay = a.y - origin.y;
+        const double bx = b.x - origin.x;
+        const double by = b.y - origin.y;
+        const double aLength = std::sqrt(ax * ax + ay * ay);
+        const double bLength = std::sqrt(bx * bx + by * by);
+        if (aLength <= 0.001 || bLength <= 0.001) {
+            return 180.0;
+        }
+
+        const double cosine = clampDouble(((ax * bx) + (ay * by)) / (aLength * bLength), -1.0, 1.0);
+        return std::acos(cosine) * 180.0 / 3.14159265358979323846;
+    }
+
+    bool pointBetweenWithinLane(
+        PitchPoint point,
+        PitchPoint start,
+        PitchPoint end,
+        double laneWidthMeters) {
+        const double vx = end.x - start.x;
+        const double vy = end.y - start.y;
+        const double wx = point.x - start.x;
+        const double wy = point.y - start.y;
+        const double lengthSquared = vx * vx + vy * vy;
+        if (lengthSquared <= 0.001) {
+            return PitchGeometry::distance(point, start) <= laneWidthMeters;
+        }
+
+        const double t = ((wx * vx) + (wy * vy)) / lengthSquared;
+        return t >= 0.05
+            && t <= 1.05
+            && distancePointToSegment(point, start, end) <= laneWidthMeters;
+    }
+
+    PressureDangerZone pressureDangerZoneFor(PitchPoint point, AttackingDirection direction) {
+        const double progress = ballProgression(point, direction);
+        const double goalDistance = opponentGoalDistance(point, direction);
+        const double centralShare = centralGoalChannelShare(point);
+        if (goalDistance <= 5.5 && centralShare >= 0.35) {
+            return PressureDangerZone::Goalmouth;
+        }
+        if (progress >= 0.84 && centralShare >= 0.45) {
+            return PressureDangerZone::CentralBox;
+        }
+        if (progress >= 0.78) {
+            return PressureDangerZone::Box;
+        }
+        if (progress >= 0.66) {
+            return PressureDangerZone::FinalThird;
+        }
+        return PressureDangerZone::Midfield;
+    }
+
+    double zonePressureBonus(PressureDangerZone zone) {
+        switch (zone) {
+        case PressureDangerZone::Midfield:
+            return 0.0;
+        case PressureDangerZone::FinalThird:
+            return 5.0;
+        case PressureDangerZone::Box:
+            return 10.0;
+        case PressureDangerZone::CentralBox:
+            return 15.0;
+        case PressureDangerZone::Goalmouth:
+            return 22.0;
+        }
+        return 0.0;
+    }
+
+    double contestDistanceLimit(PressureDangerZone zone, BallCarrierActionType actionType) {
+        double limit = actionType == BallCarrierActionType::Carry ? 2.7 : 3.3;
+        switch (zone) {
+        case PressureDangerZone::Midfield:
+            break;
+        case PressureDangerZone::FinalThird:
+            limit += 0.35;
+            break;
+        case PressureDangerZone::Box:
+            limit += 0.75;
+            break;
+        case PressureDangerZone::CentralBox:
+            limit += 1.05;
+            break;
+        case PressureDangerZone::Goalmouth:
+            limit += 1.45;
+            break;
+        }
+        return limit;
+    }
+
+    PressureContext buildPressureContext(
+        const MatchEngineInput& input,
+        const TeamSimState& defendingTeam,
+        PitchPoint ballPosition,
+        PitchPoint intendedTarget,
+        AttackingDirection direction,
+        BallCarrierActionType actionType) {
+        PressureContext context;
+        context.dangerZone = pressureDangerZoneFor(ballPosition, direction);
+        context.closestOutfieldDefender = closestOutfieldDefenderToPoint(
+            input,
+            defendingTeam,
+            ballPosition,
+            context.closestOutfieldDefenderDistance);
+
+        if (context.closestOutfieldDefender == nullptr) {
+            return context;
+        }
+
+        const PitchPoint goal = opponentGoalCenter(direction);
+        context.defenderAngleToGoalDegrees =
+            angleBetweenDegrees(ballPosition, goal, context.closestOutfieldDefender->position);
+        context.defenderBetweenBallAndGoal = pointBetweenWithinLane(
+            context.closestOutfieldDefender->position,
+            ballPosition,
+            goal,
+            4.5);
+        context.defenderBetweenBallAndPath = pointBetweenWithinLane(
+            context.closestOutfieldDefender->position,
+            ballPosition,
+            intendedTarget,
+            actionType == BallCarrierActionType::Carry ? 3.0 : 3.6);
+
+        double intentPressure = 0.0;
+        double nearbyPressure = 0.0;
+        for (const PlayerSimState& defender : defendingTeam.players) {
+            if (isAssignedGoalkeeper(input, defendingTeam.teamId, defender.playerId)) {
+                continue;
+            }
+            const double distance = PitchGeometry::distance(defender.position, ballPosition);
+            if (defender.playerId != context.closestOutfieldDefender->playerId && distance <= 8.0) {
+                ++context.supportDefendersNearby;
+            }
+            if (distance <= 3.0) {
+                nearbyPressure += 28.0;
+            } else if (distance <= 6.0) {
+                nearbyPressure += 15.0;
+            } else if (distance <= 10.0) {
+                nearbyPressure += 6.0;
+            }
+
+            const double intent = intentPressureContribution(defender.currentIntent.type);
+            if (intent > 0.0) {
+                const double laneDistance = distancePointToSegment(defender.position, ballPosition, intendedTarget);
+                if (distance <= 7.0 || laneDistance <= 5.0) {
+                    intentPressure += intent * (distance <= 4.0 ? 1.0 : 0.65);
+                }
+            }
+        }
+
+        const double laneBonus = context.defenderBetweenBallAndPath ? 12.0 : 0.0;
+        const double goalSideBonus = context.defenderBetweenBallAndGoal ? 8.0 : 0.0;
+        const double supportBonus = std::min(18.0, static_cast<double>(context.supportDefendersNearby) * 6.0);
+        context.pressureStrength = clampDouble(
+            nearbyPressure
+                + intentPressure
+                + laneBonus
+                + goalSideBonus
+                + supportBonus
+                + zonePressureBonus(context.dangerZone),
+            0.0,
+            100.0);
+        return context;
+    }
+
+    bool isRealContest(
+        const PressureContext& pressure,
+        BallCarrierActionType actionType) {
+        if (pressure.closestOutfieldDefender == nullptr
+            || pressure.closestOutfieldDefenderDistance < 0.0) {
+            return false;
+        }
+
+        const double limit = contestDistanceLimit(pressure.dangerZone, actionType);
+        return pressure.closestOutfieldDefenderDistance <= limit
+            || (pressure.defenderBetweenBallAndPath && pressure.closestOutfieldDefenderDistance <= limit + 1.35)
+            || (pressure.defenderBetweenBallAndGoal
+                && pressure.pressureStrength >= 24.0
+                && pressure.closestOutfieldDefenderDistance <= limit + 1.0)
+            || (pressure.dangerZone == PressureDangerZone::Goalmouth
+                && pressure.closestOutfieldDefenderDistance <= 6.0);
+    }
+
+    PitchPoint shiftedCarryTarget(
+        PitchPoint start,
+        PitchPoint intendedTarget,
+        AttackingDirection direction,
+        bool backward) {
+        const double dx = intendedTarget.x - start.x;
+        const double dy = intendedTarget.y - start.y;
+        const double forwardSign = direction == AttackingDirection::HomeToAway ? 1.0 : -1.0;
+        const double lateralSign = dy >= 0.0 ? 1.0 : -1.0;
+        if (backward) {
+            return PitchGeometry::clampToPitch(PitchPoint{
+                start.x - forwardSign * std::max(1.5, std::abs(dx) * 0.35),
+                start.y + lateralSign * std::min(4.5, std::abs(dy) + 2.0)
+            });
+        }
+        return PitchGeometry::clampToPitch(PitchPoint{
+            start.x + dx * 0.35,
+            start.y + lateralSign * std::max(2.5, std::abs(dy) + 2.5)
+        });
+    }
+
+    class TackleResolver {
+    public:
+        DefensiveActionType selectAction(const DuelResolutionRequest& request) const {
+            const PlayerIntentType intent = request.defender->currentIntent.type;
+            if (intent == PlayerIntentType::BlockPassingLane
+                || intent == PlayerIntentType::InterceptBallPath
+                || request.pressure.defenderBetweenBallAndPath) {
+                return DefensiveActionType::LaneBlock;
+            }
+            if (intent == PlayerIntentType::CoverSpace
+                || intent == PlayerIntentType::RecoverToGoal
+                || intent == PlayerIntentType::ProtectGoalZone) {
+                return DefensiveActionType::Cover;
+            }
+
+            const PlayerAttributes& attributes = request.defenderAttributes;
+            double commit = clampedAttribute(attributes.technical.tackling) * 0.34
+                + clampedAttribute(attributes.mental.aggression) * 0.24
+                + clampedAttribute(attributes.mental.decisions) * 0.18
+                + clampedAttribute(attributes.physical.strength) * 0.12
+                + request.pressure.pressureStrength * 0.16;
+            commit += request.pressure.defenderBetweenBallAndGoal ? 8.0 : 0.0;
+            commit += zonePressureBonus(request.pressure.dangerZone) * 0.25;
+            commit -= request.pressure.closestOutfieldDefenderDistance * 7.0;
+            if (intent == PlayerIntentType::AttemptTackle) {
+                commit += 16.0;
+            } else if (intent == PlayerIntentType::PressBallCarrier) {
+                commit += 7.0;
+            } else if (intent == PlayerIntentType::ContainBallCarrier) {
+                commit -= 11.0;
+            }
+
+            const double roll = matchEngineDeterministicUnitInterval(request.seed ^ 0xcf8840a723f1d07bULL) * 100.0;
+            if (roll < clampDouble(commit, 12.0, 78.0)) {
+                return DefensiveActionType::Tackle;
+            }
+            return request.pressure.pressureStrength >= 36.0
+                ? DefensiveActionType::Press
+                : DefensiveActionType::Contain;
+        }
+    };
+
+    class DuelResolver {
+    public:
+        DuelResolutionResult resolve(const DuelResolutionRequest& request) const {
+            DuelResolutionResult result;
+            result.resolvedTarget = request.intendedTarget;
+            result.loosePoint = PitchGeometry::clampToPitch(PitchPoint{
+                request.start.x * 0.42 + request.intendedTarget.x * 0.58,
+                request.start.y * 0.42 + request.intendedTarget.y * 0.58
+            });
+
+            if (request.attacker == nullptr
+                || request.defender == nullptr
+                || !isRealContest(request.pressure, request.actionType)) {
+                return result;
+            }
+
+            result.duelOccurred = true;
+            result.defensiveAction = TackleResolver{}.selectAction(request);
+            result.tackleAttempted = result.defensiveAction == DefensiveActionType::Tackle;
+            result.addedExecutionPressure = executionPressureFor(request);
+
+            const double attackerScore = attackerContestScore(request);
+            const double defenderScore = defenderContestScore(request);
+            const double roll = matchEngineDeterministicUnitInterval(request.seed);
+            const double defenderChance = clampDouble(
+                0.44 + (defenderScore - attackerScore) / 120.0,
+                0.12,
+                0.82);
+
+            if (result.tackleAttempted && roll < defenderChance * 0.72) {
+                result.outcome = DuelOutcomeType::DefenderWinsTackle;
+                return result;
+            }
+            if (roll < defenderChance) {
+                result.outcome = DuelOutcomeType::BallLoose;
+                return result;
+            }
+
+            const double containWindow = containWindowFor(request);
+            if (!result.tackleAttempted && roll < defenderChance + containWindow) {
+                const bool backward = matchEngineDeterministicUnitInterval(request.seed ^ 0x8fe4172f6b17d23dULL) < 0.44;
+                result.outcome = backward
+                    ? DuelOutcomeType::ForcedBackward
+                    : DuelOutcomeType::ForcedSideways;
+                result.resolvedTarget = shiftedCarryTarget(
+                    request.start,
+                    request.intendedTarget,
+                    request.direction,
+                    backward);
+                return result;
+            }
+
+            const double beatWindow = request.actionType == BallCarrierActionType::Carry ? 0.12 : 0.24;
+            result.outcome =
+                matchEngineDeterministicUnitInterval(request.seed ^ 0x31f894b49be8a921ULL) < beatWindow
+                    ? DuelOutcomeType::AttackerBeatsDefender
+                    : DuelOutcomeType::AttackerKeepsBall;
+            return result;
+        }
+
+    private:
+        static double attackerContestScore(const DuelResolutionRequest& request) {
+            const PlayerAttributes& attributes = request.attackerAttributes;
+            double score = weightedAttributeAverage(
+                request.attackerBaseOverall,
+                {
+                    { attributes.technical.dribbling, 1.25 },
+                    { attributes.technical.technique, 0.95 },
+                    { attributes.physical.agility, 0.85 },
+                    { attributes.physical.pace, 0.55 },
+                    { attributes.physical.acceleration, 0.75 },
+                    { attributes.mental.composure, 0.8 },
+                    { attributes.mental.decisions, 0.45 }
+                });
+            score -= clampDouble(request.attacker->fatigue, 0.0, 1.0) * 8.0;
+            score -= request.pressure.pressureStrength * 0.10;
+            if (request.actionType == BallCarrierActionType::Carry) {
+                score += 5.0;
+            }
+            return score;
+        }
+
+        static double defenderContestScore(const DuelResolutionRequest& request) {
+            const PlayerAttributes& attributes = request.defenderAttributes;
+            double score = weightedAttributeAverage(
+                request.defenderBaseOverall,
+                {
+                    { attributes.technical.tackling, 1.25 },
+                    { attributes.technical.marking, 0.65 },
+                    { attributes.mental.positioning, 1.0 },
+                    { attributes.mental.decisions, 0.8 },
+                    { attributes.mental.aggression, 0.45 },
+                    { attributes.physical.strength, 0.7 },
+                    { attributes.physical.acceleration, 0.6 }
+                });
+            score -= clampDouble(request.defender->fatigue, 0.0, 1.0) * 7.0;
+            score += request.pressure.defenderBetweenBallAndGoal ? 7.0 : 0.0;
+            score += request.pressure.defenderBetweenBallAndPath ? 6.0 : 0.0;
+            score += std::min(8.0, static_cast<double>(request.pressure.supportDefendersNearby) * 3.0);
+            score += zonePressureBonus(request.pressure.dangerZone) * 0.45;
+            score += clampDouble(4.0 - request.pressure.closestOutfieldDefenderDistance, 0.0, 4.0) * 2.0;
+            return score;
+        }
+
+        static double containWindowFor(const DuelResolutionRequest& request) {
+            double window = 0.14
+                + request.pressure.pressureStrength / 500.0
+                + std::min(0.10, static_cast<double>(request.pressure.supportDefendersNearby) * 0.035);
+            if (request.pressure.defenderBetweenBallAndGoal) {
+                window += 0.07;
+            }
+            if (request.actionType == BallCarrierActionType::Carry) {
+                window += 0.06;
+            }
+            return clampDouble(window, 0.10, 0.34);
+        }
+
+        static double executionPressureFor(const DuelResolutionRequest& request) {
+            double pressure = request.pressure.pressureStrength * 0.35;
+            pressure += request.pressure.defenderBetweenBallAndPath ? 8.0 : 0.0;
+            pressure += request.pressure.defenderBetweenBallAndGoal ? 7.0 : 0.0;
+            pressure += request.pressure.closestOutfieldDefenderDistance <= 1.5 ? 10.0 : 0.0;
+            return clampDouble(pressure, 0.0, 38.0);
+        }
+    };
+
     const char* assistNoneReasonFor(
         const PendingBallAction& pending,
         PlayerId assistPlayerId) {
@@ -2577,7 +3030,7 @@ namespace {
         const ActionCandidate action = *selection.selected;
         const BallCarrierActionType actionType = action.type;
         ++state.possession.actionDepth;
-        const double executionPressure = isPassLike(actionType)
+        double executionPressure = isPassLike(actionType)
             ? std::max(
                 action.pressurePenalty,
                 contextualPassPressure(
@@ -2585,13 +3038,20 @@ namespace {
                     action.intendedTarget,
                     opponentState->players))
             : action.pressurePenalty;
-        double nearestPressureDefenderDistance = -1.0;
-        const PlayerSimState* nearestPressureDefender =
-            closestOutfieldDefenderToPoint(
-                input,
-                *opponentState,
-                state.ball.position,
-                nearestPressureDefenderDistance);
+        const PressureContext pressureContext = buildPressureContext(
+            input,
+            *opponentState,
+            state.ball.position,
+            action.intendedTarget,
+            carrierShapeContext.attackingDirection,
+            actionType);
+        const PlayerSimState* nearestPressureDefender = pressureContext.closestOutfieldDefender;
+        executionPressure = std::max(
+            executionPressure,
+            clampDouble(
+                pressureContext.pressureStrength * (isPassLike(actionType) ? 0.55 : 0.42),
+                0.0,
+                100.0));
         if (executionPressure >= 10.0 && nearestPressureDefender != nullptr) {
             ++teamStatsFor(result, nearestPressureDefender->teamId).pressures;
             ++playerStatsFor(
@@ -2620,35 +3080,36 @@ namespace {
             || actionType == BallCarrierActionType::Dribble
             || actionType == BallCarrierActionType::CutInside) {
             const PitchPoint carryStart = carrier->position;
-            const bool contestedDribble =
-                (actionType == BallCarrierActionType::Dribble
-                    || actionType == BallCarrierActionType::CutInside)
-                && executionPressure >= 10.0
-                && nearestPressureDefender != nullptr;
-            if (actionType == BallCarrierActionType::Dribble
-                || actionType == BallCarrierActionType::CutInside) {
+            DuelResolutionResult duel = DuelResolver{}.resolve(DuelResolutionRequest{
+                actionType,
+                carrier,
+                playerSnapshot != nullptr ? playerSnapshot->attributes : PlayerAttributes{},
+                playerSnapshot != nullptr ? playerSnapshot->baseOverall : carrier->baseOverall,
+                nearestPressureDefender,
+                nearestPressureDefender != nullptr
+                    ? attributesForPlayer(input, nearestPressureDefender->playerId)
+                    : PlayerAttributes{},
+                nearestPressureDefender != nullptr
+                    ? nearestPressureDefender->baseOverall
+                    : 0,
+                pressureContext,
+                carryStart,
+                action.intendedTarget,
+                carrierShapeContext.attackingDirection,
+                stepSeed(
+                    baseSeed,
+                        state,
+                        static_cast<std::uint64_t>(carrier->playerId)
+                            ^ (static_cast<std::uint64_t>(actionType) << 32)
+                            ^ 0xd71c0bdULL)
+            });
+            executionPressure = std::max(
+                executionPressure,
+                action.pressurePenalty + duel.addedExecutionPressure);
+
+            if (duel.duelOccurred) {
                 ++teamStatsFor(result, carrier->teamId).dribblesAttempted;
                 ++playerStatsFor(result, carrier->playerId, carrier->teamId).dribblesAttempted;
-            }
-            const double elapsedSeconds = movementDurationSeconds(
-                carrier->position,
-                action.intendedTarget,
-                carrier->effectivePace,
-                2.0,
-                actionType == BallCarrierActionType::Carry ? 6.0 : 5.0);
-            const double closeCarryTurnoverProbability = closeGoalCarryTurnoverProbability(
-                action.intendedTarget,
-                opponentState->players,
-                carrierShapeContext.attackingDirection,
-                action.pressurePenalty,
-                actionType);
-            const double closeCarryRoll = matchEngineDeterministicUnitInterval(
-                stepSeed(baseSeed, state, carrier->playerId ^ 0x6cc991ULL));
-            if (closeCarryRoll < closeCarryTurnoverProbability) {
-                const PitchPoint loosePoint = PitchGeometry::clampToPitch(PitchPoint{
-                    (carrier->position.x * 0.35) + (action.intendedTarget.x * 0.65),
-                    (carrier->position.y * 0.35) + (action.intendedTarget.y * 0.65)
-                });
                 if (nearestPressureDefender != nullptr) {
                     MatchTeamSimulationStats& defendingStats =
                         teamStatsFor(result, nearestPressureDefender->teamId);
@@ -2657,14 +3118,37 @@ namespace {
                         nearestPressureDefender->playerId,
                         nearestPressureDefender->teamId);
                     ++defendingStats.duels;
-                    ++defendingStats.tacklesAttempted;
-                    ++defendingStats.tacklesWon;
-                    ++defendingStats.dispossessionsForced;
                     ++defenderStats.duels;
-                    ++defenderStats.tackleAttempts;
-                    ++defenderStats.tacklesWon;
-                    ++defenderStats.tackles;
+                    if (duel.tackleAttempted) {
+                        ++defendingStats.tacklesAttempted;
+                        ++defenderStats.tackleAttempts;
+                    }
+                }
+            }
+
+            const double elapsedSeconds = movementDurationSeconds(
+                carrier->position,
+                duel.duelOccurred ? duel.resolvedTarget : action.intendedTarget,
+                carrier->effectivePace,
+                2.0,
+                actionType == BallCarrierActionType::Carry ? 6.0 : 5.0);
+
+            if (duel.outcome == DuelOutcomeType::DefenderWinsTackle
+                || duel.outcome == DuelOutcomeType::BallLoose) {
+                if (nearestPressureDefender != nullptr) {
+                    MatchTeamSimulationStats& defendingStats =
+                        teamStatsFor(result, nearestPressureDefender->teamId);
+                    MatchPlayerSimulationStats& defenderStats = playerStatsFor(
+                        result,
+                        nearestPressureDefender->playerId,
+                        nearestPressureDefender->teamId);
+                    ++defendingStats.dispossessionsForced;
                     ++defenderStats.dispossessionsForced;
+                    if (duel.tackleAttempted) {
+                        ++defendingStats.tacklesWon;
+                        ++defenderStats.tacklesWon;
+                        ++defenderStats.tackles;
+                    }
                     appendTrace(
                         result,
                         input.options.detail,
@@ -2674,14 +3158,24 @@ namespace {
                         nearestPressureDefender->playerId,
                         carrier->playerId,
                         carrier->position,
-                        loosePoint);
+                        duel.loosePoint);
                 }
-                if (actionType == BallCarrierActionType::Dribble
-                    || actionType == BallCarrierActionType::CutInside) {
+                if (duel.duelOccurred) {
                     ++teamStatsFor(result, carrier->teamId).dribblesLost;
                     ++playerStatsFor(result, carrier->playerId, carrier->teamId).dribblesLost;
                 }
-                setLooseBall(state, loosePoint);
+                if (duel.outcome == DuelOutcomeType::DefenderWinsTackle
+                    && nearestPressureDefender != nullptr) {
+                    setControlledBy(
+                        state,
+                        nearestPressureDefender->playerId,
+                        nearestPressureDefender->teamId,
+                        duel.loosePoint);
+                    markTurnoverChain(chanceTracker);
+                } else {
+                    setLooseBall(state, duel.loosePoint);
+                    markTurnoverChain(chanceTracker);
+                }
                 appendTrace(
                     result,
                     input.options.detail,
@@ -2691,13 +3185,30 @@ namespace {
                     carrier->playerId,
                     0,
                     carrier->position,
-                    loosePoint);
+                    duel.loosePoint);
                 return SimulationStepResult{ elapsedSeconds, true };
             }
+
+            if (duel.duelOccurred && duel.tackleAttempted && nearestPressureDefender != nullptr) {
+                MatchTeamSimulationStats& defendingStats =
+                    teamStatsFor(result, nearestPressureDefender->teamId);
+                MatchPlayerSimulationStats& defenderStats = playerStatsFor(
+                    result,
+                    nearestPressureDefender->playerId,
+                    nearestPressureDefender->teamId);
+                ++defendingStats.tacklesLost;
+                ++defenderStats.tacklesLost;
+            }
+
+            if (duel.duelOccurred) {
+                ++teamStatsFor(result, carrier->teamId).dribblesWon;
+                ++playerStatsFor(result, carrier->playerId, carrier->teamId).dribblesWon;
+            }
+
             moveControlledBall(
                 state,
                 *carrier,
-                action.intendedTarget,
+                duel.duelOccurred ? duel.resolvedTarget : action.intendedTarget,
                 (actionType == BallCarrierActionType::Carry ? 5.5 : 4.0) * elapsedSeconds);
             const double carryDistance = PitchGeometry::distance(carryStart, state.ball.position);
             MatchPlayerSimulationStats& carrierStats =
@@ -2714,22 +3225,6 @@ namespace {
                 }
             } else {
                 ++carrierStats.dribbleTraces;
-                ++teamStatsFor(result, carrier->teamId).dribblesWon;
-                ++carrierStats.dribblesWon;
-                if (contestedDribble) {
-                    MatchTeamSimulationStats& defendingStats =
-                        teamStatsFor(result, nearestPressureDefender->teamId);
-                    MatchPlayerSimulationStats& defenderStats = playerStatsFor(
-                        result,
-                        nearestPressureDefender->playerId,
-                        nearestPressureDefender->teamId);
-                    ++defendingStats.duels;
-                    ++defendingStats.tacklesAttempted;
-                    ++defendingStats.tacklesLost;
-                    ++defenderStats.duels;
-                    ++defenderStats.tackleAttempts;
-                    ++defenderStats.tacklesLost;
-                }
             }
             noteControlledCarryAfterReceive(
                 chanceTracker,
