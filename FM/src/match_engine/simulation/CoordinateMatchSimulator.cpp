@@ -76,6 +76,9 @@ namespace {
         bool shotFromRebound = false;
         bool shotFromTurnover = false;
         BallCarrierActionType chanceSourceActionType = BallCarrierActionType::Hold;
+        double carryAfterReceiveMeters = 0.0;
+        int touchesAfterReceive = 0;
+        int defendersBeatenAfterReceive = 0;
     };
 
     PendingBallAction pendingPlayerAction(
@@ -98,7 +101,10 @@ namespace {
         bool shotFromReceiverCarry = false,
         bool shotFromRebound = false,
         bool shotFromTurnover = false,
-        BallCarrierActionType chanceSourceActionType = BallCarrierActionType::Hold) {
+        BallCarrierActionType chanceSourceActionType = BallCarrierActionType::Hold,
+        double carryAfterReceiveMeters = 0.0,
+        int touchesAfterReceive = 0,
+        int defendersBeatenAfterReceive = 0) {
         PendingBallAction pending;
         pending.kind = PendingBallKind::PlayerAction;
         pending.sourceTeamId = sourceTeamId;
@@ -121,6 +127,9 @@ namespace {
         pending.shotFromRebound = shotFromRebound;
         pending.shotFromTurnover = shotFromTurnover;
         pending.chanceSourceActionType = chanceSourceActionType;
+        pending.carryAfterReceiveMeters = carryAfterReceiveMeters;
+        pending.touchesAfterReceive = touchesAfterReceive;
+        pending.defendersBeatenAfterReceive = defendersBeatenAfterReceive;
         return pending;
     }
 
@@ -151,6 +160,7 @@ namespace {
         bool followedByControlledCarry = false;
         int controlledCarryCount = 0;
         double controlledCarryDistance = 0.0;
+        int defendersBeatenAfterReceive = 0;
     };
 
     struct ChanceCreationTracker {
@@ -1975,7 +1985,9 @@ namespace {
         if (assistPlayerId != 0 && pending.shotFromReceiverCarry) {
             return MatchGoalSourceCategory::CarryAfterReceive;
         }
-        if (assistPlayerId != 0 && pending.shotFromFinalBall) {
+        if (assistPlayerId != 0
+            && pending.shotFromFinalBall
+            && isExplicitFinalBallAction(pending.chanceSourceActionType)) {
             return MatchGoalSourceCategory::AssistedFinalBall;
         }
         if (assistPlayerId != 0) {
@@ -1984,13 +1996,45 @@ namespace {
         return MatchGoalSourceCategory::SoloCarry;
     }
 
+    double closestDefenderDistanceToPoint(
+        const TeamSimState& defendingTeam,
+        PitchPoint point) {
+        double closest = PitchGeometry::LengthMeters;
+        for (const PlayerSimState& defender : defendingTeam.players) {
+            closest = std::min(closest, PitchGeometry::distance(defender.position, point));
+        }
+        return closest;
+    }
+
+    const char* assistNoneReasonFor(
+        const PendingBallAction& pending,
+        PlayerId assistPlayerId) {
+        if (assistPlayerId != 0) {
+            return "AssistRetained";
+        }
+        if (pending.shotFromRebound) {
+            return "Rebound";
+        }
+        if (pending.shotFromTurnover) {
+            return "Turnover";
+        }
+        if (pending.shotFromReceiverCarry) {
+            return "ExcessiveCarryAfterReceive";
+        }
+        if (pending.chanceSourceActionType == BallCarrierActionType::Hold) {
+            return "NoPriorPass";
+        }
+        return "SoloCarry";
+    }
+
     void appendGoalChainDiagnostic(
         MatchEngineResult& result,
         const MatchSimulationState& state,
         const PendingBallAction& pending,
         const BallTrajectory& trajectory,
         PlayerId assistPlayerId,
-        AttackingDirection direction) {
+        AttackingDirection direction,
+        const TeamSimState& defendingTeam) {
         MatchGoalChainDiagnostic chain;
         chain.minute = eventMinuteForSecond(state.currentSecond);
         chain.teamId = pending.sourceTeamId;
@@ -2001,7 +2045,15 @@ namespace {
         chain.shotDistanceMeters =
             PitchGeometry::distance(trajectory.start, goalCenterForDirection(direction));
         chain.preShotXG = pending.shotQuality.preShotXG;
+        chain.keeperFacingXG = pending.shotQuality.keeperFacingXG;
         chain.effectiveXG = pending.shotQuality.effectiveXG;
+        chain.shotPressure = pending.pressure;
+        chain.closestDefenderDistance =
+            closestDefenderDistanceToPoint(defendingTeam, trajectory.start);
+        chain.carryAfterReceiveMeters = pending.carryAfterReceiveMeters;
+        chain.touchesAfterReceive = pending.touchesAfterReceive;
+        chain.defendersBeatenAfterReceive = pending.defendersBeatenAfterReceive;
+        chain.assistRetained = assistPlayerId != 0;
         chain.followedControlledCarryAfterReceive = pending.shotFromReceiverCarry;
         chain.finalBallThroughBall = pending.chanceSourceActionType == BallCarrierActionType::ThroughBall;
         chain.finalBallLowCross = pending.chanceSourceActionType == BallCarrierActionType::LowCross;
@@ -2010,6 +2062,10 @@ namespace {
         chain.finalBallSimplePass =
             pending.chanceSourceActionType == BallCarrierActionType::ShortPass
             || pending.chanceSourceActionType == BallCarrierActionType::SwitchPlay;
+        chain.rebound = pending.shotFromRebound;
+        chain.transition = pending.shotFromTurnover;
+        chain.turnover = pending.shotFromTurnover;
+        chain.assistNoneReason = assistNoneReasonFor(pending, assistPlayerId);
         result.goalChains.push_back(chain);
     }
 
@@ -2087,7 +2143,8 @@ namespace {
         ChanceCreationTracker& tracker,
         const PlayerSimState& carrier,
         PitchPoint start,
-        PitchPoint end) {
+        PitchPoint end,
+        BallCarrierActionType actionType) {
         if (!tracker.active
             || tracker.active->teamId != carrier.teamId
             || tracker.active->receiverPlayerId != carrier.playerId) {
@@ -2097,6 +2154,10 @@ namespace {
         tracker.active->followedByControlledCarry = true;
         ++tracker.active->controlledCarryCount;
         tracker.active->controlledCarryDistance += PitchGeometry::distance(start, end);
+        if (actionType == BallCarrierActionType::Dribble
+            || actionType == BallCarrierActionType::CutInside) {
+            ++tracker.active->defendersBeatenAfterReceive;
+        }
     }
 
     void markReboundChain(ChanceCreationTracker& tracker) {
@@ -2295,6 +2356,7 @@ namespace {
         const PendingBallAction& pending,
         const BallTrajectory& trajectory,
         TeamId concedingTeamId,
+        const TeamSimState& defendingTeam,
         ChanceCreationTracker& chanceTracker) {
         const PlayerId assistPlayerId =
             pending.shotFromRebound || pending.shotFromTurnover
@@ -2318,7 +2380,14 @@ namespace {
             state.homeTeam.teamId == pending.sourceTeamId
                 ? AttackingDirection::HomeToAway
                 : AttackingDirection::AwayToHome;
-        appendGoalChainDiagnostic(result, state, pending, trajectory, assistPlayerId, direction);
+        appendGoalChainDiagnostic(
+            result,
+            state,
+            pending,
+            trajectory,
+            assistPlayerId,
+            direction,
+            defendingTeam);
         clearChanceChain(chanceTracker);
 
         if (TeamSimState* scoringTeam = findTeamState(state, pending.sourceTeamId)) {
@@ -2429,6 +2498,22 @@ namespace {
                     action.intendedTarget,
                     opponentState->players))
             : action.pressurePenalty;
+        const PlayerSimState* nearestPressureDefender = nullptr;
+        double nearestPressureDefenderDistance = PitchGeometry::LengthMeters;
+        for (const PlayerSimState& defender : opponentState->players) {
+            const double distance = PitchGeometry::distance(defender.position, state.ball.position);
+            if (distance < nearestPressureDefenderDistance) {
+                nearestPressureDefender = &defender;
+                nearestPressureDefenderDistance = distance;
+            }
+        }
+        if (executionPressure >= 10.0 && nearestPressureDefender != nullptr) {
+            ++teamStatsFor(result, nearestPressureDefender->teamId).pressures;
+            ++playerStatsFor(
+                result,
+                nearestPressureDefender->playerId,
+                nearestPressureDefender->teamId).pressures;
+        }
         if (actionType == BallCarrierActionType::Hold) {
             appendTrace(
                 result,
@@ -2450,6 +2535,16 @@ namespace {
             || actionType == BallCarrierActionType::Dribble
             || actionType == BallCarrierActionType::CutInside) {
             const PitchPoint carryStart = carrier->position;
+            const bool contestedDribble =
+                (actionType == BallCarrierActionType::Dribble
+                    || actionType == BallCarrierActionType::CutInside)
+                && executionPressure >= 10.0
+                && nearestPressureDefender != nullptr;
+            if (actionType == BallCarrierActionType::Dribble
+                || actionType == BallCarrierActionType::CutInside) {
+                ++teamStatsFor(result, carrier->teamId).dribblesAttempted;
+                ++playerStatsFor(result, carrier->playerId, carrier->teamId).dribblesAttempted;
+            }
             const double elapsedSeconds = movementDurationSeconds(
                 carrier->position,
                 action.intendedTarget,
@@ -2469,6 +2564,38 @@ namespace {
                     (carrier->position.x * 0.35) + (action.intendedTarget.x * 0.65),
                     (carrier->position.y * 0.35) + (action.intendedTarget.y * 0.65)
                 });
+                if (nearestPressureDefender != nullptr) {
+                    MatchTeamSimulationStats& defendingStats =
+                        teamStatsFor(result, nearestPressureDefender->teamId);
+                    MatchPlayerSimulationStats& defenderStats = playerStatsFor(
+                        result,
+                        nearestPressureDefender->playerId,
+                        nearestPressureDefender->teamId);
+                    ++defendingStats.duels;
+                    ++defendingStats.tacklesAttempted;
+                    ++defendingStats.tacklesWon;
+                    ++defendingStats.dispossessionsForced;
+                    ++defenderStats.duels;
+                    ++defenderStats.tackleAttempts;
+                    ++defenderStats.tacklesWon;
+                    ++defenderStats.tackles;
+                    ++defenderStats.dispossessionsForced;
+                    appendTrace(
+                        result,
+                        input.options.detail,
+                        state,
+                        MatchTraceKind::Tackle,
+                        nearestPressureDefender->teamId,
+                        nearestPressureDefender->playerId,
+                        carrier->playerId,
+                        carrier->position,
+                        loosePoint);
+                }
+                if (actionType == BallCarrierActionType::Dribble
+                    || actionType == BallCarrierActionType::CutInside) {
+                    ++teamStatsFor(result, carrier->teamId).dribblesLost;
+                    ++playerStatsFor(result, carrier->playerId, carrier->teamId).dribblesLost;
+                }
                 setLooseBall(state, loosePoint);
                 appendTrace(
                     result,
@@ -2502,12 +2629,29 @@ namespace {
                 }
             } else {
                 ++carrierStats.dribbleTraces;
+                ++teamStatsFor(result, carrier->teamId).dribblesWon;
+                ++carrierStats.dribblesWon;
+                if (contestedDribble) {
+                    MatchTeamSimulationStats& defendingStats =
+                        teamStatsFor(result, nearestPressureDefender->teamId);
+                    MatchPlayerSimulationStats& defenderStats = playerStatsFor(
+                        result,
+                        nearestPressureDefender->playerId,
+                        nearestPressureDefender->teamId);
+                    ++defendingStats.duels;
+                    ++defendingStats.tacklesAttempted;
+                    ++defendingStats.tacklesLost;
+                    ++defenderStats.duels;
+                    ++defenderStats.tackleAttempts;
+                    ++defenderStats.tacklesLost;
+                }
             }
             noteControlledCarryAfterReceive(
                 chanceTracker,
                 *carrier,
                 carryStart,
-                state.ball.position);
+                state.ball.position,
+                actionType);
             appendTrace(
                 result,
                 input.options.detail,
@@ -2536,6 +2680,9 @@ namespace {
         bool shotFromRebound = false;
         bool shotFromTurnover = false;
         BallCarrierActionType chanceSourceActionType = BallCarrierActionType::Hold;
+        double carryAfterReceiveMeters = 0.0;
+        int touchesAfterReceive = 0;
+        int defendersBeatenAfterReceive = 0;
 
         if (isPassLike(actionType)) {
             const BallTrajectoryBuildResult trajectoryResult = trajectoryBuilder.build(BallTrajectoryBuildRequest{
@@ -2570,6 +2717,23 @@ namespace {
             } else if (actionType == BallCarrierActionType::HighCross) {
                 ++passerStats.finalBalls;
             }
+        } else if (actionType == BallCarrierActionType::Clear) {
+            ++teamStatsFor(result, carrier->teamId).clearances;
+            ++playerStatsFor(result, carrier->playerId, carrier->teamId).clearances;
+            const BallTrajectoryBuildResult trajectoryResult = trajectoryBuilder.build(BallTrajectoryBuildRequest{
+                state.ball.position,
+                action.intendedTarget,
+                trajectoryType,
+                static_cast<double>(state.currentSecond),
+                executionQuality,
+                executionPressure,
+                stepSeed(
+                    baseSeed,
+                    state,
+                    static_cast<std::uint64_t>(carrier->playerId)
+                        ^ (static_cast<std::uint64_t>(actionType) << 32))
+            });
+            trajectory = trajectoryResult.trajectory;
         } else if (actionType == BallCarrierActionType::Shoot) {
             PendingBallAction shotPendingForSource = pendingPlayerAction(
                 carrier->teamId,
@@ -2594,6 +2758,12 @@ namespace {
                 && state.possession.actionDepth <= 4;
             chanceSourceActionType =
                 chanceSourceActionTypeForShot(state, shotPendingForSource, chanceTracker);
+            if (chanceTracker.active
+                && chanceSourceStillValidForShot(state, shotPendingForSource, *chanceTracker.active)) {
+                carryAfterReceiveMeters = chanceTracker.active->controlledCarryDistance;
+                touchesAfterReceive = chanceTracker.active->controlledCarryCount;
+                defendersBeatenAfterReceive = chanceTracker.active->defendersBeatenAfterReceive;
+            }
             const PlayerSimState* goalkeeper = findGoalkeeperOrNearestOwnGoal(input, *opponentState);
             const std::uint64_t shotSeed = stepSeed(
                 baseSeed,
@@ -2714,7 +2884,10 @@ namespace {
             actionType == BallCarrierActionType::Shoot && shotFromTurnover,
             actionType == BallCarrierActionType::Shoot
                 ? chanceSourceActionType
-                : BallCarrierActionType::Hold);
+                : BallCarrierActionType::Hold,
+            actionType == BallCarrierActionType::Shoot ? carryAfterReceiveMeters : 0.0,
+            actionType == BallCarrierActionType::Shoot ? touchesAfterReceive : 0,
+            actionType == BallCarrierActionType::Shoot ? defendersBeatenAfterReceive : 0);
 
         appendTrace(
             result,
@@ -2809,10 +2982,17 @@ namespace {
         PitchPoint winPoint,
         ChanceCreationTracker& chanceTracker) {
         setControlledBy(state, defender.playerId, defender.teamId, winPoint);
-        ++teamStatsFor(result, defender.teamId).interceptions;
-        ++playerStatsFor(result, defender.playerId, defender.teamId).interceptions;
         if (isPassLike(pending.actionType)) {
-            ++teamStatsFor(result, pending.sourceTeamId).passesIntercepted;
+            if (isAssignedGoalkeeper(input, defender.teamId, defender.playerId)) {
+                ++teamStatsFor(result, defender.teamId).keeperClaims;
+                ++playerStatsFor(result, defender.playerId, defender.teamId).keeperClaims;
+            } else {
+                ++teamStatsFor(result, defender.teamId).interceptions;
+                ++teamStatsFor(result, defender.teamId).passInterceptions;
+                ++playerStatsFor(result, defender.playerId, defender.teamId).interceptions;
+                ++playerStatsFor(result, defender.playerId, defender.teamId).passInterceptions;
+                ++teamStatsFor(result, pending.sourceTeamId).passesIntercepted;
+            }
         }
         markTurnoverChain(chanceTracker);
         appendTrace(
@@ -2925,6 +3105,8 @@ namespace {
                 trajectory.actualTarget);
             if (goalkeeper != nullptr) {
                 setControlledBy(state, goalkeeper->playerId, goalkeeper->teamId, goalkeeper->position);
+                ++teamStatsFor(result, goalkeeper->teamId).keeperClaims;
+                ++playerStatsFor(result, goalkeeper->playerId, goalkeeper->teamId).keeperClaims;
                 appendTrace(
                     result,
                     input.options.detail,
@@ -2974,6 +3156,7 @@ namespace {
                 *pending,
                 trajectory,
                 defendingTeam.teamId,
+                defendingTeam,
                 chanceTracker);
             pending = std::nullopt;
             return SimulationStepResult{ elapsedToShot + goalStep.elapsedSeconds };
@@ -2981,6 +3164,8 @@ namespace {
 
         if (outcome.kind == ShotOutcomeKind::SavedHeld && goalkeeper != nullptr) {
             setControlledBy(state, goalkeeper->playerId, goalkeeper->teamId, savePoint);
+            ++teamStatsFor(result, goalkeeper->teamId).keeperClaims;
+            ++playerStatsFor(result, goalkeeper->playerId, goalkeeper->teamId).keeperClaims;
             clearChanceChain(chanceTracker);
             appendTrace(
                 result,
@@ -3289,6 +3474,8 @@ namespace {
             });
 
             if (block.blocked) {
+                ++teamStatsFor(result, block.blockerTeamId).shotBlocks;
+                ++playerStatsFor(result, block.blockerPlayerId, block.blockerTeamId).shotBlocks;
                 const double blockDistance =
                     PitchGeometry::distance(trajectory.start, block.contactPoint);
                 const double blockSecond = trajectory.startSecond
@@ -3410,13 +3597,35 @@ namespace {
                     if (contest.cleanController->teamId != previousTeam) {
                         markTurnoverChain(chanceTracker);
                         if (isPassLike(pending->actionType)) {
-                            ++teamStatsFor(result, pending->sourceTeamId).passesIntercepted;
+                            if (isAssignedGoalkeeper(
+                                    input,
+                                    contest.cleanController->teamId,
+                                    contest.cleanController->playerId)) {
+                                ++teamStatsFor(result, contest.cleanController->teamId).keeperClaims;
+                                ++playerStatsFor(
+                                    result,
+                                    contest.cleanController->playerId,
+                                    contest.cleanController->teamId).keeperClaims;
+                            } else {
+                                ++teamStatsFor(result, pending->sourceTeamId).passesIntercepted;
+                                ++teamStatsFor(result, contest.cleanController->teamId).passInterceptions;
+                                ++playerStatsFor(
+                                    result,
+                                    contest.cleanController->playerId,
+                                    contest.cleanController->teamId).passInterceptions;
+                                ++teamStatsFor(result, contest.cleanController->teamId).interceptions;
+                                ++playerStatsFor(
+                                    result,
+                                    contest.cleanController->playerId,
+                                    contest.cleanController->teamId).interceptions;
+                            }
+                        } else {
+                            ++teamStatsFor(result, contest.cleanController->teamId).looseBallRecoveries;
+                            ++playerStatsFor(
+                                result,
+                                contest.cleanController->playerId,
+                                contest.cleanController->teamId).looseBallRecoveries;
                         }
-                        ++teamStatsFor(result, contest.cleanController->teamId).interceptions;
-                        ++playerStatsFor(
-                            result,
-                            contest.cleanController->playerId,
-                            contest.cleanController->teamId).interceptions;
                         appendTrace(
                             result,
                             input.options.detail,
@@ -3450,6 +3659,11 @@ namespace {
                     const bool wasShotDeflection = pending->isShot;
                     if (isPassLike(pending->actionType)) {
                         ++teamStatsFor(result, pending->sourceTeamId).passesDeflected;
+                        ++teamStatsFor(result, candidate.teamId).passBlocks;
+                        ++playerStatsFor(result, candidate.playerId, candidate.teamId).passBlocks;
+                    } else if (pending->isShot) {
+                        ++teamStatsFor(result, candidate.teamId).shotBlocks;
+                        ++playerStatsFor(result, candidate.playerId, candidate.teamId).shotBlocks;
                     }
                     state.ball.controlState = BallControlState::InFlight;
                     state.ball.carrierPlayerId = 0;
@@ -3616,6 +3830,8 @@ namespace {
 
         const TeamId previousTeam = state.possession.lastPossessionTeamId;
         setControlledBy(state, best->playerId, best->teamId, state.ball.position);
+        ++teamStatsFor(result, best->teamId).looseBallRecoveries;
+        ++playerStatsFor(result, best->playerId, best->teamId).looseBallRecoveries;
         if (chanceTracker.reboundSequenceActive) {
             clearChanceSource(chanceTracker);
         } else if (previousTeam != 0 && previousTeam != best->teamId) {
