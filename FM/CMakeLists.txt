@@ -55,6 +55,9 @@ add_library(fm_core STATIC
     src/match_engine/contest/TackleResolver.cpp
     src/match_engine/contest/DuelResolver.cpp
     src/match_engine/geometry/TacticalZones.cpp
+    src/match_engine/phase/MatchPhaseModel.cpp
+    src/match_engine/phase/PhaseTransitionModel.cpp
+    src/match_engine/phase/SpaceContext.cpp
     src/match_engine/decision/DefensiveResponsibility.cpp
     src/match_engine/decision/PlayerIntentResolver.cpp
     src/match_engine/movement/MovementResolver.cpp

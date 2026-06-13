@@ -23,6 +23,7 @@
 #include"fm/match_engine/reporting/PlayerRatingModel.h"
 #include"fm/match_engine/movement/MovementResolver.h"
 #include"fm/match_engine/geometry/PitchGeometry.h"
+#include"fm/match_engine/phase/MatchPhaseModel.h"
 #include"fm/match_engine/decision/PlayerIntentResolver.h"
 #include"fm/match_engine/ball/ShotQualityModel.h"
 #include"fm/match_engine/movement/TeamShapeModel.h"
@@ -81,6 +82,7 @@ namespace {
         double carryAfterReceiveMeters = 0.0;
         int touchesAfterReceive = 0;
         int defendersBeatenAfterReceive = 0;
+        MatchTeamPhase sourcePhase = MatchTeamPhase::BuildUp;
     };
 
     PendingBallAction pendingPlayerAction(
@@ -106,7 +108,8 @@ namespace {
         BallCarrierActionType chanceSourceActionType = BallCarrierActionType::Hold,
         double carryAfterReceiveMeters = 0.0,
         int touchesAfterReceive = 0,
-        int defendersBeatenAfterReceive = 0) {
+        int defendersBeatenAfterReceive = 0,
+        MatchTeamPhase sourcePhase = MatchTeamPhase::BuildUp) {
         PendingBallAction pending;
         pending.kind = PendingBallKind::PlayerAction;
         pending.sourceTeamId = sourceTeamId;
@@ -132,6 +135,7 @@ namespace {
         pending.carryAfterReceiveMeters = carryAfterReceiveMeters;
         pending.touchesAfterReceive = touchesAfterReceive;
         pending.defendersBeatenAfterReceive = defendersBeatenAfterReceive;
+        pending.sourcePhase = sourcePhase;
         return pending;
     }
 
@@ -411,6 +415,185 @@ namespace {
 
     MatchTeamSimulationStats& teamStatsFor(MatchEngineResult& result, TeamId teamId) {
         return result.homeStats.teamId == teamId ? result.homeStats : result.awayStats;
+    }
+
+    MatchTeamPhaseDiagnostic& teamPhaseDiagnosticFor(MatchEngineResult& result, TeamId teamId) {
+        for (MatchTeamPhaseDiagnostic& diagnostic : result.phaseDiagnostics.teamDiagnostics) {
+            if (diagnostic.teamId == teamId) {
+                return diagnostic;
+            }
+        }
+
+        MatchTeamPhaseDiagnostic diagnostic;
+        diagnostic.teamId = teamId;
+        result.phaseDiagnostics.teamDiagnostics.push_back(diagnostic);
+        return result.phaseDiagnostics.teamDiagnostics.back();
+    }
+
+    void recordPhaseEntry(MatchEngineResult& result, TeamSimState& team, MatchTeamPhase phase) {
+        const int index = matchTeamPhaseIndex(phase);
+        ++result.phaseDiagnostics.phaseEntries[index];
+        ++teamPhaseDiagnosticFor(result, team.teamId).phaseEntries[index];
+        if (phase == MatchTeamPhase::CounterAttack) {
+            ++result.phaseDiagnostics.counterEntries;
+        } else if (phase == MatchTeamPhase::DefensiveTransition) {
+            ++result.phaseDiagnostics.defensiveTransitionEntries;
+        } else if (phase == MatchTeamPhase::SettledDefense) {
+            ++result.phaseDiagnostics.settledDefenseEntries;
+        }
+    }
+
+    bool containsText(const std::string& value, const char* text) {
+        return value.find(text) != std::string::npos;
+    }
+
+    void recordCounterExit(MatchEngineResult& result, const std::string& exitReason) {
+        if (containsText(exitReason, "no forward lane")) {
+            ++result.phaseDiagnostics.counterExpiredNoForwardLane;
+        } else if (containsText(exitReason, "defense recovered")) {
+            ++result.phaseDiagnostics.counterExpiredDefenseRecovered;
+        } else if (containsText(exitReason, "forced backward")) {
+            ++result.phaseDiagnostics.counterExpiredForcedBackwardOrSideways;
+        } else if (containsText(exitReason, "recycled")) {
+            ++result.phaseDiagnostics.counterExpiredRecycledToBuildUp;
+        }
+    }
+
+    void applyPhaseTransition(
+        MatchEngineResult& result,
+        TeamSimState& team,
+        const PhaseTransitionResult& transition,
+        int currentSecond) {
+        if (!transition.changed || transition.phase == team.currentPhase) {
+            return;
+        }
+
+        const double elapsedInPrevious = static_cast<double>(
+            std::max(0, currentSecond - team.phaseEntrySecond));
+        MatchTeamPhaseDiagnostic& teamDiagnostic = teamPhaseDiagnosticFor(result, team.teamId);
+        teamDiagnostic.longestSinglePhaseSeconds =
+            std::max(teamDiagnostic.longestSinglePhaseSeconds, elapsedInPrevious);
+        ++teamDiagnostic.phaseSwitchCount;
+        ++result.phaseDiagnostics.phaseSwitchCount;
+
+        if (team.currentPhase == MatchTeamPhase::CounterAttack) {
+            recordCounterExit(result, transition.exitReason);
+        }
+
+        team.previousPhase = team.currentPhase;
+        team.currentPhase = transition.phase;
+        team.phaseEntrySecond = currentSecond;
+        team.phaseEntryReason = transition.entryReason;
+        team.phaseExitReason = transition.exitReason;
+        recordPhaseEntry(result, team, team.currentPhase);
+    }
+
+    void initializePhaseDiagnostics(MatchEngineResult& result, MatchSimulationState& state, const MatchEngineInput& input) {
+        state.homeTeam.currentPhase = MatchTeamPhase::BuildUp;
+        state.homeTeam.previousPhase = MatchTeamPhase::BuildUp;
+        state.homeTeam.phaseEntrySecond = state.currentSecond;
+        state.homeTeam.phaseEntryReason = "initial kickoff possession";
+
+        state.awayTeam.currentPhase = MatchTeamPhase::SettledDefense;
+        state.awayTeam.previousPhase = MatchTeamPhase::SettledDefense;
+        state.awayTeam.phaseEntrySecond = state.currentSecond;
+        state.awayTeam.phaseEntryReason = "initial out of possession shape";
+
+        result.phaseDiagnostics.defaultFormationFourThreeThree =
+            input.homeTeam.teamSheet.formation == FormationId::FourThreeThree
+            && input.awayTeam.teamSheet.formation == FormationId::FourThreeThree;
+        recordPhaseEntry(result, state.homeTeam, state.homeTeam.currentPhase);
+        recordPhaseEntry(result, state.awayTeam, state.awayTeam.currentPhase);
+    }
+
+    void recordPhaseTime(
+        MatchEngineResult& result,
+        const TeamSimState& team,
+        const TeamGameContext& context,
+        double elapsedSeconds) {
+        const int index = matchTeamPhaseIndex(team.currentPhase);
+        result.phaseDiagnostics.phaseTimeSeconds[index] += elapsedSeconds;
+
+        MatchTeamPhaseDiagnostic& teamDiagnostic = teamPhaseDiagnosticFor(result, team.teamId);
+        teamDiagnostic.phaseTimeSeconds[index] += elapsedSeconds;
+        teamDiagnostic.finalPhase = team.currentPhase;
+
+        result.phaseDiagnostics.teamShapeSettledSamples += 1.0;
+        if (context.teamShapeSettled) {
+            result.phaseDiagnostics.teamShapeSettledCount += 1.0;
+        }
+        if (context.opponentShapeSettled) {
+            result.phaseDiagnostics.opponentShapeSettledCount += 1.0;
+        }
+        if (context.restDefenseStable) {
+            ++result.phaseDiagnostics.restDefenseStableCount;
+        } else {
+            ++result.phaseDiagnostics.restDefenseBrokenCount;
+        }
+        result.phaseDiagnostics.openForwardLaneTotal += context.openForwardLaneScore;
+        result.phaseDiagnostics.openWideLaneLeftTotal += context.wideSpaceAvailableLeft ? 100.0 : context.openWideLaneScore;
+        result.phaseDiagnostics.openWideLaneRightTotal += context.wideSpaceAvailableRight ? 100.0 : context.openWideLaneScore;
+        result.phaseDiagnostics.centralSpaceAvailableTotal += context.centralSpaceAvailable ? 1.0 : 0.0;
+
+        if (context.hasPossession) {
+            if (context.ballFlank == BallFlank::Left) {
+                result.phaseDiagnostics.ballFlankLeftPossessionSeconds += elapsedSeconds;
+            } else if (context.ballFlank == BallFlank::Right) {
+                result.phaseDiagnostics.ballFlankRightPossessionSeconds += elapsedSeconds;
+            } else {
+                result.phaseDiagnostics.ballFlankCenterPossessionSeconds += elapsedSeconds;
+            }
+        }
+    }
+
+    void finalizePhaseDiagnostics(MatchEngineResult& result, const MatchSimulationState& state) {
+        for (const TeamSimState* team : { &state.homeTeam, &state.awayTeam }) {
+            MatchTeamPhaseDiagnostic& diagnostic = teamPhaseDiagnosticFor(result, team->teamId);
+            diagnostic.finalPhase = team->currentPhase;
+            diagnostic.longestSinglePhaseSeconds = std::max(
+                diagnostic.longestSinglePhaseSeconds,
+                static_cast<double>(std::max(0, state.currentSecond - team->phaseEntrySecond)));
+        }
+    }
+
+    void recordPhaseAction(
+        MatchEngineResult& result,
+        MatchTeamPhase phase,
+        BallCarrierActionType actionType,
+        double xG = 0.0) {
+        const int index = matchTeamPhaseIndex(phase);
+        if (isPassLike(actionType)) {
+            ++result.phaseDiagnostics.passesByPhase[index];
+            if (actionType == BallCarrierActionType::ThroughBall
+                || actionType == BallCarrierActionType::LowCross
+                || actionType == BallCarrierActionType::HighCross
+                || actionType == BallCarrierActionType::Cutback) {
+                ++result.phaseDiagnostics.finalBallsByPhase[index];
+            }
+        } else if (actionType == BallCarrierActionType::Carry) {
+            ++result.phaseDiagnostics.carriesByPhase[index];
+        } else if (actionType == BallCarrierActionType::Dribble
+            || actionType == BallCarrierActionType::CutInside) {
+            ++result.phaseDiagnostics.dribblesByPhase[index];
+        } else if (actionType == BallCarrierActionType::Shoot) {
+            ++result.phaseDiagnostics.shotsByPhase[index];
+            result.phaseDiagnostics.xGByPhase[index] += xG;
+            if (phase == MatchTeamPhase::CounterAttack) {
+                ++result.phaseDiagnostics.counterShots;
+                result.phaseDiagnostics.counterXG += xG;
+            }
+        }
+    }
+
+    void recordPhaseTurnover(MatchEngineResult& result, MatchTeamPhase phase) {
+        ++result.phaseDiagnostics.turnoversByPhase[matchTeamPhaseIndex(phase)];
+    }
+
+    void recordPhaseGoal(MatchEngineResult& result, MatchTeamPhase phase) {
+        ++result.phaseDiagnostics.goalsByPhase[matchTeamPhaseIndex(phase)];
+        if (phase == MatchTeamPhase::CounterAttack) {
+            ++result.phaseDiagnostics.counterGoals;
+        }
     }
 
     std::vector<PlayerMarkerSnapshot> buildMarkers(const MatchSimulationState& state) {
@@ -2501,6 +2684,7 @@ namespace {
         } else {
             ++scoringStats.unassistedOpenPlayGoals;
         }
+        recordPhaseGoal(result, pending.sourcePhase);
         appendOfficialGoalEvent(result, state, pending, assistPlayerId);
         const AttackingDirection direction =
             state.homeTeam.teamId == pending.sourceTeamId
@@ -2551,6 +2735,7 @@ namespace {
         MatchEngineResult& result,
         const MatchEngineInput& input,
         const TeamShapeContext& carrierShapeContext,
+        MatchTeamPhase carrierPhase,
         const BallTrajectoryBuilder& trajectoryBuilder,
         const BallCarrierDecisionModel& decisionModel,
         const ActionSelector& selector,
@@ -2774,6 +2959,7 @@ namespace {
                     setLooseBall(state, duel.loosePoint);
                     markTurnoverChain(chanceTracker);
                 }
+                recordPhaseTurnover(result, carrierPhase);
                 appendTrace(
                     result,
                     input.options.detail,
@@ -2858,6 +3044,7 @@ namespace {
                 carryStart,
                 state.ball.position,
                 actionType);
+            recordPhaseAction(result, carrierPhase, actionType);
             appendTrace(
                 result,
                 input.options.detail,
@@ -2950,7 +3137,22 @@ namespace {
                 executionQuality,
                 executionPressure,
                 true,
-                0.0);
+                0.0,
+                ShotType::ControlledFinish,
+                ShotContext{},
+                ShotTargetSelectionResult{},
+                ShotExecutionResult{},
+                ShotQualityResult{},
+                0,
+                false,
+                false,
+                false,
+                false,
+                BallCarrierActionType::Hold,
+                0.0,
+                0,
+                0,
+                carrierPhase);
             assistCandidatePlayerId =
                 assistCandidateForShot(state, shotPendingForSource, chanceTracker);
             shotFromFinalBallSource =
@@ -3058,6 +3260,8 @@ namespace {
             trajectory = trajectoryResult.trajectory;
         }
 
+        recordPhaseAction(result, carrierPhase, actionType, shotXG);
+
         clearBallFlags(state);
         state.ball.controlState = BallControlState::InFlight;
         state.ball.carrierPlayerId = 0;
@@ -3093,7 +3297,8 @@ namespace {
                 : BallCarrierActionType::Hold,
             actionType == BallCarrierActionType::Shoot ? carryAfterReceiveMeters : 0.0,
             actionType == BallCarrierActionType::Shoot ? touchesAfterReceive : 0,
-            actionType == BallCarrierActionType::Shoot ? defendersBeatenAfterReceive : 0);
+            actionType == BallCarrierActionType::Shoot ? defendersBeatenAfterReceive : 0,
+            carrierPhase);
 
         appendTrace(
             result,
@@ -3201,6 +3406,7 @@ namespace {
                 ++teamStatsFor(result, pending.sourceTeamId).passesIntercepted;
             }
         }
+        recordPhaseTurnover(result, pending.sourcePhase);
         markTurnoverChain(chanceTracker);
         appendTrace(
             result,
@@ -3243,6 +3449,7 @@ namespace {
                 ++teamStatsFor(result, pending.sourceTeamId).passesLoose;
             }
         }
+        recordPhaseTurnover(result, pending.sourcePhase);
         setLooseBall(state, loosePoint);
         const TeamSimState* sourceTeam = findTeamState(state, pending.sourceTeamId);
         if (sourceTeam != nullptr) {
@@ -3692,6 +3899,7 @@ namespace {
                     pending->pressure);
             } else {
                 markTurnoverChain(chanceTracker);
+                recordPhaseTurnover(result, pending->sourcePhase);
             }
             pending = std::nullopt;
             return SimulationStepResult{ elapsedToArrival };
@@ -3830,6 +4038,7 @@ namespace {
 
                     if (contest.cleanController->teamId != previousTeam) {
                         markTurnoverChain(chanceTracker);
+                        recordPhaseTurnover(result, pending->sourcePhase);
                         if (isPassLike(pending->actionType)) {
                             if (isAssignedGoalkeeper(
                                     input,
@@ -3952,6 +4161,7 @@ namespace {
                     if (isPassLike(pending->actionType)) {
                         ++teamStatsFor(result, pending->sourceTeamId).passesLoose;
                     }
+                    recordPhaseTurnover(result, pending->sourcePhase);
                     setLooseBall(state, candidate.interceptionPoint);
                     clearChanceSource(chanceTracker);
                     appendTrace(
@@ -4187,10 +4397,12 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
 
     MatchSimulationState state = initializeState(input);
     addInitialPlayerStats(result, state);
+    initializePhaseDiagnostics(result, state, input);
 
     const std::uint64_t baseSeed = baseSeedFor(input);
     const double deltaSeconds = deltaSecondsFor(input);
 
+    MatchPhaseModel phaseModel;
     TeamShapeModel shapeModel;
     PlayerIntentResolver intentResolver;
     MovementResolver movementResolver;
@@ -4229,6 +4441,43 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
             shapeModel,
             awayShapeContext,
             input.awayTeam.teamSheet);
+
+        const TeamGameContext homeGameContext = phaseModel.buildTeamContext(
+            state.homeTeam,
+            state.awayTeam,
+            state,
+            homeTargets,
+            awayTargets);
+        const TeamGameContext awayGameContext = phaseModel.buildTeamContext(
+            state.awayTeam,
+            state.homeTeam,
+            state,
+            awayTargets,
+            homeTargets);
+        applyPhaseTransition(
+            result,
+            state.homeTeam,
+            phaseModel.evaluateTeamPhase(homeGameContext),
+            state.currentSecond);
+        applyPhaseTransition(
+            result,
+            state.awayTeam,
+            phaseModel.evaluateTeamPhase(awayGameContext),
+            state.currentSecond);
+        const std::vector<PlayerGameContext> homePlayerContexts = phaseModel.buildPlayerContexts(
+            state.homeTeam,
+            state.awayTeam,
+            input.homeTeam.teamSheet,
+            homeTargets,
+            state.ball.position);
+        const std::vector<PlayerGameContext> awayPlayerContexts = phaseModel.buildPlayerContexts(
+            state.awayTeam,
+            state.homeTeam,
+            input.awayTeam.teamSheet,
+            awayTargets,
+            state.ball.position);
+        (void)homePlayerContexts;
+        (void)awayPlayerContexts;
 
         const std::vector<ResolvedPlayerIntent> homeIntents = resolveTeamIntents(
             intentResolver,
@@ -4280,11 +4529,16 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
                 state.ball.carrierTeamId == state.homeTeam.teamId
                     ? homeShapeContext
                     : awayShapeContext;
+            const MatchTeamPhase carrierPhase =
+                state.ball.carrierTeamId == state.homeTeam.teamId
+                    ? state.homeTeam.currentPhase
+                    : state.awayTeam.currentPhase;
             step = executeControlledAction(
                 state,
                 result,
                 input,
                 carrierContext,
+                carrierPhase,
                 trajectoryBuilder,
                 ballCarrierDecisionModel,
                 actionSelector,
@@ -4319,6 +4573,8 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
         } else if (state.possession.teamInPossession == state.awayTeam.teamId) {
             state.awayTeam.possessionShareAccumulator += elapsedSeconds;
         }
+        recordPhaseTime(result, state.homeTeam, homeGameContext, elapsedSeconds);
+        recordPhaseTime(result, state.awayTeam, awayGameContext, elapsedSeconds);
 
         updateMeaningfulProgression(state);
         state.currentSecond = std::min(
@@ -4327,6 +4583,7 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
     }
 
     result.simulatedSeconds = state.currentSecond;
+    finalizePhaseDiagnostics(result, state);
     finalizePlayerMinutes(result, state.currentSecond);
     finalizePossessionShare(result, state);
     finalizePlayerRatings(result, input);

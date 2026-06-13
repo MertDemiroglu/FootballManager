@@ -51,7 +51,7 @@ Team::Team(TeamId id, const std::string& name)
       name(name),
       primaryColor(DefaultPrimaryColor),
       secondaryColor(DefaultSecondaryColor),
-      headCoach(buildDefaultHeadCoachName(name), FormationId::FourFourTwo) {
+      headCoach(buildDefaultHeadCoachName(name), FormationId::FourThreeThree) {
     if (id == 0) {
         throw std::invalid_argument("team id cannot be zero");
     }

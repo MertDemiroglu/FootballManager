@@ -4,7 +4,7 @@
 #include "fm/roster/Formation.h"
 
 struct TacticalPreferences {
-    FormationId preferredFormation = FormationId::FourFourTwo;
+    FormationId preferredFormation = FormationId::FourThreeThree;
     TeamMentality preferredMentality = TeamMentality::Balanced;
     TeamTempo preferredTempo = TeamTempo::Normal;
 };

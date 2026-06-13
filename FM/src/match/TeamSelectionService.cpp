@@ -38,7 +38,7 @@ struct AssignmentResult {
 };
 
 struct FormationSelectionCandidate {
-    FormationId formation = FormationId::FourFourTwo;
+    FormationId formation = FormationId::FourThreeThree;
     std::vector<PlayerId> orderedPlayerIdsByTemplate;
     std::vector<TeamSheetSlotAssignment> orderedAssignments;
     int assignedSlotCount = 0;
