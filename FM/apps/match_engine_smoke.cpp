@@ -456,6 +456,7 @@ namespace {
     struct DefensiveEventDiagnostic {
         int pressures = 0;
         int duels = 0;
+        int carryUnderPressure = 0;
         int tackleAttempts = 0;
         int tacklesWon = 0;
         int tacklesLost = 0;
@@ -471,7 +472,13 @@ namespace {
         int keeperOneOnOnes = 0;
         int keeperSmothers = 0;
         int dispossessionsForced = 0;
-        int dribblesAttempted = 0;
+        int forcedSideways = 0;
+        int forcedBackward = 0;
+        int defenderWinsTackle = 0;
+        int ballLooseFromDuel = 0;
+        int attackerKeepsUnderPressure = 0;
+        int attackerBeatsDefender = 0;
+        int dribbleAttempts = 0;
         int dribblesWon = 0;
         int dribblesLost = 0;
     };
@@ -863,6 +870,7 @@ namespace {
             }
             diagnostic.pressures += stats->pressures;
             diagnostic.duels += stats->duels;
+            diagnostic.carryUnderPressure += stats->carryUnderPressure;
             diagnostic.tackleAttempts += stats->tacklesAttempted;
             diagnostic.tacklesWon += stats->tacklesWon;
             diagnostic.tacklesLost += stats->tacklesLost;
@@ -878,7 +886,13 @@ namespace {
             diagnostic.keeperOneOnOnes += stats->keeperOneOnOnes;
             diagnostic.keeperSmothers += stats->keeperSmothers;
             diagnostic.dispossessionsForced += stats->dispossessionsForced;
-            diagnostic.dribblesAttempted += stats->dribblesAttempted;
+            diagnostic.forcedSideways += stats->forcedSideways;
+            diagnostic.forcedBackward += stats->forcedBackward;
+            diagnostic.defenderWinsTackle += stats->defenderWinsTackle;
+            diagnostic.ballLooseFromDuel += stats->ballLooseFromDuel;
+            diagnostic.attackerKeepsUnderPressure += stats->attackerKeepsUnderPressure;
+            diagnostic.attackerBeatsDefender += stats->attackerBeatsDefender;
+            diagnostic.dribbleAttempts += stats->dribblesAttempted;
             diagnostic.dribblesWon += stats->dribblesWon;
             diagnostic.dribblesLost += stats->dribblesLost;
         }
@@ -947,7 +961,14 @@ namespace {
         total.keeperOneOnOnes += sample.keeperOneOnOnes;
         total.keeperSmothers += sample.keeperSmothers;
         total.dispossessionsForced += sample.dispossessionsForced;
-        total.dribblesAttempted += sample.dribblesAttempted;
+        total.carryUnderPressure += sample.carryUnderPressure;
+        total.forcedSideways += sample.forcedSideways;
+        total.forcedBackward += sample.forcedBackward;
+        total.defenderWinsTackle += sample.defenderWinsTackle;
+        total.ballLooseFromDuel += sample.ballLooseFromDuel;
+        total.attackerKeepsUnderPressure += sample.attackerKeepsUnderPressure;
+        total.attackerBeatsDefender += sample.attackerBeatsDefender;
+        total.dribbleAttempts += sample.dribbleAttempts;
         total.dribblesWon += sample.dribblesWon;
         total.dribblesLost += sample.dribblesLost;
     }
@@ -959,6 +980,7 @@ namespace {
             << "  pressures=" << stats.pressures
             << " duels=" << stats.duels
             << " duelWinRate=" << ratio(stats.tacklesWon, stats.duels)
+            << " carryUnderPressure=" << stats.carryUnderPressure
             << " tackleAttempts=" << stats.tackleAttempts
             << " tacklesWon=" << stats.tacklesWon
             << " tacklesLost=" << stats.tacklesLost
@@ -975,7 +997,13 @@ namespace {
             << " keeperOneOnOnes=" << stats.keeperOneOnOnes
             << " keeperSmothers=" << stats.keeperSmothers
             << " dispossessionsForced=" << stats.dispossessionsForced
-            << " dribblesAttempted=" << stats.dribblesAttempted
+            << " forcedSideways=" << stats.forcedSideways
+            << " forcedBackward=" << stats.forcedBackward
+            << " defenderWinsTackle=" << stats.defenderWinsTackle
+            << " ballLooseFromDuel=" << stats.ballLooseFromDuel
+            << " attackerKeepsUnderPressure=" << stats.attackerKeepsUnderPressure
+            << " attackerBeatsDefender=" << stats.attackerBeatsDefender
+            << " dribbleAttempts=" << stats.dribbleAttempts
             << " dribblesWon=" << stats.dribblesWon
             << " dribblesLost=" << stats.dribblesLost
             << '\n';
@@ -1048,22 +1076,24 @@ namespace {
         const DefensiveEventDiagnostic& defensive) {
         const int dribbleOutcomes = defensive.dribblesWon + defensive.dribblesLost;
         const int tackleOutcomes = defensive.tacklesWon + defensive.tacklesLost;
-        if (dribbleOutcomes != defensive.dribblesAttempted
+        if (dribbleOutcomes > defensive.dribbleAttempts
             || tackleOutcomes != defensive.tackleAttempts) {
             std::cerr << "defensive invariant failed label=" << label
-                << " dribbleAttempts=" << defensive.dribblesAttempted
+                << " dribbleAttempts=" << defensive.dribbleAttempts
                 << " dribbleOutcomes=" << dribbleOutcomes
                 << " tackles=" << defensive.tackleAttempts
                 << " tackleOutcomes=" << tackleOutcomes
                 << " duels=" << defensive.duels
                 << '\n';
         }
-        require(dribbleOutcomes == defensive.dribblesAttempted,
-            label + " dribble attempts should equal dribbles won + dribbles lost");
+        require(dribbleOutcomes <= defensive.dribbleAttempts,
+            label + " dribble outcomes should not exceed dribble attempts");
         require(tackleOutcomes == defensive.tackleAttempts,
             label + " tackle attempts should equal tackles won + tackles lost");
         require(defensive.duels >= defensive.tackleAttempts,
             label + " tackle attempts should be a subset of defensive duels");
+        require(defensive.duels + defensive.carryUnderPressure >= defensive.dribbleAttempts,
+            label + " dribble attempts should be supported by tracked contest or carry-under-pressure events");
     }
 
     const MatchTeamSnapshot* teamSnapshotFor(
@@ -1163,6 +1193,7 @@ namespace {
             role.progressiveCarries += stats.progressiveCarries;
             role.defensive.pressures += stats.pressures;
             role.defensive.duels += stats.duels;
+            role.defensive.carryUnderPressure += stats.carryUnderPressure;
             role.defensive.tackleAttempts += stats.tackleAttempts;
             role.defensive.tacklesWon += stats.tacklesWon;
             role.defensive.tacklesLost += stats.tacklesLost;
@@ -1178,7 +1209,13 @@ namespace {
             role.defensive.keeperOneOnOnes += stats.keeperOneOnOnes;
             role.defensive.keeperSmothers += stats.keeperSmothers;
             role.defensive.dispossessionsForced += stats.dispossessionsForced;
-            role.defensive.dribblesAttempted += stats.dribblesAttempted;
+            role.defensive.forcedSideways += stats.forcedSideways;
+            role.defensive.forcedBackward += stats.forcedBackward;
+            role.defensive.defenderWinsTackle += stats.defenderWinsTackle;
+            role.defensive.ballLooseFromDuel += stats.ballLooseFromDuel;
+            role.defensive.attackerKeepsUnderPressure += stats.attackerKeepsUnderPressure;
+            role.defensive.attackerBeatsDefender += stats.attackerBeatsDefender;
+            role.defensive.dribbleAttempts += stats.dribblesAttempted;
             role.defensive.dribblesWon += stats.dribblesWon;
             role.defensive.dribblesLost += stats.dribblesLost;
             role.tackles += stats.tackles;
@@ -1207,6 +1244,7 @@ namespace {
             leader.shots += stats.shots;
             leader.defensive.pressures += stats.pressures;
             leader.defensive.duels += stats.duels;
+            leader.defensive.carryUnderPressure += stats.carryUnderPressure;
             leader.defensive.tackleAttempts += stats.tackleAttempts;
             leader.defensive.tacklesWon += stats.tacklesWon;
             leader.defensive.tacklesLost += stats.tacklesLost;
@@ -1222,7 +1260,13 @@ namespace {
             leader.defensive.keeperOneOnOnes += stats.keeperOneOnOnes;
             leader.defensive.keeperSmothers += stats.keeperSmothers;
             leader.defensive.dispossessionsForced += stats.dispossessionsForced;
-            leader.defensive.dribblesAttempted += stats.dribblesAttempted;
+            leader.defensive.forcedSideways += stats.forcedSideways;
+            leader.defensive.forcedBackward += stats.forcedBackward;
+            leader.defensive.defenderWinsTackle += stats.defenderWinsTackle;
+            leader.defensive.ballLooseFromDuel += stats.ballLooseFromDuel;
+            leader.defensive.attackerKeepsUnderPressure += stats.attackerKeepsUnderPressure;
+            leader.defensive.attackerBeatsDefender += stats.attackerBeatsDefender;
+            leader.defensive.dribbleAttempts += stats.dribblesAttempted;
             leader.defensive.dribblesWon += stats.dribblesWon;
             leader.defensive.dribblesLost += stats.dribblesLost;
             leader.tackles += stats.tackles;
@@ -1294,6 +1338,7 @@ namespace {
                 << " progressiveCarries=" << stats.progressiveCarries
                 << " pressures=" << stats.defensive.pressures
                 << " duels=" << stats.defensive.duels
+                << " carryUnderPressure=" << stats.defensive.carryUnderPressure
                 << " tackleAttempts=" << stats.defensive.tackleAttempts
                 << " tacklesWon=" << stats.defensive.tacklesWon
                 << " tacklesLost=" << stats.defensive.tacklesLost
@@ -1309,7 +1354,13 @@ namespace {
                 << " keeperOneOnOnes=" << stats.defensive.keeperOneOnOnes
                 << " keeperSmothers=" << stats.defensive.keeperSmothers
                 << " dispossessionsForced=" << stats.defensive.dispossessionsForced
-                << " dribbleAttempts=" << stats.defensive.dribblesAttempted
+                << " forcedSideways=" << stats.defensive.forcedSideways
+                << " forcedBackward=" << stats.defensive.forcedBackward
+                << " defenderWinsTackle=" << stats.defensive.defenderWinsTackle
+                << " ballLooseFromDuel=" << stats.defensive.ballLooseFromDuel
+                << " attackerKeepsUnderPressure=" << stats.defensive.attackerKeepsUnderPressure
+                << " attackerBeatsDefender=" << stats.defensive.attackerBeatsDefender
+                << " dribbleAttempts=" << stats.defensive.dribbleAttempts
                 << " dribblesWon=" << stats.defensive.dribblesWon
                 << " dribblesLost=" << stats.defensive.dribblesLost
                 << " totalDistanceMeters=" << stats.totalDistance
@@ -1531,7 +1582,7 @@ namespace {
         int samples = 0;
     };
 
-    ClosestDefenderDiagnostic closestDefenderDiagnosticFor(
+    ClosestDefenderDiagnostic goalChainClosestDefenderDiagnosticFor(
         const MatchEngineResult& result,
         TeamId teamId = 0) {
         ClosestDefenderDiagnostic diagnostic;
@@ -1543,6 +1594,62 @@ namespace {
             if (chain.closestOutfieldDefenderDistance < 0.0) {
                 ++diagnostic.invalidCount;
             } else if (chain.closestOutfieldDefenderDistance <= 0.05) {
+                ++diagnostic.zeroCount;
+            }
+        }
+        return diagnostic;
+    }
+
+    TeamId defendingTeamForShotFrame(
+        const MatchEngineInput& input,
+        const MatchTraceFrame& frame) {
+        if (frame.teamId == input.homeTeam.teamId) {
+            return input.awayTeam.teamId;
+        }
+        if (frame.teamId == input.awayTeam.teamId) {
+            return input.homeTeam.teamId;
+        }
+        return 0;
+    }
+
+    ClosestDefenderDiagnostic allShotClosestDefenderDiagnosticFor(
+        const MatchEngineInput& input,
+        const MatchEngineResult& result,
+        TeamId teamId = 0) {
+        ClosestDefenderDiagnostic diagnostic;
+        for (const MatchTraceFrame& frame : result.traceFrames) {
+            if (frame.kind != MatchTraceKind::Shot) {
+                continue;
+            }
+            if (teamId != 0 && frame.teamId != teamId) {
+                continue;
+            }
+
+            ++diagnostic.samples;
+            const TeamId defendingTeamId = defendingTeamForShotFrame(input, frame);
+            const MatchTeamSnapshot* defendingTeam =
+                defendingTeamId != 0 ? teamSnapshotFor(input, defendingTeamId) : nullptr;
+            if (defendingTeam == nullptr) {
+                ++diagnostic.invalidCount;
+                continue;
+            }
+
+            double closest = -1.0;
+            for (const PlayerMarkerSnapshot& marker : frame.markers) {
+                if (marker.teamId != defendingTeamId
+                    || roleForPlayerInInput(input, defendingTeamId, marker.playerId) == FormationSlotRole::Goalkeeper) {
+                    continue;
+                }
+
+                const double distance = PitchGeometry::distance(marker.position, frame.ballPosition);
+                if (closest < 0.0 || distance < closest) {
+                    closest = distance;
+                }
+            }
+
+            if (closest < 0.0) {
+                ++diagnostic.invalidCount;
+            } else if (closest <= 0.05) {
                 ++diagnostic.zeroCount;
             }
         }
@@ -3188,7 +3295,8 @@ namespace {
         DefensiveEventDiagnostic totalDefensiveEvents;
         PassOutcomeDiagnostic totalPassOutcomes;
         ShotOutcomeDiagnostic totalShotOutcomes;
-        ClosestDefenderDiagnostic totalClosestDefenders;
+        ClosestDefenderDiagnostic totalGoalChainClosestDefenders;
+        ClosestDefenderDiagnostic totalAllShotClosestDefenders;
         SmokeAggregateDiagnostic watchedAggregate;
         std::vector<std::string> watchedWarnings;
         for (std::uint64_t seed = 1; seed <= 8; ++seed) {
@@ -3220,8 +3328,11 @@ namespace {
             const PassOutcomeDiagnostic passOutcomes = passOutcomeDiagnosticFor(result);
             const ShotOutcomeDiagnostic shotOutcomes = shotOutcomeDiagnosticFor(input, result);
             addClosestDefenderDiagnostic(
-                totalClosestDefenders,
-                closestDefenderDiagnosticFor(result));
+                totalGoalChainClosestDefenders,
+                goalChainClosestDefenderDiagnosticFor(result));
+            addClosestDefenderDiagnostic(
+                totalAllShotClosestDefenders,
+                allShotClosestDefenderDiagnosticFor(input, result));
             const int openPlayGoals =
                 goalSources.assistedGoals + goalSources.unassistedOpenPlayGoals;
             if (openPlayGoals >= 3 && goalSources.assistedGoals == 0) {
@@ -3391,8 +3502,14 @@ namespace {
                     result.homeStats.passesCompleted + result.awayStats.passesCompleted,
                     combinedPasses)
                 << " passInterceptions=" << defensiveEvents.passInterceptions
-                << " tackles=" << defensiveEvents.tackleAttempts
-                << " dribbles=" << defensiveEvents.dribblesAttempted
+                << " duels=" << defensiveEvents.duels
+                << " tackleAttempts=" << defensiveEvents.tackleAttempts
+                << " tacklesWon=" << defensiveEvents.tacklesWon
+                << " dribbleAttempts=" << defensiveEvents.dribbleAttempts
+                << " dribblesWon=" << defensiveEvents.dribblesWon
+                << " dribblesLost=" << defensiveEvents.dribblesLost
+                << " forcedSideways=" << defensiveEvents.forcedSideways
+                << " forcedBackward=" << defensiveEvents.forcedBackward
                 << '\n';
 
             for (const MatchTeamSimulationStats* stats : { &result.homeStats, &result.awayStats }) {
@@ -3587,7 +3704,7 @@ namespace {
                 watchedWarnings.push_back(
                     "WARNING: passBlocks are zero across smoke sample; verify pass block resolution is reachable.");
             }
-            if (ratio(totalDefensiveEvents.dribblesWon, totalDefensiveEvents.dribblesAttempted) > 0.85) {
+            if (ratio(totalDefensiveEvents.dribblesWon, totalDefensiveEvents.dribbleAttempts) > 0.85) {
                 watchedWarnings.push_back("WARNING: dribbleSuccessRate > 0.85 across watched sample.");
             }
             if (totalDefensiveEvents.tackleAttempts > 0
@@ -3602,16 +3719,26 @@ namespace {
             if (totalShotOutcomes.throughBallShots == 0 && totalShotOutcomes.cutbackShots == 0) {
                 watchedWarnings.push_back("WARNING: throughBallShots and cutbackShots are both zero.");
             }
-            if (totalClosestDefenders.zeroCount > std::max(1, totalClosestDefenders.samples / 2)) {
+            if (totalGoals <= 1 && totalShots < 32 && totalPreShotExpectedGoals < 4.0) {
                 watchedWarnings.push_back(
-                    "WARNING: closestDefenderDistanceZeroCount is unusually high across watched goals.");
+                    "WARNING: unusually low goals with low shot volume/xG; chance creation may be collapsing.");
+            }
+            if (totalDefensiveEvents.duels > 8 * 700) {
+                watchedWarnings.push_back(
+                    "WARNING: defensive duels per match are suspiciously high across watched sample.");
+            }
+            if (totalGoalChainClosestDefenders.zeroCount + totalAllShotClosestDefenders.zeroCount > 1) {
+                watchedWarnings.push_back(
+                    "WARNING: multiple shot/goal chains have defender overlap at shot point.");
             }
             std::cerr << "[Sanity checks]\n"
                 << "  shotOutcomeInvariant=active"
                 << " defensiveEventTracking=active"
                 << " distanceResetMovement=ignored"
-                << " closestDefenderDistanceZeroCount=" << totalClosestDefenders.zeroCount
-                << " closestDefenderDistanceInvalidCount=" << totalClosestDefenders.invalidCount
+                << " goalChainClosestOutfieldDefenderZeroCount=" << totalGoalChainClosestDefenders.zeroCount
+                << " goalChainClosestOutfieldDefenderInvalidCount=" << totalGoalChainClosestDefenders.invalidCount
+                << " allShotClosestOutfieldDefenderZeroCount=" << totalAllShotClosestDefenders.zeroCount
+                << " allShotClosestOutfieldDefenderInvalidCount=" << totalAllShotClosestDefenders.invalidCount
                 << " roleBucketTotals=sampledFromPlayerStats\n";
             printWarnings(watchedWarnings);
             std::cerr << "[Guardrail summary]\n"
@@ -3713,7 +3840,8 @@ namespace {
         DefensiveEventDiagnostic dominantDefensiveEvents;
         PassOutcomeDiagnostic dominantPassOutcomes;
         ShotOutcomeDiagnostic dominantShotOutcomes;
-        ClosestDefenderDiagnostic dominantClosestDefenders;
+        ClosestDefenderDiagnostic dominantGoalChainClosestDefenders;
+        ClosestDefenderDiagnostic dominantAllShotClosestDefenders;
         SmokeAggregateDiagnostic dominantAggregate;
         std::vector<std::string> dominantWarnings;
         for (std::uint64_t seed = 1; seed <= 3; ++seed) {
@@ -3725,8 +3853,11 @@ namespace {
             const ShotOutcomeDiagnostic shotOutcomes =
                 shotOutcomeDiagnosticFor(input, result, result.homeStats.teamId);
             addClosestDefenderDiagnostic(
-                dominantClosestDefenders,
-                closestDefenderDiagnosticFor(result, result.homeStats.teamId));
+                dominantGoalChainClosestDefenders,
+                goalChainClosestDefenderDiagnosticFor(result, result.homeStats.teamId));
+            addClosestDefenderDiagnostic(
+                dominantAllShotClosestDefenders,
+                allShotClosestDefenderDiagnosticFor(input, result, result.homeStats.teamId));
             dominantShots += result.homeStats.shots;
             dominantShotsOnTarget += result.homeStats.shotsOnTarget;
             dominantGoals += result.homeStats.goals;
@@ -3792,8 +3923,14 @@ namespace {
                 << " assists=" << result.homeStats.assistedGoals
                 << " passAcc=" << ratio(result.homeStats.passesCompleted, result.homeStats.passesAttempted)
                 << " passInterceptions=" << result.homeStats.passInterceptions
-                << " tackles=" << result.homeStats.tacklesAttempted
-                << " dribbles=" << result.homeStats.dribblesAttempted
+                << " duels=" << result.homeStats.duels
+                << " tackleAttempts=" << result.homeStats.tacklesAttempted
+                << " tacklesWon=" << result.homeStats.tacklesWon
+                << " dribbleAttempts=" << result.homeStats.dribblesAttempted
+                << " dribblesWon=" << result.homeStats.dribblesWon
+                << " dribblesLost=" << result.homeStats.dribblesLost
+                << " forcedSideways=" << result.homeStats.forcedSideways
+                << " forcedBackward=" << result.homeStats.forcedBackward
                 << '\n';
         }
 
@@ -3902,7 +4039,7 @@ namespace {
             dominantWarnings.push_back(
                 "WARNING: passBlocks are zero across dominant sample; verify pass block resolution is reachable.");
         }
-        if (ratio(dominantDefensiveEvents.dribblesWon, dominantDefensiveEvents.dribblesAttempted) > 0.85) {
+        if (ratio(dominantDefensiveEvents.dribblesWon, dominantDefensiveEvents.dribbleAttempts) > 0.85) {
             dominantWarnings.push_back("WARNING: dribbleSuccessRate > 0.85 across dominant sample.");
         }
         if (dominantDefensiveEvents.tackleAttempts > 0
@@ -3917,16 +4054,26 @@ namespace {
         if (dominantShotOutcomes.throughBallShots == 0 && dominantShotOutcomes.cutbackShots == 0) {
             dominantWarnings.push_back("WARNING: throughBallShots and cutbackShots are both zero in dominant sample.");
         }
-        if (dominantClosestDefenders.zeroCount > std::max(1, dominantClosestDefenders.samples / 2)) {
+        if (dominantGoals <= 1 && dominantShots < 15 && dominantPreShotExpectedGoals < 2.0) {
             dominantWarnings.push_back(
-                "WARNING: closestDefenderDistanceZeroCount is unusually high across dominant goals.");
+                "WARNING: unusually low goals with low shot volume/xG; chance creation may be collapsing.");
+        }
+        if (dominantDefensiveEvents.duels > 3 * 260) {
+            dominantWarnings.push_back(
+                "WARNING: defensive duels per match are suspiciously high across dominant sample.");
+        }
+        if (dominantGoalChainClosestDefenders.zeroCount + dominantAllShotClosestDefenders.zeroCount > 1) {
+            dominantWarnings.push_back(
+                "WARNING: multiple shot/goal chains have defender overlap at shot point.");
         }
         std::cerr << "[Sanity checks]\n"
             << "  shotOutcomeInvariant=active"
             << " defensiveEventTracking=active"
             << " distanceResetMovement=ignored"
-            << " closestDefenderDistanceZeroCount=" << dominantClosestDefenders.zeroCount
-            << " closestDefenderDistanceInvalidCount=" << dominantClosestDefenders.invalidCount
+            << " goalChainClosestOutfieldDefenderZeroCount=" << dominantGoalChainClosestDefenders.zeroCount
+            << " goalChainClosestOutfieldDefenderInvalidCount=" << dominantGoalChainClosestDefenders.invalidCount
+            << " allShotClosestOutfieldDefenderZeroCount=" << dominantAllShotClosestDefenders.zeroCount
+            << " allShotClosestOutfieldDefenderInvalidCount=" << dominantAllShotClosestDefenders.invalidCount
             << " roleBucketTotals=sampledFromPlayerStats\n";
         printWarnings(dominantWarnings);
         std::cerr << "[Guardrail summary]\n"
