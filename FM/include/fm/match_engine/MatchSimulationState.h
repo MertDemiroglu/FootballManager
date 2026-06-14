@@ -74,6 +74,15 @@ struct TeamSimState {
     std::string phaseEntryReason;
     std::string phaseExitReason;
 
+    bool finalizingDiagnosticActive = false;
+    bool finalizingDiagnosticFromBuildUp = false;
+    bool finalizingDiagnosticHadShot = false;
+    bool finalizingDiagnosticHadTurnover = false;
+    int finalizingDiagnosticFirstActionCounted = 0;
+    int finalizingDiagnosticFirstThreeActions = 0;
+    int finalizingDiagnosticPassesBeforeEntry = 0;
+    double finalizingDiagnosticXG = 0.0;
+
     std::vector<PlayerSimState> players;
 };
 

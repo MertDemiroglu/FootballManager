@@ -43,9 +43,9 @@ inline const char* phaseDecisionRoleBucketName(PhaseDecisionRoleBucket bucket) {
     case PhaseDecisionRoleBucket::Striker:
         return "ST";
     case PhaseDecisionRoleBucket::Other:
-        return "Other";
+        return "GK/Other";
     }
-    return "Other";
+    return "GK/Other";
 }
 
 inline PhaseDecisionRoleBucket phaseDecisionRoleBucket(FormationSlotRole role) {
@@ -81,7 +81,10 @@ struct PhaseDecisionDiagnostics {
     std::array<int, MatchTeamPhaseCount> shotCandidatesGenerated{};
     std::array<int, MatchTeamPhaseCount> finalBallCandidatesGenerated{};
     std::array<int, MatchTeamPhaseCount> selectedPasses{};
-    std::array<int, MatchTeamPhaseCount> selectedCarries{};
+    std::array<int, MatchTeamPhaseCount> selectedCarryActions{};
+    std::array<int, MatchTeamPhaseCount> selectedDribbleActions{};
+    std::array<int, MatchTeamPhaseCount> selectedCutInsideActionsByPhase{};
+    std::array<int, MatchTeamPhaseCount> selectedCarryLikeActions{};
     std::array<int, MatchTeamPhaseCount> selectedShots{};
     std::array<int, MatchTeamPhaseCount> selectedFinalBalls{};
     std::array<int, MatchTeamPhaseCount> selectedRecyclePasses{};
@@ -91,6 +94,19 @@ struct PhaseDecisionDiagnostics {
     std::array<int, MatchTeamPhaseCount> selectedFBTargets{};
     std::array<int, MatchTeamPhaseCount> selectedDMCMTargets{};
     std::array<int, MatchTeamPhaseCount> selectedWingerTargets{};
+
+    std::array<int, PhaseDecisionRoleBucketCount> generatedShotCandidatesByCarrierRole{};
+    std::array<int, PhaseDecisionRoleBucketCount> selectedShotsByCarrierRole{};
+    std::array<double, PhaseDecisionRoleBucketCount> shotCandidateScoreTotalByCarrierRole{};
+    std::array<double, PhaseDecisionRoleBucketCount> maxShotCandidateScoreByCarrierRole{};
+    std::array<int, PhaseDecisionRoleBucketCount> generatedFinalBallCandidatesByCarrierRole{};
+    std::array<int, PhaseDecisionRoleBucketCount> selectedFinalBallsByCarrierRole{};
+    int generatedThroughBallCandidates = 0;
+    int selectedThroughBalls = 0;
+    int generatedCutbackCandidates = 0;
+    int selectedCutbacks = 0;
+    int generatedCutInsideCandidates = 0;
+    int selectedCutInsideActions = 0;
 
     std::array<int, PhaseDecisionRoleBucketCount> buildUpPassesByRole{};
     std::array<int, PhaseDecisionRoleBucketCount> buildUpReceptionsByRole{};
@@ -108,4 +124,3 @@ struct PhaseDecisionDiagnostics {
     int counterSelectedCarries = 0;
     int counterSelectedRecyclePasses = 0;
 };
-

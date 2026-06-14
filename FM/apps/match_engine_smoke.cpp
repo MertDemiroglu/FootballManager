@@ -672,6 +672,29 @@ namespace {
         return "Unknown";
     }
 
+    const char* diagnosticRoleBucketName(MatchDiagnosticRoleBucket bucket) {
+        switch (bucket) {
+        case MatchDiagnosticRoleBucket::CenterBack:
+            return "CB";
+        case MatchDiagnosticRoleBucket::FullbackWingback:
+            return "FB/WB";
+        case MatchDiagnosticRoleBucket::CentralMidfield:
+            return "DM/CM/AM";
+        case MatchDiagnosticRoleBucket::Winger:
+            return "Winger";
+        case MatchDiagnosticRoleBucket::Striker:
+            return "ST";
+        case MatchDiagnosticRoleBucket::GoalkeeperOrOther:
+            return "GK/Other";
+        }
+        return "GK/Other";
+    }
+
+    BallCarrierActionType diagnosticActionTypeForIndex(int index) {
+        return static_cast<BallCarrierActionType>(
+            std::clamp(index, 0, MatchDiagnosticActionTypeCount - 1));
+    }
+
     const char* goalSourceCategoryName(MatchGoalSourceCategory category) {
         switch (category) {
         case MatchGoalSourceCategory::AssistedFinalBall:
@@ -1486,8 +1509,14 @@ namespace {
                 sample.phaseDecisionDiagnostics.finalBallCandidatesGenerated[index];
             aggregate.phaseDecisionDiagnostics.selectedPasses[index] +=
                 sample.phaseDecisionDiagnostics.selectedPasses[index];
-            aggregate.phaseDecisionDiagnostics.selectedCarries[index] +=
-                sample.phaseDecisionDiagnostics.selectedCarries[index];
+            aggregate.phaseDecisionDiagnostics.selectedCarryActions[index] +=
+                sample.phaseDecisionDiagnostics.selectedCarryActions[index];
+            aggregate.phaseDecisionDiagnostics.selectedDribbleActions[index] +=
+                sample.phaseDecisionDiagnostics.selectedDribbleActions[index];
+            aggregate.phaseDecisionDiagnostics.selectedCutInsideActionsByPhase[index] +=
+                sample.phaseDecisionDiagnostics.selectedCutInsideActionsByPhase[index];
+            aggregate.phaseDecisionDiagnostics.selectedCarryLikeActions[index] +=
+                sample.phaseDecisionDiagnostics.selectedCarryLikeActions[index];
             aggregate.phaseDecisionDiagnostics.selectedShots[index] +=
                 sample.phaseDecisionDiagnostics.selectedShots[index];
             aggregate.phaseDecisionDiagnostics.selectedFinalBalls[index] +=
@@ -1517,7 +1546,33 @@ namespace {
                 sample.phaseDecisionDiagnostics.finalizingShotsByRole[bucket];
             aggregate.phaseDecisionDiagnostics.finalizingFinalBallsByRole[bucket] +=
                 sample.phaseDecisionDiagnostics.finalizingFinalBallsByRole[bucket];
+            aggregate.phaseDecisionDiagnostics.generatedShotCandidatesByCarrierRole[bucket] +=
+                sample.phaseDecisionDiagnostics.generatedShotCandidatesByCarrierRole[bucket];
+            aggregate.phaseDecisionDiagnostics.selectedShotsByCarrierRole[bucket] +=
+                sample.phaseDecisionDiagnostics.selectedShotsByCarrierRole[bucket];
+            aggregate.phaseDecisionDiagnostics.shotCandidateScoreTotalByCarrierRole[bucket] +=
+                sample.phaseDecisionDiagnostics.shotCandidateScoreTotalByCarrierRole[bucket];
+            aggregate.phaseDecisionDiagnostics.maxShotCandidateScoreByCarrierRole[bucket] =
+                std::max(
+                    aggregate.phaseDecisionDiagnostics.maxShotCandidateScoreByCarrierRole[bucket],
+                    sample.phaseDecisionDiagnostics.maxShotCandidateScoreByCarrierRole[bucket]);
+            aggregate.phaseDecisionDiagnostics.generatedFinalBallCandidatesByCarrierRole[bucket] +=
+                sample.phaseDecisionDiagnostics.generatedFinalBallCandidatesByCarrierRole[bucket];
+            aggregate.phaseDecisionDiagnostics.selectedFinalBallsByCarrierRole[bucket] +=
+                sample.phaseDecisionDiagnostics.selectedFinalBallsByCarrierRole[bucket];
         }
+        aggregate.phaseDecisionDiagnostics.generatedThroughBallCandidates +=
+            sample.phaseDecisionDiagnostics.generatedThroughBallCandidates;
+        aggregate.phaseDecisionDiagnostics.selectedThroughBalls +=
+            sample.phaseDecisionDiagnostics.selectedThroughBalls;
+        aggregate.phaseDecisionDiagnostics.generatedCutbackCandidates +=
+            sample.phaseDecisionDiagnostics.generatedCutbackCandidates;
+        aggregate.phaseDecisionDiagnostics.selectedCutbacks +=
+            sample.phaseDecisionDiagnostics.selectedCutbacks;
+        aggregate.phaseDecisionDiagnostics.generatedCutInsideCandidates +=
+            sample.phaseDecisionDiagnostics.generatedCutInsideCandidates;
+        aggregate.phaseDecisionDiagnostics.selectedCutInsideActions +=
+            sample.phaseDecisionDiagnostics.selectedCutInsideActions;
         aggregate.phaseDecisionDiagnostics.buildUpShots += sample.phaseDecisionDiagnostics.buildUpShots;
         aggregate.phaseDecisionDiagnostics.buildUpFinalBalls += sample.phaseDecisionDiagnostics.buildUpFinalBalls;
         aggregate.phaseDecisionDiagnostics.buildUpSTTargets += sample.phaseDecisionDiagnostics.buildUpSTTargets;
@@ -1579,6 +1634,149 @@ namespace {
             firstSample
                 ? sample.defaultFormationFourThreeThree
                 : (aggregate.defaultFormationFourThreeThree && sample.defaultFormationFourThreeThree);
+
+        for (int bucket = 0; bucket < MatchDiagnosticRoleBucketCount; ++bucket) {
+            aggregate.shotCreationDiagnostics.shotsCreatedByRole[bucket] +=
+                sample.shotCreationDiagnostics.shotsCreatedByRole[bucket];
+            aggregate.shotCreationDiagnostics.xGCreatedByRole[bucket] +=
+                sample.shotCreationDiagnostics.xGCreatedByRole[bucket];
+            aggregate.shotCreationDiagnostics.goalsCreatedByRole[bucket] +=
+                sample.shotCreationDiagnostics.goalsCreatedByRole[bucket];
+            aggregate.shotCreationDiagnostics.shotAssistsByRole[bucket] +=
+                sample.shotCreationDiagnostics.shotAssistsByRole[bucket];
+            aggregate.shotCreationDiagnostics.keyPassesByRole[bucket] +=
+                sample.shotCreationDiagnostics.keyPassesByRole[bucket];
+            aggregate.shotCreationDiagnostics.finalBallShotAssistsByRole[bucket] +=
+                sample.shotCreationDiagnostics.finalBallShotAssistsByRole[bucket];
+            aggregate.shotCreationDiagnostics.simplePassShotAssistsByRole[bucket] +=
+                sample.shotCreationDiagnostics.simplePassShotAssistsByRole[bucket];
+            aggregate.shotCreationDiagnostics.lowCrossShotAssistsByRole[bucket] +=
+                sample.shotCreationDiagnostics.lowCrossShotAssistsByRole[bucket];
+            aggregate.shotCreationDiagnostics.cutbackShotAssistsByRole[bucket] +=
+                sample.shotCreationDiagnostics.cutbackShotAssistsByRole[bucket];
+            aggregate.shotCreationDiagnostics.throughBallShotAssistsByRole[bucket] +=
+                sample.shotCreationDiagnostics.throughBallShotAssistsByRole[bucket];
+            aggregate.shotCreationDiagnostics.highCrossShotAssistsByRole[bucket] +=
+                sample.shotCreationDiagnostics.highCrossShotAssistsByRole[bucket];
+
+            for (int action = 0; action < MatchDiagnosticActionTypeCount; ++action) {
+                aggregate.shotReceiverDiagnostics
+                    .shotsByShooterRoleAndSourceAction[bucket][action] +=
+                    sample.shotReceiverDiagnostics
+                        .shotsByShooterRoleAndSourceAction[bucket][action];
+                aggregate.shotReceiverDiagnostics
+                    .xGByShooterRoleAndSourceAction[bucket][action] +=
+                    sample.shotReceiverDiagnostics
+                        .xGByShooterRoleAndSourceAction[bucket][action];
+                aggregate.shotReceiverDiagnostics
+                    .goalsByShooterRoleAndSourceAction[bucket][action] +=
+                    sample.shotReceiverDiagnostics
+                        .goalsByShooterRoleAndSourceAction[bucket][action];
+            }
+        }
+
+        const auto addWideInvolvement = [](
+            MatchWidePlayerInvolvementDiagnostic& target,
+            const MatchWidePlayerInvolvementDiagnostic& source) {
+            target.actions += source.actions;
+            target.receptions += source.receptions;
+            target.finalThirdReceptions += source.finalThirdReceptions;
+            target.wideFinalThirdReceptions += source.wideFinalThirdReceptions;
+            target.halfSpaceReceptions += source.halfSpaceReceptions;
+            target.boxReceptions += source.boxReceptions;
+            target.penaltyAreaReceptions += source.penaltyAreaReceptions;
+            target.boxCarries += source.boxCarries;
+            target.cutInHalfSpaceCarries += source.cutInHalfSpaceCarries;
+            target.cutInsideActions += source.cutInsideActions;
+            target.carriesEndingInBox += source.carriesEndingInBox;
+            target.shots += source.shots;
+            target.xG += source.xG;
+            target.shotAssists += source.shotAssists;
+            target.finalBalls += source.finalBalls;
+            target.lowCrosses += source.lowCrosses;
+            target.cutbacks += source.cutbacks;
+            target.throughBalls += source.throughBalls;
+            target.successfulFinalThirdEntries += source.successfulFinalThirdEntries;
+        };
+        addWideInvolvement(
+            aggregate.wingerInvolvementDiagnostics.left,
+            sample.wingerInvolvementDiagnostics.left);
+        addWideInvolvement(
+            aggregate.wingerInvolvementDiagnostics.right,
+            sample.wingerInvolvementDiagnostics.right);
+
+        aggregate.fullbackSupportDiagnostics.receptions +=
+            sample.fullbackSupportDiagnostics.receptions;
+        aggregate.fullbackSupportDiagnostics.finalThirdReceptions +=
+            sample.fullbackSupportDiagnostics.finalThirdReceptions;
+        aggregate.fullbackSupportDiagnostics.wideFinalThirdReceptions +=
+            sample.fullbackSupportDiagnostics.wideFinalThirdReceptions;
+        aggregate.fullbackSupportDiagnostics.advancedWideReceptions +=
+            sample.fullbackSupportDiagnostics.advancedWideReceptions;
+        aggregate.fullbackSupportDiagnostics.lowCrosses +=
+            sample.fullbackSupportDiagnostics.lowCrosses;
+        aggregate.fullbackSupportDiagnostics.cutbacks +=
+            sample.fullbackSupportDiagnostics.cutbacks;
+        aggregate.fullbackSupportDiagnostics.finalBalls +=
+            sample.fullbackSupportDiagnostics.finalBalls;
+        aggregate.fullbackSupportDiagnostics.shotAssists +=
+            sample.fullbackSupportDiagnostics.shotAssists;
+        aggregate.fullbackSupportDiagnostics.xGCreated +=
+            sample.fullbackSupportDiagnostics.xGCreated;
+        aggregate.fullbackSupportDiagnostics.carriesIntoFinalThird +=
+            sample.fullbackSupportDiagnostics.carriesIntoFinalThird;
+        aggregate.fullbackSupportDiagnostics.carriesIntoBox +=
+            sample.fullbackSupportDiagnostics.carriesIntoBox;
+        aggregate.fullbackSupportDiagnostics.shots +=
+            sample.fullbackSupportDiagnostics.shots;
+
+        aggregate.finalizingQualityDiagnostics.finalizingEntries +=
+            sample.finalizingQualityDiagnostics.finalizingEntries;
+        aggregate.finalizingQualityDiagnostics.finalizingDurationSeconds +=
+            sample.finalizingQualityDiagnostics.finalizingDurationSeconds;
+        aggregate.finalizingQualityDiagnostics.finalizingPossessionsEndingInShot +=
+            sample.finalizingQualityDiagnostics.finalizingPossessionsEndingInShot;
+        aggregate.finalizingQualityDiagnostics.finalizingPossessionsEndingInTurnover +=
+            sample.finalizingQualityDiagnostics.finalizingPossessionsEndingInTurnover;
+        aggregate.finalizingQualityDiagnostics.finalizingPossessionsRecycledToBuildUp +=
+            sample.finalizingQualityDiagnostics.finalizingPossessionsRecycledToBuildUp;
+        aggregate.finalizingQualityDiagnostics.finalizingFinalBalls +=
+            sample.finalizingQualityDiagnostics.finalizingFinalBalls;
+        aggregate.finalizingQualityDiagnostics.finalizingFinalBallShotAssists +=
+            sample.finalizingQualityDiagnostics.finalizingFinalBallShotAssists;
+        aggregate.finalizingQualityDiagnostics.finalizingWingerReceptions +=
+            sample.finalizingQualityDiagnostics.finalizingWingerReceptions;
+        aggregate.finalizingQualityDiagnostics.finalizingFullbackReceptions +=
+            sample.finalizingQualityDiagnostics.finalizingFullbackReceptions;
+        aggregate.finalizingQualityDiagnostics.finalizingCMEdgeReceptions +=
+            sample.finalizingQualityDiagnostics.finalizingCMEdgeReceptions;
+        aggregate.finalizingQualityDiagnostics.finalizingSTReceptions +=
+            sample.finalizingQualityDiagnostics.finalizingSTReceptions;
+        aggregate.finalizingQualityDiagnostics.finalizingNonSTShots +=
+            sample.finalizingQualityDiagnostics.finalizingNonSTShots;
+        aggregate.finalizingQualityDiagnostics.finalizingNonSTxG +=
+            sample.finalizingQualityDiagnostics.finalizingNonSTxG;
+
+        aggregate.buildUpToFinalizingQualityDiagnostics.buildUpToFinalizingEntries +=
+            sample.buildUpToFinalizingQualityDiagnostics.buildUpToFinalizingEntries;
+        aggregate.buildUpToFinalizingQualityDiagnostics.passesBeforeFirstFinalizingActionTotal +=
+            sample.buildUpToFinalizingQualityDiagnostics.passesBeforeFirstFinalizingActionTotal;
+        aggregate.buildUpToFinalizingQualityDiagnostics.passesBeforeFirstFinalizingActionSamples +=
+            sample.buildUpToFinalizingQualityDiagnostics.passesBeforeFirstFinalizingActionSamples;
+        aggregate.buildUpToFinalizingQualityDiagnostics.firstThreeShots +=
+            sample.buildUpToFinalizingQualityDiagnostics.firstThreeShots;
+        aggregate.buildUpToFinalizingQualityDiagnostics.firstThreeFinalBalls +=
+            sample.buildUpToFinalizingQualityDiagnostics.firstThreeFinalBalls;
+        aggregate.buildUpToFinalizingQualityDiagnostics.firstThreeRecycleActions +=
+            sample.buildUpToFinalizingQualityDiagnostics.firstThreeRecycleActions;
+        aggregate.buildUpToFinalizingQualityDiagnostics.firstThreeTurnovers +=
+            sample.buildUpToFinalizingQualityDiagnostics.firstThreeTurnovers;
+        aggregate.buildUpToFinalizingQualityDiagnostics.finalizingPositionChainXG +=
+            sample.buildUpToFinalizingQualityDiagnostics.finalizingPositionChainXG;
+        for (int action = 0; action < MatchDiagnosticActionTypeCount; ++action) {
+            aggregate.buildUpToFinalizingQualityDiagnostics.firstFinalizingActionType[action] +=
+                sample.buildUpToFinalizingQualityDiagnostics.firstFinalizingActionType[action];
+        }
 
         for (const MatchTeamPhaseDiagnostic& sampleTeam : sample.teamDiagnostics) {
             MatchTeamPhaseDiagnostic& aggregateTeam =
@@ -1649,7 +1847,8 @@ namespace {
                 << " shotCandidatesGenerated=" << decision.shotCandidatesGenerated[index]
                 << " finalBallCandidatesGenerated=" << decision.finalBallCandidatesGenerated[index]
                 << " selectedPasses=" << decision.selectedPasses[index]
-                << " selectedCarries=" << decision.selectedCarries[index]
+                << " preExecutionSelectedCarryLikeActions="
+                << decision.selectedCarryLikeActions[index]
                 << " selectedShots=" << decision.selectedShots[index]
                 << " selectedFinalBalls=" << decision.selectedFinalBalls[index]
                 << " selectedRecyclePasses=" << decision.selectedRecyclePasses[index]
@@ -1702,6 +1901,247 @@ namespace {
         std::cerr << "  Finalizing ST target share=" << finalizingSTTargetShare
             << " Finalizing winger/CM involvement=" << decision.finalizingWingerCMInvolvement
             << '\n';
+
+        std::cerr << "[Shot creation by provider role] " << label << '\n';
+        for (int bucket = 0; bucket < MatchDiagnosticRoleBucketCount; ++bucket) {
+            const MatchDiagnosticRoleBucket role =
+                static_cast<MatchDiagnosticRoleBucket>(bucket);
+            std::cerr << "  " << diagnosticRoleBucketName(role)
+                << " shotAssists=" << diagnostics.shotCreationDiagnostics.shotAssistsByRole[bucket]
+                << " assistedGoals=" << diagnostics.shotCreationDiagnostics.goalsCreatedByRole[bucket]
+                << " xGCreated=" << diagnostics.shotCreationDiagnostics.xGCreatedByRole[bucket]
+                << " finalBallShotAssists="
+                << diagnostics.shotCreationDiagnostics.finalBallShotAssistsByRole[bucket]
+                << " simplePassShotAssists="
+                << diagnostics.shotCreationDiagnostics.simplePassShotAssistsByRole[bucket]
+                << " lowCrossShotAssists="
+                << diagnostics.shotCreationDiagnostics.lowCrossShotAssistsByRole[bucket]
+                << " cutbackShotAssists="
+                << diagnostics.shotCreationDiagnostics.cutbackShotAssistsByRole[bucket]
+                << " throughBallShotAssists="
+                << diagnostics.shotCreationDiagnostics.throughBallShotAssistsByRole[bucket]
+                << " highCrossShotAssists="
+                << diagnostics.shotCreationDiagnostics.highCrossShotAssistsByRole[bucket]
+                << '\n';
+        }
+
+        std::cerr << "[Shots by shooter/source] " << label << '\n';
+        for (int bucket = 0; bucket < MatchDiagnosticRoleBucketCount; ++bucket) {
+            const MatchDiagnosticRoleBucket role =
+                static_cast<MatchDiagnosticRoleBucket>(bucket);
+            for (int action = 0; action < MatchDiagnosticActionTypeCount; ++action) {
+                const int shots = diagnostics.shotReceiverDiagnostics
+                    .shotsByShooterRoleAndSourceAction[bucket][action];
+                const int goals = diagnostics.shotReceiverDiagnostics
+                    .goalsByShooterRoleAndSourceAction[bucket][action];
+                const double xG = diagnostics.shotReceiverDiagnostics
+                    .xGByShooterRoleAndSourceAction[bucket][action];
+                if (shots == 0 && goals == 0 && xG <= 0.0) {
+                    continue;
+                }
+                std::cerr << "  " << diagnosticRoleBucketName(role)
+                    << " from " << actionTypeName(diagnosticActionTypeForIndex(action))
+                    << ": shots=" << shots
+                    << " xG=" << xG
+                    << " goals=" << goals
+                    << '\n';
+            }
+        }
+
+        const auto combineWide = [](
+            const MatchWidePlayerInvolvementDiagnostic& left,
+            const MatchWidePlayerInvolvementDiagnostic& right) {
+            MatchWidePlayerInvolvementDiagnostic combined;
+            combined.actions = left.actions + right.actions;
+            combined.receptions = left.receptions + right.receptions;
+            combined.finalThirdReceptions = left.finalThirdReceptions + right.finalThirdReceptions;
+            combined.wideFinalThirdReceptions =
+                left.wideFinalThirdReceptions + right.wideFinalThirdReceptions;
+            combined.halfSpaceReceptions = left.halfSpaceReceptions + right.halfSpaceReceptions;
+            combined.boxReceptions = left.boxReceptions + right.boxReceptions;
+            combined.penaltyAreaReceptions = left.penaltyAreaReceptions + right.penaltyAreaReceptions;
+            combined.boxCarries = left.boxCarries + right.boxCarries;
+            combined.cutInHalfSpaceCarries =
+                left.cutInHalfSpaceCarries + right.cutInHalfSpaceCarries;
+            combined.cutInsideActions = left.cutInsideActions + right.cutInsideActions;
+            combined.carriesEndingInBox = left.carriesEndingInBox + right.carriesEndingInBox;
+            combined.shots = left.shots + right.shots;
+            combined.xG = left.xG + right.xG;
+            combined.shotAssists = left.shotAssists + right.shotAssists;
+            combined.finalBalls = left.finalBalls + right.finalBalls;
+            combined.lowCrosses = left.lowCrosses + right.lowCrosses;
+            combined.cutbacks = left.cutbacks + right.cutbacks;
+            combined.throughBalls = left.throughBalls + right.throughBalls;
+            combined.successfulFinalThirdEntries =
+                left.successfulFinalThirdEntries + right.successfulFinalThirdEntries;
+            return combined;
+        };
+        const auto printWideLine = [](
+            const char* name,
+            const MatchWidePlayerInvolvementDiagnostic& wide) {
+            std::cerr << "  " << name
+                << ": actions=" << wide.actions
+                << " receptions=" << wide.receptions
+                << " finalThirdReceptions=" << wide.finalThirdReceptions
+                << " wideFinalThirdReceptions=" << wide.wideFinalThirdReceptions
+                << " boxReceptions=" << wide.boxReceptions
+                << " halfSpaceReceptions=" << wide.halfSpaceReceptions
+                << " cutInsideActions=" << wide.cutInsideActions
+                << " boxCarries=" << wide.boxCarries
+                << " cutInHalfSpaceCarries=" << wide.cutInHalfSpaceCarries
+                << " shots=" << wide.shots
+                << " xG=" << wide.xG
+                << " shotAssists=" << wide.shotAssists
+                << " finalBalls=" << wide.finalBalls
+                << " lowCrosses=" << wide.lowCrosses
+                << " cutbacks=" << wide.cutbacks
+                << " throughBalls=" << wide.throughBalls
+                << " successfulFinalThirdEntries=" << wide.successfulFinalThirdEntries
+                << '\n';
+        };
+        const MatchWidePlayerInvolvementDiagnostic combinedWingers = combineWide(
+            diagnostics.wingerInvolvementDiagnostics.left,
+            diagnostics.wingerInvolvementDiagnostics.right);
+        std::cerr << "[Winger involvement] " << label << '\n';
+        printWideLine("left winger", diagnostics.wingerInvolvementDiagnostics.left);
+        printWideLine("right winger", diagnostics.wingerInvolvementDiagnostics.right);
+        printWideLine("combined winger totals", combinedWingers);
+
+        std::cerr << "[Fullback support baseline] " << label << '\n'
+            << "  receptions=" << diagnostics.fullbackSupportDiagnostics.receptions
+            << " finalThirdReceptions="
+            << diagnostics.fullbackSupportDiagnostics.finalThirdReceptions
+            << " wideFinalThirdReceptions="
+            << diagnostics.fullbackSupportDiagnostics.wideFinalThirdReceptions
+            << " advancedWideReceptions="
+            << diagnostics.fullbackSupportDiagnostics.advancedWideReceptions
+            << " lowCrosses=" << diagnostics.fullbackSupportDiagnostics.lowCrosses
+            << " cutbacks=" << diagnostics.fullbackSupportDiagnostics.cutbacks
+            << " finalBalls=" << diagnostics.fullbackSupportDiagnostics.finalBalls
+            << " shotAssists=" << diagnostics.fullbackSupportDiagnostics.shotAssists
+            << " xGCreated=" << diagnostics.fullbackSupportDiagnostics.xGCreated
+            << " carriesIntoFinalThird="
+            << diagnostics.fullbackSupportDiagnostics.carriesIntoFinalThird
+            << " carriesIntoBox=" << diagnostics.fullbackSupportDiagnostics.carriesIntoBox
+            << " shots=" << diagnostics.fullbackSupportDiagnostics.shots
+            << '\n';
+
+        const MatchFinalizingQualityDiagnostics& finalizingQuality =
+            diagnostics.finalizingQualityDiagnostics;
+        const double averageFinalizingDuration =
+            finalizingQuality.finalizingEntries > 0
+                ? finalizingQuality.finalizingDurationSeconds
+                    / static_cast<double>(finalizingQuality.finalizingEntries)
+                : 0.0;
+        const double finalizingShotConversionFromEntries =
+            finalizingQuality.finalizingEntries > 0
+                ? static_cast<double>(finalizingQuality.finalizingPossessionsEndingInShot)
+                    / static_cast<double>(finalizingQuality.finalizingEntries)
+                : 0.0;
+        const double finalizingFinalBallConversionToShot =
+            finalizingQuality.finalizingFinalBalls > 0
+                ? static_cast<double>(finalizingQuality.finalizingFinalBallShotAssists)
+                    / static_cast<double>(finalizingQuality.finalizingFinalBalls)
+                : 0.0;
+        std::cerr << "[FinalizingPosition quality] " << label << '\n'
+            << "  finalizingEntries=" << finalizingQuality.finalizingEntries
+            << " averageFinalizingDuration=" << averageFinalizingDuration
+            << " finalizingPossessionsEndingInShot="
+            << finalizingQuality.finalizingPossessionsEndingInShot
+            << " finalizingPossessionsEndingInTurnover="
+            << finalizingQuality.finalizingPossessionsEndingInTurnover
+            << " finalizingPossessionsRecycledToBuildUp="
+            << finalizingQuality.finalizingPossessionsRecycledToBuildUp
+            << " finalizingShotConversionFromEntries="
+            << finalizingShotConversionFromEntries
+            << " finalizingFinalBallConversionToShot="
+            << finalizingFinalBallConversionToShot
+            << " finalizingWingerReceptions="
+            << finalizingQuality.finalizingWingerReceptions
+            << " finalizingFullbackReceptions="
+            << finalizingQuality.finalizingFullbackReceptions
+            << " finalizingCMEdgeReceptions="
+            << finalizingQuality.finalizingCMEdgeReceptions
+            << " finalizingSTReceptions=" << finalizingQuality.finalizingSTReceptions
+            << " finalizingNonSTShots=" << finalizingQuality.finalizingNonSTShots
+            << " finalizingNonSTxG=" << finalizingQuality.finalizingNonSTxG
+            << '\n';
+
+        const MatchBuildUpToFinalizingQualityDiagnostics& transitionQuality =
+            diagnostics.buildUpToFinalizingQualityDiagnostics;
+        const double averagePassesBeforeFinalizing =
+            transitionQuality.passesBeforeFirstFinalizingActionSamples > 0
+                ? static_cast<double>(transitionQuality.passesBeforeFirstFinalizingActionTotal)
+                    / static_cast<double>(
+                        transitionQuality.passesBeforeFirstFinalizingActionSamples)
+                : 0.0;
+        std::cerr << "[BuildUp -> Finalizing quality] " << label << '\n'
+            << "  BuildUpToFinalizingEntries="
+            << transitionQuality.buildUpToFinalizingEntries
+            << " averagePassesBeforeFirstFinalizingAction="
+            << averagePassesBeforeFinalizing
+            << " finalizingFirst3Shots=" << transitionQuality.firstThreeShots
+            << " finalizingFirst3FinalBalls=" << transitionQuality.firstThreeFinalBalls
+            << " finalizingFirst3Recycle=" << transitionQuality.firstThreeRecycleActions
+            << " finalizingFirst3Turnover=" << transitionQuality.firstThreeTurnovers
+            << " FinalizingPositionPossessionChainXG="
+            << transitionQuality.finalizingPositionChainXG
+            << '\n';
+        for (int action = 0; action < MatchDiagnosticActionTypeCount; ++action) {
+            if (transitionQuality.firstFinalizingActionType[action] == 0) {
+                continue;
+            }
+            std::cerr << "  firstFinalizingActionType."
+                << actionTypeName(diagnosticActionTypeForIndex(action))
+                << '=' << transitionQuality.firstFinalizingActionType[action]
+                << '\n';
+        }
+
+        std::cerr << "[Candidate generation by role/type] " << label << '\n';
+        for (int bucket = 0; bucket < PhaseDecisionRoleBucketCount; ++bucket) {
+            const int shotCandidates =
+                decision.generatedShotCandidatesByCarrierRole[bucket];
+            const double averageShotScore =
+                shotCandidates > 0
+                    ? decision.shotCandidateScoreTotalByCarrierRole[bucket]
+                        / static_cast<double>(shotCandidates)
+                    : 0.0;
+            std::cerr << "  "
+                << phaseDecisionRoleBucketName(static_cast<PhaseDecisionRoleBucket>(bucket))
+                << " generatedShotCandidates=" << shotCandidates
+                << " selectedShots=" << decision.selectedShotsByCarrierRole[bucket]
+                << " averageShotCandidateScore=" << averageShotScore
+                << " maxShotCandidateScore="
+                << decision.maxShotCandidateScoreByCarrierRole[bucket]
+                << " generatedFinalBallCandidates="
+                << decision.generatedFinalBallCandidatesByCarrierRole[bucket]
+                << " selectedFinalBalls="
+                << decision.selectedFinalBallsByCarrierRole[bucket]
+                << '\n';
+        }
+        std::cerr << "  generatedThroughBallCandidates="
+            << decision.generatedThroughBallCandidates
+            << " selectedThroughBalls=" << decision.selectedThroughBalls
+            << " generatedCutbackCandidates=" << decision.generatedCutbackCandidates
+            << " selectedCutbacks=" << decision.selectedCutbacks
+            << " generatedCutInsideCandidates=" << decision.generatedCutInsideCandidates
+            << " selectedCutInsideActions=" << decision.selectedCutInsideActions
+            << '\n';
+
+        std::cerr << "[Carry/dribble selection reconciliation] " << label << '\n';
+        for (MatchTeamPhase phase : allMatchTeamPhases()) {
+            const int index = matchTeamPhaseIndex(phase);
+            std::cerr << "  " << matchTeamPhaseName(phase)
+                << " preExecutionSelectedCarryActions=" << decision.selectedCarryActions[index]
+                << " preExecutionSelectedDribbleActions=" << decision.selectedDribbleActions[index]
+                << " preExecutionSelectedCutInsideActions="
+                << decision.selectedCutInsideActionsByPhase[index]
+                << " preExecutionSelectedCarryLikeActions="
+                << decision.selectedCarryLikeActions[index]
+                << " actualPhaseCarries=" << diagnostics.carriesByPhase[index]
+                << " actualPhaseDribbles=" << diagnostics.dribblesByPhase[index]
+                << '\n';
+        }
 
         const double safeMatchCount = static_cast<double>(std::max(matchCount, 1));
         const double counterAverageDuration =

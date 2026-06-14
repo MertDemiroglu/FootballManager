@@ -180,6 +180,12 @@ namespace {
     bool isCarryLike(BallCarrierActionType type);
     bool isFinalBall(BallCarrierActionType type);
     double forwardMetersForDirection(PitchPoint from, PitchPoint to, AttackingDirection direction);
+    int diagnosticActionTypeIndex(BallCarrierActionType type);
+    bool isRecycleAction(
+        BallCarrierActionType type,
+        PitchPoint from,
+        PitchPoint to,
+        AttackingDirection direction);
 
     PitchPoint pitchCenter() {
         return PitchPoint{
@@ -491,11 +497,23 @@ namespace {
         }
     }
 
+    void startFinalizingDiagnostic(
+        MatchEngineResult& result,
+        TeamSimState& team,
+        int possessionActionDepth,
+        bool fromBuildUp);
+
+    void finishFinalizingDiagnostic(
+        MatchEngineResult& result,
+        TeamSimState& team,
+        MatchTeamPhase nextPhase);
+
     void applyPhaseTransition(
         MatchEngineResult& result,
         TeamSimState& team,
         const PhaseTransitionResult& transition,
-        int currentSecond) {
+        int currentSecond,
+        int possessionActionDepth) {
         if (transition.heldForLooseBall) {
             ++result.phaseDiagnostics.looseBallPhaseHolds;
         }
@@ -512,6 +530,10 @@ namespace {
             std::max(teamDiagnostic.longestSinglePhaseSeconds, elapsedInPrevious);
         ++teamDiagnostic.phaseSwitchCount;
         ++result.phaseDiagnostics.phaseSwitchCount;
+        const bool enteredFinalizingFromBuildUp =
+            team.currentPhase == MatchTeamPhase::BuildUp
+            && transition.phase == MatchTeamPhase::FinalizingPosition;
+
         if (team.currentPhase == MatchTeamPhase::BuildUp
             && transition.phase == MatchTeamPhase::FinalizingPosition) {
             ++result.phaseDiagnostics.buildUpToFinalizingSwitches;
@@ -533,6 +555,11 @@ namespace {
         if (team.currentPhase == MatchTeamPhase::CounterAttack) {
             recordCounterExit(result, transition.exitReason, elapsedInPrevious);
         }
+        if (team.currentPhase == MatchTeamPhase::FinalizingPosition) {
+            result.phaseDiagnostics.finalizingQualityDiagnostics.finalizingDurationSeconds +=
+                elapsedInPrevious;
+            finishFinalizingDiagnostic(result, team, transition.phase);
+        }
 
         team.previousPhase = team.currentPhase;
         team.currentPhase = transition.phase;
@@ -540,6 +567,13 @@ namespace {
         team.phaseEntryReason = transition.entryReason;
         team.phaseExitReason = transition.exitReason;
         recordPhaseEntry(result, team, team.currentPhase);
+        if (team.currentPhase == MatchTeamPhase::FinalizingPosition) {
+            startFinalizingDiagnostic(
+                result,
+                team,
+                possessionActionDepth,
+                enteredFinalizingFromBuildUp);
+        }
     }
 
     void initializePhaseDiagnostics(MatchEngineResult& result, MatchSimulationState& state, const MatchEngineInput& input) {
@@ -600,8 +634,8 @@ namespace {
         }
     }
 
-    void finalizePhaseDiagnostics(MatchEngineResult& result, const MatchSimulationState& state) {
-        for (const TeamSimState* team : { &state.homeTeam, &state.awayTeam }) {
+    void finalizePhaseDiagnostics(MatchEngineResult& result, MatchSimulationState& state) {
+        for (TeamSimState* team : { &state.homeTeam, &state.awayTeam }) {
             MatchTeamPhaseDiagnostic& diagnostic = teamPhaseDiagnosticFor(result, team->teamId);
             diagnostic.finalPhase = team->currentPhase;
             diagnostic.longestSinglePhaseSeconds = std::max(
@@ -612,6 +646,11 @@ namespace {
                     std::max(0, state.currentSecond - team->phaseEntrySecond));
                 result.phaseDiagnostics.counterDurationTotalSeconds += duration;
                 result.phaseDiagnostics.counterDurationSamplesSeconds.push_back(duration);
+            }
+            if (team->currentPhase == MatchTeamPhase::FinalizingPosition) {
+                result.phaseDiagnostics.finalizingQualityDiagnostics.finalizingDurationSeconds +=
+                    static_cast<double>(std::max(0, state.currentSecond - team->phaseEntrySecond));
+                finishFinalizingDiagnostic(result, *team, team->currentPhase);
             }
         }
     }
@@ -629,6 +668,9 @@ namespace {
                 || actionType == BallCarrierActionType::HighCross
                 || actionType == BallCarrierActionType::Cutback) {
                 ++result.phaseDiagnostics.finalBallsByPhase[index];
+                if (phase == MatchTeamPhase::FinalizingPosition) {
+                    ++result.phaseDiagnostics.finalizingQualityDiagnostics.finalizingFinalBalls;
+                }
             }
         } else if (actionType == BallCarrierActionType::Carry) {
             ++result.phaseDiagnostics.carriesByPhase[index];
@@ -648,19 +690,37 @@ namespace {
     void recordPhaseDecisionCandidates(
         MatchEngineResult& result,
         MatchTeamPhase phase,
+        FormationSlotRole carrierRole,
         const std::vector<ActionCandidate>& candidates) {
         PhaseDecisionDiagnostics& diagnostics = result.phaseDiagnostics.phaseDecisionDiagnostics;
         const int index = matchTeamPhaseIndex(phase);
+        const int carrierBucket =
+            phaseDecisionRoleBucketIndex(phaseDecisionRoleBucket(carrierRole));
         for (const ActionCandidate& candidate : candidates) {
             if (isPassLike(candidate.type)) {
                 ++diagnostics.passCandidatesGenerated[index];
                 if (isFinalBall(candidate.type)) {
                     ++diagnostics.finalBallCandidatesGenerated[index];
+                    ++diagnostics.generatedFinalBallCandidatesByCarrierRole[carrierBucket];
+                }
+                if (candidate.type == BallCarrierActionType::ThroughBall) {
+                    ++diagnostics.generatedThroughBallCandidates;
+                } else if (candidate.type == BallCarrierActionType::Cutback) {
+                    ++diagnostics.generatedCutbackCandidates;
                 }
             } else if (isCarryLike(candidate.type)) {
                 ++diagnostics.carryCandidatesGenerated[index];
+                if (candidate.type == BallCarrierActionType::CutInside) {
+                    ++diagnostics.generatedCutInsideCandidates;
+                }
             } else if (candidate.type == BallCarrierActionType::Shoot) {
                 ++diagnostics.shotCandidatesGenerated[index];
+                ++diagnostics.generatedShotCandidatesByCarrierRole[carrierBucket];
+                diagnostics.shotCandidateScoreTotalByCarrierRole[carrierBucket] +=
+                    candidate.finalScore;
+                diagnostics.maxShotCandidateScoreByCarrierRole[carrierBucket] = std::max(
+                    diagnostics.maxShotCandidateScoreByCarrierRole[carrierBucket],
+                    candidate.finalScore);
             }
         }
     }
@@ -713,6 +773,13 @@ namespace {
             ++diagnostics.selectedPasses[phaseIndex];
             if (isFinalBall(action.type)) {
                 ++diagnostics.selectedFinalBalls[phaseIndex];
+                ++diagnostics.selectedFinalBallsByCarrierRole[
+                    phaseDecisionRoleBucketIndex(phaseDecisionRoleBucket(carrierRole))];
+                if (action.type == BallCarrierActionType::ThroughBall) {
+                    ++diagnostics.selectedThroughBalls;
+                } else if (action.type == BallCarrierActionType::Cutback) {
+                    ++diagnostics.selectedCutbacks;
+                }
             }
             if (recycle) {
                 ++diagnostics.selectedRecyclePasses[phaseIndex];
@@ -722,9 +789,19 @@ namespace {
             }
             recordPhaseTargetRole(diagnostics, phaseIndex, targetRole);
         } else if (isCarryLike(action.type)) {
-            ++diagnostics.selectedCarries[phaseIndex];
+            ++diagnostics.selectedCarryLikeActions[phaseIndex];
+            if (action.type == BallCarrierActionType::Carry) {
+                ++diagnostics.selectedCarryActions[phaseIndex];
+            } else if (action.type == BallCarrierActionType::Dribble) {
+                ++diagnostics.selectedDribbleActions[phaseIndex];
+            } else if (action.type == BallCarrierActionType::CutInside) {
+                ++diagnostics.selectedCutInsideActionsByPhase[phaseIndex];
+                ++diagnostics.selectedCutInsideActions;
+            }
         } else if (action.type == BallCarrierActionType::Shoot) {
             ++diagnostics.selectedShots[phaseIndex];
+            ++diagnostics.selectedShotsByCarrierRole[
+                phaseDecisionRoleBucketIndex(phaseDecisionRoleBucket(carrierRole))];
         }
 
         if (phase == MatchTeamPhase::BuildUp) {
@@ -785,6 +862,77 @@ namespace {
             if (recycle) {
                 ++diagnostics.counterSelectedRecyclePasses;
             }
+        }
+    }
+
+    void recordFinalizingSelectedAction(
+        MatchEngineResult& result,
+        TeamSimState& team,
+        MatchTeamPhase phase,
+        const ActionCandidate& action,
+        PitchPoint ballPosition,
+        AttackingDirection attackingDirection) {
+        if (phase != MatchTeamPhase::FinalizingPosition
+            || !team.finalizingDiagnosticActive
+            || !team.finalizingDiagnosticFromBuildUp) {
+            return;
+        }
+
+        const int actionIndex = diagnosticActionTypeIndex(action.type);
+        if (team.finalizingDiagnosticFirstActionCounted == 0) {
+            ++result.phaseDiagnostics.buildUpToFinalizingQualityDiagnostics
+                .firstFinalizingActionType[actionIndex];
+            team.finalizingDiagnosticFirstActionCounted = 1;
+        }
+
+        if (team.finalizingDiagnosticFirstThreeActions >= 3) {
+            return;
+        }
+
+        ++team.finalizingDiagnosticFirstThreeActions;
+        if (action.type == BallCarrierActionType::Shoot) {
+            ++result.phaseDiagnostics.buildUpToFinalizingQualityDiagnostics.firstThreeShots;
+        }
+        if (isFinalBall(action.type)) {
+            ++result.phaseDiagnostics.buildUpToFinalizingQualityDiagnostics.firstThreeFinalBalls;
+        }
+        if (isRecycleAction(action.type, ballPosition, action.intendedTarget, attackingDirection)) {
+            ++result.phaseDiagnostics.buildUpToFinalizingQualityDiagnostics.firstThreeRecycleActions;
+        }
+    }
+
+    void recordFinalizingShot(
+        MatchEngineResult& result,
+        TeamSimState& team,
+        MatchTeamPhase phase,
+        FormationSlotRole shooterRole,
+        double xG) {
+        if (phase != MatchTeamPhase::FinalizingPosition) {
+            return;
+        }
+        team.finalizingDiagnosticHadShot = true;
+        team.finalizingDiagnosticXG += xG;
+        if (shooterRole != FormationSlotRole::Striker) {
+            ++result.phaseDiagnostics.finalizingQualityDiagnostics.finalizingNonSTShots;
+            result.phaseDiagnostics.finalizingQualityDiagnostics.finalizingNonSTxG += xG;
+        }
+    }
+
+    void markFinalizingTurnover(
+        MatchEngineResult& result,
+        TeamSimState& team,
+        MatchTeamPhase phase) {
+        if (phase != MatchTeamPhase::FinalizingPosition
+            || !team.finalizingDiagnosticActive) {
+            return;
+        }
+        team.finalizingDiagnosticHadTurnover = true;
+        if (!team.finalizingDiagnosticFromBuildUp) {
+            return;
+        }
+        if (team.finalizingDiagnosticFirstThreeActions < 3) {
+            ++team.finalizingDiagnosticFirstThreeActions;
+            ++result.phaseDiagnostics.buildUpToFinalizingQualityDiagnostics.firstThreeTurnovers;
         }
     }
 
@@ -2459,6 +2607,401 @@ namespace {
         return "Unknown";
     }
 
+    int diagnosticActionTypeIndex(BallCarrierActionType type) {
+        return std::clamp(
+            static_cast<int>(type),
+            0,
+            MatchDiagnosticActionTypeCount - 1);
+    }
+
+    int diagnosticRoleBucketIndex(MatchDiagnosticRoleBucket bucket) {
+        return static_cast<int>(bucket);
+    }
+
+    MatchDiagnosticRoleBucket diagnosticRoleBucket(FormationSlotRole role) {
+        switch (role) {
+        case FormationSlotRole::CenterBack:
+            return MatchDiagnosticRoleBucket::CenterBack;
+        case FormationSlotRole::LeftBack:
+        case FormationSlotRole::RightBack:
+        case FormationSlotRole::LeftWingBack:
+        case FormationSlotRole::RightWingBack:
+            return MatchDiagnosticRoleBucket::FullbackWingback;
+        case FormationSlotRole::DefensiveMidfielder:
+        case FormationSlotRole::CentralMidfielder:
+        case FormationSlotRole::AttackingMidfielder:
+            return MatchDiagnosticRoleBucket::CentralMidfield;
+        case FormationSlotRole::LeftMidfielder:
+        case FormationSlotRole::RightMidfielder:
+        case FormationSlotRole::LeftWinger:
+        case FormationSlotRole::RightWinger:
+            return MatchDiagnosticRoleBucket::Winger;
+        case FormationSlotRole::Striker:
+            return MatchDiagnosticRoleBucket::Striker;
+        case FormationSlotRole::Goalkeeper:
+        case FormationSlotRole::Unknown:
+            return MatchDiagnosticRoleBucket::GoalkeeperOrOther;
+        }
+        return MatchDiagnosticRoleBucket::GoalkeeperOrOther;
+    }
+
+    FormationSlotRole assignedRoleForPlayer(
+        const MatchEngineInput& input,
+        TeamId teamId,
+        PlayerId playerId) {
+        if (const MatchTeamSnapshot* team = snapshotForTeam(input, teamId)) {
+            return assignedRoleFor(team->teamSheet, playerId);
+        }
+        return FormationSlotRole::Unknown;
+    }
+
+    bool isLeftWingerRole(FormationSlotRole role) {
+        return role == FormationSlotRole::LeftWinger
+            || role == FormationSlotRole::LeftMidfielder;
+    }
+
+    bool isRightWingerRole(FormationSlotRole role) {
+        return role == FormationSlotRole::RightWinger
+            || role == FormationSlotRole::RightMidfielder;
+    }
+
+    bool isWingerRole(FormationSlotRole role) {
+        return isLeftWingerRole(role) || isRightWingerRole(role);
+    }
+
+    bool isFullbackRole(FormationSlotRole role) {
+        return role == FormationSlotRole::LeftBack
+            || role == FormationSlotRole::RightBack
+            || role == FormationSlotRole::LeftWingBack
+            || role == FormationSlotRole::RightWingBack;
+    }
+
+    bool isCentralMidfieldRole(FormationSlotRole role) {
+        return role == FormationSlotRole::DefensiveMidfielder
+            || role == FormationSlotRole::CentralMidfielder
+            || role == FormationSlotRole::AttackingMidfielder;
+    }
+
+    double attackingProgressFor(PitchPoint point, AttackingDirection direction) {
+        return direction == AttackingDirection::HomeToAway
+            ? point.x / PitchGeometry::LengthMeters
+            : (PitchGeometry::LengthMeters - point.x) / PitchGeometry::LengthMeters;
+    }
+
+    bool isPenaltyAreaForDirection(PitchPoint point, AttackingDirection direction) {
+        return direction == AttackingDirection::HomeToAway
+            ? PitchGeometry::isInsideAwayPenaltyArea(point)
+            : PitchGeometry::isInsideHomePenaltyArea(point);
+    }
+
+    bool isWideChannel(PitchPoint point) {
+        return point.y <= 18.0 || point.y >= (PitchGeometry::WidthMeters - 18.0);
+    }
+
+    bool isHalfSpace(PitchPoint point) {
+        return (point.y > 18.0 && point.y <= 28.0)
+            || (point.y >= 40.0 && point.y < (PitchGeometry::WidthMeters - 18.0));
+    }
+
+    bool isEdgeZone(PitchPoint point, AttackingDirection direction) {
+        const double progress = attackingProgressFor(point, direction);
+        return progress >= 0.68
+            && progress <= 0.86
+            && point.y > 22.0
+            && point.y < (PitchGeometry::WidthMeters - 22.0);
+    }
+
+    bool isRecycleAction(BallCarrierActionType type, PitchPoint from, PitchPoint to, AttackingDirection direction) {
+        return type == BallCarrierActionType::BackPass
+            || (isPassLike(type) && forwardMetersForDirection(from, to, direction) <= -1.0);
+    }
+
+    void resetFinalizingDiagnosticState(TeamSimState& team) {
+        team.finalizingDiagnosticActive = false;
+        team.finalizingDiagnosticFromBuildUp = false;
+        team.finalizingDiagnosticHadShot = false;
+        team.finalizingDiagnosticHadTurnover = false;
+        team.finalizingDiagnosticFirstActionCounted = 0;
+        team.finalizingDiagnosticFirstThreeActions = 0;
+        team.finalizingDiagnosticPassesBeforeEntry = 0;
+        team.finalizingDiagnosticXG = 0.0;
+    }
+
+    void startFinalizingDiagnostic(
+        MatchEngineResult& result,
+        TeamSimState& team,
+        int possessionActionDepth,
+        bool fromBuildUp) {
+        resetFinalizingDiagnosticState(team);
+        team.finalizingDiagnosticActive = true;
+        team.finalizingDiagnosticFromBuildUp = fromBuildUp;
+        team.finalizingDiagnosticPassesBeforeEntry = std::max(0, possessionActionDepth);
+        ++result.phaseDiagnostics.finalizingQualityDiagnostics.finalizingEntries;
+        if (fromBuildUp) {
+            ++result.phaseDiagnostics.buildUpToFinalizingQualityDiagnostics.buildUpToFinalizingEntries;
+            result.phaseDiagnostics.buildUpToFinalizingQualityDiagnostics
+                .passesBeforeFirstFinalizingActionTotal += team.finalizingDiagnosticPassesBeforeEntry;
+            ++result.phaseDiagnostics.buildUpToFinalizingQualityDiagnostics
+                .passesBeforeFirstFinalizingActionSamples;
+        }
+    }
+
+    void finishFinalizingDiagnostic(
+        MatchEngineResult& result,
+        TeamSimState& team,
+        MatchTeamPhase nextPhase) {
+        if (!team.finalizingDiagnosticActive) {
+            return;
+        }
+        if (team.finalizingDiagnosticHadShot) {
+            ++result.phaseDiagnostics.finalizingQualityDiagnostics.finalizingPossessionsEndingInShot;
+        } else if (nextPhase == MatchTeamPhase::BuildUp) {
+            ++result.phaseDiagnostics.finalizingQualityDiagnostics.finalizingPossessionsRecycledToBuildUp;
+        } else if (team.finalizingDiagnosticHadTurnover) {
+            ++result.phaseDiagnostics.finalizingQualityDiagnostics.finalizingPossessionsEndingInTurnover;
+        }
+        if (team.finalizingDiagnosticFromBuildUp) {
+            result.phaseDiagnostics.buildUpToFinalizingQualityDiagnostics.finalizingPositionChainXG +=
+                team.finalizingDiagnosticXG;
+        }
+        resetFinalizingDiagnosticState(team);
+    }
+
+    MatchWidePlayerInvolvementDiagnostic* wingerDiagnosticFor(
+        MatchEngineResult& result,
+        FormationSlotRole role) {
+        if (isLeftWingerRole(role)) {
+            return &result.phaseDiagnostics.wingerInvolvementDiagnostics.left;
+        }
+        if (isRightWingerRole(role)) {
+            return &result.phaseDiagnostics.wingerInvolvementDiagnostics.right;
+        }
+        return nullptr;
+    }
+
+    void recordWideActionInvolvement(
+        MatchEngineResult& result,
+        FormationSlotRole role,
+        BallCarrierActionType actionType) {
+        if (MatchWidePlayerInvolvementDiagnostic* winger =
+                wingerDiagnosticFor(result, role)) {
+            ++winger->actions;
+            if (actionType == BallCarrierActionType::CutInside) {
+                ++winger->cutInsideActions;
+            }
+            if (isFinalBall(actionType)) {
+                ++winger->finalBalls;
+            }
+            if (actionType == BallCarrierActionType::LowCross) {
+                ++winger->lowCrosses;
+            } else if (actionType == BallCarrierActionType::Cutback) {
+                ++winger->cutbacks;
+            } else if (actionType == BallCarrierActionType::ThroughBall) {
+                ++winger->throughBalls;
+            }
+        }
+
+        if (isFullbackRole(role)) {
+            if (actionType == BallCarrierActionType::LowCross) {
+                ++result.phaseDiagnostics.fullbackSupportDiagnostics.lowCrosses;
+            } else if (actionType == BallCarrierActionType::Cutback) {
+                ++result.phaseDiagnostics.fullbackSupportDiagnostics.cutbacks;
+            }
+            if (isFinalBall(actionType)) {
+                ++result.phaseDiagnostics.fullbackSupportDiagnostics.finalBalls;
+            }
+        }
+    }
+
+    void recordReceptionInvolvement(
+        MatchEngineResult& result,
+        FormationSlotRole role,
+        PitchPoint receivePoint,
+        AttackingDirection direction,
+        MatchTeamPhase actingPhase) {
+        const double progress = attackingProgressFor(receivePoint, direction);
+        const bool finalThird = progress >= 0.66;
+        const bool wideFinalThird = finalThird && isWideChannel(receivePoint);
+        const bool halfSpace = finalThird && isHalfSpace(receivePoint);
+        const bool box = isPenaltyAreaForDirection(receivePoint, direction);
+
+        if (MatchWidePlayerInvolvementDiagnostic* winger =
+                wingerDiagnosticFor(result, role)) {
+            ++winger->receptions;
+            if (finalThird) {
+                ++winger->finalThirdReceptions;
+            }
+            if (wideFinalThird) {
+                ++winger->wideFinalThirdReceptions;
+            }
+            if (halfSpace) {
+                ++winger->halfSpaceReceptions;
+            }
+            if (box) {
+                ++winger->boxReceptions;
+                ++winger->penaltyAreaReceptions;
+            }
+        }
+
+        if (isFullbackRole(role)) {
+            ++result.phaseDiagnostics.fullbackSupportDiagnostics.receptions;
+            if (finalThird) {
+                ++result.phaseDiagnostics.fullbackSupportDiagnostics.finalThirdReceptions;
+            }
+            if (wideFinalThird) {
+                ++result.phaseDiagnostics.fullbackSupportDiagnostics.wideFinalThirdReceptions;
+            }
+            if (wideFinalThird && progress >= 0.72) {
+                ++result.phaseDiagnostics.fullbackSupportDiagnostics.advancedWideReceptions;
+            }
+        }
+
+        if (actingPhase == MatchTeamPhase::FinalizingPosition) {
+            if (isWingerRole(role)) {
+                ++result.phaseDiagnostics.finalizingQualityDiagnostics.finalizingWingerReceptions;
+            } else if (isFullbackRole(role)) {
+                ++result.phaseDiagnostics.finalizingQualityDiagnostics.finalizingFullbackReceptions;
+            } else if (role == FormationSlotRole::Striker) {
+                ++result.phaseDiagnostics.finalizingQualityDiagnostics.finalizingSTReceptions;
+            } else if (isCentralMidfieldRole(role) && isEdgeZone(receivePoint, direction)) {
+                ++result.phaseDiagnostics.finalizingQualityDiagnostics.finalizingCMEdgeReceptions;
+            }
+        }
+    }
+
+    void recordCarryInvolvement(
+        MatchEngineResult& result,
+        FormationSlotRole role,
+        PitchPoint start,
+        PitchPoint end,
+        AttackingDirection direction,
+        BallCarrierActionType actionType) {
+        const double startProgress = attackingProgressFor(start, direction);
+        const double endProgress = attackingProgressFor(end, direction);
+        const bool endedInBox = isPenaltyAreaForDirection(end, direction);
+        const bool enteredFinalThird = startProgress < 0.66 && endProgress >= 0.66;
+
+        if (MatchWidePlayerInvolvementDiagnostic* winger =
+                wingerDiagnosticFor(result, role)) {
+            if (endedInBox) {
+                ++winger->boxCarries;
+                ++winger->carriesEndingInBox;
+            }
+            if (isHalfSpace(end) && endProgress >= 0.62) {
+                ++winger->cutInHalfSpaceCarries;
+            }
+            if (enteredFinalThird) {
+                ++winger->successfulFinalThirdEntries;
+            }
+            if (actionType == BallCarrierActionType::CutInside) {
+                ++winger->cutInsideActions;
+            }
+        }
+
+        if (isFullbackRole(role)) {
+            if (enteredFinalThird) {
+                ++result.phaseDiagnostics.fullbackSupportDiagnostics.carriesIntoFinalThird;
+            }
+            if (endedInBox) {
+                ++result.phaseDiagnostics.fullbackSupportDiagnostics.carriesIntoBox;
+            }
+        }
+    }
+
+    void recordShotCreationDiagnostics(
+        MatchEngineResult& result,
+        const MatchEngineInput& input,
+        const PendingBallAction& pending) {
+        const FormationSlotRole shooterRole =
+            assignedRoleForPlayer(input, pending.sourceTeamId, pending.sourcePlayerId);
+        const int shooterBucket = diagnosticRoleBucketIndex(diagnosticRoleBucket(shooterRole));
+        const int actionIndex = diagnosticActionTypeIndex(pending.chanceSourceActionType);
+        ++result.phaseDiagnostics.shotReceiverDiagnostics
+            .shotsByShooterRoleAndSourceAction[shooterBucket][actionIndex];
+        result.phaseDiagnostics.shotReceiverDiagnostics
+            .xGByShooterRoleAndSourceAction[shooterBucket][actionIndex] += pending.shotXG;
+
+        if (MatchWidePlayerInvolvementDiagnostic* winger =
+                wingerDiagnosticFor(result, shooterRole)) {
+            ++winger->shots;
+            winger->xG += pending.shotXG;
+        }
+        if (isFullbackRole(shooterRole)) {
+            ++result.phaseDiagnostics.fullbackSupportDiagnostics.shots;
+        }
+
+        if (pending.assistCandidatePlayerId == 0
+            || pending.shotFromRebound
+            || pending.shotFromTurnover) {
+            return;
+        }
+
+        const FormationSlotRole providerRole = assignedRoleForPlayer(
+            input,
+            pending.sourceTeamId,
+            pending.assistCandidatePlayerId);
+        const int providerBucket =
+            diagnosticRoleBucketIndex(diagnosticRoleBucket(providerRole));
+        MatchShotCreationDiagnostics& creation =
+            result.phaseDiagnostics.shotCreationDiagnostics;
+        ++creation.shotsCreatedByRole[providerBucket];
+        creation.xGCreatedByRole[providerBucket] += pending.shotXG;
+        ++creation.shotAssistsByRole[providerBucket];
+        ++creation.keyPassesByRole[providerBucket];
+
+        if (pending.shotFromFinalBall
+            && isExplicitFinalBallAction(pending.chanceSourceActionType)) {
+            ++creation.finalBallShotAssistsByRole[providerBucket];
+        } else {
+            ++creation.simplePassShotAssistsByRole[providerBucket];
+        }
+        if (pending.chanceSourceActionType == BallCarrierActionType::LowCross) {
+            ++creation.lowCrossShotAssistsByRole[providerBucket];
+        } else if (pending.chanceSourceActionType == BallCarrierActionType::Cutback) {
+            ++creation.cutbackShotAssistsByRole[providerBucket];
+        } else if (pending.chanceSourceActionType == BallCarrierActionType::ThroughBall) {
+            ++creation.throughBallShotAssistsByRole[providerBucket];
+        } else if (pending.chanceSourceActionType == BallCarrierActionType::HighCross) {
+            ++creation.highCrossShotAssistsByRole[providerBucket];
+        }
+
+        if (MatchWidePlayerInvolvementDiagnostic* winger =
+                wingerDiagnosticFor(result, providerRole)) {
+            ++winger->shotAssists;
+        }
+        if (isFullbackRole(providerRole)) {
+            ++result.phaseDiagnostics.fullbackSupportDiagnostics.shotAssists;
+            result.phaseDiagnostics.fullbackSupportDiagnostics.xGCreated += pending.shotXG;
+        }
+        if (pending.sourcePhase == MatchTeamPhase::FinalizingPosition
+            && pending.shotFromFinalBall) {
+            ++result.phaseDiagnostics.finalizingQualityDiagnostics
+                .finalizingFinalBallShotAssists;
+        }
+    }
+
+    void recordGoalCreationDiagnostics(
+        MatchEngineResult& result,
+        const MatchEngineInput& input,
+        const PendingBallAction& pending,
+        PlayerId assistPlayerId) {
+        const FormationSlotRole shooterRole =
+            assignedRoleForPlayer(input, pending.sourceTeamId, pending.sourcePlayerId);
+        const int shooterBucket = diagnosticRoleBucketIndex(diagnosticRoleBucket(shooterRole));
+        const int actionIndex = diagnosticActionTypeIndex(pending.chanceSourceActionType);
+        ++result.phaseDiagnostics.shotReceiverDiagnostics
+            .goalsByShooterRoleAndSourceAction[shooterBucket][actionIndex];
+
+        if (assistPlayerId == 0) {
+            return;
+        }
+
+        const FormationSlotRole providerRole =
+            assignedRoleForPlayer(input, pending.sourceTeamId, assistPlayerId);
+        ++result.phaseDiagnostics.shotCreationDiagnostics.goalsCreatedByRole[
+            diagnosticRoleBucketIndex(diagnosticRoleBucket(providerRole))];
+    }
+
     const PlayerSimState* closestOutfieldDefenderToPoint(
         const MatchEngineInput& input,
         const TeamSimState& defendingTeam,
@@ -2935,6 +3478,7 @@ namespace {
             ++scoringStats.unassistedOpenPlayGoals;
         }
         recordPhaseGoal(result, pending.sourcePhase);
+        recordGoalCreationDiagnostics(result, input, pending, assistPlayerId);
         appendOfficialGoalEvent(result, state, pending, assistPlayerId);
         const AttackingDirection direction =
             state.homeTeam.teamId == pending.sourceTeamId
@@ -3005,7 +3549,7 @@ namespace {
         const MatchTeamSnapshot* carrierSnapshot = snapshotForTeam(input, carrier->teamId);
         const MatchPlayerSnapshot* playerSnapshot =
             findSnapshotForPlayer(input, carrier->playerId);
-        const TeamSimState* carrierTeamState = findTeamState(state, carrier->teamId);
+        TeamSimState* carrierTeamState = findTeamState(state, carrier->teamId);
         const TeamSimState* opponentState = opponentTeam(state, carrier->teamId);
         if (carrierSnapshot == nullptr || carrierTeamState == nullptr || opponentState == nullptr) {
             return SimulationStepResult{ 1.0 };
@@ -3037,7 +3581,7 @@ namespace {
                 &carrierTeamGameContext,
                 carrierGameContext
             });
-        recordPhaseDecisionCandidates(result, carrierPhase, candidates);
+        recordPhaseDecisionCandidates(result, carrierPhase, carrierRole, candidates);
         const ActionSelectionResult selection = selector.select(ActionSelectionRequest{
             candidates,
             playerSnapshot != nullptr ? playerSnapshot->attributes : PlayerAttributes{},
@@ -3072,6 +3616,14 @@ namespace {
             targetRole,
             state.ball.position,
             carrierShapeContext.attackingDirection);
+        recordFinalizingSelectedAction(
+            result,
+            *carrierTeamState,
+            carrierPhase,
+            action,
+            state.ball.position,
+            carrierShapeContext.attackingDirection);
+        recordWideActionInvolvement(result, carrierRole, actionType);
         ++state.possession.actionDepth;
         double executionPressure = isPassLike(actionType)
             ? std::max(
@@ -3231,6 +3783,7 @@ namespace {
                     markTurnoverChain(chanceTracker);
                 }
                 recordPhaseTurnover(result, carrierPhase);
+                markFinalizingTurnover(result, *carrierTeamState, carrierPhase);
                 appendTrace(
                     result,
                     input.options.detail,
@@ -3314,6 +3867,13 @@ namespace {
                 *carrier,
                 carryStart,
                 state.ball.position,
+                actionType);
+            recordCarryInvolvement(
+                result,
+                carrierRole,
+                carryStart,
+                state.ball.position,
+                carrierShapeContext.attackingDirection,
                 actionType);
             recordPhaseAction(result, carrierPhase, actionType);
             appendTrace(
@@ -3514,6 +4074,33 @@ namespace {
             ++shooterStats.shots;
             shooterStats.expectedGoals += shotQuality.effectiveXG;
             shooterStats.preShotExpectedGoals += shotQuality.preShotXG;
+            PendingBallAction shotDiagnosticPending = pendingPlayerAction(
+                carrier->teamId,
+                carrier->playerId,
+                action.targetPlayerId,
+                actionType,
+                trajectoryType,
+                executionQuality,
+                executionPressure,
+                true,
+                shotXG,
+                shotType,
+                shotContext,
+                shotTarget,
+                shotExecution,
+                shotQuality,
+                assistCandidatePlayerId,
+                shotFromFinalBallSource,
+                shotFromReceiverCarry,
+                shotFromRebound,
+                shotFromTurnover,
+                chanceSourceActionType,
+                carryAfterReceiveMeters,
+                touchesAfterReceive,
+                defendersBeatenAfterReceive,
+                carrierPhase);
+            recordShotCreationDiagnostics(result, input, shotDiagnosticPending);
+            recordFinalizingShot(result, *carrierTeamState, carrierPhase, carrierRole, shotXG);
         } else {
             const BallTrajectoryBuildResult trajectoryResult = trajectoryBuilder.build(BallTrajectoryBuildRequest{
                 state.ball.position,
@@ -4156,6 +4743,16 @@ namespace {
                     ++passerStats.shortPassesCompleted;
                 }
                 const TeamSimState* receivingTeam = findTeamState(state, target->teamId);
+                const AttackingDirection receivingDirection =
+                    receivingTeam != nullptr
+                        ? attackingDirectionForTeam(*receivingTeam)
+                        : AttackingDirection::HomeToAway;
+                recordReceptionInvolvement(
+                    result,
+                    assignedRoleForPlayer(input, target->teamId, target->playerId),
+                    state.ball.position,
+                    receivingDirection,
+                    pending->sourcePhase);
                 rememberCompletedPass(
                     chanceTracker,
                     state,
@@ -4164,13 +4761,14 @@ namespace {
                     trajectory.start,
                     trajectory.intendedTarget,
                     state.ball.position,
-                    receivingTeam != nullptr
-                        ? attackingDirectionForTeam(*receivingTeam)
-                        : AttackingDirection::HomeToAway,
+                    receivingDirection,
                     pending->pressure);
             } else {
                 markTurnoverChain(chanceTracker);
                 recordPhaseTurnover(result, pending->sourcePhase);
+                if (TeamSimState* sourceTeam = findTeamState(state, pending->sourceTeamId)) {
+                    markFinalizingTurnover(result, *sourceTeam, pending->sourcePhase);
+                }
             }
             pending = std::nullopt;
             return SimulationStepResult{ elapsedToArrival };
@@ -4731,12 +5329,14 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
             result,
             state.homeTeam,
             phaseModel.evaluateTeamPhase(homeGameContext),
-            state.currentSecond);
+            state.currentSecond,
+            state.possession.actionDepth);
         applyPhaseTransition(
             result,
             state.awayTeam,
             phaseModel.evaluateTeamPhase(awayGameContext),
-            state.currentSecond);
+            state.currentSecond,
+            state.possession.actionDepth);
         const std::vector<PlayerGameContext> homePlayerContexts = phaseModel.buildPlayerContexts(
             state.homeTeam,
             state.awayTeam,
