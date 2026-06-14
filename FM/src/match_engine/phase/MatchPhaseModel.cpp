@@ -107,7 +107,8 @@ namespace {
 }
 
 MatchPhaseModel::MatchPhaseModel(PhaseTransitionConfig config)
-    : transitionModel_(config) {
+    : config_(config),
+      transitionModel_(config) {
 }
 
 PhaseTransitionResult MatchPhaseModel::evaluateTeamPhase(const TeamGameContext& context) const {
@@ -137,7 +138,12 @@ TeamGameContext MatchPhaseModel::buildTeamContext(
     context.possessionRegained =
         state.ball.controlState == BallControlState::Controlled
         && state.possession.teamInPossession == team.teamId
-        && state.possession.isTransition;
+        && state.possession.isTransition
+        && state.possession.actionDepth <= 2;
+    context.cleanPossessionRegain = context.possessionRegained
+        && state.possession.cleanPossessionRegain;
+    context.possessionStartedFromLooseBall = context.possessionRegained
+        && state.possession.possessionStartedFromLooseBall;
     context.currentPhase = team.currentPhase;
     context.previousPhase = team.previousPhase;
     context.ballPosition = state.ball.position;
@@ -162,7 +168,17 @@ TeamGameContext MatchPhaseModel::buildTeamContext(
     context.playersAheadOfBall = space.playersAheadOfBall;
     context.playersBehindBall = space.playersBehindBall;
     context.nearestSupportCount = space.nearestSupportCount;
-    context.possessionActionDepth = context.hasPossession ? state.possession.actionDepth : 0;
+    context.possessionActionDepth =
+        state.possession.teamInPossession != 0 ? state.possession.actionDepth : 0;
+    context.secondsInPossession =
+        state.possession.teamInPossession != 0
+            ? static_cast<double>(std::max(0, state.currentSecond - state.possession.possessionStartSecond))
+            : 0.0;
+    context.controlledPossessionEstablished =
+        state.ball.controlState == BallControlState::Controlled
+        && state.possession.teamInPossession != 0
+        && (state.possession.actionDepth >= config_.minimumControlledPossessionActions
+            || context.secondsInPossession >= config_.minimumControlledPossessionSeconds);
     context.secondsInCurrentPhase = static_cast<double>(
         std::max(0, state.currentSecond - team.phaseEntrySecond));
     context.phaseEntryReason = team.phaseEntryReason;

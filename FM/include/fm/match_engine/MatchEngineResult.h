@@ -199,6 +199,12 @@ struct MatchPhaseDiagnostics {
     std::array<int, MatchTeamPhaseCount> turnoversByPhase{};
 
     int counterEntries = 0;
+    int validCounterEntries = 0;
+    int counterRejectedNoCleanRegain = 0;
+    int counterRejectedNoForwardLane = 0;
+    int counterRejectedNoRunner = 0;
+    int counterRejectedOpponentRecovered = 0;
+    int counterRejectedSettledPossession = 0;
     int counterShots = 0;
     int counterGoals = 0;
     double counterXG = 0.0;
@@ -209,6 +215,15 @@ struct MatchPhaseDiagnostics {
     int defensiveTransitionEntries = 0;
     int settledDefenseEntries = 0;
     int phaseSwitchCount = 0;
+    int buildUpToFinalizingSwitches = 0;
+    int finalizingToBuildUpSwitches = 0;
+    int anyToCounterSwitches = 0;
+    int anyToDefensiveTransitionSwitches = 0;
+    int defensiveTransitionToSettledDefenseSwitches = 0;
+    int looseBallPhaseHolds = 0;
+    int ignoredSameTeamLooseRegainPhaseSwitches = 0;
+    double counterDurationTotalSeconds = 0.0;
+    std::vector<double> counterDurationSamplesSeconds;
 
     double teamShapeSettledSamples = 0.0;
     double teamShapeSettledCount = 0.0;

@@ -436,6 +436,7 @@ namespace {
         ++teamPhaseDiagnosticFor(result, team.teamId).phaseEntries[index];
         if (phase == MatchTeamPhase::CounterAttack) {
             ++result.phaseDiagnostics.counterEntries;
+            ++result.phaseDiagnostics.validCounterEntries;
         } else if (phase == MatchTeamPhase::DefensiveTransition) {
             ++result.phaseDiagnostics.defensiveTransitionEntries;
         } else if (phase == MatchTeamPhase::SettledDefense) {
@@ -447,7 +448,34 @@ namespace {
         return value.find(text) != std::string::npos;
     }
 
-    void recordCounterExit(MatchEngineResult& result, const std::string& exitReason) {
+    void recordCounterRejection(MatchEngineResult& result, CounterRejectionReason reason) {
+        switch (reason) {
+        case CounterRejectionReason::NoCleanRegain:
+            ++result.phaseDiagnostics.counterRejectedNoCleanRegain;
+            break;
+        case CounterRejectionReason::NoForwardLane:
+            ++result.phaseDiagnostics.counterRejectedNoForwardLane;
+            break;
+        case CounterRejectionReason::NoRunner:
+            ++result.phaseDiagnostics.counterRejectedNoRunner;
+            break;
+        case CounterRejectionReason::OpponentRecovered:
+            ++result.phaseDiagnostics.counterRejectedOpponentRecovered;
+            break;
+        case CounterRejectionReason::SettledPossession:
+            ++result.phaseDiagnostics.counterRejectedSettledPossession;
+            break;
+        case CounterRejectionReason::None:
+            break;
+        }
+    }
+
+    void recordCounterExit(
+        MatchEngineResult& result,
+        const std::string& exitReason,
+        double durationSeconds) {
+        result.phaseDiagnostics.counterDurationTotalSeconds += durationSeconds;
+        result.phaseDiagnostics.counterDurationSamplesSeconds.push_back(durationSeconds);
         if (containsText(exitReason, "no forward lane")) {
             ++result.phaseDiagnostics.counterExpiredNoForwardLane;
         } else if (containsText(exitReason, "defense recovered")) {
@@ -464,6 +492,11 @@ namespace {
         TeamSimState& team,
         const PhaseTransitionResult& transition,
         int currentSecond) {
+        if (transition.heldForLooseBall) {
+            ++result.phaseDiagnostics.looseBallPhaseHolds;
+        }
+        recordCounterRejection(result, transition.counterRejection);
+
         if (!transition.changed || transition.phase == team.currentPhase) {
             return;
         }
@@ -475,9 +508,26 @@ namespace {
             std::max(teamDiagnostic.longestSinglePhaseSeconds, elapsedInPrevious);
         ++teamDiagnostic.phaseSwitchCount;
         ++result.phaseDiagnostics.phaseSwitchCount;
+        if (team.currentPhase == MatchTeamPhase::BuildUp
+            && transition.phase == MatchTeamPhase::FinalizingPosition) {
+            ++result.phaseDiagnostics.buildUpToFinalizingSwitches;
+        } else if (team.currentPhase == MatchTeamPhase::FinalizingPosition
+            && transition.phase == MatchTeamPhase::BuildUp) {
+            ++result.phaseDiagnostics.finalizingToBuildUpSwitches;
+        }
+        if (transition.phase == MatchTeamPhase::CounterAttack) {
+            ++result.phaseDiagnostics.anyToCounterSwitches;
+        }
+        if (transition.phase == MatchTeamPhase::DefensiveTransition) {
+            ++result.phaseDiagnostics.anyToDefensiveTransitionSwitches;
+        }
+        if (team.currentPhase == MatchTeamPhase::DefensiveTransition
+            && transition.phase == MatchTeamPhase::SettledDefense) {
+            ++result.phaseDiagnostics.defensiveTransitionToSettledDefenseSwitches;
+        }
 
         if (team.currentPhase == MatchTeamPhase::CounterAttack) {
-            recordCounterExit(result, transition.exitReason);
+            recordCounterExit(result, transition.exitReason, elapsedInPrevious);
         }
 
         team.previousPhase = team.currentPhase;
@@ -553,6 +603,12 @@ namespace {
             diagnostic.longestSinglePhaseSeconds = std::max(
                 diagnostic.longestSinglePhaseSeconds,
                 static_cast<double>(std::max(0, state.currentSecond - team->phaseEntrySecond)));
+            if (team->currentPhase == MatchTeamPhase::CounterAttack) {
+                const double duration = static_cast<double>(
+                    std::max(0, state.currentSecond - team->phaseEntrySecond));
+                result.phaseDiagnostics.counterDurationTotalSeconds += duration;
+                result.phaseDiagnostics.counterDurationSamplesSeconds.push_back(duration);
+            }
         }
     }
 
@@ -946,6 +1002,9 @@ namespace {
         state.possession.lastMeaningfulProgressionPoint = state.ball.position;
         state.possession.lastMeaningfulProgressionSecond = 0;
         state.possession.isTransition = false;
+        state.possession.cleanPossessionRegain = false;
+        state.possession.possessionStartedFromLooseBall = false;
+        state.possession.possessionRegainSecond = 0;
 
         return state;
     }
@@ -1347,6 +1406,8 @@ namespace {
         const TeamId previousTeam = state.possession.teamInPossession != 0
             ? state.possession.teamInPossession
             : state.possession.lastPossessionTeamId;
+        const bool controlledFromLooseBall =
+            state.ball.controlState == BallControlState::Loose;
         clearBallFlags(state);
 
         PlayerSimState* controller = findPlayerState(state, playerId);
@@ -1371,8 +1432,13 @@ namespace {
             state.possession.lastMeaningfulProgressionPoint = state.ball.position;
             state.possession.lastMeaningfulProgressionSecond = state.currentSecond;
             state.possession.isTransition = true;
+            state.possession.cleanPossessionRegain = !controlledFromLooseBall;
+            state.possession.possessionStartedFromLooseBall = controlledFromLooseBall;
+            state.possession.possessionRegainSecond = state.currentSecond;
         } else {
             state.possession.isTransition = false;
+            state.possession.cleanPossessionRegain = false;
+            state.possession.possessionStartedFromLooseBall = controlledFromLooseBall;
         }
     }
 
@@ -1421,6 +1487,8 @@ namespace {
         state.possession.lastPossessionTeamId = lastPossessionTeamId;
         state.possession.ballCarrierId = 0;
         state.possession.isTransition = true;
+        state.possession.cleanPossessionRegain = false;
+        state.possession.possessionStartedFromLooseBall = false;
     }
 
     struct ContextProfile {
@@ -4286,6 +4354,8 @@ namespace {
             clearChanceSource(chanceTracker);
         } else if (previousTeam != 0 && previousTeam != best->teamId) {
             markTurnoverChain(chanceTracker);
+        } else if (previousTeam != 0 && previousTeam == best->teamId) {
+            ++result.phaseDiagnostics.ignoredSameTeamLooseRegainPhaseSwitches;
         }
         appendTrace(
             result,

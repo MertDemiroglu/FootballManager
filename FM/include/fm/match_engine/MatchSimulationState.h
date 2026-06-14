@@ -96,6 +96,9 @@ struct PossessionState {
     PitchPoint lastMeaningfulProgressionPoint;
     int lastMeaningfulProgressionSecond = 0;
     bool isTransition = false;
+    bool cleanPossessionRegain = false;
+    bool possessionStartedFromLooseBall = false;
+    int possessionRegainSecond = 0;
 };
 
 struct MatchSimulationState {

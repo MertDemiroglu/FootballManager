@@ -1479,6 +1479,12 @@ namespace {
         }
 
         aggregate.counterEntries += sample.counterEntries;
+        aggregate.validCounterEntries += sample.validCounterEntries;
+        aggregate.counterRejectedNoCleanRegain += sample.counterRejectedNoCleanRegain;
+        aggregate.counterRejectedNoForwardLane += sample.counterRejectedNoForwardLane;
+        aggregate.counterRejectedNoRunner += sample.counterRejectedNoRunner;
+        aggregate.counterRejectedOpponentRecovered += sample.counterRejectedOpponentRecovered;
+        aggregate.counterRejectedSettledPossession += sample.counterRejectedSettledPossession;
         aggregate.counterShots += sample.counterShots;
         aggregate.counterGoals += sample.counterGoals;
         aggregate.counterXG += sample.counterXG;
@@ -1489,6 +1495,18 @@ namespace {
         aggregate.defensiveTransitionEntries += sample.defensiveTransitionEntries;
         aggregate.settledDefenseEntries += sample.settledDefenseEntries;
         aggregate.phaseSwitchCount += sample.phaseSwitchCount;
+        aggregate.buildUpToFinalizingSwitches += sample.buildUpToFinalizingSwitches;
+        aggregate.finalizingToBuildUpSwitches += sample.finalizingToBuildUpSwitches;
+        aggregate.anyToCounterSwitches += sample.anyToCounterSwitches;
+        aggregate.anyToDefensiveTransitionSwitches += sample.anyToDefensiveTransitionSwitches;
+        aggregate.defensiveTransitionToSettledDefenseSwitches += sample.defensiveTransitionToSettledDefenseSwitches;
+        aggregate.looseBallPhaseHolds += sample.looseBallPhaseHolds;
+        aggregate.ignoredSameTeamLooseRegainPhaseSwitches += sample.ignoredSameTeamLooseRegainPhaseSwitches;
+        aggregate.counterDurationTotalSeconds += sample.counterDurationTotalSeconds;
+        aggregate.counterDurationSamplesSeconds.insert(
+            aggregate.counterDurationSamplesSeconds.end(),
+            sample.counterDurationSamplesSeconds.begin(),
+            sample.counterDurationSamplesSeconds.end());
         aggregate.teamShapeSettledSamples += sample.teamShapeSettledSamples;
         aggregate.teamShapeSettledCount += sample.teamShapeSettledCount;
         aggregate.opponentShapeSettledCount += sample.opponentShapeSettledCount;
@@ -1522,9 +1540,24 @@ namespace {
         }
     }
 
+    double medianCounterDurationSeconds(const MatchPhaseDiagnostics& diagnostics) {
+        if (diagnostics.counterDurationSamplesSeconds.empty()) {
+            return 0.0;
+        }
+
+        std::vector<double> samples = diagnostics.counterDurationSamplesSeconds;
+        std::sort(samples.begin(), samples.end());
+        const std::size_t middle = samples.size() / 2;
+        if (samples.size() % 2 == 1) {
+            return samples[middle];
+        }
+        return (samples[middle - 1] + samples[middle]) * 0.5;
+    }
+
     void printPhaseDiagnostics(
         const MatchPhaseDiagnostics& diagnostics,
-        const std::string& label) {
+        const std::string& label,
+        int matchCount) {
         std::cerr << "[Phase summary] " << label << '\n';
         for (MatchTeamPhase phase : allMatchTeamPhases()) {
             const int index = matchTeamPhaseIndex(phase);
@@ -1550,8 +1583,20 @@ namespace {
                 << '\n';
         }
 
+        const double safeMatchCount = static_cast<double>(std::max(matchCount, 1));
+        const double counterAverageDuration =
+            diagnostics.counterDurationSamplesSeconds.empty()
+                ? 0.0
+                : diagnostics.counterDurationTotalSeconds
+                    / static_cast<double>(diagnostics.counterDurationSamplesSeconds.size());
         std::cerr << "[Transition diagnostics] " << label << '\n'
             << "  counterEntries=" << diagnostics.counterEntries
+            << " validCounterEntries=" << diagnostics.validCounterEntries
+            << " counterRejectedNoCleanRegain=" << diagnostics.counterRejectedNoCleanRegain
+            << " counterRejectedNoForwardLane=" << diagnostics.counterRejectedNoForwardLane
+            << " counterRejectedNoRunner=" << diagnostics.counterRejectedNoRunner
+            << " counterRejectedOpponentRecovered=" << diagnostics.counterRejectedOpponentRecovered
+            << " counterRejectedSettledPossession=" << diagnostics.counterRejectedSettledPossession
             << " counterShots=" << diagnostics.counterShots
             << " counterGoals=" << diagnostics.counterGoals
             << " counterXG=" << diagnostics.counterXG
@@ -1559,9 +1604,23 @@ namespace {
             << " counterExpiredDefenseRecovered=" << diagnostics.counterExpiredDefenseRecovered
             << " counterExpiredForcedBackwardOrSideways=" << diagnostics.counterExpiredForcedBackwardOrSideways
             << " counterExpiredRecycledToBuildUp=" << diagnostics.counterExpiredRecycledToBuildUp
+            << " counterAverageDurationSeconds=" << counterAverageDuration
+            << " counterMedianDurationSeconds=" << medianCounterDurationSeconds(diagnostics)
             << " defensiveTransitionEntries=" << diagnostics.defensiveTransitionEntries
             << " settledDefenseEntries=" << diagnostics.settledDefenseEntries
             << " phaseSwitchCount=" << diagnostics.phaseSwitchCount
+            << '\n';
+
+        std::cerr << "[Phase churn diagnostics] " << label << '\n'
+            << "  phaseSwitchesPerMatch=" << (static_cast<double>(diagnostics.phaseSwitchCount) / safeMatchCount)
+            << " phaseSwitchesPerMinute=" << (static_cast<double>(diagnostics.phaseSwitchCount) / (safeMatchCount * 90.0))
+            << " BuildUpToFinalizingSwitches=" << diagnostics.buildUpToFinalizingSwitches
+            << " FinalizingToBuildUpSwitches=" << diagnostics.finalizingToBuildUpSwitches
+            << " AnyToCounterSwitches=" << diagnostics.anyToCounterSwitches
+            << " AnyToDefensiveTransitionSwitches=" << diagnostics.anyToDefensiveTransitionSwitches
+            << " DefensiveTransitionToSettledDefenseSwitches=" << diagnostics.defensiveTransitionToSettledDefenseSwitches
+            << " looseBallPhaseHolds=" << diagnostics.looseBallPhaseHolds
+            << " ignoredSameTeamLooseRegainPhaseSwitches=" << diagnostics.ignoredSameTeamLooseRegainPhaseSwitches
             << '\n';
 
         const double samples = std::max(diagnostics.teamShapeSettledSamples, 1.0);
@@ -1610,9 +1669,34 @@ namespace {
             warnings.push_back("WARNING: 4-3-3 was not used in smoke/default fixture.");
         }
 
-        const int suspiciousSwitchLimit = std::max(2000, matchCount * 2000);
-        if (diagnostics.phaseSwitchCount > suspiciousSwitchLimit) {
+        const double safeMatchCount = static_cast<double>(std::max(matchCount, 1));
+        const double phaseSwitchesPerMatch =
+            static_cast<double>(diagnostics.phaseSwitchCount) / safeMatchCount;
+        const double counterEntriesPerMatch =
+            static_cast<double>(diagnostics.counterEntries) / safeMatchCount;
+        const double defensiveTransitionEntriesPerMatch =
+            static_cast<double>(diagnostics.defensiveTransitionEntries) / safeMatchCount;
+        const double buildUpAverageDuration =
+            timeFor(MatchTeamPhase::BuildUp)
+            / static_cast<double>(std::max(entriesFor(MatchTeamPhase::BuildUp), 1));
+        const double finalizingAverageDuration =
+            timeFor(MatchTeamPhase::FinalizingPosition)
+            / static_cast<double>(std::max(entriesFor(MatchTeamPhase::FinalizingPosition), 1));
+        if (phaseSwitchesPerMatch > 200.0) {
             warnings.push_back("WARNING: Phase state changes too frequently, causing phase flicker.");
+        }
+        if (counterEntriesPerMatch > 20.0
+            && (diagnostics.counterShots == 0 || diagnostics.counterXG < 0.05 * safeMatchCount)) {
+            warnings.push_back("WARNING: counterEntriesPerMatch > 20 without meaningful counter shots/xG.");
+        }
+        if (defensiveTransitionEntriesPerMatch > 120.0) {
+            warnings.push_back("WARNING: DefensiveTransition entries per match are extremely high.");
+        }
+        if (buildUpAverageDuration < 8.0) {
+            warnings.push_back("WARNING: BuildUp average duration is too short.");
+        }
+        if (finalizingAverageDuration < 8.0) {
+            warnings.push_back("WARNING: FinalizingPosition average duration is too short.");
         }
         for (const MatchTeamPhaseDiagnostic& team : diagnostics.teamDiagnostics) {
             if (team.longestSinglePhaseSeconds >= 82.0 * 60.0) {
@@ -3871,7 +3955,7 @@ namespace {
                 << '\n'
                 << '\n';
             printDefensiveEvents(totalDefensiveEvents);
-            printPhaseDiagnostics(watchedPhaseDiagnostics, "watched balance both-teams aggregate");
+            printPhaseDiagnostics(watchedPhaseDiagnostics, "watched balance both-teams aggregate", 8);
             printMovementSummary(watchedAggregate, 8);
             std::cerr << "[Action mix]\n"
                 << "  passesAttempted=" << totalPasses
@@ -4226,7 +4310,7 @@ namespace {
             << '\n'
             << '\n';
         printDefensiveEvents(dominantDefensiveEvents);
-        printPhaseDiagnostics(dominantPhaseDiagnostics, "dominant sample both-team phase context");
+        printPhaseDiagnostics(dominantPhaseDiagnostics, "dominant sample both-team phase context", 3);
         printMovementSummary(dominantAggregate, 3);
         std::cerr << "[Action mix]\n"
             << "  carryTraces=" << dominantCarryTraces

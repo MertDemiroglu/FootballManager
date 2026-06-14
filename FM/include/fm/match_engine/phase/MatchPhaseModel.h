@@ -30,6 +30,6 @@ public:
         PitchPoint ballPosition) const;
 
 private:
+    PhaseTransitionConfig config_;
     PhaseTransitionModel transitionModel_;
 };
-

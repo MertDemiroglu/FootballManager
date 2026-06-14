@@ -3,19 +3,40 @@
 #include<algorithm>
 
 namespace {
+    bool controlledPossessionEstablished(const TeamGameContext& context, const PhaseTransitionConfig& config) {
+        return context.controlledPossessionEstablished
+            || context.possessionActionDepth >= config.minimumControlledPossessionActions
+            || context.secondsInPossession >= config.minimumControlledPossessionSeconds;
+    }
+
     bool canLeavePhase(const TeamGameContext& context, const PhaseTransitionConfig& config) {
         return context.secondsInCurrentPhase >= config.minimumPhaseDurationSeconds
-            || context.possessionRegained
-            || context.hasPossession != isInPossessionPhase(context.currentPhase);
+            && controlledPossessionEstablished(context, config);
     }
 
     PhaseTransitionResult stay(const TeamGameContext& context) {
         return PhaseTransitionResult{
             context.currentPhase,
             false,
+            false,
+            CounterRejectionReason::None,
             context.phaseEntryReason,
             ""
         };
+    }
+
+    PhaseTransitionResult looseHold(const TeamGameContext& context) {
+        PhaseTransitionResult result = stay(context);
+        result.heldForLooseBall = true;
+        return result;
+    }
+
+    PhaseTransitionResult counterRejected(
+        const TeamGameContext& context,
+        CounterRejectionReason reason) {
+        PhaseTransitionResult result = stay(context);
+        result.counterRejection = reason;
+        return result;
     }
 
     PhaseTransitionResult changeTo(
@@ -25,9 +46,20 @@ namespace {
         return PhaseTransitionResult{
             phase,
             true,
+            false,
+            CounterRejectionReason::None,
             entryReason,
             exitReason
         };
+    }
+
+    PhaseTransitionResult counterRejectedBuildUp(
+        CounterRejectionReason reason,
+        const char* entryReason,
+        const char* exitReason) {
+        PhaseTransitionResult result = changeTo(MatchTeamPhase::BuildUp, entryReason, exitReason);
+        result.counterRejection = reason;
+        return result;
     }
 }
 
@@ -37,15 +69,25 @@ PhaseTransitionModel::PhaseTransitionModel(PhaseTransitionConfig config)
 
 PhaseTransitionResult PhaseTransitionModel::evaluate(const TeamGameContext& context) const {
     if (context.possessionTeamId == 0) {
-        return stay(context);
+        return looseHold(context);
     }
 
     if (!context.hasPossession) {
+        if (isInPossessionPhase(context.currentPhase)
+            && !controlledPossessionEstablished(context, config_)) {
+            return stay(context);
+        }
+
         const bool immediateCounterThreat =
-            context.counterThreatAgainstTeamScore >= config_.defenseRecoveredThreatThreshold
-            || (!context.restDefenseStable && context.playersAheadOfBall >= 4);
+            context.counterThreatAgainstTeamScore >= config_.defensiveTransitionThreatThreshold
+            && (!context.restDefenseStable
+                || context.playersAheadOfBall >= config_.defensiveTransitionExposedPlayersAhead);
 
         if (isInPossessionPhase(context.currentPhase)) {
+            if (context.secondsInCurrentPhase < config_.minimumPhaseDurationSeconds
+                && !immediateCounterThreat) {
+                return stay(context);
+            }
             if (context.restDefenseStable && !immediateCounterThreat) {
                 return changeTo(
                     MatchTeamPhase::SettledDefense,
@@ -86,12 +128,37 @@ PhaseTransitionResult PhaseTransitionModel::evaluate(const TeamGameContext& cont
     }
 
     const bool currentPhaseIsDefensive = !isInPossessionPhase(context.currentPhase);
-    const bool plausibleCounter =
-        context.possessionRegained
-        && !context.opponentShapeSettled
-        && context.openForwardLaneScore >= config_.counterForwardLaneThreshold
-        && (context.playersAheadOfBall > 0 || context.centralSpaceAvailable);
-    if (plausibleCounter) {
+    const bool settledPossessionRecycling =
+        context.possessionActionDepth > config_.minimumControlledPossessionActions
+        || context.secondsInPossession > config_.minimumControlledPossessionSeconds * 2.0;
+    if (context.possessionRegained) {
+        const auto rejectCounter = [&](CounterRejectionReason reason) {
+            if (currentPhaseIsDefensive && controlledPossessionEstablished(context, config_)) {
+                return counterRejectedBuildUp(
+                    reason,
+                    "controlled possession established after rejected counter",
+                    "possession regained without valid counter");
+            }
+            return counterRejected(context, reason);
+        };
+
+        if (!context.cleanPossessionRegain || context.possessionStartedFromLooseBall) {
+            return rejectCounter(CounterRejectionReason::NoCleanRegain);
+        }
+        if (settledPossessionRecycling) {
+            return rejectCounter(CounterRejectionReason::SettledPossession);
+        }
+        if (context.opponentShapeSettled) {
+            return rejectCounter(CounterRejectionReason::OpponentRecovered);
+        }
+        if (context.ballProgress < config_.counterMinimumBallProgress
+            || context.openForwardLaneScore < config_.counterForwardLaneThreshold
+            || context.counterOpportunityScore < config_.counterForwardLaneThreshold) {
+            return rejectCounter(CounterRejectionReason::NoForwardLane);
+        }
+        if (context.playersAheadOfBall < config_.counterMinimumRunnersAhead) {
+            return rejectCounter(CounterRejectionReason::NoRunner);
+        }
         return changeTo(
             MatchTeamPhase::CounterAttack,
             "regain with unsettled opponent and forward lane",
@@ -99,6 +166,12 @@ PhaseTransitionResult PhaseTransitionModel::evaluate(const TeamGameContext& cont
     }
 
     if (currentPhaseIsDefensive) {
+        if (!controlledPossessionEstablished(context, config_)) {
+            return stay(context);
+        }
+        if (context.secondsInCurrentPhase < config_.minimumPhaseDurationSeconds) {
+            return stay(context);
+        }
         return changeTo(
             MatchTeamPhase::BuildUp,
             "controlled possession established",
@@ -137,12 +210,17 @@ PhaseTransitionResult PhaseTransitionModel::evaluate(const TeamGameContext& cont
         return stay(context);
     }
 
+    if (!controlledPossessionEstablished(context, config_)) {
+        return stay(context);
+    }
+
     if (!canLeavePhase(context, config_)) {
         return stay(context);
     }
 
     if (context.currentPhase == MatchTeamPhase::BuildUp) {
         if (context.ballProgress >= config_.finalizingEnterProgress
+            && context.possessionActionDepth >= config_.minimumFinalizingPossessionActions
             && context.nearestSupportCount >= config_.finalizingSupportCount
             && (context.teamShapeSettled || context.supportAvailableNearBall)) {
             return changeTo(

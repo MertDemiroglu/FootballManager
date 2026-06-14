@@ -11,6 +11,9 @@ struct TeamGameContext {
     TeamId possessionTeamId = 0;
     bool hasPossession = false;
     bool possessionRegained = false;
+    bool cleanPossessionRegain = false;
+    bool possessionStartedFromLooseBall = false;
+    bool controlledPossessionEstablished = false;
     MatchTeamPhase currentPhase = MatchTeamPhase::SettledDefense;
     MatchTeamPhase previousPhase = MatchTeamPhase::SettledDefense;
     PitchPoint ballPosition;
@@ -32,8 +35,8 @@ struct TeamGameContext {
     int playersBehindBall = 0;
     int nearestSupportCount = 0;
     int possessionActionDepth = 0;
+    double secondsInPossession = 0.0;
     double secondsInCurrentPhase = 0.0;
     std::string phaseEntryReason;
     std::string phaseExitReason;
 };
-
