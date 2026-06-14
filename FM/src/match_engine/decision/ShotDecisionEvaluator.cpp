@@ -201,6 +201,23 @@ namespace {
         return tuning.xgGreatBase + (xg - tuning.xgGoodThreshold) * tuning.xgGreatSlope;
     }
 
+    double closeDefenderShotPressure(
+        const ShotContext& context,
+        const ShotDecisionTuning& tuning) {
+        if (context.nearestDefenderDistance >= tuning.closeDefenderPressureDistance) {
+            return 0.0;
+        }
+        if (context.nearestDefenderDistance <= tuning.closeDefenderSmotherDistance) {
+            return tuning.closeDefenderSmotherPressure;
+        }
+        const double pressureShare =
+            (tuning.closeDefenderPressureDistance - context.nearestDefenderDistance)
+            / std::max(
+                0.1,
+                tuning.closeDefenderPressureDistance - tuning.closeDefenderSmotherDistance);
+        return pressureShare * tuning.closeDefenderPressureScale;
+    }
+
     bool isDefensiveRole(FormationSlotRole role) {
         return role == FormationSlotRole::Goalkeeper
             || role == FormationSlotRole::CenterBack
@@ -236,7 +253,9 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     const ShotContext expectedShotContext = expectedShotContextFor(context, attributes);
     const double xg = ShotQualityModel::calculatePreShotXG(expectedShotContext);
     const bool advancedPhase = isAdvancedShootingPhase(context.phase);
-    const bool clearChance = xg >= tuning.strongChanceAlwaysIncludeXG && distance <= 16.0;
+    const bool clearChance = xg >= tuning.strongChanceAlwaysIncludeXG
+        && distance <= 16.0
+        && expectedShotContext.nearestDefenderDistance >= tuning.clearChanceMinimumDefenderDistance;
     const bool earlyPossessionShot =
         context.possessionActionCount <= 1
         && !advancedPhase
@@ -247,7 +266,11 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     const double distanceScore = distanceScoreFor(distance);
     const double angleScore = angleScoreFor(context.ballPosition, context.attackingDirection);
     const double pressurePenalty =
-        std::clamp(context.carrierPressure * tuning.pressurePenaltyScale, 0.0, 100.0);
+        std::clamp(
+            context.carrierPressure * tuning.pressurePenaltyScale
+                + closeDefenderShotPressure(expectedShotContext, tuning),
+            0.0,
+            100.0);
     const bool weakShot = xg < tuning.weakShotXG;
     const bool shootingZone =
         advancedPhase || (attackingThird && distance <= 22.0);

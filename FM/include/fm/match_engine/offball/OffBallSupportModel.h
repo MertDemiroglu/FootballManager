@@ -1,6 +1,7 @@
 #pragma once
 
 #include"fm/match_engine/MatchSimulationState.h"
+#include"fm/match_engine/MatchEngineSnapshots.h"
 #include"fm/match_engine/offball/OffBallSupportEvent.h"
 #include"fm/match_engine/offball/OffBallTargetResolver.h"
 #include"fm/match_engine/offball/RestDefenseModel.h"
@@ -12,10 +13,12 @@
 struct OffBallSupportModelRequest {
     const TeamSimState* team = nullptr;
     const TeamSimState* opponent = nullptr;
+    const MatchTeamSnapshot* teamSnapshot = nullptr;
     TeamGameContext teamContext;
     std::vector<PlayerGameContext> playerContexts;
     std::vector<OffBallSupportEvent> activeEvents;
     AttackingDirection attackingDirection = AttackingDirection::HomeToAway;
+    OffsideLineResult offsideLine;
     int currentSecond = 0;
 };
 

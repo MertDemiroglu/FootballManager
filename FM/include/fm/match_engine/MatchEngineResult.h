@@ -323,6 +323,15 @@ struct MatchOffBallSupportDiagnostics {
     int fullbackShotAssistsAfterSupportEvent = 0;
     int CMShotsAfterSupportEvent = 0;
 
+    int shotsDuringActiveSupportEvent = 0;
+    int shotsImmediatelyAfterSupportCompletion = 0;
+    int shotsWithinRecentSupportWindow = 0;
+    double xGDuringActiveSupportEvent = 0.0;
+    double xGImmediatelyAfterSupportCompletion = 0.0;
+    double xGWithinRecentSupportWindow = 0.0;
+    int finalBallsDuringActiveSupportEvent = 0;
+    int finalBallsWithinRecentSupportWindow = 0;
+
     int wingerCutInsideEvents = 0;
     int wingerFarPostEvents = 0;
     int wingerBoxReceptionsAfterEvent = 0;
@@ -342,6 +351,65 @@ struct MatchOffBallSupportDiagnostics {
     int supportEventsRejectedByRestDefense = 0;
     int bothFullbacksAdvancedCount = 0;
     int restDefenseBreaksAfterSupport = 0;
+};
+
+struct MatchSupportEventMovementQualityDiagnostics {
+    int completedImmediately = 0;
+    int completedAfterActualMovement = 0;
+    double distanceMovedDuringEventTotal = 0.0;
+    int distanceMovedDuringEventSamples = 0;
+    double distanceToTargetAtCreationTotal = 0.0;
+    int distanceToTargetAtCreationSamples = 0;
+    double distanceToTargetAtCompletionTotal = 0.0;
+    int distanceToTargetAtCompletionSamples = 0;
+    int eventReachedWithoutMovement = 0;
+    int eventTimeoutBeforeMovement = 0;
+    std::array<int, OffBallEventTypeCount> completedImmediatelyByType{};
+    std::array<int, OffBallEventTypeCount> completedAfterActualMovementByType{};
+    std::array<double, OffBallEventTypeCount> distanceMovedByType{};
+    std::array<int, OffBallEventTypeCount> distanceMovedSamplesByType{};
+};
+
+struct MatchOffsideDiagnostics {
+    int offsideLineChecks = 0;
+    int offsideSnapshotsCreated = 0;
+    int attackersOffsideAtRelease = 0;
+    int offsideCalls = 0;
+    std::array<int, MatchDiagnosticActionTypeCount> offsideCallsByActionType{};
+    std::array<int, MatchDiagnosticRoleBucketCount> offsideCallsByRole{};
+    int offsideAvoidedByAwareness = 0;
+    int offsideRiskAdjustedTargets = 0;
+    double offsideLineProgressTotal = 0.0;
+    int offsideLineProgressSamples = 0;
+    double attackerDistanceToOffsideLineTotal = 0.0;
+    int attackerDistanceToOffsideLineSamples = 0;
+    int throughBallOffsideCalls = 0;
+    int farPostRunOffsideCalls = 0;
+    int counterRunOffsideCalls = 0;
+    std::array<int, MatchDiagnosticRoleBucketCount> awarenessChecksByRole{};
+    std::array<double, MatchDiagnosticRoleBucketCount> awarenessCheckIntervalTotalByRole{};
+    std::array<int, MatchDiagnosticRoleBucketCount> awarenessAdjustmentsByRole{};
+    std::array<int, MatchDiagnosticRoleBucketCount> awarenessFailedToAdjustByRole{};
+    std::array<int, MatchDiagnosticRoleBucketCount> awarenessOffsideCallsByRole{};
+};
+
+struct MatchCutbackChainDiagnostics {
+    int cutbacksAttempted = 0;
+    int cutbacksCompleted = 0;
+    std::array<int, MatchDiagnosticRoleBucketCount> cutbackReceiversByRole{};
+    int cutbackReceiverPenaltyArea = 0;
+    int cutbackReceiverEdge = 0;
+    int cutbackReceiverHalfSpace = 0;
+    int cutbackReceiverWide = 0;
+    int cutbackReceiverCentral = 0;
+    int cutbackReceiverShotCandidates = 0;
+    int cutbackReceiverShots = 0;
+    int cutbackShots = 0;
+    double cutbackXG = 0.0;
+    int cutbackTurnovers = 0;
+    int cutbackRecycled = 0;
+    int cutbackSourcePreservedToShot = 0;
+    int cutbackSourceLostReason = 0;
 };
 
 struct MatchOffBallEventChainDiagnostic {
@@ -420,6 +488,9 @@ struct MatchPhaseDiagnostics {
     MatchFinalizingQualityDiagnostics finalizingQualityDiagnostics;
     MatchBuildUpToFinalizingQualityDiagnostics buildUpToFinalizingQualityDiagnostics;
     MatchOffBallSupportDiagnostics offBallSupportDiagnostics;
+    MatchSupportEventMovementQualityDiagnostics supportEventMovementQualityDiagnostics;
+    MatchOffsideDiagnostics offsideDiagnostics;
+    MatchCutbackChainDiagnostics cutbackChainDiagnostics;
     std::vector<MatchOffBallEventChainDiagnostic> offBallEventChains;
     std::vector<MatchTeamPhaseDiagnostic> teamDiagnostics;
 };

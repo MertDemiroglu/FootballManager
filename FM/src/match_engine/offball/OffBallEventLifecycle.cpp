@@ -50,6 +50,20 @@ namespace {
         }
         return OffBallEventCompletionReason::None;
     }
+
+    void finalizeMovementQuality(
+        OffBallSupportEvent& event,
+        const PlayerSimState* player) {
+        if (player == nullptr) {
+            event.distanceToTargetAtCompletion = event.distanceToTargetAtCreation;
+            event.distanceMovedDuringEvent = 0.0;
+            return;
+        }
+        event.distanceToTargetAtCompletion =
+            PitchGeometry::distance(player->position, event.resolvedTargetPoint);
+        event.distanceMovedDuringEvent =
+            PitchGeometry::distance(event.startPosition, player->position);
+    }
 }
 
 const std::vector<OffBallSupportEvent>& OffBallEventLifecycle::activeEvents() const {
@@ -88,6 +102,33 @@ bool OffBallEventLifecycle::hadRecentSupportEvent(
     }
     for (const OffBallSupportEvent& event : recentEvents_) {
         if (event.playerId == playerId
+            && currentSecond - event.completedSecond <= windowSeconds) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool OffBallEventLifecycle::hadCompletedSupportEventWithin(
+    PlayerId playerId,
+    int currentSecond,
+    int windowSeconds) const {
+    for (const OffBallSupportEvent& event : recentEvents_) {
+        if (event.playerId == playerId
+            && currentSecond - event.completedSecond <= windowSeconds) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool OffBallEventLifecycle::hadImmediateSupportCompletion(
+    PlayerId playerId,
+    int currentSecond,
+    int windowSeconds) const {
+    for (const OffBallSupportEvent& event : recentEvents_) {
+        if (event.playerId == playerId
+            && event.completionReason == OffBallEventCompletionReason::ReachedRegion
             && currentSecond - event.completedSecond <= windowSeconds) {
             return true;
         }
@@ -139,6 +180,7 @@ OffBallLifecycleResult OffBallEventLifecycle::update(
                 event.completed = true;
                 event.completionReason = OffBallEventCompletionReason::ReachedRegion;
                 event.completedSecond = state.currentSecond;
+                finalizeMovementQuality(event, player);
                 result.completed.push_back(event);
                 remember(event);
                 continue;
@@ -150,6 +192,7 @@ OffBallLifecycleResult OffBallEventLifecycle::update(
             event.completed = false;
             event.completionReason = reason;
             event.completedSecond = state.currentSecond;
+            finalizeMovementQuality(event, findPlayerState(state, event.playerId));
             result.expired.push_back(event);
             remember(event);
             continue;

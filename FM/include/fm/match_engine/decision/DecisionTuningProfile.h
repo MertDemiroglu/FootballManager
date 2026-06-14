@@ -146,6 +146,11 @@ struct ShotDecisionTuning {
     double shooterConfidenceBaseline = 55.0;
     double shooterConfidenceContribution = 0.08;
     double pressurePenaltyToScoreCost = 0.26;
+    double closeDefenderSmotherDistance = 1.5;
+    double closeDefenderPressureDistance = 4.5;
+    double closeDefenderSmotherPressure = 42.0;
+    double closeDefenderPressureScale = 18.0;
+    double clearChanceMinimumDefenderDistance = 1.75;
     double riskToleranceMinimum = 0.45;
     double riskToleranceMaximum = 1.35;
     double shotBiasBlend = 0.34;

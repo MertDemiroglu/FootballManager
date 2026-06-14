@@ -58,6 +58,30 @@ namespace {
             : point.x <= PitchGeometry::LengthMeters * 0.50;
     }
 
+    double offsideDistanceBeyondLine(
+        PitchPoint receiverPosition,
+        PitchPoint ballPosition,
+        const std::vector<PlayerSimState>& opponents,
+        AttackingDirection direction) {
+        if (!isAttackingHalf(receiverPosition, direction) || opponents.size() < 2) {
+            return 0.0;
+        }
+
+        std::vector<double> defenderProgress;
+        defenderProgress.reserve(opponents.size());
+        for (const PlayerSimState& opponent : opponents) {
+            defenderProgress.push_back(signedProgressX(opponent.position, direction));
+        }
+        std::sort(defenderProgress.begin(), defenderProgress.end(), std::greater<double>());
+        const double lineProgress =
+            std::max(defenderProgress[1], signedProgressX(ballPosition, direction));
+        const double receiverProgress = signedProgressX(receiverPosition, direction);
+        if (receiverProgress <= signedProgressX(ballPosition, direction) + 0.1) {
+            return 0.0;
+        }
+        return std::max(0.0, receiverProgress - lineProgress);
+    }
+
     bool isInOpponentBox(PitchPoint point, AttackingDirection direction) {
         return direction == AttackingDirection::HomeToAway
             ? PitchGeometry::isInsideAwayPenaltyArea(point)
@@ -72,19 +96,30 @@ namespace {
         return PitchPoint{ x, PitchGeometry::WidthMeters / 2.0 };
     }
 
-    PitchPoint cutbackTarget(PitchPoint ballPosition, AttackingDirection direction) {
+    PitchPoint cutbackTarget(
+        PitchPoint ballPosition,
+        PitchPoint receiverPosition,
+        AttackingDirection direction) {
         const double goalX = direction == AttackingDirection::HomeToAway
             ? PitchGeometry::LengthMeters
             : 0.0;
-        const double targetX = goalX - directionSign(direction) * 9.0;
+        const double preferredX = goalX - directionSign(direction) * 9.0;
         const double currentProgress = signedProgressX(ballPosition, direction);
-        const double targetProgress = signedProgressX(PitchPoint{ targetX, ballPosition.y }, direction);
-        const double x = currentProgress > targetProgress
-            ? targetX
-            : ballPosition.x - directionSign(direction) * 5.0;
+        const double preferredProgress =
+            signedProgressX(PitchPoint{ preferredX, ballPosition.y }, direction);
+        const double receiverProgress = signedProgressX(receiverPosition, direction);
+        const double reachableProgress =
+            std::min(preferredProgress, receiverProgress + 14.0);
+        const double targetProgress = currentProgress > preferredProgress
+            ? reachableProgress
+            : std::min(reachableProgress, currentProgress - 5.0);
+        const double x = direction == AttackingDirection::HomeToAway
+            ? targetProgress
+            : PitchGeometry::LengthMeters - targetProgress;
         return PitchGeometry::clampToPitch(PitchPoint{
             x,
-            PitchGeometry::WidthMeters / 2.0
+            receiverPosition.y
+                + ((PitchGeometry::WidthMeters / 2.0 - receiverPosition.y) * 0.55)
         });
     }
 
@@ -612,8 +647,19 @@ std::vector<PassOption> PassOptionEvaluator::evaluate(
             teammate.position,
             context.attackingDirection);
         const FormationSlotRole receiverRole = roleForPlayer(context.teamSnapshot, teammate.playerId);
+        const double offsideBeyondLine = offsideDistanceBeyondLine(
+            teammate.position,
+            context.ballPosition,
+            context.opponentState->players,
+            context.attackingDirection);
+        const bool receiverClearlyOffside = offsideBeyondLine > 1.2;
+        const bool finalThirdLineBreakingOffside =
+            receiverClearlyOffside
+            && isFinalThird(teammate.position, context.attackingDirection)
+            && forward > 18.0;
 
         if (distance <= 32.0
+            && !receiverClearlyOffside
             && (!isAhead(context.ballPosition, teammate.position, context.attackingDirection)
                 || forward <= 10.0)) {
             safeOptions.push_back(makeOption(
@@ -644,6 +690,7 @@ std::vector<PassOption> PassOptionEvaluator::evaluate(
         if (forward >= 5.0
             && distance >= 8.0
             && distance <= 42.0
+            && !finalThirdLineBreakingOffside
             && (skill >= 38.0 || distance <= 25.0 || tactics.verticalityBias > 1.08)) {
             progressiveOptions.push_back(makeOption(
                 PassOptionKind::ProgressivePass,
@@ -659,6 +706,7 @@ std::vector<PassOption> PassOptionEvaluator::evaluate(
 
         if (distance >= 26.0
             && distance <= 64.0
+            && !receiverClearlyOffside
             && isOppositeWideSide(context.ballPosition, teammate.position)
             && (isWide(teammate.position) || isFullbackOrWideRole(receiverRole))) {
             switchOptions.push_back(makeOption(
@@ -677,6 +725,7 @@ std::vector<PassOption> PassOptionEvaluator::evaluate(
             && forward >= 10.0
             && distance >= 12.0
             && distance <= 44.0
+            && offsideBeyondLine <= 3.0
             && isAttackingHalf(teammate.position, context.attackingDirection)
             && skill >= 55.0
             && (context.tacticalSetup.passingDirectness == PassingDirectness::Direct
@@ -702,7 +751,8 @@ std::vector<PassOption> PassOptionEvaluator::evaluate(
             const bool receiverInBox = isInOpponentBox(teammate.position, context.attackingDirection);
             const bool receiverCentral = std::abs(teammate.position.y - PitchGeometry::WidthMeters / 2.0)
                 <= PitchGeometry::WidthMeters * 0.28;
-            if (receiverInBox || (receiverCentral && isFinalThird(teammate.position, context.attackingDirection))) {
+            if (!receiverClearlyOffside
+                && (receiverInBox || (receiverCentral && isFinalThird(teammate.position, context.attackingDirection)))) {
                 crossOptions.push_back(makeOption(
                     PassOptionKind::Cross,
                     context,
@@ -722,7 +772,7 @@ std::vector<PassOption> PassOptionEvaluator::evaluate(
                     PassOptionKind::Cutback,
                     context,
                     teammate,
-                    cutbackTarget(context.ballPosition, context.attackingDirection),
+                    cutbackTarget(context.ballPosition, teammate.position, context.attackingDirection),
                     receiverRole,
                     passerAttributes,
                     role,

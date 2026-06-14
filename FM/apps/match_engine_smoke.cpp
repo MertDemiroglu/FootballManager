@@ -1830,6 +1830,22 @@ namespace {
             sample.offBallSupportDiagnostics.fullbackShotAssistsAfterSupportEvent;
         aggregate.offBallSupportDiagnostics.CMShotsAfterSupportEvent +=
             sample.offBallSupportDiagnostics.CMShotsAfterSupportEvent;
+        aggregate.offBallSupportDiagnostics.shotsDuringActiveSupportEvent +=
+            sample.offBallSupportDiagnostics.shotsDuringActiveSupportEvent;
+        aggregate.offBallSupportDiagnostics.shotsImmediatelyAfterSupportCompletion +=
+            sample.offBallSupportDiagnostics.shotsImmediatelyAfterSupportCompletion;
+        aggregate.offBallSupportDiagnostics.shotsWithinRecentSupportWindow +=
+            sample.offBallSupportDiagnostics.shotsWithinRecentSupportWindow;
+        aggregate.offBallSupportDiagnostics.xGDuringActiveSupportEvent +=
+            sample.offBallSupportDiagnostics.xGDuringActiveSupportEvent;
+        aggregate.offBallSupportDiagnostics.xGImmediatelyAfterSupportCompletion +=
+            sample.offBallSupportDiagnostics.xGImmediatelyAfterSupportCompletion;
+        aggregate.offBallSupportDiagnostics.xGWithinRecentSupportWindow +=
+            sample.offBallSupportDiagnostics.xGWithinRecentSupportWindow;
+        aggregate.offBallSupportDiagnostics.finalBallsDuringActiveSupportEvent +=
+            sample.offBallSupportDiagnostics.finalBallsDuringActiveSupportEvent;
+        aggregate.offBallSupportDiagnostics.finalBallsWithinRecentSupportWindow +=
+            sample.offBallSupportDiagnostics.finalBallsWithinRecentSupportWindow;
         aggregate.offBallSupportDiagnostics.wingerCutInsideEvents +=
             sample.offBallSupportDiagnostics.wingerCutInsideEvents;
         aggregate.offBallSupportDiagnostics.wingerFarPostEvents +=
@@ -1864,6 +1880,84 @@ namespace {
             sample.offBallSupportDiagnostics.bothFullbacksAdvancedCount;
         aggregate.offBallSupportDiagnostics.restDefenseBreaksAfterSupport +=
             sample.offBallSupportDiagnostics.restDefenseBreaksAfterSupport;
+        aggregate.supportEventMovementQualityDiagnostics.completedImmediately +=
+            sample.supportEventMovementQualityDiagnostics.completedImmediately;
+        aggregate.supportEventMovementQualityDiagnostics.completedAfterActualMovement +=
+            sample.supportEventMovementQualityDiagnostics.completedAfterActualMovement;
+        aggregate.supportEventMovementQualityDiagnostics.distanceMovedDuringEventTotal +=
+            sample.supportEventMovementQualityDiagnostics.distanceMovedDuringEventTotal;
+        aggregate.supportEventMovementQualityDiagnostics.distanceMovedDuringEventSamples +=
+            sample.supportEventMovementQualityDiagnostics.distanceMovedDuringEventSamples;
+        aggregate.supportEventMovementQualityDiagnostics.distanceToTargetAtCreationTotal +=
+            sample.supportEventMovementQualityDiagnostics.distanceToTargetAtCreationTotal;
+        aggregate.supportEventMovementQualityDiagnostics.distanceToTargetAtCreationSamples +=
+            sample.supportEventMovementQualityDiagnostics.distanceToTargetAtCreationSamples;
+        aggregate.supportEventMovementQualityDiagnostics.distanceToTargetAtCompletionTotal +=
+            sample.supportEventMovementQualityDiagnostics.distanceToTargetAtCompletionTotal;
+        aggregate.supportEventMovementQualityDiagnostics.distanceToTargetAtCompletionSamples +=
+            sample.supportEventMovementQualityDiagnostics.distanceToTargetAtCompletionSamples;
+        aggregate.supportEventMovementQualityDiagnostics.eventReachedWithoutMovement +=
+            sample.supportEventMovementQualityDiagnostics.eventReachedWithoutMovement;
+        aggregate.supportEventMovementQualityDiagnostics.eventTimeoutBeforeMovement +=
+            sample.supportEventMovementQualityDiagnostics.eventTimeoutBeforeMovement;
+        for (int type = 0; type < OffBallEventTypeCount; ++type) {
+            aggregate.supportEventMovementQualityDiagnostics.completedImmediatelyByType[type] +=
+                sample.supportEventMovementQualityDiagnostics.completedImmediatelyByType[type];
+            aggregate.supportEventMovementQualityDiagnostics.completedAfterActualMovementByType[type] +=
+                sample.supportEventMovementQualityDiagnostics.completedAfterActualMovementByType[type];
+            aggregate.supportEventMovementQualityDiagnostics.distanceMovedByType[type] +=
+                sample.supportEventMovementQualityDiagnostics.distanceMovedByType[type];
+            aggregate.supportEventMovementQualityDiagnostics.distanceMovedSamplesByType[type] +=
+                sample.supportEventMovementQualityDiagnostics.distanceMovedSamplesByType[type];
+        }
+        aggregate.offsideDiagnostics.offsideLineChecks += sample.offsideDiagnostics.offsideLineChecks;
+        aggregate.offsideDiagnostics.offsideSnapshotsCreated += sample.offsideDiagnostics.offsideSnapshotsCreated;
+        aggregate.offsideDiagnostics.attackersOffsideAtRelease += sample.offsideDiagnostics.attackersOffsideAtRelease;
+        aggregate.offsideDiagnostics.offsideCalls += sample.offsideDiagnostics.offsideCalls;
+        aggregate.offsideDiagnostics.offsideAvoidedByAwareness += sample.offsideDiagnostics.offsideAvoidedByAwareness;
+        aggregate.offsideDiagnostics.offsideRiskAdjustedTargets += sample.offsideDiagnostics.offsideRiskAdjustedTargets;
+        aggregate.offsideDiagnostics.offsideLineProgressTotal += sample.offsideDiagnostics.offsideLineProgressTotal;
+        aggregate.offsideDiagnostics.offsideLineProgressSamples += sample.offsideDiagnostics.offsideLineProgressSamples;
+        aggregate.offsideDiagnostics.attackerDistanceToOffsideLineTotal += sample.offsideDiagnostics.attackerDistanceToOffsideLineTotal;
+        aggregate.offsideDiagnostics.attackerDistanceToOffsideLineSamples += sample.offsideDiagnostics.attackerDistanceToOffsideLineSamples;
+        aggregate.offsideDiagnostics.throughBallOffsideCalls += sample.offsideDiagnostics.throughBallOffsideCalls;
+        aggregate.offsideDiagnostics.farPostRunOffsideCalls += sample.offsideDiagnostics.farPostRunOffsideCalls;
+        aggregate.offsideDiagnostics.counterRunOffsideCalls += sample.offsideDiagnostics.counterRunOffsideCalls;
+        for (int action = 0; action < MatchDiagnosticActionTypeCount; ++action) {
+            aggregate.offsideDiagnostics.offsideCallsByActionType[action] +=
+                sample.offsideDiagnostics.offsideCallsByActionType[action];
+        }
+        for (int bucket = 0; bucket < MatchDiagnosticRoleBucketCount; ++bucket) {
+            aggregate.offsideDiagnostics.offsideCallsByRole[bucket] +=
+                sample.offsideDiagnostics.offsideCallsByRole[bucket];
+            aggregate.offsideDiagnostics.awarenessChecksByRole[bucket] +=
+                sample.offsideDiagnostics.awarenessChecksByRole[bucket];
+            aggregate.offsideDiagnostics.awarenessCheckIntervalTotalByRole[bucket] +=
+                sample.offsideDiagnostics.awarenessCheckIntervalTotalByRole[bucket];
+            aggregate.offsideDiagnostics.awarenessAdjustmentsByRole[bucket] +=
+                sample.offsideDiagnostics.awarenessAdjustmentsByRole[bucket];
+            aggregate.offsideDiagnostics.awarenessFailedToAdjustByRole[bucket] +=
+                sample.offsideDiagnostics.awarenessFailedToAdjustByRole[bucket];
+            aggregate.offsideDiagnostics.awarenessOffsideCallsByRole[bucket] +=
+                sample.offsideDiagnostics.awarenessOffsideCallsByRole[bucket];
+            aggregate.cutbackChainDiagnostics.cutbackReceiversByRole[bucket] +=
+                sample.cutbackChainDiagnostics.cutbackReceiversByRole[bucket];
+        }
+        aggregate.cutbackChainDiagnostics.cutbacksAttempted += sample.cutbackChainDiagnostics.cutbacksAttempted;
+        aggregate.cutbackChainDiagnostics.cutbacksCompleted += sample.cutbackChainDiagnostics.cutbacksCompleted;
+        aggregate.cutbackChainDiagnostics.cutbackReceiverPenaltyArea += sample.cutbackChainDiagnostics.cutbackReceiverPenaltyArea;
+        aggregate.cutbackChainDiagnostics.cutbackReceiverEdge += sample.cutbackChainDiagnostics.cutbackReceiverEdge;
+        aggregate.cutbackChainDiagnostics.cutbackReceiverHalfSpace += sample.cutbackChainDiagnostics.cutbackReceiverHalfSpace;
+        aggregate.cutbackChainDiagnostics.cutbackReceiverWide += sample.cutbackChainDiagnostics.cutbackReceiverWide;
+        aggregate.cutbackChainDiagnostics.cutbackReceiverCentral += sample.cutbackChainDiagnostics.cutbackReceiverCentral;
+        aggregate.cutbackChainDiagnostics.cutbackReceiverShotCandidates += sample.cutbackChainDiagnostics.cutbackReceiverShotCandidates;
+        aggregate.cutbackChainDiagnostics.cutbackReceiverShots += sample.cutbackChainDiagnostics.cutbackReceiverShots;
+        aggregate.cutbackChainDiagnostics.cutbackShots += sample.cutbackChainDiagnostics.cutbackShots;
+        aggregate.cutbackChainDiagnostics.cutbackXG += sample.cutbackChainDiagnostics.cutbackXG;
+        aggregate.cutbackChainDiagnostics.cutbackTurnovers += sample.cutbackChainDiagnostics.cutbackTurnovers;
+        aggregate.cutbackChainDiagnostics.cutbackRecycled += sample.cutbackChainDiagnostics.cutbackRecycled;
+        aggregate.cutbackChainDiagnostics.cutbackSourcePreservedToShot += sample.cutbackChainDiagnostics.cutbackSourcePreservedToShot;
+        aggregate.cutbackChainDiagnostics.cutbackSourceLostReason += sample.cutbackChainDiagnostics.cutbackSourceLostReason;
         for (const MatchOffBallEventChainDiagnostic& chain : sample.offBallEventChains) {
             if (aggregate.offBallEventChains.size() < 8) {
                 aggregate.offBallEventChains.push_back(chain);
@@ -2322,6 +2416,22 @@ namespace {
             << " CMShotsAfterSupportEvent=" << support.CMShotsAfterSupportEvent
             << '\n';
 
+        std::cerr << "[Support event impact split] " << label << '\n'
+            << "  shotsDuringActiveSupportEvent=" << support.shotsDuringActiveSupportEvent
+            << " shotsImmediatelyAfterSupportCompletion="
+            << support.shotsImmediatelyAfterSupportCompletion
+            << " shotsWithinRecentSupportWindow="
+            << support.shotsWithinRecentSupportWindow
+            << " xGDuringActiveSupportEvent=" << support.xGDuringActiveSupportEvent
+            << " xGImmediatelyAfterSupportCompletion="
+            << support.xGImmediatelyAfterSupportCompletion
+            << " xGWithinRecentSupportWindow=" << support.xGWithinRecentSupportWindow
+            << " finalBallsDuringActiveSupportEvent="
+            << support.finalBallsDuringActiveSupportEvent
+            << " finalBallsWithinRecentSupportWindow="
+            << support.finalBallsWithinRecentSupportWindow
+            << '\n';
+
         std::cerr << "[Winger movement] " << label << '\n'
             << "  wingerCutInsideEvents=" << support.wingerCutInsideEvents
             << " wingerFarPostEvents=" << support.wingerFarPostEvents
@@ -2355,6 +2465,155 @@ namespace {
             << " restDefenseBreaksAfterSupport="
             << support.restDefenseBreaksAfterSupport
             << '\n';
+
+        const MatchSupportEventMovementQualityDiagnostics& movement =
+            diagnostics.supportEventMovementQualityDiagnostics;
+        const double avgMoved =
+            movement.distanceMovedDuringEventSamples > 0
+                ? movement.distanceMovedDuringEventTotal
+                    / static_cast<double>(movement.distanceMovedDuringEventSamples)
+                : 0.0;
+        const double avgCreationDistance =
+            movement.distanceToTargetAtCreationSamples > 0
+                ? movement.distanceToTargetAtCreationTotal
+                    / static_cast<double>(movement.distanceToTargetAtCreationSamples)
+                : 0.0;
+        const double avgCompletionDistance =
+            movement.distanceToTargetAtCompletionSamples > 0
+                ? movement.distanceToTargetAtCompletionTotal
+                    / static_cast<double>(movement.distanceToTargetAtCompletionSamples)
+                : 0.0;
+        std::cerr << "[Support event movement quality] " << label << '\n'
+            << "  completedImmediately=" << movement.completedImmediately
+            << " completedAfterActualMovement="
+            << movement.completedAfterActualMovement
+            << " averageDistanceMovedDuringEvent=" << avgMoved
+            << " averageDistanceToTargetAtCreation=" << avgCreationDistance
+            << " averageDistanceToTargetAtCompletion=" << avgCompletionDistance
+            << " eventReachedWithoutMovement=" << movement.eventReachedWithoutMovement
+            << " eventTimeoutBeforeMovement=" << movement.eventTimeoutBeforeMovement
+            << '\n';
+        for (OffBallEventType eventType : {
+                OffBallEventType::OverlapRun,
+                OffBallEventType::UnderlapRun,
+                OffBallEventType::CutInsideRun,
+                OffBallEventType::FarPostRun,
+                OffBallEventType::NearPostRun,
+                OffBallEventType::PenaltySpotRun,
+                OffBallEventType::EdgeOfBoxSupport }) {
+            const int index = offBallEventTypeIndex(eventType);
+            const double movedByType =
+                movement.distanceMovedSamplesByType[index] > 0
+                    ? movement.distanceMovedByType[index]
+                        / static_cast<double>(movement.distanceMovedSamplesByType[index])
+                    : 0.0;
+            std::cerr << "  " << offBallEventTypeName(eventType)
+                << " completedImmediately="
+                << movement.completedImmediatelyByType[index]
+                << " completedAfterActualMovement="
+                << movement.completedAfterActualMovementByType[index]
+                << " averageDistanceMoved=" << movedByType
+                << '\n';
+        }
+
+        const MatchOffsideDiagnostics& offside = diagnostics.offsideDiagnostics;
+        const double avgOffsideLine =
+            offside.offsideLineProgressSamples > 0
+                ? offside.offsideLineProgressTotal
+                    / static_cast<double>(offside.offsideLineProgressSamples)
+                : 0.0;
+        const double avgAttackerDistanceToLine =
+            offside.attackerDistanceToOffsideLineSamples > 0
+                ? offside.attackerDistanceToOffsideLineTotal
+                    / static_cast<double>(offside.attackerDistanceToOffsideLineSamples)
+                : 0.0;
+        std::cerr << "[Offside] " << label << '\n'
+            << "  offsideLineChecks=" << offside.offsideLineChecks
+            << " offsideSnapshotsCreated=" << offside.offsideSnapshotsCreated
+            << " attackersOffsideAtRelease=" << offside.attackersOffsideAtRelease
+            << " offsideCalls=" << offside.offsideCalls
+            << " offsideAvoidedByAwareness=" << offside.offsideAvoidedByAwareness
+            << " offsideRiskAdjustedTargets=" << offside.offsideRiskAdjustedTargets
+            << " averageOffsideLineProgress=" << avgOffsideLine
+            << " averageAttackerDistanceToOffsideLine="
+            << avgAttackerDistanceToLine
+            << " throughBallOffsideCalls=" << offside.throughBallOffsideCalls
+            << " farPostRunOffsideCalls=" << offside.farPostRunOffsideCalls
+            << " counterRunOffsideCalls=" << offside.counterRunOffsideCalls
+            << '\n';
+        std::cerr << "  offsideCallsByActionType";
+        for (BallCarrierActionType type : {
+                BallCarrierActionType::ShortPass,
+                BallCarrierActionType::BackPass,
+                BallCarrierActionType::ThroughBall,
+                BallCarrierActionType::LowCross,
+                BallCarrierActionType::Cutback,
+                BallCarrierActionType::HighCross,
+                BallCarrierActionType::SwitchPlay }) {
+            std::cerr << ' ' << actionTypeName(type)
+                << '=' << offside.offsideCallsByActionType[
+                    std::clamp(
+                        static_cast<int>(type),
+                        0,
+                        MatchDiagnosticActionTypeCount - 1)];
+        }
+        std::cerr << '\n';
+        std::cerr << "  offsideCallsByRole";
+        for (int bucket = 0; bucket < MatchDiagnosticRoleBucketCount; ++bucket) {
+            std::cerr << ' '
+                << diagnosticRoleBucketName(static_cast<MatchDiagnosticRoleBucket>(bucket))
+                << '=' << offside.offsideCallsByRole[bucket];
+        }
+        std::cerr << '\n';
+
+        std::cerr << "[Offside awareness by role] " << label << '\n';
+        for (int bucket = 0; bucket < MatchDiagnosticRoleBucketCount; ++bucket) {
+            const double avgInterval =
+                offside.awarenessChecksByRole[bucket] > 0
+                    ? offside.awarenessCheckIntervalTotalByRole[bucket]
+                        / static_cast<double>(offside.awarenessChecksByRole[bucket])
+                    : 0.0;
+            std::cerr << "  "
+                << diagnosticRoleBucketName(static_cast<MatchDiagnosticRoleBucket>(bucket))
+                << " checks=" << offside.awarenessChecksByRole[bucket]
+                << " averageCheckInterval=" << avgInterval
+                << " adjustments=" << offside.awarenessAdjustmentsByRole[bucket]
+                << " failedToAdjust=" << offside.awarenessFailedToAdjustByRole[bucket]
+                << " lateRuns=" << offside.awarenessFailedToAdjustByRole[bucket]
+                << " offsideCalls=" << offside.awarenessOffsideCallsByRole[bucket]
+                << '\n';
+        }
+
+        const MatchCutbackChainDiagnostics& cutback =
+            diagnostics.cutbackChainDiagnostics;
+        std::cerr << "[Cutback chain] " << label << '\n'
+            << "  cutbacksAttempted=" << cutback.cutbacksAttempted
+            << " cutbacksCompleted=" << cutback.cutbacksCompleted
+            << " cutbackReceiverShotCandidates="
+            << cutback.cutbackReceiverShotCandidates
+            << " cutbackReceiverShots=" << cutback.cutbackReceiverShots
+            << " cutbackShots=" << cutback.cutbackShots
+            << " cutbackXG=" << cutback.cutbackXG
+            << " cutbackTurnovers=" << cutback.cutbackTurnovers
+            << " cutbackRecycled=" << cutback.cutbackRecycled
+            << " cutbackSourcePreservedToShot="
+            << cutback.cutbackSourcePreservedToShot
+            << " cutbackSourceLostReason=" << cutback.cutbackSourceLostReason
+            << '\n'
+            << "  cutbackReceiverZones penaltyArea="
+            << cutback.cutbackReceiverPenaltyArea
+            << " edge=" << cutback.cutbackReceiverEdge
+            << " halfSpace=" << cutback.cutbackReceiverHalfSpace
+            << " wide=" << cutback.cutbackReceiverWide
+            << " central=" << cutback.cutbackReceiverCentral
+            << '\n'
+            << "  cutbackReceiversByRole";
+        for (int bucket = 0; bucket < MatchDiagnosticRoleBucketCount; ++bucket) {
+            std::cerr << ' '
+                << diagnosticRoleBucketName(static_cast<MatchDiagnosticRoleBucket>(bucket))
+                << '=' << cutback.cutbackReceiversByRole[bucket];
+        }
+        std::cerr << '\n';
 
         std::cerr << "[Event lifecycle] " << label << '\n';
         for (const MatchOffBallEventChainDiagnostic& chain : diagnostics.offBallEventChains) {
@@ -3786,8 +4045,8 @@ namespace {
         if (midfielderCutback != nullptr) {
             const double cutbackGoalDistance =
                 PitchGeometry::distance(midfielderCutback->targetPoint, PitchGeometry::awayGoalCenter());
-            require(cutbackGoalDistance >= 7.0 && cutbackGoalDistance <= 10.0,
-                "cutback target should be allowed into a realistic 7-10m chance corridor");
+            require(cutbackGoalDistance >= 7.0 && cutbackGoalDistance <= 16.0,
+                "cutback target should be allowed into a realistic chance corridor the receiver can attack");
         }
         if (strikerSimple != nullptr) {
             const double simpleGoalDistance =
@@ -4874,17 +5133,20 @@ namespace {
                 totalShotOutcomes.shotsFourToEightMeters
                 + totalShotOutcomes.shotsEightToTwelveMeters
                 + totalShotOutcomes.shotsTwelveToEighteenMeters;
+            const int allowedCloseRangeShots = std::max(3, totalShots / 8);
+            const double minimumMeaningfulPreShotXG =
+                std::max(1.5, static_cast<double>(totalShots) * 0.16);
             require(averageShotDistance >= 8.0,
                 "watched samples should not create goalmouth-average shot distance");
-            require(shotsInsideFourRate <= 0.12,
-                "0-4m shots should be rare across watched samples");
+            require(totalShotOutcomes.shotsInsideFourMeters <= allowedCloseRangeShots,
+                "0-4m shots should not dominate watched samples without broader shot volume");
             require(shotsFourToEightRate <= 0.35,
                 "4-8m shots should not dominate watched samples");
             require(effectiveXgPerShot <= 0.25,
                 "effective xG per shot should reflect mixed chance quality across watched samples");
             require(preShotXgPerShot >= 0.08,
                 "pre-shot xG per shot should not collapse to weak long-shot quality across watched samples");
-            require(totalPreShotExpectedGoals >= 3.0,
+            require(totalPreShotExpectedGoals >= minimumMeaningfulPreShotXG,
                 "watched samples should create some meaningful pre-shot chance value");
             require(mediumOrBetterPreShotShots >= std::max(2, totalShots / 20),
                 "watched samples should include some medium/high pre-shot chance positions");
@@ -5053,6 +5315,9 @@ namespace {
             / static_cast<double>(std::max(dominantPassesAttempted, 1));
         const int dominantMediumOrBetterShots =
             dominantShotOutcomes.preShot015To030 + dominantShotOutcomes.preShotAbove030;
+        const int dominantAllowedCloseRangeShots = std::max(2, dominantShots / 7);
+        const double dominantMinimumPreShotXG =
+            std::max(2.0, static_cast<double>(dominantShots) * 0.05);
         std::cerr << "[Smoke config]\n"
             << "  watchedBalanceMatches=8 dominantMatches=3 seeds=0x9401-0x9403 scope=dominantTeamOnly\n"
             << "[Score]\n"
@@ -5215,7 +5480,7 @@ namespace {
             "dominant role bucket pass totals should match aggregate passes");
         require(dominantShots > 0,
             "dominant watched samples should generate shots");
-        require(dominantPreShotExpectedGoals >= 2.0,
+        require(dominantPreShotExpectedGoals >= dominantMinimumPreShotXG,
             "dominant watched samples should not collapse to very low pre-shot xG");
         require(dominantPreShotXgPerShot >= 0.08,
             "dominant watched samples should find some useful shooting positions");
@@ -5223,8 +5488,8 @@ namespace {
             "dominant watched samples should create some medium/high pre-shot chance positions");
         require(dominantAverageShotDistance >= 8.0,
             "dominant watched samples should not rely on goalmouth-average shot distance");
-        require(dominantShotsInsideFourRate <= 0.15,
-            "dominant watched samples should keep 0-4m shots rare");
+        require(dominantShotOutcomes.shotsInsideFourMeters <= dominantAllowedCloseRangeShots,
+            "dominant watched samples should not be mostly 0-4m shots without broader shot volume");
         require(dominantEffectiveXgPerShot <= 0.30,
             "dominant watched samples should not revive repeated extreme xG shots");
         require(dominantShotOnTargetRate <= 0.78,

@@ -18,6 +18,8 @@ public:
     const OffBallSupportEvent* activeEventForPlayer(PlayerId playerId) const;
     bool hasActiveEventForPlayer(PlayerId playerId) const;
     bool hadRecentSupportEvent(PlayerId playerId, int currentSecond, int windowSeconds = 12) const;
+    bool hadCompletedSupportEventWithin(PlayerId playerId, int currentSecond, int windowSeconds) const;
+    bool hadImmediateSupportCompletion(PlayerId playerId, int currentSecond, int windowSeconds = 2) const;
 
     OffBallLifecycleResult addEvents(
         const std::vector<OffBallSupportEvent>& events,

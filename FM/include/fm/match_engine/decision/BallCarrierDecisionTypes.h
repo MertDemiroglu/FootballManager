@@ -21,7 +21,8 @@ enum class PassOptionKind {
 enum class CarryOptionKind {
     SafeCarry,
     ProgressiveCarry,
-    Dribble
+    Dribble,
+    CutInside
 };
 
 enum class ShotOptionKind {

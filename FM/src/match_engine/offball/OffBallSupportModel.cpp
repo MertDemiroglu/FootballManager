@@ -69,6 +69,18 @@ namespace {
         return nullptr;
     }
 
+    PlayerAttributes attributesFor(const MatchTeamSnapshot* snapshot, PlayerId playerId) {
+        if (snapshot == nullptr) {
+            return PlayerAttributes{};
+        }
+        for (const MatchPlayerSnapshot& player : snapshot->players) {
+            if (player.playerId == playerId) {
+                return player.attributes;
+            }
+        }
+        return PlayerAttributes{};
+    }
+
     SupportRegion regionFromProgress(
         AttackingDirection direction,
         double minProgress,
@@ -333,8 +345,8 @@ OffBallSupportModelResult OffBallSupportModel::evaluate(
                     playerContext.role == FormationSlotRole::Striker
                         ? centralRegion(
                             request.attackingDirection,
-                            std::min(PitchGeometry::LengthMeters - 19.0, ballProgress + 14.0),
-                            std::min(PitchGeometry::LengthMeters - 11.0, ballProgress + 31.0),
+                            std::min(PitchGeometry::LengthMeters - 18.0, ballProgress + 14.0),
+                            std::min(PitchGeometry::LengthMeters - 7.0, ballProgress + 31.0),
                             0.34,
                             SupportRegionDepth::Box,
                             playerContext.role)
@@ -342,7 +354,7 @@ OffBallSupportModelResult OffBallSupportModel::evaluate(
                             request.attackingDirection,
                             rightRole,
                             std::min(PitchGeometry::LengthMeters - 22.0, ballProgress + 12.0),
-                            std::min(PitchGeometry::LengthMeters - 11.0, ballProgress + 34.0),
+                            std::min(PitchGeometry::LengthMeters - 7.0, ballProgress + 34.0),
                             SupportRegionDepth::Box,
                             playerContext.role),
                     "counter lane ahead",
@@ -409,7 +421,7 @@ OffBallSupportModelResult OffBallSupportModel::evaluate(
                             request.attackingDirection,
                             rightSideBall,
                             std::min(PitchGeometry::LengthMeters - 25.0, ballProgress + 3.0),
-                            PitchGeometry::LengthMeters - 11.0,
+                            PitchGeometry::LengthMeters - 8.0,
                             SupportRegionDepth::Box,
                             playerContext.role),
                     type == OffBallEventType::OverlapRun
@@ -431,8 +443,8 @@ OffBallSupportModelResult OffBallSupportModel::evaluate(
                     OffBallEventType::FarPostRun,
                     regionFromProgress(
                         request.attackingDirection,
-                        PitchGeometry::LengthMeters - 19.0,
-                        PitchGeometry::LengthMeters - 11.0,
+                        PitchGeometry::LengthMeters - 17.0,
+                        PitchGeometry::LengthMeters - 6.0,
                         rightRole
                             ? PitchGeometry::WidthMeters * 0.56
                             : PitchGeometry::WidthMeters * 0.20,
@@ -453,8 +465,8 @@ OffBallSupportModelResult OffBallSupportModel::evaluate(
                     halfSpaceRegion(
                         request.attackingDirection,
                         rightRole,
-                        std::min(PitchGeometry::LengthMeters - 26.0, ballProgress + 4.0),
-                        PitchGeometry::LengthMeters - 12.0,
+                        std::min(PitchGeometry::LengthMeters - 25.0, ballProgress + 4.0),
+                        PitchGeometry::LengthMeters - 8.0,
                         SupportRegionDepth::Edge,
                         playerContext.role),
                     "ball-side winger inside lane",
@@ -476,15 +488,15 @@ OffBallSupportModelResult OffBallSupportModel::evaluate(
                 type == OffBallEventType::PenaltySpotRun
                     ? centralRegion(
                         request.attackingDirection,
-                        PitchGeometry::LengthMeters - 19.0,
-                        PitchGeometry::LengthMeters - 11.0,
+                        PitchGeometry::LengthMeters - 18.0,
+                        PitchGeometry::LengthMeters - 8.0,
                         0.25,
                         SupportRegionDepth::Box,
                         playerContext.role)
                     : regionFromProgress(
                         request.attackingDirection,
-                        PitchGeometry::LengthMeters - 18.0,
-                        PitchGeometry::LengthMeters - 11.0,
+                        PitchGeometry::LengthMeters - 16.0,
+                        PitchGeometry::LengthMeters - 7.0,
                         ballOnLeft(request.teamContext)
                             ? PitchGeometry::WidthMeters * 0.28
                             : PitchGeometry::WidthMeters * 0.44,
@@ -580,15 +592,27 @@ OffBallSupportModelResult OffBallSupportModel::evaluate(
         if (player == nullptr || context == nullptr) {
             continue;
         }
-        event.resolvedTargetPoint = targetResolver_.resolve(OffBallTargetResolveRequest{
+        event.startPosition = player->position;
+        const OffBallTargetResolveResult target = targetResolver_.resolve(OffBallTargetResolveRequest{
             event,
             *player,
             *context,
             request.team->players,
             request.opponent->players,
             request.teamContext.ballPosition,
-            request.attackingDirection
+            request.attackingDirection,
+            attributesFor(request.teamSnapshot, event.playerId),
+            request.offsideLine,
+            request.currentSecond
         });
+        event.resolvedTargetPoint = target.targetPoint;
+        event.distanceToTargetAtCreation =
+            PitchGeometry::distance(event.startPosition, event.resolvedTargetPoint);
+        event.offsideAwarenessChecked = target.offsideAwareness.checked;
+        event.offsideAwarenessAdjusted = target.offsideAwareness.adjusted;
+        event.offsideAwarenessFailedToAdjust = target.offsideAwareness.failedToAdjust;
+        event.offsideAwarenessCheckInterval = target.offsideAwareness.checkIntervalSeconds;
+        event.distanceToOffsideLineAtTarget = target.offsideAwareness.distanceToOffsideLine;
         result.events.push_back(event);
     }
 

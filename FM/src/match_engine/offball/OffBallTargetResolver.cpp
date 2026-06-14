@@ -142,7 +142,7 @@ namespace {
     }
 }
 
-PitchPoint OffBallTargetResolver::resolve(
+OffBallTargetResolveResult OffBallTargetResolver::resolve(
     const OffBallTargetResolveRequest& request) const {
     const SupportRegion region = clampSupportRegion(request.event.targetRegion);
     PitchPoint bestPoint = region.center();
@@ -179,10 +179,6 @@ PitchPoint OffBallTargetResolver::resolve(
                 std::max(14.0, request.player.effectivePace * request.event.maxDurationSeconds * 0.95);
             const double feasibilityPenalty =
                 std::max(0.0, feasibilityDistance - feasibleDistance) * 1.6;
-            const double goalDistance = PitchGeometry::distance(
-                candidate,
-                goalCenter(request.attackingDirection));
-
             double score = 0.0;
             score += std::clamp(teammateDistance * 3.0, 0.0, 42.0);
             if (teammateDistance < 5.0) {
@@ -201,13 +197,6 @@ PitchPoint OffBallTargetResolver::resolve(
                 request.ballPosition,
                 request.opponents,
                 request.attackingDirection);
-
-            if (shootingRelevance(request.event.eventType) > 0.0) {
-                score += std::max(0.0, 24.0 - std::abs(goalDistance - 15.5) * 1.15);
-                if (goalDistance < 11.0) {
-                    score -= (11.0 - goalDistance) * 32.0;
-                }
-            }
 
             if (request.event.eventType == OffBallEventType::BackPassSupport
                 || request.event.eventType == OffBallEventType::RestDefenseHold
@@ -230,5 +219,17 @@ PitchPoint OffBallTargetResolver::resolve(
         }
     }
 
-    return bestPoint;
+    OffsideAwarenessResult awareness =
+        OffsideAwarenessModel{}.evaluate(OffsideAwarenessRequest{
+            request.player.playerId,
+            request.playerContext.role,
+            request.attributes,
+            request.player.position,
+            bestPoint,
+            request.ballPosition,
+            request.attackingDirection,
+            request.offsideLine,
+            request.currentSecond
+        });
+    return OffBallTargetResolveResult{ awareness.targetPoint, awareness };
 }
