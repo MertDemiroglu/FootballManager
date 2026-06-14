@@ -75,6 +75,7 @@ struct PassDecisionTuning {
     double switchPlayProgressionBonus = 7.0;
     double throughBallProgressionBonus = 13.0;
     double crossOrCutbackProgressionBonus = 10.0;
+    double offsideRiskScorePenalty = 0.62;
     double backPassProgressionMultiplier = 0.18;
     double centralSimpleReceptionMinimumGoalDistance = 11.0;
     double centralThroughBallMinimumGoalDistance = 8.5;
@@ -149,7 +150,12 @@ struct ShotDecisionTuning {
     double closeDefenderSmotherDistance = 1.5;
     double closeDefenderPressureDistance = 4.5;
     double closeDefenderSmotherPressure = 42.0;
+    double closeDefenderOverlapCollisionDistance = 0.25;
+    double closeDefenderOverlapCollisionPressure = 24.0;
     double closeDefenderPressureScale = 18.0;
+    double receivedFinalBallShotContextBonus = 14.0;
+    double receivedCutbackShotContextBonus = 11.0;
+    double finalBallReceiverMinimumXG = 0.024;
     double clearChanceMinimumDefenderDistance = 1.75;
     double riskToleranceMinimum = 0.45;
     double riskToleranceMaximum = 1.35;

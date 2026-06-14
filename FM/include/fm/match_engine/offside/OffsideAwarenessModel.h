@@ -5,8 +5,8 @@
 class OffsideAwarenessModel {
 public:
     OffsideAwarenessResult evaluate(const OffsideAwarenessRequest& request) const;
+    OffsideRiskResult evaluateRisk(const OffsideRiskRequest& request) const;
 
 private:
     OffsideAwarenessTuning tuning_;
 };
-

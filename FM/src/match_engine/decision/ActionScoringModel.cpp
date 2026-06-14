@@ -200,10 +200,12 @@ ActionCandidate ActionScoringModel::buildShotCandidate(
     breakdown.pressureCost = option.pressurePenalty * scoring.pressurePenaltyToPressureCost
         / std::max(scoring.riskToleranceMinimum, role.shotRiskTolerance);
     if (option.estimatedXG < scoring.nonClearChanceXG) {
-        if (context.player.possession.safeCirculationAvailable) {
+        if (context.player.possession.safeCirculationAvailable
+            && !context.player.receivedFinalBall) {
             breakdown.turnoverRiskCost += scoring.safeCirculationShotCost;
         }
-        if (context.player.possession.possessionActionCount <= 2) {
+        if (context.player.possession.possessionActionCount <= 2
+            && !context.player.receivedFinalBall) {
             breakdown.turnoverRiskCost += scoring.earlyActionShotCost;
         }
     }

@@ -81,19 +81,6 @@ OffsideResolveResult OffsideResolver::resolve(const OffsideResolveRequest& reque
         return result;
     }
 
-    if (request.snapshot->actionType == BallCarrierActionType::ShortPass) {
-        const double forward =
-            progress(request.snapshot->targetPoint, request.snapshot->attackingDirection)
-            - progress(request.snapshot->passStartPoint, request.snapshot->attackingDirection);
-        const double targetProgress =
-            progress(request.snapshot->targetPoint, request.snapshot->attackingDirection);
-        const bool lineBreakingFinalThirdPass =
-            targetProgress >= PitchGeometry::LengthMeters * 0.70 && forward > 18.0;
-        if (!lineBreakingFinalThirdPass) {
-            return result;
-        }
-    }
-
     for (const OffsidePlayerAtRelease& player : request.snapshot->attackersOffsideAtRelease) {
         if (player.playerId == request.activeAttackerId) {
             result.offside = true;

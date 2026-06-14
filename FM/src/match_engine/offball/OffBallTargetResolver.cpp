@@ -99,26 +99,6 @@ namespace {
         return 0.0;
     }
 
-    double offsidePenalty(
-        PitchPoint point,
-        PitchPoint ballPosition,
-        const std::vector<PlayerSimState>& opponents,
-        AttackingDirection direction) {
-        if (opponents.size() < 2) {
-            return 0.0;
-        }
-
-        std::vector<double> defenderProgress;
-        defenderProgress.reserve(opponents.size());
-        for (const PlayerSimState& opponent : opponents) {
-            defenderProgress.push_back(progress(opponent.position, direction));
-        }
-        std::sort(defenderProgress.begin(), defenderProgress.end(), std::greater<double>());
-        const double secondLastLine = defenderProgress[1];
-        const double offsideLine = std::max(secondLastLine, progress(ballPosition, direction));
-        return progress(point, direction) > offsideLine + 0.8 ? 28.0 : 0.0;
-    }
-
     double shootingRelevance(OffBallEventType type) {
         switch (type) {
         case OffBallEventType::CutInsideRun:
@@ -192,11 +172,6 @@ OffBallTargetResolveResult OffBallTargetResolver::resolve(
             score += shootingLane * 0.20 * shootingRelevance(request.event.eventType);
             score += roleLaneScore(request.playerContext.role, candidate);
             score -= feasibilityPenalty;
-            score -= offsidePenalty(
-                candidate,
-                request.ballPosition,
-                request.opponents,
-                request.attackingDirection);
 
             if (request.event.eventType == OffBallEventType::BackPassSupport
                 || request.event.eventType == OffBallEventType::RestDefenseHold

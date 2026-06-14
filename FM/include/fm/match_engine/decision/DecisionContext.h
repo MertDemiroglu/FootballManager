@@ -87,4 +87,6 @@ struct PlayerDecisionContext {
     PossessionContext possession;
     DefensiveContext defensive;
     double localPressure = 0.0;
+    bool receivedFinalBall = false;
+    bool receivedCutback = false;
 };

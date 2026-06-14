@@ -28,8 +28,8 @@ struct OffsideAwarenessTuning {
     double poorCheckIntervalSeconds = 1.15;
     double lineBufferMeters = 0.65;
     double safeMarginMeters = 0.45;
-    double minimumAdjustmentChance = 0.34;
-    double maximumAdjustmentChance = 0.88;
+    double minimumAdjustmentChance = 0.46;
+    double maximumAdjustmentChance = 0.94;
 };
 
 struct OffsideAwarenessRequest {
@@ -42,6 +42,24 @@ struct OffsideAwarenessRequest {
     AttackingDirection attackingDirection = AttackingDirection::HomeToAway;
     OffsideLineResult line;
     int currentSecond = 0;
+};
+
+struct OffsideRiskRequest {
+    FormationSlotRole role = FormationSlotRole::Unknown;
+    PlayerAttributes receiverAttributes;
+    PlayerAttributes passerAttributes;
+    PitchPoint receiverPosition;
+    PitchPoint targetPoint;
+    PitchPoint ballPosition;
+    AttackingDirection attackingDirection = AttackingDirection::HomeToAway;
+    OffsideLineResult line;
+};
+
+struct OffsideRiskResult {
+    bool risky = false;
+    double riskScore = 0.0;
+    double distanceBeyondLine = 0.0;
+    double receiverDistanceToLine = 0.0;
 };
 
 struct OffsideAwarenessResult {

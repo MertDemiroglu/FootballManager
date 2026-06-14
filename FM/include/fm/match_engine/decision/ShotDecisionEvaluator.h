@@ -35,6 +35,8 @@ struct ShotOptionEvaluationContext {
     int possessionActionCount = 0;
     double ballProgression = 0.0;
     bool safeCirculationAvailable = false;
+    bool receivedFinalBall = false;
+    bool receivedCutback = false;
 };
 
 class ShotDecisionEvaluator {
