@@ -4,6 +4,7 @@
 #include"fm/match_engine/decision/ActionSelector.h"
 #include"fm/match_engine/decision/BallCarrierDecisionModel.h"
 #include"fm/match_engine/decision/DecisionTuningProfile.h"
+#include"fm/match_engine/decision/PhaseDecisionContext.h"
 #include"fm/match_engine/ball/BallTrajectoryBuilder.h"
 #include"fm/match_engine/ball/LooseBallRecoveryModel.h"
 #include"fm/match_engine/ball/PassResolutionFlow.h"
@@ -176,6 +177,9 @@ namespace {
     };
 
     bool isPassLike(BallCarrierActionType type);
+    bool isCarryLike(BallCarrierActionType type);
+    bool isFinalBall(BallCarrierActionType type);
+    double forwardMetersForDirection(PitchPoint from, PitchPoint to, AttackingDirection direction);
 
     PitchPoint pitchCenter() {
         return PitchPoint{
@@ -641,6 +645,149 @@ namespace {
         }
     }
 
+    void recordPhaseDecisionCandidates(
+        MatchEngineResult& result,
+        MatchTeamPhase phase,
+        const std::vector<ActionCandidate>& candidates) {
+        PhaseDecisionDiagnostics& diagnostics = result.phaseDiagnostics.phaseDecisionDiagnostics;
+        const int index = matchTeamPhaseIndex(phase);
+        for (const ActionCandidate& candidate : candidates) {
+            if (isPassLike(candidate.type)) {
+                ++diagnostics.passCandidatesGenerated[index];
+                if (isFinalBall(candidate.type)) {
+                    ++diagnostics.finalBallCandidatesGenerated[index];
+                }
+            } else if (isCarryLike(candidate.type)) {
+                ++diagnostics.carryCandidatesGenerated[index];
+            } else if (candidate.type == BallCarrierActionType::Shoot) {
+                ++diagnostics.shotCandidatesGenerated[index];
+            }
+        }
+    }
+
+    void recordPhaseTargetRole(
+        PhaseDecisionDiagnostics& diagnostics,
+        int phaseIndex,
+        FormationSlotRole targetRole) {
+        switch (phaseDecisionRoleBucket(targetRole)) {
+        case PhaseDecisionRoleBucket::CenterBack:
+            ++diagnostics.selectedCBTargets[phaseIndex];
+            break;
+        case PhaseDecisionRoleBucket::Fullback:
+            ++diagnostics.selectedFBTargets[phaseIndex];
+            break;
+        case PhaseDecisionRoleBucket::DefensiveOrCentralMidfielder:
+            ++diagnostics.selectedDMCMTargets[phaseIndex];
+            break;
+        case PhaseDecisionRoleBucket::Winger:
+            ++diagnostics.selectedWingerTargets[phaseIndex];
+            break;
+        case PhaseDecisionRoleBucket::Striker:
+            ++diagnostics.selectedSTTargets[phaseIndex];
+            break;
+        case PhaseDecisionRoleBucket::Other:
+            break;
+        }
+    }
+
+    void recordPhaseDecisionSelection(
+        MatchEngineResult& result,
+        MatchTeamPhase phase,
+        const ActionCandidate& action,
+        FormationSlotRole carrierRole,
+        FormationSlotRole targetRole,
+        PitchPoint ballPosition,
+        AttackingDirection attackingDirection) {
+        PhaseDecisionDiagnostics& diagnostics = result.phaseDiagnostics.phaseDecisionDiagnostics;
+        const int phaseIndex = matchTeamPhaseIndex(phase);
+        const double forward = forwardMetersForDirection(
+            ballPosition,
+            action.intendedTarget,
+            attackingDirection);
+        const bool recycle =
+            action.type == BallCarrierActionType::BackPass
+            || (isPassLike(action.type) && forward <= -1.0);
+        const bool progressivePass = isPassLike(action.type) && forward >= 6.0;
+
+        if (isPassLike(action.type)) {
+            ++diagnostics.selectedPasses[phaseIndex];
+            if (isFinalBall(action.type)) {
+                ++diagnostics.selectedFinalBalls[phaseIndex];
+            }
+            if (recycle) {
+                ++diagnostics.selectedRecyclePasses[phaseIndex];
+            }
+            if (progressivePass) {
+                ++diagnostics.selectedProgressivePasses[phaseIndex];
+            }
+            recordPhaseTargetRole(diagnostics, phaseIndex, targetRole);
+        } else if (isCarryLike(action.type)) {
+            ++diagnostics.selectedCarries[phaseIndex];
+        } else if (action.type == BallCarrierActionType::Shoot) {
+            ++diagnostics.selectedShots[phaseIndex];
+        }
+
+        if (phase == MatchTeamPhase::BuildUp) {
+            if (isPassLike(action.type)) {
+                ++diagnostics.buildUpPassesByRole[
+                    phaseDecisionRoleBucketIndex(phaseDecisionRoleBucket(carrierRole))];
+                if (targetRole != FormationSlotRole::Unknown) {
+                    ++diagnostics.buildUpReceptionsByRole[
+                        phaseDecisionRoleBucketIndex(phaseDecisionRoleBucket(targetRole))];
+                }
+                if (targetRole == FormationSlotRole::Striker) {
+                    ++diagnostics.buildUpSTTargets;
+                }
+                const PhaseDecisionRoleBucket targetBucket = phaseDecisionRoleBucket(targetRole);
+                if (targetBucket == PhaseDecisionRoleBucket::CenterBack
+                    || targetBucket == PhaseDecisionRoleBucket::Fullback
+                    || targetBucket == PhaseDecisionRoleBucket::DefensiveOrCentralMidfielder) {
+                    ++diagnostics.buildUpCBFBDMCMTargets;
+                }
+            }
+            if (action.type == BallCarrierActionType::Shoot) {
+                ++diagnostics.buildUpShots;
+            }
+            if (isFinalBall(action.type)) {
+                ++diagnostics.buildUpFinalBalls;
+            }
+        }
+
+        if (phase == MatchTeamPhase::FinalizingPosition) {
+            if (action.type == BallCarrierActionType::Shoot) {
+                ++diagnostics.finalizingShotsByRole[
+                    phaseDecisionRoleBucketIndex(phaseDecisionRoleBucket(carrierRole))];
+            }
+            if (isFinalBall(action.type)) {
+                ++diagnostics.finalizingFinalBallsByRole[
+                    phaseDecisionRoleBucketIndex(phaseDecisionRoleBucket(carrierRole))];
+            }
+            if (targetRole == FormationSlotRole::Striker) {
+                ++diagnostics.finalizingSTTargets;
+            }
+            const PhaseDecisionRoleBucket carrierBucket = phaseDecisionRoleBucket(carrierRole);
+            const PhaseDecisionRoleBucket targetBucket = phaseDecisionRoleBucket(targetRole);
+            if (carrierBucket == PhaseDecisionRoleBucket::Winger
+                || carrierBucket == PhaseDecisionRoleBucket::DefensiveOrCentralMidfielder
+                || targetBucket == PhaseDecisionRoleBucket::Winger
+                || targetBucket == PhaseDecisionRoleBucket::DefensiveOrCentralMidfielder) {
+                ++diagnostics.finalizingWingerCMInvolvement;
+            }
+        }
+
+        if (phase == MatchTeamPhase::CounterAttack) {
+            if (isPassLike(action.type) && forward >= 6.0) {
+                ++diagnostics.counterSelectedForwardPasses;
+            }
+            if (isCarryLike(action.type)) {
+                ++diagnostics.counterSelectedCarries;
+            }
+            if (recycle) {
+                ++diagnostics.counterSelectedRecyclePasses;
+            }
+        }
+    }
+
     void recordPhaseTurnover(MatchEngineResult& result, MatchTeamPhase phase) {
         ++result.phaseDiagnostics.turnoversByPhase[matchTeamPhaseIndex(phase)];
     }
@@ -848,6 +995,17 @@ namespace {
         }
 
         return FormationSlotRole::Unknown;
+    }
+
+    const PlayerGameContext* playerGameContextFor(
+        const std::vector<PlayerGameContext>& contexts,
+        PlayerId playerId) {
+        for (const PlayerGameContext& context : contexts) {
+            if (context.playerId == playerId) {
+                return &context;
+            }
+        }
+        return nullptr;
     }
 
     bool isAssignedGoalkeeper(const MatchEngineInput& input, TeamId teamId, PlayerId playerId) {
@@ -1181,6 +1339,19 @@ namespace {
         }
 
         return false;
+    }
+
+    bool isCarryLike(BallCarrierActionType type) {
+        return type == BallCarrierActionType::Carry
+            || type == BallCarrierActionType::Dribble
+            || type == BallCarrierActionType::CutInside;
+    }
+
+    bool isFinalBall(BallCarrierActionType type) {
+        return type == BallCarrierActionType::ThroughBall
+            || type == BallCarrierActionType::LowCross
+            || type == BallCarrierActionType::HighCross
+            || type == BallCarrierActionType::Cutback;
     }
 
     BallTrajectoryType trajectoryTypeFor(BallCarrierActionType type) {
@@ -2815,6 +2986,8 @@ namespace {
         const MatchEngineInput& input,
         const TeamShapeContext& carrierShapeContext,
         MatchTeamPhase carrierPhase,
+        const TeamGameContext& carrierTeamGameContext,
+        const std::vector<PlayerGameContext>& carrierPlayerGameContexts,
         const BallTrajectoryBuilder& trajectoryBuilder,
         const BallCarrierDecisionModel& decisionModel,
         const ActionSelector& selector,
@@ -2848,6 +3021,9 @@ namespace {
             carrierRole,
             carrierTeamState->players,
             opponentState->players);
+        const PlayerGameContext* carrierGameContext = playerGameContextFor(
+            carrierPlayerGameContexts,
+            carrier->playerId);
         const std::vector<ActionCandidate> candidates = decisionModel.evaluate(
             BallCarrierDecisionModelContext{
                 carrierSnapshot,
@@ -2856,8 +3032,12 @@ namespace {
                 opponentState,
                 carrier,
                 carrierShapeContext.attackingDirection,
-                playerDecisionContext
+                playerDecisionContext,
+                carrierPhase,
+                &carrierTeamGameContext,
+                carrierGameContext
             });
+        recordPhaseDecisionCandidates(result, carrierPhase, candidates);
         const ActionSelectionResult selection = selector.select(ActionSelectionRequest{
             candidates,
             playerSnapshot != nullptr ? playerSnapshot->attributes : PlayerAttributes{},
@@ -2880,6 +3060,18 @@ namespace {
 
         const ActionCandidate action = *selection.selected;
         const BallCarrierActionType actionType = action.type;
+        const FormationSlotRole targetRole =
+            action.targetPlayerId != 0
+                ? assignedRoleFor(carrierSnapshot->teamSheet, action.targetPlayerId)
+                : FormationSlotRole::Unknown;
+        recordPhaseDecisionSelection(
+            result,
+            carrierPhase,
+            action,
+            carrierRole,
+            targetRole,
+            state.ball.position,
+            carrierShapeContext.attackingDirection);
         ++state.possession.actionDepth;
         double executionPressure = isPassLike(actionType)
             ? std::max(
@@ -4557,8 +4749,6 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
             input.awayTeam.teamSheet,
             awayTargets,
             state.ball.position);
-        (void)homePlayerContexts;
-        (void)awayPlayerContexts;
 
         const std::vector<ResolvedPlayerIntent> homeIntents = resolveTeamIntents(
             intentResolver,
@@ -4614,12 +4804,22 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
                 state.ball.carrierTeamId == state.homeTeam.teamId
                     ? actingTeamPhaseForDiagnostics(state.homeTeam, state)
                     : actingTeamPhaseForDiagnostics(state.awayTeam, state);
+            const TeamGameContext& carrierTeamGameContext =
+                state.ball.carrierTeamId == state.homeTeam.teamId
+                    ? homeGameContext
+                    : awayGameContext;
+            const std::vector<PlayerGameContext>& carrierPlayerGameContexts =
+                state.ball.carrierTeamId == state.homeTeam.teamId
+                    ? homePlayerContexts
+                    : awayPlayerContexts;
             step = executeControlledAction(
                 state,
                 result,
                 input,
                 carrierContext,
                 carrierPhase,
+                carrierTeamGameContext,
+                carrierPlayerGameContexts,
                 trajectoryBuilder,
                 ballCarrierDecisionModel,
                 actionSelector,

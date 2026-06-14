@@ -3,6 +3,7 @@
 #include"fm/common/Types.h"
 #include"fm/match/MatchReport.h"
 #include"fm/match_engine/MatchEngineTypes.h"
+#include"fm/match_engine/decision/PhaseDecisionContext.h"
 #include"fm/match_engine/phase/MatchPhaseTypes.h"
 
 #include<array>
@@ -239,6 +240,7 @@ struct MatchPhaseDiagnostics {
     double ballFlankRightPossessionSeconds = 0.0;
 
     bool defaultFormationFourThreeThree = false;
+    PhaseDecisionDiagnostics phaseDecisionDiagnostics;
     std::vector<MatchTeamPhaseDiagnostic> teamDiagnostics;
 };
 

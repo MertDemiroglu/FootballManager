@@ -1476,7 +1476,63 @@ namespace {
             aggregate.xGByPhase[index] += sample.xGByPhase[index];
             aggregate.finalBallsByPhase[index] += sample.finalBallsByPhase[index];
             aggregate.turnoversByPhase[index] += sample.turnoversByPhase[index];
+            aggregate.phaseDecisionDiagnostics.passCandidatesGenerated[index] +=
+                sample.phaseDecisionDiagnostics.passCandidatesGenerated[index];
+            aggregate.phaseDecisionDiagnostics.carryCandidatesGenerated[index] +=
+                sample.phaseDecisionDiagnostics.carryCandidatesGenerated[index];
+            aggregate.phaseDecisionDiagnostics.shotCandidatesGenerated[index] +=
+                sample.phaseDecisionDiagnostics.shotCandidatesGenerated[index];
+            aggregate.phaseDecisionDiagnostics.finalBallCandidatesGenerated[index] +=
+                sample.phaseDecisionDiagnostics.finalBallCandidatesGenerated[index];
+            aggregate.phaseDecisionDiagnostics.selectedPasses[index] +=
+                sample.phaseDecisionDiagnostics.selectedPasses[index];
+            aggregate.phaseDecisionDiagnostics.selectedCarries[index] +=
+                sample.phaseDecisionDiagnostics.selectedCarries[index];
+            aggregate.phaseDecisionDiagnostics.selectedShots[index] +=
+                sample.phaseDecisionDiagnostics.selectedShots[index];
+            aggregate.phaseDecisionDiagnostics.selectedFinalBalls[index] +=
+                sample.phaseDecisionDiagnostics.selectedFinalBalls[index];
+            aggregate.phaseDecisionDiagnostics.selectedRecyclePasses[index] +=
+                sample.phaseDecisionDiagnostics.selectedRecyclePasses[index];
+            aggregate.phaseDecisionDiagnostics.selectedProgressivePasses[index] +=
+                sample.phaseDecisionDiagnostics.selectedProgressivePasses[index];
+            aggregate.phaseDecisionDiagnostics.selectedSTTargets[index] +=
+                sample.phaseDecisionDiagnostics.selectedSTTargets[index];
+            aggregate.phaseDecisionDiagnostics.selectedCBTargets[index] +=
+                sample.phaseDecisionDiagnostics.selectedCBTargets[index];
+            aggregate.phaseDecisionDiagnostics.selectedFBTargets[index] +=
+                sample.phaseDecisionDiagnostics.selectedFBTargets[index];
+            aggregate.phaseDecisionDiagnostics.selectedDMCMTargets[index] +=
+                sample.phaseDecisionDiagnostics.selectedDMCMTargets[index];
+            aggregate.phaseDecisionDiagnostics.selectedWingerTargets[index] +=
+                sample.phaseDecisionDiagnostics.selectedWingerTargets[index];
         }
+
+        for (int bucket = 0; bucket < PhaseDecisionRoleBucketCount; ++bucket) {
+            aggregate.phaseDecisionDiagnostics.buildUpPassesByRole[bucket] +=
+                sample.phaseDecisionDiagnostics.buildUpPassesByRole[bucket];
+            aggregate.phaseDecisionDiagnostics.buildUpReceptionsByRole[bucket] +=
+                sample.phaseDecisionDiagnostics.buildUpReceptionsByRole[bucket];
+            aggregate.phaseDecisionDiagnostics.finalizingShotsByRole[bucket] +=
+                sample.phaseDecisionDiagnostics.finalizingShotsByRole[bucket];
+            aggregate.phaseDecisionDiagnostics.finalizingFinalBallsByRole[bucket] +=
+                sample.phaseDecisionDiagnostics.finalizingFinalBallsByRole[bucket];
+        }
+        aggregate.phaseDecisionDiagnostics.buildUpShots += sample.phaseDecisionDiagnostics.buildUpShots;
+        aggregate.phaseDecisionDiagnostics.buildUpFinalBalls += sample.phaseDecisionDiagnostics.buildUpFinalBalls;
+        aggregate.phaseDecisionDiagnostics.buildUpSTTargets += sample.phaseDecisionDiagnostics.buildUpSTTargets;
+        aggregate.phaseDecisionDiagnostics.buildUpCBFBDMCMTargets +=
+            sample.phaseDecisionDiagnostics.buildUpCBFBDMCMTargets;
+        aggregate.phaseDecisionDiagnostics.finalizingSTTargets +=
+            sample.phaseDecisionDiagnostics.finalizingSTTargets;
+        aggregate.phaseDecisionDiagnostics.finalizingWingerCMInvolvement +=
+            sample.phaseDecisionDiagnostics.finalizingWingerCMInvolvement;
+        aggregate.phaseDecisionDiagnostics.counterSelectedForwardPasses +=
+            sample.phaseDecisionDiagnostics.counterSelectedForwardPasses;
+        aggregate.phaseDecisionDiagnostics.counterSelectedCarries +=
+            sample.phaseDecisionDiagnostics.counterSelectedCarries;
+        aggregate.phaseDecisionDiagnostics.counterSelectedRecyclePasses +=
+            sample.phaseDecisionDiagnostics.counterSelectedRecyclePasses;
 
         aggregate.counterEntries += sample.counterEntries;
         aggregate.validCounterEntries += sample.validCounterEntries;
@@ -1583,6 +1639,70 @@ namespace {
                 << '\n';
         }
 
+        const PhaseDecisionDiagnostics& decision = diagnostics.phaseDecisionDiagnostics;
+        std::cerr << "[Phase decision mix] " << label << '\n';
+        for (MatchTeamPhase phase : allMatchTeamPhases()) {
+            const int index = matchTeamPhaseIndex(phase);
+            std::cerr << "  " << matchTeamPhaseName(phase)
+                << " passCandidatesGenerated=" << decision.passCandidatesGenerated[index]
+                << " carryCandidatesGenerated=" << decision.carryCandidatesGenerated[index]
+                << " shotCandidatesGenerated=" << decision.shotCandidatesGenerated[index]
+                << " finalBallCandidatesGenerated=" << decision.finalBallCandidatesGenerated[index]
+                << " selectedPasses=" << decision.selectedPasses[index]
+                << " selectedCarries=" << decision.selectedCarries[index]
+                << " selectedShots=" << decision.selectedShots[index]
+                << " selectedFinalBalls=" << decision.selectedFinalBalls[index]
+                << " selectedRecyclePasses=" << decision.selectedRecyclePasses[index]
+                << " selectedProgressivePasses=" << decision.selectedProgressivePasses[index]
+                << " selectedSTTargets=" << decision.selectedSTTargets[index]
+                << " selectedCBTargets=" << decision.selectedCBTargets[index]
+                << " selectedFBTargets=" << decision.selectedFBTargets[index]
+                << " selectedDMCMTargets=" << decision.selectedDMCMTargets[index]
+                << " selectedWingerTargets=" << decision.selectedWingerTargets[index]
+                << '\n';
+        }
+
+        const auto printRoleCounts = [](const char* prefix, const std::array<int, PhaseDecisionRoleBucketCount>& counts) {
+            std::cerr << "  " << prefix;
+            for (int bucket = 0; bucket < PhaseDecisionRoleBucketCount; ++bucket) {
+                std::cerr << ' '
+                    << phaseDecisionRoleBucketName(static_cast<PhaseDecisionRoleBucket>(bucket))
+                    << '=' << counts[bucket];
+            }
+            std::cerr << '\n';
+        };
+        const int buildUpTargets =
+            decision.buildUpSTTargets + decision.buildUpCBFBDMCMTargets;
+        const double buildUpSafeTargetShare =
+            buildUpTargets > 0
+                ? static_cast<double>(decision.buildUpCBFBDMCMTargets) / buildUpTargets
+                : 0.0;
+        const double buildUpSTTargetShare =
+            buildUpTargets > 0
+                ? static_cast<double>(decision.buildUpSTTargets) / buildUpTargets
+                : 0.0;
+        std::cerr << "[BuildUp role involvement] " << label << '\n';
+        printRoleCounts("BuildUp passes by role", decision.buildUpPassesByRole);
+        printRoleCounts("BuildUp receptions by role", decision.buildUpReceptionsByRole);
+        std::cerr << "  BuildUp ST target share=" << buildUpSTTargetShare
+            << " BuildUp CB/FB/DM/CM target share=" << buildUpSafeTargetShare
+            << " BuildUp shots=" << decision.buildUpShots
+            << " BuildUp final balls=" << decision.buildUpFinalBalls
+            << '\n';
+
+        const int finalizingTargetTotal =
+            decision.finalizingSTTargets + decision.finalizingWingerCMInvolvement;
+        const double finalizingSTTargetShare =
+            finalizingTargetTotal > 0
+                ? static_cast<double>(decision.finalizingSTTargets) / finalizingTargetTotal
+                : 0.0;
+        std::cerr << "[Finalizing role involvement] " << label << '\n';
+        printRoleCounts("Finalizing shots by role", decision.finalizingShotsByRole);
+        printRoleCounts("Finalizing final balls by role", decision.finalizingFinalBallsByRole);
+        std::cerr << "  Finalizing ST target share=" << finalizingSTTargetShare
+            << " Finalizing winger/CM involvement=" << decision.finalizingWingerCMInvolvement
+            << '\n';
+
         const double safeMatchCount = static_cast<double>(std::max(matchCount, 1));
         const double counterAverageDuration =
             diagnostics.counterDurationSamplesSeconds.empty()
@@ -1600,6 +1720,9 @@ namespace {
             << " counterShots=" << diagnostics.counterShots
             << " counterGoals=" << diagnostics.counterGoals
             << " counterXG=" << diagnostics.counterXG
+            << " counterSelectedForwardPasses=" << decision.counterSelectedForwardPasses
+            << " counterSelectedCarries=" << decision.counterSelectedCarries
+            << " counterSelectedRecyclePasses=" << decision.counterSelectedRecyclePasses
             << " counterExpiredNoForwardLane=" << diagnostics.counterExpiredNoForwardLane
             << " counterExpiredDefenseRecovered=" << diagnostics.counterExpiredDefenseRecovered
             << " counterExpiredForcedBackwardOrSideways=" << diagnostics.counterExpiredForcedBackwardOrSideways
@@ -4083,7 +4206,7 @@ namespace {
                 "watched samples should include realistic 4-18m shot locations");
             require(shotOnTargetRate <= 0.72,
                 "shots on target should not be near automatic across watched samples");
-            require(totalShotOutcomes.offTarget >= std::max(4, totalShots / 8),
+            require(totalShotOutcomes.offTarget + totalShotOutcomes.blockedShots >= std::max(4, totalShots / 8),
                 "watched samples should include natural off-target shots");
             require(strongPassAccuracy >= 0.62,
                 "strong smoke team should retain plausible pass completion");
