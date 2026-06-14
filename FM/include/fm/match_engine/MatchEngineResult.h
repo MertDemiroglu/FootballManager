@@ -3,6 +3,7 @@
 #include"fm/common/Types.h"
 #include"fm/match/MatchReport.h"
 #include"fm/match_engine/MatchEngineTypes.h"
+#include"fm/match_engine/decision/PhaseDecisionContext.h"
 #include"fm/match_engine/phase/MatchPhaseTypes.h"
 
 #include<array>
@@ -186,6 +187,114 @@ struct MatchTeamPhaseDiagnostic {
     std::array<int, MatchTeamPhaseCount> phaseEntries{};
 };
 
+enum class MatchDiagnosticRoleBucket {
+    CenterBack,
+    FullbackWingback,
+    CentralMidfield,
+    Winger,
+    Striker,
+    GoalkeeperOrOther
+};
+
+constexpr int MatchDiagnosticRoleBucketCount = 6;
+constexpr int MatchDiagnosticActionTypeCount = 13;
+
+struct MatchShotCreationDiagnostics {
+    std::array<int, MatchDiagnosticRoleBucketCount> shotsCreatedByRole{};
+    std::array<double, MatchDiagnosticRoleBucketCount> xGCreatedByRole{};
+    std::array<int, MatchDiagnosticRoleBucketCount> goalsCreatedByRole{};
+    std::array<int, MatchDiagnosticRoleBucketCount> shotAssistsByRole{};
+    std::array<int, MatchDiagnosticRoleBucketCount> keyPassesByRole{};
+    std::array<int, MatchDiagnosticRoleBucketCount> finalBallShotAssistsByRole{};
+    std::array<int, MatchDiagnosticRoleBucketCount> simplePassShotAssistsByRole{};
+    std::array<int, MatchDiagnosticRoleBucketCount> lowCrossShotAssistsByRole{};
+    std::array<int, MatchDiagnosticRoleBucketCount> cutbackShotAssistsByRole{};
+    std::array<int, MatchDiagnosticRoleBucketCount> throughBallShotAssistsByRole{};
+    std::array<int, MatchDiagnosticRoleBucketCount> highCrossShotAssistsByRole{};
+};
+
+struct MatchShotReceiverDiagnostics {
+    std::array<
+        std::array<int, MatchDiagnosticActionTypeCount>,
+        MatchDiagnosticRoleBucketCount> shotsByShooterRoleAndSourceAction{};
+    std::array<
+        std::array<double, MatchDiagnosticActionTypeCount>,
+        MatchDiagnosticRoleBucketCount> xGByShooterRoleAndSourceAction{};
+    std::array<
+        std::array<int, MatchDiagnosticActionTypeCount>,
+        MatchDiagnosticRoleBucketCount> goalsByShooterRoleAndSourceAction{};
+};
+
+struct MatchWidePlayerInvolvementDiagnostic {
+    int actions = 0;
+    int receptions = 0;
+    int finalThirdReceptions = 0;
+    int wideFinalThirdReceptions = 0;
+    int halfSpaceReceptions = 0;
+    int boxReceptions = 0;
+    int penaltyAreaReceptions = 0;
+    int boxCarries = 0;
+    int cutInHalfSpaceCarries = 0;
+    int cutInsideActions = 0;
+    int carriesEndingInBox = 0;
+    int shots = 0;
+    double xG = 0.0;
+    int shotAssists = 0;
+    int finalBalls = 0;
+    int lowCrosses = 0;
+    int cutbacks = 0;
+    int throughBalls = 0;
+    int successfulFinalThirdEntries = 0;
+};
+
+struct MatchWingerInvolvementDiagnostics {
+    MatchWidePlayerInvolvementDiagnostic left;
+    MatchWidePlayerInvolvementDiagnostic right;
+};
+
+struct MatchFullbackSupportDiagnostics {
+    int receptions = 0;
+    int finalThirdReceptions = 0;
+    int wideFinalThirdReceptions = 0;
+    int advancedWideReceptions = 0;
+    int lowCrosses = 0;
+    int cutbacks = 0;
+    int finalBalls = 0;
+    int shotAssists = 0;
+    double xGCreated = 0.0;
+    int carriesIntoFinalThird = 0;
+    int carriesIntoBox = 0;
+    int shots = 0;
+};
+
+struct MatchFinalizingQualityDiagnostics {
+    int finalizingEntries = 0;
+    double finalizingDurationSeconds = 0.0;
+    int finalizingPossessionsEndingInShot = 0;
+    int finalizingPossessionsEndingInTurnover = 0;
+    int finalizingPossessionsRecycledToBuildUp = 0;
+    int finalizingFinalBalls = 0;
+    int finalizingFinalBallShotAssists = 0;
+    int finalizingWingerReceptions = 0;
+    int finalizingFullbackReceptions = 0;
+    int finalizingCMEdgeReceptions = 0;
+    int finalizingSTReceptions = 0;
+    int finalizingNonSTShots = 0;
+    double finalizingNonSTxG = 0.0;
+};
+
+struct MatchBuildUpToFinalizingQualityDiagnostics {
+    int buildUpToFinalizingEntries = 0;
+    int passesBeforeFirstFinalizingActionTotal = 0;
+    int passesBeforeFirstFinalizingActionSamples = 0;
+    std::array<int, MatchDiagnosticActionTypeCount> firstFinalizingActionType{};
+    int firstThreeShots = 0;
+    int firstThreeFinalBalls = 0;
+    int firstThreeRecycleActions = 0;
+    int firstThreeTurnovers = 0;
+    double finalizingPositionChainXG = 0.0;
+};
+
 struct MatchPhaseDiagnostics {
     std::array<double, MatchTeamPhaseCount> phaseTimeSeconds{};
     std::array<int, MatchTeamPhaseCount> phaseEntries{};
@@ -239,6 +348,13 @@ struct MatchPhaseDiagnostics {
     double ballFlankRightPossessionSeconds = 0.0;
 
     bool defaultFormationFourThreeThree = false;
+    PhaseDecisionDiagnostics phaseDecisionDiagnostics;
+    MatchShotCreationDiagnostics shotCreationDiagnostics;
+    MatchShotReceiverDiagnostics shotReceiverDiagnostics;
+    MatchWingerInvolvementDiagnostics wingerInvolvementDiagnostics;
+    MatchFullbackSupportDiagnostics fullbackSupportDiagnostics;
+    MatchFinalizingQualityDiagnostics finalizingQualityDiagnostics;
+    MatchBuildUpToFinalizingQualityDiagnostics buildUpToFinalizingQualityDiagnostics;
     std::vector<MatchTeamPhaseDiagnostic> teamDiagnostics;
 };
 

@@ -3,6 +3,7 @@
 #include"fm/match_engine/decision/ActionScoringModel.h"
 #include"fm/match_engine/decision/CarryOptionEvaluator.h"
 #include"fm/match_engine/decision/PassOptionEvaluator.h"
+#include"fm/match_engine/decision/PhaseAwareDecisionModel.h"
 #include"fm/match_engine/decision/ShotDecisionEvaluator.h"
 
 namespace {
@@ -90,6 +91,18 @@ std::vector<ActionCandidate> BallCarrierDecisionModel::evaluate(
     if (isOwnDefensiveDanger(player.ballPosition, context.attackingDirection)) {
         candidates.push_back(scoringModel.buildClearCandidate(scoringContext));
     }
+
+    PhaseAwareDecisionModel{}.adjustCandidates(
+        PhaseAwareDecisionContext{
+            context.teamPhase,
+            context.teamSnapshot,
+            context.teamGameContext,
+            context.carrierGameContext,
+            player.role,
+            player.ballPosition,
+            context.attackingDirection
+        },
+        candidates);
 
     return candidates;
 }
