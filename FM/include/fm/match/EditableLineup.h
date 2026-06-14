@@ -56,7 +56,7 @@ public:
 private:
     TeamId teamId = 0;
     CoachId coachId = 0;
-    FormationId formationId = FormationId::FourFourTwo;
+    FormationId formationId = FormationId::FourThreeThree;
     TacticalSetup tacticalSetup;
     std::vector<EditableLineupSlot> lineupSlots;
     std::vector<PlayerId> substitutePlayerIds;

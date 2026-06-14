@@ -97,7 +97,7 @@ namespace {
     Team makeTeam(TeamId teamId, const std::string& name, int ratingOffset) {
         Team team(teamId, name);
         const std::vector<std::string> positions{
-            "GK", "LB", "CB", "CB", "RB", "LM", "CM", "CM", "RM", "ST", "ST"
+            "GK", "LB", "CB", "CB", "RB", "DM", "CM", "CM", "LW", "ST", "RW"
         };
 
         int index = 0;
@@ -149,8 +149,8 @@ namespace {
         Team awayTeam = makeTeam(202, "Away Smoke", awayRatingOffset);
 
         TeamSelectionService selectionService;
-        TeamSheet homeSheet = selectionService.buildTeamSheet(homeTeam, FormationId::FourFourTwo);
-        TeamSheet awaySheet = selectionService.buildTeamSheet(awayTeam, FormationId::FourFourTwo);
+        TeamSheet homeSheet = selectionService.buildTeamSheet(homeTeam, FormationId::FourThreeThree);
+        TeamSheet awaySheet = selectionService.buildTeamSheet(awayTeam, FormationId::FourThreeThree);
         homeSheet.tacticalSetup = homeTactics;
         awaySheet.tacticalSetup = awayTactics;
 
@@ -1442,6 +1442,267 @@ namespace {
         }
         for (const std::string& warning : warnings) {
             std::cerr << "  " << warning << '\n';
+        }
+    }
+
+    MatchTeamPhaseDiagnostic& smokeTeamPhaseDiagnosticFor(
+        MatchPhaseDiagnostics& diagnostics,
+        TeamId teamId) {
+        for (MatchTeamPhaseDiagnostic& team : diagnostics.teamDiagnostics) {
+            if (team.teamId == teamId) {
+                return team;
+            }
+        }
+
+        MatchTeamPhaseDiagnostic team;
+        team.teamId = teamId;
+        diagnostics.teamDiagnostics.push_back(team);
+        return diagnostics.teamDiagnostics.back();
+    }
+
+    void addPhaseDiagnostics(
+        MatchPhaseDiagnostics& aggregate,
+        const MatchPhaseDiagnostics& sample) {
+        const bool firstSample = aggregate.teamShapeSettledSamples <= 0.0;
+        for (MatchTeamPhase phase : allMatchTeamPhases()) {
+            const int index = matchTeamPhaseIndex(phase);
+            aggregate.phaseTimeSeconds[index] += sample.phaseTimeSeconds[index];
+            aggregate.phaseEntries[index] += sample.phaseEntries[index];
+            aggregate.passesByPhase[index] += sample.passesByPhase[index];
+            aggregate.carriesByPhase[index] += sample.carriesByPhase[index];
+            aggregate.dribblesByPhase[index] += sample.dribblesByPhase[index];
+            aggregate.shotsByPhase[index] += sample.shotsByPhase[index];
+            aggregate.goalsByPhase[index] += sample.goalsByPhase[index];
+            aggregate.xGByPhase[index] += sample.xGByPhase[index];
+            aggregate.finalBallsByPhase[index] += sample.finalBallsByPhase[index];
+            aggregate.turnoversByPhase[index] += sample.turnoversByPhase[index];
+        }
+
+        aggregate.counterEntries += sample.counterEntries;
+        aggregate.validCounterEntries += sample.validCounterEntries;
+        aggregate.counterRejectedNoCleanRegain += sample.counterRejectedNoCleanRegain;
+        aggregate.counterRejectedNoForwardLane += sample.counterRejectedNoForwardLane;
+        aggregate.counterRejectedNoRunner += sample.counterRejectedNoRunner;
+        aggregate.counterRejectedOpponentRecovered += sample.counterRejectedOpponentRecovered;
+        aggregate.counterRejectedSettledPossession += sample.counterRejectedSettledPossession;
+        aggregate.counterShots += sample.counterShots;
+        aggregate.counterGoals += sample.counterGoals;
+        aggregate.counterXG += sample.counterXG;
+        aggregate.counterExpiredNoForwardLane += sample.counterExpiredNoForwardLane;
+        aggregate.counterExpiredDefenseRecovered += sample.counterExpiredDefenseRecovered;
+        aggregate.counterExpiredForcedBackwardOrSideways += sample.counterExpiredForcedBackwardOrSideways;
+        aggregate.counterExpiredRecycledToBuildUp += sample.counterExpiredRecycledToBuildUp;
+        aggregate.defensiveTransitionEntries += sample.defensiveTransitionEntries;
+        aggregate.settledDefenseEntries += sample.settledDefenseEntries;
+        aggregate.phaseSwitchCount += sample.phaseSwitchCount;
+        aggregate.buildUpToFinalizingSwitches += sample.buildUpToFinalizingSwitches;
+        aggregate.finalizingToBuildUpSwitches += sample.finalizingToBuildUpSwitches;
+        aggregate.anyToCounterSwitches += sample.anyToCounterSwitches;
+        aggregate.anyToDefensiveTransitionSwitches += sample.anyToDefensiveTransitionSwitches;
+        aggregate.defensiveTransitionToSettledDefenseSwitches += sample.defensiveTransitionToSettledDefenseSwitches;
+        aggregate.looseBallPhaseHolds += sample.looseBallPhaseHolds;
+        aggregate.ignoredSameTeamLooseRegainPhaseSwitches += sample.ignoredSameTeamLooseRegainPhaseSwitches;
+        aggregate.counterDurationTotalSeconds += sample.counterDurationTotalSeconds;
+        aggregate.counterDurationSamplesSeconds.insert(
+            aggregate.counterDurationSamplesSeconds.end(),
+            sample.counterDurationSamplesSeconds.begin(),
+            sample.counterDurationSamplesSeconds.end());
+        aggregate.teamShapeSettledSamples += sample.teamShapeSettledSamples;
+        aggregate.teamShapeSettledCount += sample.teamShapeSettledCount;
+        aggregate.opponentShapeSettledCount += sample.opponentShapeSettledCount;
+        aggregate.restDefenseStableCount += sample.restDefenseStableCount;
+        aggregate.restDefenseBrokenCount += sample.restDefenseBrokenCount;
+        aggregate.openForwardLaneTotal += sample.openForwardLaneTotal;
+        aggregate.openWideLaneLeftTotal += sample.openWideLaneLeftTotal;
+        aggregate.openWideLaneRightTotal += sample.openWideLaneRightTotal;
+        aggregate.centralSpaceAvailableTotal += sample.centralSpaceAvailableTotal;
+        aggregate.ballFlankLeftPossessionSeconds += sample.ballFlankLeftPossessionSeconds;
+        aggregate.ballFlankCenterPossessionSeconds += sample.ballFlankCenterPossessionSeconds;
+        aggregate.ballFlankRightPossessionSeconds += sample.ballFlankRightPossessionSeconds;
+        aggregate.defaultFormationFourThreeThree =
+            firstSample
+                ? sample.defaultFormationFourThreeThree
+                : (aggregate.defaultFormationFourThreeThree && sample.defaultFormationFourThreeThree);
+
+        for (const MatchTeamPhaseDiagnostic& sampleTeam : sample.teamDiagnostics) {
+            MatchTeamPhaseDiagnostic& aggregateTeam =
+                smokeTeamPhaseDiagnosticFor(aggregate, sampleTeam.teamId);
+            aggregateTeam.finalPhase = sampleTeam.finalPhase;
+            aggregateTeam.phaseSwitchCount += sampleTeam.phaseSwitchCount;
+            aggregateTeam.longestSinglePhaseSeconds = std::max(
+                aggregateTeam.longestSinglePhaseSeconds,
+                sampleTeam.longestSinglePhaseSeconds);
+            for (MatchTeamPhase phase : allMatchTeamPhases()) {
+                const int index = matchTeamPhaseIndex(phase);
+                aggregateTeam.phaseTimeSeconds[index] += sampleTeam.phaseTimeSeconds[index];
+                aggregateTeam.phaseEntries[index] += sampleTeam.phaseEntries[index];
+            }
+        }
+    }
+
+    double medianCounterDurationSeconds(const MatchPhaseDiagnostics& diagnostics) {
+        if (diagnostics.counterDurationSamplesSeconds.empty()) {
+            return 0.0;
+        }
+
+        std::vector<double> samples = diagnostics.counterDurationSamplesSeconds;
+        std::sort(samples.begin(), samples.end());
+        const std::size_t middle = samples.size() / 2;
+        if (samples.size() % 2 == 1) {
+            return samples[middle];
+        }
+        return (samples[middle - 1] + samples[middle]) * 0.5;
+    }
+
+    void printPhaseDiagnostics(
+        const MatchPhaseDiagnostics& diagnostics,
+        const std::string& label,
+        int matchCount) {
+        std::cerr << "[Phase summary] " << label << '\n';
+        for (MatchTeamPhase phase : allMatchTeamPhases()) {
+            const int index = matchTeamPhaseIndex(phase);
+            std::cerr << "  phaseTime" << matchTeamPhaseName(phase) << "Seconds="
+                << diagnostics.phaseTimeSeconds[index]
+                << " phaseEntries" << matchTeamPhaseName(phase) << "="
+                << diagnostics.phaseEntries[index]
+                << '\n';
+        }
+
+        std::cerr << "[Acting team phase actions] " << label << '\n';
+        for (MatchTeamPhase phase : allMatchTeamPhases()) {
+            const int index = matchTeamPhaseIndex(phase);
+            std::cerr << "  " << matchTeamPhaseName(phase)
+                << " passes=" << diagnostics.passesByPhase[index]
+                << " carries=" << diagnostics.carriesByPhase[index]
+                << " dribbles=" << diagnostics.dribblesByPhase[index]
+                << " shots=" << diagnostics.shotsByPhase[index]
+                << " goals=" << diagnostics.goalsByPhase[index]
+                << " xG=" << diagnostics.xGByPhase[index]
+                << " finalBalls=" << diagnostics.finalBallsByPhase[index]
+                << " turnovers=" << diagnostics.turnoversByPhase[index]
+                << '\n';
+        }
+
+        const double safeMatchCount = static_cast<double>(std::max(matchCount, 1));
+        const double counterAverageDuration =
+            diagnostics.counterDurationSamplesSeconds.empty()
+                ? 0.0
+                : diagnostics.counterDurationTotalSeconds
+                    / static_cast<double>(diagnostics.counterDurationSamplesSeconds.size());
+        std::cerr << "[Transition diagnostics] " << label << '\n'
+            << "  counterEntries=" << diagnostics.counterEntries
+            << " validCounterEntries=" << diagnostics.validCounterEntries
+            << " counterRejectedNoCleanRegain=" << diagnostics.counterRejectedNoCleanRegain
+            << " counterRejectedNoForwardLane=" << diagnostics.counterRejectedNoForwardLane
+            << " counterRejectedNoRunner=" << diagnostics.counterRejectedNoRunner
+            << " counterRejectedOpponentRecovered=" << diagnostics.counterRejectedOpponentRecovered
+            << " counterRejectedSettledPossession=" << diagnostics.counterRejectedSettledPossession
+            << " counterShots=" << diagnostics.counterShots
+            << " counterGoals=" << diagnostics.counterGoals
+            << " counterXG=" << diagnostics.counterXG
+            << " counterExpiredNoForwardLane=" << diagnostics.counterExpiredNoForwardLane
+            << " counterExpiredDefenseRecovered=" << diagnostics.counterExpiredDefenseRecovered
+            << " counterExpiredForcedBackwardOrSideways=" << diagnostics.counterExpiredForcedBackwardOrSideways
+            << " counterExpiredRecycledToBuildUp=" << diagnostics.counterExpiredRecycledToBuildUp
+            << " counterAverageDurationSeconds=" << counterAverageDuration
+            << " counterMedianDurationSeconds=" << medianCounterDurationSeconds(diagnostics)
+            << " defensiveTransitionEntries=" << diagnostics.defensiveTransitionEntries
+            << " settledDefenseEntries=" << diagnostics.settledDefenseEntries
+            << " phaseSwitchCount=" << diagnostics.phaseSwitchCount
+            << '\n';
+
+        std::cerr << "[Phase churn diagnostics] " << label << '\n'
+            << "  phaseSwitchesPerMatch=" << (static_cast<double>(diagnostics.phaseSwitchCount) / safeMatchCount)
+            << " phaseSwitchesPerMinute=" << (static_cast<double>(diagnostics.phaseSwitchCount) / (safeMatchCount * 90.0))
+            << " BuildUpToFinalizingSwitches=" << diagnostics.buildUpToFinalizingSwitches
+            << " FinalizingToBuildUpSwitches=" << diagnostics.finalizingToBuildUpSwitches
+            << " AnyToCounterSwitches=" << diagnostics.anyToCounterSwitches
+            << " AnyToDefensiveTransitionSwitches=" << diagnostics.anyToDefensiveTransitionSwitches
+            << " DefensiveTransitionToSettledDefenseSwitches=" << diagnostics.defensiveTransitionToSettledDefenseSwitches
+            << " looseBallPhaseHolds=" << diagnostics.looseBallPhaseHolds
+            << " ignoredSameTeamLooseRegainPhaseSwitches=" << diagnostics.ignoredSameTeamLooseRegainPhaseSwitches
+            << '\n';
+
+        const double samples = std::max(diagnostics.teamShapeSettledSamples, 1.0);
+        std::cerr << "[Shape/context diagnostics] " << label << '\n'
+            << "  averageTeamShapeSettledRate=" << (diagnostics.teamShapeSettledCount / samples)
+            << " averageOpponentShapeSettledRate=" << (diagnostics.opponentShapeSettledCount / samples)
+            << " restDefenseStableCount=" << diagnostics.restDefenseStableCount
+            << " restDefenseBrokenCount=" << diagnostics.restDefenseBrokenCount
+            << " openForwardLaneAverage=" << (diagnostics.openForwardLaneTotal / samples)
+            << " openWideLaneLeftAverage=" << (diagnostics.openWideLaneLeftTotal / samples)
+            << " openWideLaneRightAverage=" << (diagnostics.openWideLaneRightTotal / samples)
+            << " centralSpaceAvailableAverage=" << (diagnostics.centralSpaceAvailableTotal / samples)
+            << " ballFlankLeftPossessionSeconds=" << diagnostics.ballFlankLeftPossessionSeconds
+            << " ballFlankCenterPossessionSeconds=" << diagnostics.ballFlankCenterPossessionSeconds
+            << " ballFlankRightPossessionSeconds=" << diagnostics.ballFlankRightPossessionSeconds
+            << '\n';
+        std::cerr << "[Role/formation diagnostics]\n"
+            << "  defaultFormationUsed="
+            << (diagnostics.defaultFormationFourThreeThree ? "4-3-3" : "not-4-3-3")
+            << '\n';
+    }
+
+    void addPhaseWarnings(
+        std::vector<std::string>& warnings,
+        const MatchPhaseDiagnostics& diagnostics,
+        int matchCount) {
+        const auto timeFor = [&diagnostics](MatchTeamPhase phase) {
+            return diagnostics.phaseTimeSeconds[matchTeamPhaseIndex(phase)];
+        };
+        const auto entriesFor = [&diagnostics](MatchTeamPhase phase) {
+            return diagnostics.phaseEntries[matchTeamPhaseIndex(phase)];
+        };
+        if (timeFor(MatchTeamPhase::BuildUp) <= 5.0 * matchCount) {
+            warnings.push_back("WARNING: BuildUp time is near zero across sample.");
+        }
+        if (timeFor(MatchTeamPhase::FinalizingPosition) <= 5.0 * matchCount) {
+            warnings.push_back("WARNING: FinalizingPosition time is near zero across sample.");
+        }
+        if (entriesFor(MatchTeamPhase::CounterAttack) == 0) {
+            warnings.push_back("WARNING: CounterAttack never triggers across sample.");
+        }
+        if (entriesFor(MatchTeamPhase::DefensiveTransition) == 0) {
+            warnings.push_back("WARNING: DefensiveTransition never triggers across sample.");
+        }
+        if (!diagnostics.defaultFormationFourThreeThree) {
+            warnings.push_back("WARNING: 4-3-3 was not used in smoke/default fixture.");
+        }
+
+        const double safeMatchCount = static_cast<double>(std::max(matchCount, 1));
+        const double phaseSwitchesPerMatch =
+            static_cast<double>(diagnostics.phaseSwitchCount) / safeMatchCount;
+        const double counterEntriesPerMatch =
+            static_cast<double>(diagnostics.counterEntries) / safeMatchCount;
+        const double defensiveTransitionEntriesPerMatch =
+            static_cast<double>(diagnostics.defensiveTransitionEntries) / safeMatchCount;
+        const double buildUpAverageDuration =
+            timeFor(MatchTeamPhase::BuildUp)
+            / static_cast<double>(std::max(entriesFor(MatchTeamPhase::BuildUp), 1));
+        const double finalizingAverageDuration =
+            timeFor(MatchTeamPhase::FinalizingPosition)
+            / static_cast<double>(std::max(entriesFor(MatchTeamPhase::FinalizingPosition), 1));
+        if (phaseSwitchesPerMatch > 200.0) {
+            warnings.push_back("WARNING: Phase state changes too frequently, causing phase flicker.");
+        }
+        if (counterEntriesPerMatch > 20.0
+            && (diagnostics.counterShots == 0 || diagnostics.counterXG < 0.05 * safeMatchCount)) {
+            warnings.push_back("WARNING: counterEntriesPerMatch > 20 without meaningful counter shots/xG.");
+        }
+        if (defensiveTransitionEntriesPerMatch > 120.0) {
+            warnings.push_back("WARNING: DefensiveTransition entries per match are extremely high.");
+        }
+        if (buildUpAverageDuration < 8.0) {
+            warnings.push_back("WARNING: BuildUp average duration is too short.");
+        }
+        if (finalizingAverageDuration < 8.0) {
+            warnings.push_back("WARNING: FinalizingPosition average duration is too short.");
+        }
+        for (const MatchTeamPhaseDiagnostic& team : diagnostics.teamDiagnostics) {
+            if (team.longestSinglePhaseSeconds >= 82.0 * 60.0) {
+                warnings.push_back("WARNING: One team stays in one phase for almost the entire match without transitions.");
+                break;
+            }
         }
     }
 
@@ -3298,6 +3559,7 @@ namespace {
         ClosestDefenderDiagnostic totalGoalChainClosestDefenders;
         ClosestDefenderDiagnostic totalAllShotClosestDefenders;
         SmokeAggregateDiagnostic watchedAggregate;
+        MatchPhaseDiagnostics watchedPhaseDiagnostics;
         std::vector<std::string> watchedWarnings;
         for (std::uint64_t seed = 1; seed <= 8; ++seed) {
             const MatchEngineInput input =
@@ -3327,6 +3589,7 @@ namespace {
             const DefensiveEventDiagnostic defensiveEvents = defensiveEventDiagnosticFor(result);
             const PassOutcomeDiagnostic passOutcomes = passOutcomeDiagnosticFor(result);
             const ShotOutcomeDiagnostic shotOutcomes = shotOutcomeDiagnosticFor(input, result);
+            addPhaseDiagnostics(watchedPhaseDiagnostics, result.phaseDiagnostics);
             addClosestDefenderDiagnostic(
                 totalGoalChainClosestDefenders,
                 goalChainClosestDefenderDiagnosticFor(result));
@@ -3510,6 +3773,8 @@ namespace {
                 << " dribblesLost=" << defensiveEvents.dribblesLost
                 << " forcedSideways=" << defensiveEvents.forcedSideways
                 << " forcedBackward=" << defensiveEvents.forcedBackward
+                << " phaseSwitches=" << result.phaseDiagnostics.phaseSwitchCount
+                << " counterEntries=" << result.phaseDiagnostics.counterEntries
                 << '\n';
 
             for (const MatchTeamSimulationStats* stats : { &result.homeStats, &result.awayStats }) {
@@ -3690,6 +3955,7 @@ namespace {
                 << '\n'
                 << '\n';
             printDefensiveEvents(totalDefensiveEvents);
+            printPhaseDiagnostics(watchedPhaseDiagnostics, "watched balance both-teams aggregate", 8);
             printMovementSummary(watchedAggregate, 8);
             std::cerr << "[Action mix]\n"
                 << "  passesAttempted=" << totalPasses
@@ -3731,6 +3997,7 @@ namespace {
                 watchedWarnings.push_back(
                     "WARNING: multiple shot/goal chains have defender overlap at shot point.");
             }
+            addPhaseWarnings(watchedWarnings, watchedPhaseDiagnostics, 8);
             std::cerr << "[Sanity checks]\n"
                 << "  shotOutcomeInvariant=active"
                 << " defensiveEventTracking=active"
@@ -3753,6 +4020,26 @@ namespace {
                 totalShotOutcomes);
             requirePassOutcomeInvariant("watched balance aggregate", totalPassOutcomes);
             requireDribbleTackleInvariants("watched balance aggregate", totalDefensiveEvents);
+            require(watchedPhaseDiagnostics.phaseTimeSeconds[matchTeamPhaseIndex(MatchTeamPhase::BuildUp)] > 0.0,
+                "watched phase diagnostics should include BuildUp time");
+            require(watchedPhaseDiagnostics.phaseTimeSeconds[matchTeamPhaseIndex(MatchTeamPhase::FinalizingPosition)] > 0.0,
+                "watched phase diagnostics should include FinalizingPosition time");
+            require(watchedPhaseDiagnostics.phaseEntries[matchTeamPhaseIndex(MatchTeamPhase::CounterAttack)] > 0,
+                "watched phase diagnostics should include CounterAttack entries");
+            require(watchedPhaseDiagnostics.phaseEntries[matchTeamPhaseIndex(MatchTeamPhase::DefensiveTransition)] > 0,
+                "watched phase diagnostics should include DefensiveTransition entries");
+            require(watchedPhaseDiagnostics.phaseEntries[matchTeamPhaseIndex(MatchTeamPhase::SettledDefense)] > 0,
+                "watched phase diagnostics should include SettledDefense entries");
+            require(watchedPhaseDiagnostics.defaultFormationFourThreeThree,
+                "watched smoke/default fixtures should use 4-3-3");
+            for (MatchTeamPhase defensivePhase : { MatchTeamPhase::DefensiveTransition, MatchTeamPhase::SettledDefense }) {
+                const int index = matchTeamPhaseIndex(defensivePhase);
+                require(watchedPhaseDiagnostics.passesByPhase[index] == 0
+                        && watchedPhaseDiagnostics.carriesByPhase[index] == 0
+                        && watchedPhaseDiagnostics.dribblesByPhase[index] == 0
+                        && watchedPhaseDiagnostics.shotsByPhase[index] == 0,
+                    "watched acting-team actions should not be attributed to defensive phases");
+            }
             const RoleBucketDiagnostic* watchedGoalkeepers =
                 roleBucketStats(watchedAggregate, RoleBucket::Goalkeeper);
             if (watchedGoalkeepers != nullptr) {
@@ -3843,6 +4130,7 @@ namespace {
         ClosestDefenderDiagnostic dominantGoalChainClosestDefenders;
         ClosestDefenderDiagnostic dominantAllShotClosestDefenders;
         SmokeAggregateDiagnostic dominantAggregate;
+        MatchPhaseDiagnostics dominantPhaseDiagnostics;
         std::vector<std::string> dominantWarnings;
         for (std::uint64_t seed = 1; seed <= 3; ++seed) {
             const MatchEngineInput input =
@@ -3852,6 +4140,7 @@ namespace {
 
             const ShotOutcomeDiagnostic shotOutcomes =
                 shotOutcomeDiagnosticFor(input, result, result.homeStats.teamId);
+            addPhaseDiagnostics(dominantPhaseDiagnostics, result.phaseDiagnostics);
             addClosestDefenderDiagnostic(
                 dominantGoalChainClosestDefenders,
                 goalChainClosestDefenderDiagnosticFor(result, result.homeStats.teamId));
@@ -3931,6 +4220,8 @@ namespace {
                 << " dribblesLost=" << result.homeStats.dribblesLost
                 << " forcedSideways=" << result.homeStats.forcedSideways
                 << " forcedBackward=" << result.homeStats.forcedBackward
+                << " phaseSwitches=" << result.phaseDiagnostics.phaseSwitchCount
+                << " counterEntries=" << result.phaseDiagnostics.counterEntries
                 << '\n';
         }
 
@@ -4027,6 +4318,7 @@ namespace {
             << '\n'
             << '\n';
         printDefensiveEvents(dominantDefensiveEvents);
+        printPhaseDiagnostics(dominantPhaseDiagnostics, "dominant sample both-team phase context", 3);
         printMovementSummary(dominantAggregate, 3);
         std::cerr << "[Action mix]\n"
             << "  carryTraces=" << dominantCarryTraces
@@ -4066,6 +4358,7 @@ namespace {
             dominantWarnings.push_back(
                 "WARNING: multiple shot/goal chains have defender overlap at shot point.");
         }
+        addPhaseWarnings(dominantWarnings, dominantPhaseDiagnostics, 3);
         std::cerr << "[Sanity checks]\n"
             << "  shotOutcomeInvariant=active"
             << " defensiveEventTracking=active"
@@ -4087,6 +4380,16 @@ namespace {
             dominantShotOutcomes);
         requirePassOutcomeInvariant("dominant team aggregate", dominantPassOutcomes);
         requireDribbleTackleInvariants("dominant team aggregate", dominantDefensiveEvents);
+        require(dominantPhaseDiagnostics.defaultFormationFourThreeThree,
+            "dominant smoke/default fixtures should use 4-3-3");
+        for (MatchTeamPhase defensivePhase : { MatchTeamPhase::DefensiveTransition, MatchTeamPhase::SettledDefense }) {
+            const int index = matchTeamPhaseIndex(defensivePhase);
+            require(dominantPhaseDiagnostics.passesByPhase[index] == 0
+                    && dominantPhaseDiagnostics.carriesByPhase[index] == 0
+                    && dominantPhaseDiagnostics.dribblesByPhase[index] == 0
+                    && dominantPhaseDiagnostics.shotsByPhase[index] == 0,
+                "dominant acting-team actions should not be attributed to defensive phases");
+        }
         const RoleBucketDiagnostic* dominantGoalkeepers =
             roleBucketStats(dominantAggregate, RoleBucket::Goalkeeper);
         if (dominantGoalkeepers != nullptr) {
@@ -4163,9 +4466,9 @@ namespace {
                 "high effective xG with low SOT should be explained by blocked xG");
         }
         require(hundredShotSamples <= 1,
-            "balanced 4-4-2 coordinate matches should not regularly produce 100+ shots");
+            "balanced 4-3-3 coordinate matches should not regularly produce 100+ shots");
         require(explodedXGSamples == 0,
-            "balanced 4-4-2 coordinate matches should not explode into 30+ total xG");
+            "balanced 4-3-3 coordinate matches should not explode into 30+ total xG");
         require(extremePerfectConversionSamples <= 1,
             "balanced coordinate samples should not regularly convert every high-volume shot on target");
         if (totalShotsOnTarget >= 20) {

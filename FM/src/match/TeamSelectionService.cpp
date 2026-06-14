@@ -38,7 +38,7 @@ struct AssignmentResult {
 };
 
 struct FormationSelectionCandidate {
-    FormationId formation = FormationId::FourFourTwo;
+    FormationId formation = FormationId::FourThreeThree;
     std::vector<PlayerId> orderedPlayerIdsByTemplate;
     std::vector<TeamSheetSlotAssignment> orderedAssignments;
     int assignedSlotCount = 0;
@@ -1151,12 +1151,7 @@ FormationSelectionCandidate evaluateFormationCandidate(FormationId formation,
 } // namespace
 
 TeamSheet TeamSelectionService::buildTeamSheet(const Team& team) const {
-    const FormationId preferredFormation = team.getHeadCoach().getPreferredFormation();
-    const FormationId selectedFormation = isFormationSupported(preferredFormation)
-        ? preferredFormation
-        : getSupportedFormationIds().front();
-
-    return buildTeamSheet(team, selectedFormation);
+    return buildTeamSheet(team, FormationId::FourThreeThree);
 }
 
 TeamSheet TeamSelectionService::buildTeamSheet(const Team& team, FormationId formationId) const {

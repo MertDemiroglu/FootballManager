@@ -35,7 +35,7 @@ struct MatchEventRecord {
 struct MatchLineupSnapshot {
     TeamId teamId = 0;
     CoachId coachId = 0;
-    FormationId formation = FormationId::FourFourTwo;
+    FormationId formation = FormationId::FourThreeThree;
     std::vector<PlayerId> startingPlayerIds;
 };
 

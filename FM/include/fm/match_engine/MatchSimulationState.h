@@ -3,8 +3,10 @@
 #include"fm/common/Types.h"
 #include"fm/match/TacticalSetup.h"
 #include"fm/match_engine/MatchEngineTypes.h"
+#include"fm/match_engine/phase/MatchPhaseTypes.h"
 
 #include<optional>
+#include<string>
 #include<vector>
 
 enum class MatchPhase {
@@ -66,6 +68,12 @@ struct TeamSimState {
     int goals = 0;
     double possessionShareAccumulator = 0.0;
 
+    MatchTeamPhase currentPhase = MatchTeamPhase::SettledDefense;
+    MatchTeamPhase previousPhase = MatchTeamPhase::SettledDefense;
+    int phaseEntrySecond = 0;
+    std::string phaseEntryReason;
+    std::string phaseExitReason;
+
     std::vector<PlayerSimState> players;
 };
 
@@ -88,6 +96,9 @@ struct PossessionState {
     PitchPoint lastMeaningfulProgressionPoint;
     int lastMeaningfulProgressionSecond = 0;
     bool isTransition = false;
+    bool cleanPossessionRegain = false;
+    bool possessionStartedFromLooseBall = false;
+    int possessionRegainSecond = 0;
 };
 
 struct MatchSimulationState {

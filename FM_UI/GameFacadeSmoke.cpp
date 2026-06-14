@@ -273,6 +273,8 @@ int main(int argc, char* argv[]) {
             "editable lineup roster should match current team players");
         expect(facade.getEditableLineupState()->slotCount() == 11,
             "editable lineup should expose 11 slots");
+        expect(facade.getEditableLineupState()->formation() == static_cast<int>(FormationId::FourThreeThree),
+            "editable lineup should default to 4-3-3 when no selected team sheet exists");
         expect(facade.getEditableLineupState()->assignedCount() == 0,
             "editable lineup should start with no assigned players");
 

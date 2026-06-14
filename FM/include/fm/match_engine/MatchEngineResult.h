@@ -3,7 +3,9 @@
 #include"fm/common/Types.h"
 #include"fm/match/MatchReport.h"
 #include"fm/match_engine/MatchEngineTypes.h"
+#include"fm/match_engine/phase/MatchPhaseTypes.h"
 
+#include<array>
 #include<optional>
 #include<vector>
 
@@ -175,6 +177,71 @@ struct MatchGoalChainDiagnostic {
     const char* assistNoneReason = "Unknown";
 };
 
+struct MatchTeamPhaseDiagnostic {
+    TeamId teamId = 0;
+    MatchTeamPhase finalPhase = MatchTeamPhase::SettledDefense;
+    int phaseSwitchCount = 0;
+    double longestSinglePhaseSeconds = 0.0;
+    std::array<double, MatchTeamPhaseCount> phaseTimeSeconds{};
+    std::array<int, MatchTeamPhaseCount> phaseEntries{};
+};
+
+struct MatchPhaseDiagnostics {
+    std::array<double, MatchTeamPhaseCount> phaseTimeSeconds{};
+    std::array<int, MatchTeamPhaseCount> phaseEntries{};
+    std::array<int, MatchTeamPhaseCount> passesByPhase{};
+    std::array<int, MatchTeamPhaseCount> carriesByPhase{};
+    std::array<int, MatchTeamPhaseCount> dribblesByPhase{};
+    std::array<int, MatchTeamPhaseCount> shotsByPhase{};
+    std::array<int, MatchTeamPhaseCount> goalsByPhase{};
+    std::array<double, MatchTeamPhaseCount> xGByPhase{};
+    std::array<int, MatchTeamPhaseCount> finalBallsByPhase{};
+    std::array<int, MatchTeamPhaseCount> turnoversByPhase{};
+
+    int counterEntries = 0;
+    int validCounterEntries = 0;
+    int counterRejectedNoCleanRegain = 0;
+    int counterRejectedNoForwardLane = 0;
+    int counterRejectedNoRunner = 0;
+    int counterRejectedOpponentRecovered = 0;
+    int counterRejectedSettledPossession = 0;
+    int counterShots = 0;
+    int counterGoals = 0;
+    double counterXG = 0.0;
+    int counterExpiredNoForwardLane = 0;
+    int counterExpiredDefenseRecovered = 0;
+    int counterExpiredForcedBackwardOrSideways = 0;
+    int counterExpiredRecycledToBuildUp = 0;
+    int defensiveTransitionEntries = 0;
+    int settledDefenseEntries = 0;
+    int phaseSwitchCount = 0;
+    int buildUpToFinalizingSwitches = 0;
+    int finalizingToBuildUpSwitches = 0;
+    int anyToCounterSwitches = 0;
+    int anyToDefensiveTransitionSwitches = 0;
+    int defensiveTransitionToSettledDefenseSwitches = 0;
+    int looseBallPhaseHolds = 0;
+    int ignoredSameTeamLooseRegainPhaseSwitches = 0;
+    double counterDurationTotalSeconds = 0.0;
+    std::vector<double> counterDurationSamplesSeconds;
+
+    double teamShapeSettledSamples = 0.0;
+    double teamShapeSettledCount = 0.0;
+    double opponentShapeSettledCount = 0.0;
+    int restDefenseStableCount = 0;
+    int restDefenseBrokenCount = 0;
+    double openForwardLaneTotal = 0.0;
+    double openWideLaneLeftTotal = 0.0;
+    double openWideLaneRightTotal = 0.0;
+    double centralSpaceAvailableTotal = 0.0;
+    double ballFlankLeftPossessionSeconds = 0.0;
+    double ballFlankCenterPossessionSeconds = 0.0;
+    double ballFlankRightPossessionSeconds = 0.0;
+
+    bool defaultFormationFourThreeThree = false;
+    std::vector<MatchTeamPhaseDiagnostic> teamDiagnostics;
+};
+
 struct MatchEngineResult {
     std::optional<MatchReport> report;
     MatchTeamSimulationStats homeStats;
@@ -183,5 +250,6 @@ struct MatchEngineResult {
     std::vector<MatchEventRecord> events;
     std::vector<MatchGoalChainDiagnostic> goalChains;
     std::vector<MatchTraceFrame> traceFrames;
+    MatchPhaseDiagnostics phaseDiagnostics;
     int simulatedSeconds = 0;
 };
