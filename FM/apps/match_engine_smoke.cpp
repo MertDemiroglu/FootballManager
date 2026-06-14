@@ -1778,6 +1778,98 @@ namespace {
                 sample.buildUpToFinalizingQualityDiagnostics.firstFinalizingActionType[action];
         }
 
+        for (int type = 0; type < OffBallEventTypeCount; ++type) {
+            aggregate.offBallSupportDiagnostics.eventsCreatedByType[type] +=
+                sample.offBallSupportDiagnostics.eventsCreatedByType[type];
+            aggregate.offBallSupportDiagnostics.eventsCompletedByType[type] +=
+                sample.offBallSupportDiagnostics.eventsCompletedByType[type];
+            aggregate.offBallSupportDiagnostics.eventsExpiredByType[type] +=
+                sample.offBallSupportDiagnostics.eventsExpiredByType[type];
+        }
+        for (int bucket = 0; bucket < PhaseDecisionRoleBucketCount; ++bucket) {
+            for (int type = 0; type < OffBallEventTypeCount; ++type) {
+                aggregate.offBallSupportDiagnostics.eventsByRole[bucket][type] +=
+                    sample.offBallSupportDiagnostics.eventsByRole[bucket][type];
+            }
+        }
+        aggregate.offBallSupportDiagnostics.activeEventDurationTotal +=
+            sample.offBallSupportDiagnostics.activeEventDurationTotal;
+        aggregate.offBallSupportDiagnostics.activeEventDurationSamples +=
+            sample.offBallSupportDiagnostics.activeEventDurationSamples;
+        aggregate.offBallSupportDiagnostics.expiredOnPossessionLoss +=
+            sample.offBallSupportDiagnostics.expiredOnPossessionLoss;
+        aggregate.offBallSupportDiagnostics.expiredOnShot +=
+            sample.offBallSupportDiagnostics.expiredOnShot;
+        aggregate.offBallSupportDiagnostics.expiredOnOpponentControl +=
+            sample.offBallSupportDiagnostics.expiredOnOpponentControl;
+        aggregate.offBallSupportDiagnostics.expiredOnPhaseChange +=
+            sample.offBallSupportDiagnostics.expiredOnPhaseChange;
+        aggregate.offBallSupportDiagnostics.expiredOnTimeout +=
+            sample.offBallSupportDiagnostics.expiredOnTimeout;
+        aggregate.offBallSupportDiagnostics.completedByReachingRegion +=
+            sample.offBallSupportDiagnostics.completedByReachingRegion;
+        aggregate.offBallSupportDiagnostics.cancelledByRestDefense +=
+            sample.offBallSupportDiagnostics.cancelledByRestDefense;
+        aggregate.offBallSupportDiagnostics.shotsAfterSupportEvent +=
+            sample.offBallSupportDiagnostics.shotsAfterSupportEvent;
+        aggregate.offBallSupportDiagnostics.xGAfterSupportEvent +=
+            sample.offBallSupportDiagnostics.xGAfterSupportEvent;
+        aggregate.offBallSupportDiagnostics.goalsAfterSupportEvent +=
+            sample.offBallSupportDiagnostics.goalsAfterSupportEvent;
+        aggregate.offBallSupportDiagnostics.shotAssistsAfterSupportEvent +=
+            sample.offBallSupportDiagnostics.shotAssistsAfterSupportEvent;
+        aggregate.offBallSupportDiagnostics.finalBallsAfterSupportEvent +=
+            sample.offBallSupportDiagnostics.finalBallsAfterSupportEvent;
+        aggregate.offBallSupportDiagnostics.cutbacksAfterSupportEvent +=
+            sample.offBallSupportDiagnostics.cutbacksAfterSupportEvent;
+        aggregate.offBallSupportDiagnostics.throughBallsAfterSupportEvent +=
+            sample.offBallSupportDiagnostics.throughBallsAfterSupportEvent;
+        aggregate.offBallSupportDiagnostics.wingerShotsAfterSupportEvent +=
+            sample.offBallSupportDiagnostics.wingerShotsAfterSupportEvent;
+        aggregate.offBallSupportDiagnostics.fullbackShotAssistsAfterSupportEvent +=
+            sample.offBallSupportDiagnostics.fullbackShotAssistsAfterSupportEvent;
+        aggregate.offBallSupportDiagnostics.CMShotsAfterSupportEvent +=
+            sample.offBallSupportDiagnostics.CMShotsAfterSupportEvent;
+        aggregate.offBallSupportDiagnostics.wingerCutInsideEvents +=
+            sample.offBallSupportDiagnostics.wingerCutInsideEvents;
+        aggregate.offBallSupportDiagnostics.wingerFarPostEvents +=
+            sample.offBallSupportDiagnostics.wingerFarPostEvents;
+        aggregate.offBallSupportDiagnostics.wingerBoxReceptionsAfterEvent +=
+            sample.offBallSupportDiagnostics.wingerBoxReceptionsAfterEvent;
+        aggregate.offBallSupportDiagnostics.wingerHalfSpaceReceptionsAfterEvent +=
+            sample.offBallSupportDiagnostics.wingerHalfSpaceReceptionsAfterEvent;
+        aggregate.offBallSupportDiagnostics.wingerShotsAfterEvent +=
+            sample.offBallSupportDiagnostics.wingerShotsAfterEvent;
+        aggregate.offBallSupportDiagnostics.wingerXGAfterEvent +=
+            sample.offBallSupportDiagnostics.wingerXGAfterEvent;
+        aggregate.offBallSupportDiagnostics.fullbackOverlapEvents +=
+            sample.offBallSupportDiagnostics.fullbackOverlapEvents;
+        aggregate.offBallSupportDiagnostics.fullbackUnderlapEvents +=
+            sample.offBallSupportDiagnostics.fullbackUnderlapEvents;
+        aggregate.offBallSupportDiagnostics.fullbackAdvancedWideReceptionsAfterEvent +=
+            sample.offBallSupportDiagnostics.fullbackAdvancedWideReceptionsAfterEvent;
+        aggregate.offBallSupportDiagnostics.fullbackFinalBallsAfterEvent +=
+            sample.offBallSupportDiagnostics.fullbackFinalBallsAfterEvent;
+        aggregate.offBallSupportDiagnostics.fullbackShotAssistsAfterEvent +=
+            sample.offBallSupportDiagnostics.fullbackShotAssistsAfterEvent;
+        aggregate.offBallSupportDiagnostics.farSideFullbackRestDefenseHolds +=
+            sample.offBallSupportDiagnostics.farSideFullbackRestDefenseHolds;
+        aggregate.offBallSupportDiagnostics.restDefenseStableBeforeSupport +=
+            sample.offBallSupportDiagnostics.restDefenseStableBeforeSupport;
+        aggregate.offBallSupportDiagnostics.restDefenseStableAfterSupport +=
+            sample.offBallSupportDiagnostics.restDefenseStableAfterSupport;
+        aggregate.offBallSupportDiagnostics.supportEventsRejectedByRestDefense +=
+            sample.offBallSupportDiagnostics.supportEventsRejectedByRestDefense;
+        aggregate.offBallSupportDiagnostics.bothFullbacksAdvancedCount +=
+            sample.offBallSupportDiagnostics.bothFullbacksAdvancedCount;
+        aggregate.offBallSupportDiagnostics.restDefenseBreaksAfterSupport +=
+            sample.offBallSupportDiagnostics.restDefenseBreaksAfterSupport;
+        for (const MatchOffBallEventChainDiagnostic& chain : sample.offBallEventChains) {
+            if (aggregate.offBallEventChains.size() < 8) {
+                aggregate.offBallEventChains.push_back(chain);
+            }
+        }
+
         for (const MatchTeamPhaseDiagnostic& sampleTeam : sample.teamDiagnostics) {
             MatchTeamPhaseDiagnostic& aggregateTeam =
                 smokeTeamPhaseDiagnosticFor(aggregate, sampleTeam.teamId);
@@ -1806,6 +1898,44 @@ namespace {
             return samples[middle];
         }
         return (samples[middle - 1] + samples[middle]) * 0.5;
+    }
+
+    const char* supportRegionLaneName(SupportRegionLane lane) {
+        switch (lane) {
+        case SupportRegionLane::Any:
+            return "Any";
+        case SupportRegionLane::Left:
+            return "Left";
+        case SupportRegionLane::Right:
+            return "Right";
+        case SupportRegionLane::Center:
+            return "Center";
+        case SupportRegionLane::HalfSpaceLeft:
+            return "HalfSpaceLeft";
+        case SupportRegionLane::HalfSpaceRight:
+            return "HalfSpaceRight";
+        }
+        return "Unknown";
+    }
+
+    const char* supportRegionDepthName(SupportRegionDepth depth) {
+        switch (depth) {
+        case SupportRegionDepth::Any:
+            return "Any";
+        case SupportRegionDepth::Edge:
+            return "Edge";
+        case SupportRegionDepth::Box:
+            return "Box";
+        case SupportRegionDepth::Byline:
+            return "Byline";
+        case SupportRegionDepth::FarPost:
+            return "FarPost";
+        case SupportRegionDepth::NearPost:
+            return "NearPost";
+        case SupportRegionDepth::BackSupport:
+            return "BackSupport";
+        }
+        return "Unknown";
     }
 
     void printPhaseDiagnostics(
@@ -2127,6 +2257,122 @@ namespace {
             << " generatedCutInsideCandidates=" << decision.generatedCutInsideCandidates
             << " selectedCutInsideActions=" << decision.selectedCutInsideActions
             << '\n';
+
+        const MatchOffBallSupportDiagnostics& support =
+            diagnostics.offBallSupportDiagnostics;
+        const double activeEventAverageDuration =
+            support.activeEventDurationSamples > 0
+                ? support.activeEventDurationTotal
+                    / static_cast<double>(support.activeEventDurationSamples)
+                : 0.0;
+        std::cerr << "[Off-ball support events] " << label << '\n';
+        for (int type = 1; type < OffBallEventTypeCount; ++type) {
+            const OffBallEventType eventType = static_cast<OffBallEventType>(type);
+            const int created = support.eventsCreatedByType[type];
+            const int completed = support.eventsCompletedByType[type];
+            const int expired = support.eventsExpiredByType[type];
+            if (created == 0 && completed == 0 && expired == 0) {
+                continue;
+            }
+            std::cerr << "  " << offBallEventTypeName(eventType)
+                << " created=" << created
+                << " completed=" << completed
+                << " expired=" << expired
+                << '\n';
+        }
+        std::cerr << "  activeEventAverageDuration=" << activeEventAverageDuration
+            << " expiredOnPossessionLoss=" << support.expiredOnPossessionLoss
+            << " expiredOnShot=" << support.expiredOnShot
+            << " expiredOnOpponentControl=" << support.expiredOnOpponentControl
+            << " expiredOnPhaseChange=" << support.expiredOnPhaseChange
+            << " expiredOnTimeout=" << support.expiredOnTimeout
+            << " completedByReachingRegion=" << support.completedByReachingRegion
+            << " cancelledByRestDefense=" << support.cancelledByRestDefense
+            << '\n';
+
+        std::cerr << "[Support events by role] " << label << '\n';
+        for (int bucket = 0; bucket < PhaseDecisionRoleBucketCount; ++bucket) {
+            std::cerr << "  "
+                << phaseDecisionRoleBucketName(static_cast<PhaseDecisionRoleBucket>(bucket))
+                << " overlapRuns=" << support.eventsByRole[bucket][offBallEventTypeIndex(OffBallEventType::OverlapRun)]
+                << " underlapRuns=" << support.eventsByRole[bucket][offBallEventTypeIndex(OffBallEventType::UnderlapRun)]
+                << " cutInsideRuns=" << support.eventsByRole[bucket][offBallEventTypeIndex(OffBallEventType::CutInsideRun)]
+                << " farPostRuns=" << support.eventsByRole[bucket][offBallEventTypeIndex(OffBallEventType::FarPostRun)]
+                << " nearPostRuns=" << support.eventsByRole[bucket][offBallEventTypeIndex(OffBallEventType::NearPostRun)]
+                << " penaltySpotRuns=" << support.eventsByRole[bucket][offBallEventTypeIndex(OffBallEventType::PenaltySpotRun)]
+                << " edgeSupportRuns=" << support.eventsByRole[bucket][offBallEventTypeIndex(OffBallEventType::EdgeOfBoxSupport)]
+                << " halfSpaceSupportRuns=" << support.eventsByRole[bucket][offBallEventTypeIndex(OffBallEventType::HalfSpaceSupport)]
+                << " restDefenseHolds=" << support.eventsByRole[bucket][offBallEventTypeIndex(OffBallEventType::RestDefenseHold)]
+                << " counterRuns=" << support.eventsByRole[bucket][offBallEventTypeIndex(OffBallEventType::CounterForwardRun)]
+                << " defensiveRecoveryRuns=" << support.eventsByRole[bucket][offBallEventTypeIndex(OffBallEventType::DefensiveRecoveryRun)]
+                << '\n';
+        }
+
+        std::cerr << "[Support event impact] " << label << '\n'
+            << "  shotsAfterSupportEvent=" << support.shotsAfterSupportEvent
+            << " xGAfterSupportEvent=" << support.xGAfterSupportEvent
+            << " goalsAfterSupportEvent=" << support.goalsAfterSupportEvent
+            << " shotAssistsAfterSupportEvent=" << support.shotAssistsAfterSupportEvent
+            << " finalBallsAfterSupportEvent=" << support.finalBallsAfterSupportEvent
+            << " cutbacksAfterSupportEvent=" << support.cutbacksAfterSupportEvent
+            << " throughBallsAfterSupportEvent=" << support.throughBallsAfterSupportEvent
+            << " wingerShotsAfterSupportEvent=" << support.wingerShotsAfterSupportEvent
+            << " fullbackShotAssistsAfterSupportEvent="
+            << support.fullbackShotAssistsAfterSupportEvent
+            << " CMShotsAfterSupportEvent=" << support.CMShotsAfterSupportEvent
+            << '\n';
+
+        std::cerr << "[Winger movement] " << label << '\n'
+            << "  wingerCutInsideEvents=" << support.wingerCutInsideEvents
+            << " wingerFarPostEvents=" << support.wingerFarPostEvents
+            << " wingerBoxReceptionsAfterEvent=" << support.wingerBoxReceptionsAfterEvent
+            << " wingerHalfSpaceReceptionsAfterEvent="
+            << support.wingerHalfSpaceReceptionsAfterEvent
+            << " wingerShotsAfterEvent=" << support.wingerShotsAfterEvent
+            << " wingerXGAfterEvent=" << support.wingerXGAfterEvent
+            << '\n';
+
+        std::cerr << "[Fullback movement] " << label << '\n'
+            << "  fullbackOverlapEvents=" << support.fullbackOverlapEvents
+            << " fullbackUnderlapEvents=" << support.fullbackUnderlapEvents
+            << " fullbackAdvancedWideReceptionsAfterEvent="
+            << support.fullbackAdvancedWideReceptionsAfterEvent
+            << " fullbackFinalBallsAfterEvent=" << support.fullbackFinalBallsAfterEvent
+            << " fullbackShotAssistsAfterEvent="
+            << support.fullbackShotAssistsAfterEvent
+            << " farSideFullbackRestDefenseHolds="
+            << support.farSideFullbackRestDefenseHolds
+            << '\n';
+
+        std::cerr << "[Rest defense] " << label << '\n'
+            << "  restDefenseStableBeforeSupport="
+            << support.restDefenseStableBeforeSupport
+            << " restDefenseStableAfterSupport="
+            << support.restDefenseStableAfterSupport
+            << " supportEventsRejectedByRestDefense="
+            << support.supportEventsRejectedByRestDefense
+            << " bothFullbacksAdvancedCount=" << support.bothFullbacksAdvancedCount
+            << " restDefenseBreaksAfterSupport="
+            << support.restDefenseBreaksAfterSupport
+            << '\n';
+
+        std::cerr << "[Event lifecycle] " << label << '\n';
+        for (const MatchOffBallEventChainDiagnostic& chain : diagnostics.offBallEventChains) {
+            std::cerr << "  minute=" << chain.minute
+                << " phase=" << matchTeamPhaseName(chain.phase)
+                << " player=" << chain.playerId
+                << " eventType=" << offBallEventTypeName(chain.eventType)
+                << " targetRegion=" << supportRegionLaneName(chain.targetLane)
+                << '/' << supportRegionDepthName(chain.targetDepth)
+                << " resolvedTarget=(" << chain.resolvedTarget.x
+                << ',' << chain.resolvedTarget.y << ')'
+                << " completionReason="
+                << offBallCompletionReasonName(chain.completionReason)
+                << " nextAction=" << actionTypeName(chain.nextAction)
+                << " producedShot=" << chain.producedShot
+                << " shotXG=" << chain.shotXG
+                << '\n';
+        }
 
         std::cerr << "[Carry/dribble selection reconciliation] " << label << '\n';
         for (MatchTeamPhase phase : allMatchTeamPhases()) {

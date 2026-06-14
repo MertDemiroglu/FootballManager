@@ -680,7 +680,12 @@ std::vector<PassOption> PassOptionEvaluator::evaluate(
             && isAttackingHalf(teammate.position, context.attackingDirection)
             && skill >= 55.0
             && (context.tacticalSetup.passingDirectness == PassingDirectness::Direct
-                || context.tacticalSetup.mentality == TeamMentality::Attacking)) {
+                || context.tacticalSetup.mentality == TeamMentality::Attacking
+                || ((receiverRole == FormationSlotRole::Striker
+                        || receiverRole == FormationSlotRole::LeftWinger
+                        || receiverRole == FormationSlotRole::RightWinger)
+                    && forward >= 16.0
+                    && isFinalThird(teammate.position, context.attackingDirection)))) {
             throughOptions.push_back(makeOption(
                 PassOptionKind::ThroughBall,
                 context,

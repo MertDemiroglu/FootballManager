@@ -28,6 +28,9 @@
 #include"fm/match_engine/decision/PlayerIntentResolver.h"
 #include"fm/match_engine/ball/ShotQualityModel.h"
 #include"fm/match_engine/movement/TeamShapeModel.h"
+#include"fm/match_engine/offball/OffBallEventLifecycle.h"
+#include"fm/match_engine/offball/OffBallSupportModel.h"
+#include"fm/match_engine/offball/RestDefenseModel.h"
 
 #include<algorithm>
 #include<cmath>
@@ -2682,6 +2685,330 @@ namespace {
             || role == FormationSlotRole::AttackingMidfielder;
     }
 
+    double attackingProgressFor(PitchPoint point, AttackingDirection direction);
+    bool isPenaltyAreaForDirection(PitchPoint point, AttackingDirection direction);
+    bool isWideChannel(PitchPoint point);
+    bool isHalfSpace(PitchPoint point);
+
+    int supportRoleBucketIndex(FormationSlotRole role) {
+        return phaseDecisionRoleBucketIndex(phaseDecisionRoleBucket(role));
+    }
+
+    PlayerIntentType supportIntentTypeFor(OffBallEventType type) {
+        switch (type) {
+        case OffBallEventType::OverlapRun:
+        case OffBallEventType::WideSupport:
+            return PlayerIntentType::OccupyWidth;
+        case OffBallEventType::UnderlapRun:
+        case OffBallEventType::CutInsideRun:
+        case OffBallEventType::HalfSpaceSupport:
+            return PlayerIntentType::OccupyHalfSpace;
+        case OffBallEventType::FarPostRun:
+            return PlayerIntentType::AttackFarPost;
+        case OffBallEventType::NearPostRun:
+            return PlayerIntentType::AttackNearPost;
+        case OffBallEventType::PenaltySpotRun:
+        case OffBallEventType::EdgeOfBoxSupport:
+            return PlayerIntentType::AttackCutbackZone;
+        case OffBallEventType::BackPassSupport:
+            return PlayerIntentType::DropForPass;
+        case OffBallEventType::CounterForwardRun:
+            return PlayerIntentType::MakeRunBehind;
+        case OffBallEventType::DefensiveRecoveryRun:
+            return PlayerIntentType::RecoverToGoal;
+        case OffBallEventType::RestDefenseHold:
+            return PlayerIntentType::HoldAttackingShape;
+        case OffBallEventType::None:
+            return PlayerIntentType::None;
+        }
+        return PlayerIntentType::MoveToSupport;
+    }
+
+    void recordSupportLifecycleEvent(
+        MatchEngineResult& result,
+        const MatchEngineInput& input,
+        const OffBallSupportEvent& event,
+        bool created) {
+        const int typeIndex = offBallEventTypeIndex(event.eventType);
+        MatchOffBallSupportDiagnostics& diagnostics =
+            result.phaseDiagnostics.offBallSupportDiagnostics;
+        if (created) {
+            ++diagnostics.eventsCreatedByType[typeIndex];
+            const FormationSlotRole role = assignedRoleForPlayer(input, event.teamId, event.playerId);
+            ++diagnostics.eventsByRole[supportRoleBucketIndex(role)][typeIndex];
+            if (isWingerRole(role) && event.eventType == OffBallEventType::CutInsideRun) {
+                ++diagnostics.wingerCutInsideEvents;
+            }
+            if (isWingerRole(role) && event.eventType == OffBallEventType::FarPostRun) {
+                ++diagnostics.wingerFarPostEvents;
+            }
+            if (isFullbackRole(role) && event.eventType == OffBallEventType::OverlapRun) {
+                ++diagnostics.fullbackOverlapEvents;
+            }
+            if (isFullbackRole(role) && event.eventType == OffBallEventType::UnderlapRun) {
+                ++diagnostics.fullbackUnderlapEvents;
+            }
+            if (isFullbackRole(role) && event.eventType == OffBallEventType::RestDefenseHold) {
+                ++diagnostics.farSideFullbackRestDefenseHolds;
+            }
+            return;
+        }
+
+        if (event.completionReason == OffBallEventCompletionReason::ReachedRegion) {
+            ++diagnostics.eventsCompletedByType[typeIndex];
+            ++diagnostics.completedByReachingRegion;
+        } else {
+            ++diagnostics.eventsExpiredByType[typeIndex];
+        }
+        diagnostics.activeEventDurationTotal +=
+            static_cast<double>(std::max(0, event.completedSecond - event.startSecond));
+        ++diagnostics.activeEventDurationSamples;
+        switch (event.completionReason) {
+        case OffBallEventCompletionReason::PossessionLoss:
+            ++diagnostics.expiredOnPossessionLoss;
+            break;
+        case OffBallEventCompletionReason::Shot:
+            ++diagnostics.expiredOnShot;
+            break;
+        case OffBallEventCompletionReason::OpponentControl:
+            ++diagnostics.expiredOnOpponentControl;
+            break;
+        case OffBallEventCompletionReason::PhaseChange:
+            ++diagnostics.expiredOnPhaseChange;
+            break;
+        case OffBallEventCompletionReason::Timeout:
+            ++diagnostics.expiredOnTimeout;
+            break;
+        case OffBallEventCompletionReason::RestDefenseUnsafe:
+            ++diagnostics.cancelledByRestDefense;
+            break;
+        case OffBallEventCompletionReason::None:
+        case OffBallEventCompletionReason::ReachedRegion:
+        case OffBallEventCompletionReason::BallOut:
+        case OffBallEventCompletionReason::BecameBallCarrier:
+        case OffBallEventCompletionReason::Replaced:
+            break;
+        }
+    }
+
+    void appendSupportChainExample(
+        MatchEngineResult& result,
+        const OffBallSupportEvent& event,
+        BallCarrierActionType nextAction,
+        bool producedShot,
+        double shotXG);
+
+    void recordSupportLifecycleResult(
+        MatchEngineResult& result,
+        const MatchEngineInput& input,
+        const OffBallLifecycleResult& lifecycleResult) {
+        for (const OffBallSupportEvent& event : lifecycleResult.completed) {
+            recordSupportLifecycleEvent(result, input, event, false);
+            appendSupportChainExample(result, event, BallCarrierActionType::Hold, false, 0.0);
+        }
+        for (const OffBallSupportEvent& event : lifecycleResult.expired) {
+            recordSupportLifecycleEvent(result, input, event, false);
+            appendSupportChainExample(result, event, BallCarrierActionType::Hold, false, 0.0);
+        }
+    }
+
+    void appendSupportChainExample(
+        MatchEngineResult& result,
+        const OffBallSupportEvent& event,
+        BallCarrierActionType nextAction,
+        bool producedShot,
+        double shotXG) {
+        constexpr std::size_t MaxExamples = 8;
+        if (result.phaseDiagnostics.offBallEventChains.size() >= MaxExamples) {
+            return;
+        }
+        result.phaseDiagnostics.offBallEventChains.push_back(MatchOffBallEventChainDiagnostic{
+            eventMinuteForSecond(event.completedSecond > 0 ? event.completedSecond : event.startSecond),
+            event.sourcePhase,
+            event.teamId,
+            event.playerId,
+            event.eventType,
+            event.targetRegion.preferredLane,
+            event.targetRegion.preferredDepth,
+            event.resolvedTargetPoint,
+            event.completionReason,
+            nextAction,
+            producedShot,
+            shotXG
+        });
+    }
+
+    void recordSupportGenerationResult(
+        MatchEngineResult& result,
+        const MatchEngineInput& input,
+        const OffBallSupportModelResult& modelResult) {
+        MatchOffBallSupportDiagnostics& diagnostics =
+            result.phaseDiagnostics.offBallSupportDiagnostics;
+        if (modelResult.restDefenseStableBeforeSupport) {
+            ++diagnostics.restDefenseStableBeforeSupport;
+        }
+        if (modelResult.restDefenseStableAfterSupport) {
+            ++diagnostics.restDefenseStableAfterSupport;
+        } else if (!modelResult.events.empty()) {
+            ++diagnostics.restDefenseBreaksAfterSupport;
+        }
+        diagnostics.supportEventsRejectedByRestDefense += modelResult.rejectedByRestDefense;
+        diagnostics.cancelledByRestDefense += modelResult.rejectedByRestDefense;
+        for (const OffBallSupportEvent& event : modelResult.events) {
+            recordSupportLifecycleEvent(result, input, event, true);
+        }
+    }
+
+    void applySupportEventsToTargets(
+        std::vector<PlayerShapeTarget>& targets,
+        const OffBallEventLifecycle& lifecycle) {
+        for (PlayerShapeTarget& target : targets) {
+            const OffBallSupportEvent* event = lifecycle.activeEventForPlayer(target.playerId);
+            if (event == nullptr || event->teamId != target.teamId) {
+                continue;
+            }
+            const double weight = isRestDefenseEvent(event->eventType) ? 0.72 : 0.86;
+            target.finalTarget = PitchGeometry::clampToPitch(PitchPoint{
+                target.finalTarget.x + (event->resolvedTargetPoint.x - target.finalTarget.x) * weight,
+                target.finalTarget.y + (event->resolvedTargetPoint.y - target.finalTarget.y) * weight
+            });
+        }
+    }
+
+    void applySupportEventsToIntents(
+        std::vector<ResolvedPlayerIntent>& intents,
+        const OffBallEventLifecycle& lifecycle) {
+        for (ResolvedPlayerIntent& intent : intents) {
+            const OffBallSupportEvent* event = lifecycle.activeEventForPlayer(intent.playerId);
+            if (event == nullptr || event->teamId != intent.teamId) {
+                continue;
+            }
+            intent.finalTarget = PitchGeometry::clampToPitch(event->resolvedTargetPoint);
+            intent.intent.target = intent.finalTarget;
+            intent.intent.type = supportIntentTypeFor(event->eventType);
+            intent.intent.relatedPlayerId = 0;
+            intent.intent.urgency = isRestDefenseEvent(event->eventType) ? 0.42 : 0.78;
+            intent.score += event->priority;
+        }
+    }
+
+    void recordBothFullbacksAdvanced(
+        MatchEngineResult& result,
+        const MatchEngineInput& input,
+        const OffBallEventLifecycle& lifecycle) {
+        for (const MatchTeamSnapshot* team : { &input.homeTeam, &input.awayTeam }) {
+            int advancedFullbackEvents = 0;
+            for (const OffBallSupportEvent& event : lifecycle.activeEventsForTeam(team->teamId)) {
+                if (event.eventType != OffBallEventType::OverlapRun
+                    && event.eventType != OffBallEventType::UnderlapRun) {
+                    continue;
+                }
+                if (isFullbackRole(assignedRoleFor(team->teamSheet, event.playerId))) {
+                    ++advancedFullbackEvents;
+                }
+            }
+            if (advancedFullbackEvents >= 2) {
+                ++result.phaseDiagnostics.offBallSupportDiagnostics.bothFullbacksAdvancedCount;
+            }
+        }
+    }
+
+    bool supportActiveOrRecent(
+        const OffBallEventLifecycle* lifecycle,
+        PlayerId playerId,
+        int currentSecond) {
+        return lifecycle != nullptr
+            && lifecycle->hadRecentSupportEvent(playerId, currentSecond);
+    }
+
+    void recordSupportReceptionImpact(
+        MatchEngineResult& result,
+        const OffBallEventLifecycle* lifecycle,
+        FormationSlotRole role,
+        PlayerId playerId,
+        PitchPoint receivePoint,
+        AttackingDirection direction,
+        int currentSecond) {
+        if (!supportActiveOrRecent(lifecycle, playerId, currentSecond)) {
+            return;
+        }
+        const double progress = attackingProgressFor(receivePoint, direction);
+        const bool finalThird = progress >= 0.66;
+        if (isWingerRole(role)) {
+            if (isPenaltyAreaForDirection(receivePoint, direction)) {
+                ++result.phaseDiagnostics.offBallSupportDiagnostics.wingerBoxReceptionsAfterEvent;
+            }
+            if (isHalfSpace(receivePoint)) {
+                ++result.phaseDiagnostics.offBallSupportDiagnostics.wingerHalfSpaceReceptionsAfterEvent;
+            }
+        }
+        if (isFullbackRole(role) && finalThird && isWideChannel(receivePoint) && progress >= 0.72) {
+            ++result.phaseDiagnostics.offBallSupportDiagnostics.fullbackAdvancedWideReceptionsAfterEvent;
+        }
+    }
+
+    void recordSupportActionImpact(
+        MatchEngineResult& result,
+        const OffBallEventLifecycle* lifecycle,
+        FormationSlotRole carrierRole,
+        PlayerId carrierPlayerId,
+        BallCarrierActionType actionType,
+        int currentSecond) {
+        if (!supportActiveOrRecent(lifecycle, carrierPlayerId, currentSecond)) {
+            return;
+        }
+        if (isFinalBall(actionType)) {
+            ++result.phaseDiagnostics.offBallSupportDiagnostics.finalBallsAfterSupportEvent;
+            if (isFullbackRole(carrierRole)) {
+                ++result.phaseDiagnostics.offBallSupportDiagnostics.fullbackFinalBallsAfterEvent;
+            }
+        }
+        if (actionType == BallCarrierActionType::Cutback) {
+            ++result.phaseDiagnostics.offBallSupportDiagnostics.cutbacksAfterSupportEvent;
+        } else if (actionType == BallCarrierActionType::ThroughBall) {
+            ++result.phaseDiagnostics.offBallSupportDiagnostics.throughBallsAfterSupportEvent;
+        }
+    }
+
+    void recordSupportShotImpact(
+        MatchEngineResult& result,
+        const OffBallEventLifecycle* lifecycle,
+        FormationSlotRole shooterRole,
+        PlayerId shooterPlayerId,
+        double shotXG,
+        int currentSecond) {
+        if (!supportActiveOrRecent(lifecycle, shooterPlayerId, currentSecond)) {
+            return;
+        }
+        MatchOffBallSupportDiagnostics& diagnostics =
+            result.phaseDiagnostics.offBallSupportDiagnostics;
+        ++diagnostics.shotsAfterSupportEvent;
+        diagnostics.xGAfterSupportEvent += shotXG;
+        if (isWingerRole(shooterRole)) {
+            ++diagnostics.wingerShotsAfterSupportEvent;
+            ++diagnostics.wingerShotsAfterEvent;
+            diagnostics.wingerXGAfterEvent += shotXG;
+        }
+        if (isCentralMidfieldRole(shooterRole)) {
+            ++diagnostics.CMShotsAfterSupportEvent;
+        }
+    }
+
+    void recordSupportShotAssistImpact(
+        MatchEngineResult& result,
+        const OffBallEventLifecycle* lifecycle,
+        FormationSlotRole providerRole,
+        PlayerId providerPlayerId,
+        int currentSecond) {
+        if (!supportActiveOrRecent(lifecycle, providerPlayerId, currentSecond)) {
+            return;
+        }
+        ++result.phaseDiagnostics.offBallSupportDiagnostics.shotAssistsAfterSupportEvent;
+        if (isFullbackRole(providerRole)) {
+            ++result.phaseDiagnostics.offBallSupportDiagnostics.fullbackShotAssistsAfterSupportEvent;
+        }
+    }
+
     double attackingProgressFor(PitchPoint point, AttackingDirection direction) {
         return direction == AttackingDirection::HomeToAway
             ? point.x / PitchGeometry::LengthMeters
@@ -2816,9 +3143,12 @@ namespace {
     void recordReceptionInvolvement(
         MatchEngineResult& result,
         FormationSlotRole role,
+        PlayerId playerId,
         PitchPoint receivePoint,
         AttackingDirection direction,
-        MatchTeamPhase actingPhase) {
+        MatchTeamPhase actingPhase,
+        const OffBallEventLifecycle* supportLifecycle,
+        int currentSecond) {
         const double progress = attackingProgressFor(receivePoint, direction);
         const bool finalThird = progress >= 0.66;
         const bool wideFinalThird = finalThird && isWideChannel(receivePoint);
@@ -2867,6 +3197,15 @@ namespace {
                 ++result.phaseDiagnostics.finalizingQualityDiagnostics.finalizingCMEdgeReceptions;
             }
         }
+
+        recordSupportReceptionImpact(
+            result,
+            supportLifecycle,
+            role,
+            playerId,
+            receivePoint,
+            direction,
+            currentSecond);
     }
 
     void recordCarryInvolvement(
@@ -2911,7 +3250,9 @@ namespace {
     void recordShotCreationDiagnostics(
         MatchEngineResult& result,
         const MatchEngineInput& input,
-        const PendingBallAction& pending) {
+        const PendingBallAction& pending,
+        const OffBallEventLifecycle* supportLifecycle,
+        int currentSecond) {
         const FormationSlotRole shooterRole =
             assignedRoleForPlayer(input, pending.sourceTeamId, pending.sourcePlayerId);
         const int shooterBucket = diagnosticRoleBucketIndex(diagnosticRoleBucket(shooterRole));
@@ -2929,6 +3270,13 @@ namespace {
         if (isFullbackRole(shooterRole)) {
             ++result.phaseDiagnostics.fullbackSupportDiagnostics.shots;
         }
+        recordSupportShotImpact(
+            result,
+            supportLifecycle,
+            shooterRole,
+            pending.sourcePlayerId,
+            pending.shotXG,
+            currentSecond);
 
         if (pending.assistCandidatePlayerId == 0
             || pending.shotFromRebound
@@ -2973,6 +3321,12 @@ namespace {
             ++result.phaseDiagnostics.fullbackSupportDiagnostics.shotAssists;
             result.phaseDiagnostics.fullbackSupportDiagnostics.xGCreated += pending.shotXG;
         }
+        recordSupportShotAssistImpact(
+            result,
+            supportLifecycle,
+            providerRole,
+            pending.assistCandidatePlayerId,
+            currentSecond);
         if (pending.sourcePhase == MatchTeamPhase::FinalizingPosition
             && pending.shotFromFinalBall) {
             ++result.phaseDiagnostics.finalizingQualityDiagnostics
@@ -3537,6 +3891,8 @@ namespace {
         const ActionSelector& selector,
         std::optional<PendingBallAction>& pending,
         ChanceCreationTracker& chanceTracker,
+        OffBallEventLifecycle& supportLifecycle,
+        const RestDefenseModel& restDefenseModel,
         std::uint64_t baseSeed,
         double deltaSeconds) {
         PlayerSimState* carrier = findPlayerState(state, state.ball.carrierPlayerId);
@@ -3623,8 +3979,15 @@ namespace {
             action,
             state.ball.position,
             carrierShapeContext.attackingDirection);
-        recordWideActionInvolvement(result, carrierRole, actionType);
-        ++state.possession.actionDepth;
+            recordWideActionInvolvement(result, carrierRole, actionType);
+            recordSupportActionImpact(
+                result,
+                &supportLifecycle,
+                carrierRole,
+                carrier->playerId,
+                actionType,
+                state.currentSecond);
+            ++state.possession.actionDepth;
         double executionPressure = isPassLike(actionType)
             ? std::max(
                 action.pressurePenalty,
@@ -4099,7 +4462,12 @@ namespace {
                 touchesAfterReceive,
                 defendersBeatenAfterReceive,
                 carrierPhase);
-            recordShotCreationDiagnostics(result, input, shotDiagnosticPending);
+            recordShotCreationDiagnostics(
+                result,
+                input,
+                shotDiagnosticPending,
+                &supportLifecycle,
+                state.currentSecond);
             recordFinalizingShot(result, *carrierTeamState, carrierPhase, carrierRole, shotXG);
         } else {
             const BallTrajectoryBuildResult trajectoryResult = trajectoryBuilder.build(BallTrajectoryBuildRequest{
@@ -4157,6 +4525,22 @@ namespace {
             actionType == BallCarrierActionType::Shoot ? touchesAfterReceive : 0,
             actionType == BallCarrierActionType::Shoot ? defendersBeatenAfterReceive : 0,
             carrierPhase);
+
+        if (actionType == BallCarrierActionType::Shoot) {
+            if (const OffBallSupportEvent* supportEvent =
+                    supportLifecycle.activeEventForPlayer(carrier->playerId)) {
+                appendSupportChainExample(
+                    result,
+                    *supportEvent,
+                    BallCarrierActionType::Shoot,
+                    true,
+                    shotXG);
+            }
+            recordSupportLifecycleResult(
+                result,
+                input,
+                supportLifecycle.expireForShot(carrier->teamId, state.currentSecond));
+        }
 
         appendTrace(
             result,
@@ -4343,7 +4727,8 @@ namespace {
         const BallTrajectory& trajectory,
         const TeamSimState& defendingTeam,
         std::uint64_t baseSeed,
-        ChanceCreationTracker& chanceTracker) {
+        ChanceCreationTracker& chanceTracker,
+        const OffBallEventLifecycle& supportLifecycle) {
         const double elapsedToShot = remainingTrajectorySeconds(state, trajectory);
         if (!pending || !pending->isShot) {
             return SimulationStepResult{ elapsedToShot };
@@ -4428,6 +4813,11 @@ namespace {
             goalkeeper,
             shootingTuning.flow);
         if (outcome.goal) {
+            if (supportLifecycle.hadRecentSupportEvent(
+                    pending->sourcePlayerId,
+                    state.currentSecond)) {
+                ++result.phaseDiagnostics.offBallSupportDiagnostics.goalsAfterSupportEvent;
+            }
             const SimulationStepResult goalStep = applyLocalGoal(
                 state,
                 result,
@@ -4528,7 +4918,8 @@ namespace {
         std::optional<ContestResolverResult>& lastContestResult,
         std::optional<PendingBallAction>& pending,
         std::uint64_t baseSeed,
-        ChanceCreationTracker& chanceTracker) {
+        ChanceCreationTracker& chanceTracker,
+        OffBallEventLifecycle& supportLifecycle) {
         if (!state.ball.trajectory) {
             setLooseBall(state, state.ball.position);
             clearChanceChain(chanceTracker);
@@ -4750,9 +5141,12 @@ namespace {
                 recordReceptionInvolvement(
                     result,
                     assignedRoleForPlayer(input, target->teamId, target->playerId),
+                    target->playerId,
                     state.ball.position,
                     receivingDirection,
-                    pending->sourcePhase);
+                    pending->sourcePhase,
+                    &supportLifecycle,
+                    state.currentSecond);
                 rememberCompletedPass(
                     chanceTracker,
                     state,
@@ -4837,7 +5231,8 @@ namespace {
                 trajectory,
                 *defendingTeam,
                 baseSeed,
-                chanceTracker);
+                chanceTracker,
+                supportLifecycle);
         }
 
         const std::vector<PlayerSimState> interceptionDefenders =
@@ -5059,7 +5454,8 @@ namespace {
                         trajectory,
                         *defendingTeam,
                         baseSeed,
-                        chanceTracker);
+                        chanceTracker,
+                        supportLifecycle);
                 }
             }
         }
@@ -5074,7 +5470,8 @@ namespace {
                 trajectory,
                 *defendingTeam,
                 baseSeed,
-                chanceTracker);
+                chanceTracker,
+                supportLifecycle);
         }
 
         setLooseBall(state, state.ball.position);
@@ -5282,6 +5679,9 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
     BallTrajectoryBuilder trajectoryBuilder;
     InterceptionResolver interceptionResolver;
     ContestResolver contestResolver;
+    OffBallSupportModel offBallSupportModel;
+    OffBallEventLifecycle supportLifecycle;
+    RestDefenseModel restDefenseModel;
 
     std::optional<ContestResolverResult> lastContestResult;
     std::optional<PendingBallAction> pending;
@@ -5304,11 +5704,11 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
         ++safetyCounter;
         const TeamShapeContext homeShapeContext = shapeContextFor(state.homeTeam, state);
         const TeamShapeContext awayShapeContext = shapeContextFor(state.awayTeam, state);
-        const std::vector<PlayerShapeTarget> homeTargets = buildTargetsSafely(
+        std::vector<PlayerShapeTarget> homeTargets = buildTargetsSafely(
             shapeModel,
             homeShapeContext,
             input.homeTeam.teamSheet);
-        const std::vector<PlayerShapeTarget> awayTargets = buildTargetsSafely(
+        std::vector<PlayerShapeTarget> awayTargets = buildTargetsSafely(
             shapeModel,
             awayShapeContext,
             input.awayTeam.teamSheet);
@@ -5350,7 +5750,48 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
             awayTargets,
             state.ball.position);
 
-        const std::vector<ResolvedPlayerIntent> homeIntents = resolveTeamIntents(
+        recordSupportLifecycleResult(
+            result,
+            input,
+            supportLifecycle.update(state, restDefenseModel));
+
+        if (state.ball.controlState == BallControlState::Controlled) {
+            const OffBallSupportModelResult homeSupport = offBallSupportModel.evaluate(OffBallSupportModelRequest{
+                &state.homeTeam,
+                &state.awayTeam,
+                homeGameContext,
+                homePlayerContexts,
+                supportLifecycle.activeEventsForTeam(state.homeTeam.teamId),
+                homeShapeContext.attackingDirection,
+                state.currentSecond
+            });
+            recordSupportGenerationResult(result, input, homeSupport);
+            recordSupportLifecycleResult(
+                result,
+                input,
+                supportLifecycle.addEvents(homeSupport.events, state.currentSecond));
+
+            const OffBallSupportModelResult awaySupport = offBallSupportModel.evaluate(OffBallSupportModelRequest{
+                &state.awayTeam,
+                &state.homeTeam,
+                awayGameContext,
+                awayPlayerContexts,
+                supportLifecycle.activeEventsForTeam(state.awayTeam.teamId),
+                awayShapeContext.attackingDirection,
+                state.currentSecond
+            });
+            recordSupportGenerationResult(result, input, awaySupport);
+            recordSupportLifecycleResult(
+                result,
+                input,
+                supportLifecycle.addEvents(awaySupport.events, state.currentSecond));
+            recordBothFullbacksAdvanced(result, input, supportLifecycle);
+        }
+
+        applySupportEventsToTargets(homeTargets, supportLifecycle);
+        applySupportEventsToTargets(awayTargets, supportLifecycle);
+
+        std::vector<ResolvedPlayerIntent> homeIntents = resolveTeamIntents(
             intentResolver,
             state.homeTeam,
             state.awayTeam,
@@ -5361,7 +5802,7 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
             input.homeTeam.teamSheet,
             input.awayTeam.teamSheet,
             stepSeed(baseSeed, state, 0x101ULL));
-        const std::vector<ResolvedPlayerIntent> awayIntents = resolveTeamIntents(
+        std::vector<ResolvedPlayerIntent> awayIntents = resolveTeamIntents(
             intentResolver,
             state.awayTeam,
             state.homeTeam,
@@ -5372,6 +5813,8 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
             input.awayTeam.teamSheet,
             input.homeTeam.teamSheet,
             stepSeed(baseSeed, state, 0x202ULL));
+        applySupportEventsToIntents(homeIntents, supportLifecycle);
+        applySupportEventsToIntents(awayIntents, supportLifecycle);
 
         const PlayerId movementSkipPlayerId =
             state.ball.controlState == BallControlState::Controlled
@@ -5392,6 +5835,10 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
             awayIntents,
             deltaSeconds,
             movementSkipPlayerId);
+        recordSupportLifecycleResult(
+            result,
+            input,
+            supportLifecycle.update(state, restDefenseModel));
 
         SimulationStepResult step;
 
@@ -5425,6 +5872,8 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
                 actionSelector,
                 pending,
                 chanceTracker,
+                supportLifecycle,
+                restDefenseModel,
                 baseSeed,
                 deltaSeconds);
         } else if (state.ball.controlState == BallControlState::InFlight) {
@@ -5438,7 +5887,8 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
                 lastContestResult,
                 pending,
                 baseSeed,
-                chanceTracker);
+                chanceTracker,
+                supportLifecycle);
         } else if (state.ball.controlState == BallControlState::Loose) {
             step = processLooseBall(state, result, input, chanceTracker);
         } else if (state.ball.controlState == BallControlState::OutOfPlay) {

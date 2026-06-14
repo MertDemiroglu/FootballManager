@@ -4,6 +4,7 @@
 #include"fm/match/MatchReport.h"
 #include"fm/match_engine/MatchEngineTypes.h"
 #include"fm/match_engine/decision/PhaseDecisionContext.h"
+#include"fm/match_engine/offball/OffBallEventTypes.h"
 #include"fm/match_engine/phase/MatchPhaseTypes.h"
 
 #include<array>
@@ -295,6 +296,69 @@ struct MatchBuildUpToFinalizingQualityDiagnostics {
     double finalizingPositionChainXG = 0.0;
 };
 
+struct MatchOffBallSupportDiagnostics {
+    std::array<int, OffBallEventTypeCount> eventsCreatedByType{};
+    std::array<int, OffBallEventTypeCount> eventsCompletedByType{};
+    std::array<int, OffBallEventTypeCount> eventsExpiredByType{};
+    double activeEventDurationTotal = 0.0;
+    int activeEventDurationSamples = 0;
+    int expiredOnPossessionLoss = 0;
+    int expiredOnShot = 0;
+    int expiredOnOpponentControl = 0;
+    int expiredOnPhaseChange = 0;
+    int expiredOnTimeout = 0;
+    int completedByReachingRegion = 0;
+    int cancelledByRestDefense = 0;
+
+    std::array<std::array<int, OffBallEventTypeCount>, PhaseDecisionRoleBucketCount> eventsByRole{};
+
+    int shotsAfterSupportEvent = 0;
+    double xGAfterSupportEvent = 0.0;
+    int goalsAfterSupportEvent = 0;
+    int shotAssistsAfterSupportEvent = 0;
+    int finalBallsAfterSupportEvent = 0;
+    int cutbacksAfterSupportEvent = 0;
+    int throughBallsAfterSupportEvent = 0;
+    int wingerShotsAfterSupportEvent = 0;
+    int fullbackShotAssistsAfterSupportEvent = 0;
+    int CMShotsAfterSupportEvent = 0;
+
+    int wingerCutInsideEvents = 0;
+    int wingerFarPostEvents = 0;
+    int wingerBoxReceptionsAfterEvent = 0;
+    int wingerHalfSpaceReceptionsAfterEvent = 0;
+    int wingerShotsAfterEvent = 0;
+    double wingerXGAfterEvent = 0.0;
+
+    int fullbackOverlapEvents = 0;
+    int fullbackUnderlapEvents = 0;
+    int fullbackAdvancedWideReceptionsAfterEvent = 0;
+    int fullbackFinalBallsAfterEvent = 0;
+    int fullbackShotAssistsAfterEvent = 0;
+    int farSideFullbackRestDefenseHolds = 0;
+
+    int restDefenseStableBeforeSupport = 0;
+    int restDefenseStableAfterSupport = 0;
+    int supportEventsRejectedByRestDefense = 0;
+    int bothFullbacksAdvancedCount = 0;
+    int restDefenseBreaksAfterSupport = 0;
+};
+
+struct MatchOffBallEventChainDiagnostic {
+    int minute = 0;
+    MatchTeamPhase phase = MatchTeamPhase::BuildUp;
+    TeamId teamId = 0;
+    PlayerId playerId = 0;
+    OffBallEventType eventType = OffBallEventType::None;
+    SupportRegionLane targetLane = SupportRegionLane::Any;
+    SupportRegionDepth targetDepth = SupportRegionDepth::Any;
+    PitchPoint resolvedTarget;
+    OffBallEventCompletionReason completionReason = OffBallEventCompletionReason::None;
+    BallCarrierActionType nextAction = BallCarrierActionType::Hold;
+    bool producedShot = false;
+    double shotXG = 0.0;
+};
+
 struct MatchPhaseDiagnostics {
     std::array<double, MatchTeamPhaseCount> phaseTimeSeconds{};
     std::array<int, MatchTeamPhaseCount> phaseEntries{};
@@ -355,6 +419,8 @@ struct MatchPhaseDiagnostics {
     MatchFullbackSupportDiagnostics fullbackSupportDiagnostics;
     MatchFinalizingQualityDiagnostics finalizingQualityDiagnostics;
     MatchBuildUpToFinalizingQualityDiagnostics buildUpToFinalizingQualityDiagnostics;
+    MatchOffBallSupportDiagnostics offBallSupportDiagnostics;
+    std::vector<MatchOffBallEventChainDiagnostic> offBallEventChains;
     std::vector<MatchTeamPhaseDiagnostic> teamDiagnostics;
 };
 
