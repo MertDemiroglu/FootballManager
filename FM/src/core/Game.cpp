@@ -1003,11 +1003,7 @@ void Game::validateRuntimeDateConsistency(const char* context) const {
 TeamSheet Game::createTeamSheetForTeam(const Team& team) const {
     TeamSelectionService selectionService;
     const TacticalPreferences& preferences = team.getHeadCoach().getTacticalPreferences();
-    const FormationId formation = isFormationSupported(preferences.preferredFormation)
-        ? preferences.preferredFormation
-        : getSupportedFormationIds().front();
-
-    TeamSheet teamSheet = selectionService.buildTeamSheet(team, formation);
+    TeamSheet teamSheet = selectionService.buildTeamSheet(team);
     teamSheet.tacticalSetup.mentality = preferences.preferredMentality;
     teamSheet.tacticalSetup.tempo = preferences.preferredTempo;
     validateTeamSheetForTeam(teamSheet, team);

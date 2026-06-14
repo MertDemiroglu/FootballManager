@@ -1568,7 +1568,7 @@ namespace {
                 << '\n';
         }
 
-        std::cerr << "[Phase actions] " << label << '\n';
+        std::cerr << "[Acting team phase actions] " << label << '\n';
         for (MatchTeamPhase phase : allMatchTeamPhases()) {
             const int index = matchTeamPhaseIndex(phase);
             std::cerr << "  " << matchTeamPhaseName(phase)
@@ -4032,6 +4032,14 @@ namespace {
                 "watched phase diagnostics should include SettledDefense entries");
             require(watchedPhaseDiagnostics.defaultFormationFourThreeThree,
                 "watched smoke/default fixtures should use 4-3-3");
+            for (MatchTeamPhase defensivePhase : { MatchTeamPhase::DefensiveTransition, MatchTeamPhase::SettledDefense }) {
+                const int index = matchTeamPhaseIndex(defensivePhase);
+                require(watchedPhaseDiagnostics.passesByPhase[index] == 0
+                        && watchedPhaseDiagnostics.carriesByPhase[index] == 0
+                        && watchedPhaseDiagnostics.dribblesByPhase[index] == 0
+                        && watchedPhaseDiagnostics.shotsByPhase[index] == 0,
+                    "watched acting-team actions should not be attributed to defensive phases");
+            }
             const RoleBucketDiagnostic* watchedGoalkeepers =
                 roleBucketStats(watchedAggregate, RoleBucket::Goalkeeper);
             if (watchedGoalkeepers != nullptr) {
@@ -4374,6 +4382,14 @@ namespace {
         requireDribbleTackleInvariants("dominant team aggregate", dominantDefensiveEvents);
         require(dominantPhaseDiagnostics.defaultFormationFourThreeThree,
             "dominant smoke/default fixtures should use 4-3-3");
+        for (MatchTeamPhase defensivePhase : { MatchTeamPhase::DefensiveTransition, MatchTeamPhase::SettledDefense }) {
+            const int index = matchTeamPhaseIndex(defensivePhase);
+            require(dominantPhaseDiagnostics.passesByPhase[index] == 0
+                    && dominantPhaseDiagnostics.carriesByPhase[index] == 0
+                    && dominantPhaseDiagnostics.dribblesByPhase[index] == 0
+                    && dominantPhaseDiagnostics.shotsByPhase[index] == 0,
+                "dominant acting-team actions should not be attributed to defensive phases");
+        }
         const RoleBucketDiagnostic* dominantGoalkeepers =
             roleBucketStats(dominantAggregate, RoleBucket::Goalkeeper);
         if (dominantGoalkeepers != nullptr) {

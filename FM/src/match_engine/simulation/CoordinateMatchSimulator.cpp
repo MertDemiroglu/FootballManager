@@ -652,6 +652,17 @@ namespace {
         }
     }
 
+    MatchTeamPhase actingTeamPhaseForDiagnostics(
+        const TeamSimState& team,
+        const MatchSimulationState& state) {
+        if (state.ball.controlState == BallControlState::Controlled
+            && state.ball.carrierTeamId == team.teamId
+            && !isInPossessionPhase(team.currentPhase)) {
+            return MatchTeamPhase::BuildUp;
+        }
+        return team.currentPhase;
+    }
+
     std::vector<PlayerMarkerSnapshot> buildMarkers(const MatchSimulationState& state) {
         std::vector<PlayerMarkerSnapshot> markers;
         markers.reserve(state.homeTeam.players.size() + state.awayTeam.players.size());
@@ -4601,8 +4612,8 @@ MatchEngineResult CoordinateMatchSimulator::run(const MatchEngineInput& input) c
                     : awayShapeContext;
             const MatchTeamPhase carrierPhase =
                 state.ball.carrierTeamId == state.homeTeam.teamId
-                    ? state.homeTeam.currentPhase
-                    : state.awayTeam.currentPhase;
+                    ? actingTeamPhaseForDiagnostics(state.homeTeam, state)
+                    : actingTeamPhaseForDiagnostics(state.awayTeam, state);
             step = executeControlledAction(
                 state,
                 result,

@@ -2847,7 +2847,7 @@ void GameFacade::refreshEditableLineup() {
         currentGame ? currentGame->getSelectedTeamSheetForTeam(selectedLeagueId, selectedTeamId) : std::nullopt;
     const FormationId preferredFormation = selectedTeamSheet.has_value()
         ? selectedTeamSheet->formation
-        : team->getHeadCoach().getPreferredFormation();
+        : FormationId::FourThreeThree;
     const bool hasLineupForSelectedTeam = editableLineup.has_value()
         && editableLineup->getTeamId() == selectedTeamId;
     const FormationId activeFormation = hasLineupForSelectedTeam
