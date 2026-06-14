@@ -24,7 +24,9 @@ std::vector<ActionCandidate> BallCarrierDecisionModel::evaluate(
         return candidates;
     }
 
-    const PlayerDecisionContext& player = context.playerContext;
+    PlayerDecisionContext player = context.playerContext;
+    player.receivedFinalBall = context.receivedFinalBall;
+    player.receivedCutback = context.receivedCutback;
     const ActionScoringModel scoringModel;
     const ActionScoringContext scoringContext{
         player,
@@ -82,7 +84,9 @@ std::vector<ActionCandidate> BallCarrierDecisionModel::evaluate(
             player.phase,
             player.possession.possessionActionCount,
             player.possession.ballProgression,
-            player.possession.safeCirculationAvailable
+            player.possession.safeCirculationAvailable,
+            context.receivedFinalBall,
+            context.receivedCutback
         });
     for (const ShotOption& option : shotOptions) {
         candidates.push_back(scoringModel.buildShotCandidate(option, scoringContext));

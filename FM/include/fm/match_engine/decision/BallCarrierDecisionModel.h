@@ -20,6 +20,8 @@ struct BallCarrierDecisionModelContext {
     MatchTeamPhase teamPhase = MatchTeamPhase::BuildUp;
     const TeamGameContext* teamGameContext = nullptr;
     const PlayerGameContext* carrierGameContext = nullptr;
+    bool receivedFinalBall = false;
+    bool receivedCutback = false;
 };
 
 class BallCarrierDecisionModel {

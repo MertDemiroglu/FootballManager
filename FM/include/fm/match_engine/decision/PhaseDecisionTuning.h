@@ -20,11 +20,11 @@ struct PhaseDecisionTuning {
     double buildUpCarryMultiplier = 1.06;
     double buildUpRiskCarryMultiplier = 0.82;
 
-    double finalizingFinalBallMultiplier = 1.02;
-    double finalizingShotMultiplier = 1.18;
-    double finalizingSupportRoleShotMultiplier = 2.20;
-    double finalizingSupportTargetMultiplier = 1.12;
-    double finalizingRecycleMultiplier = 1.02;
+    double finalizingFinalBallMultiplier = 1.05;
+    double finalizingShotMultiplier = 2.50;
+    double finalizingSupportRoleShotMultiplier = 3.20;
+    double finalizingSupportTargetMultiplier = 1.00;
+    double finalizingRecycleMultiplier = 0.64;
 
     double counterForwardPassMultiplier = 1.24;
     double counterForwardCarryMultiplier = 1.18;

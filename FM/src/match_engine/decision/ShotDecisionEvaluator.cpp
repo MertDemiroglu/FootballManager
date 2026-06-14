@@ -201,6 +201,26 @@ namespace {
         return tuning.xgGreatBase + (xg - tuning.xgGoodThreshold) * tuning.xgGreatSlope;
     }
 
+    double closeDefenderShotPressure(
+        const ShotContext& context,
+        const ShotDecisionTuning& tuning) {
+        if (context.nearestDefenderDistance >= tuning.closeDefenderPressureDistance) {
+            return 0.0;
+        }
+        if (context.nearestDefenderDistance <= tuning.closeDefenderOverlapCollisionDistance) {
+            return tuning.closeDefenderOverlapCollisionPressure;
+        }
+        if (context.nearestDefenderDistance <= tuning.closeDefenderSmotherDistance) {
+            return tuning.closeDefenderSmotherPressure;
+        }
+        const double pressureShare =
+            (tuning.closeDefenderPressureDistance - context.nearestDefenderDistance)
+            / std::max(
+                0.1,
+                tuning.closeDefenderPressureDistance - tuning.closeDefenderSmotherDistance);
+        return pressureShare * tuning.closeDefenderPressureScale;
+    }
+
     bool isDefensiveRole(FormationSlotRole role) {
         return role == FormationSlotRole::Goalkeeper
             || role == FormationSlotRole::CenterBack
@@ -236,7 +256,10 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     const ShotContext expectedShotContext = expectedShotContextFor(context, attributes);
     const double xg = ShotQualityModel::calculatePreShotXG(expectedShotContext);
     const bool advancedPhase = isAdvancedShootingPhase(context.phase);
-    const bool clearChance = xg >= tuning.strongChanceAlwaysIncludeXG && distance <= 16.0;
+    const bool clearChance = xg >= tuning.strongChanceAlwaysIncludeXG
+        && distance <= 16.0
+        && expectedShotContext.nearestDefenderDistance >= tuning.clearChanceMinimumDefenderDistance;
+    const bool immediateFinalBallChance = context.receivedFinalBall || context.receivedCutback;
     const bool earlyPossessionShot =
         context.possessionActionCount <= 1
         && !advancedPhase
@@ -247,10 +270,14 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     const double distanceScore = distanceScoreFor(distance);
     const double angleScore = angleScoreFor(context.ballPosition, context.attackingDirection);
     const double pressurePenalty =
-        std::clamp(context.carrierPressure * tuning.pressurePenaltyScale, 0.0, 100.0);
+        std::clamp(
+            context.carrierPressure * tuning.pressurePenaltyScale
+                + closeDefenderShotPressure(expectedShotContext, tuning),
+            0.0,
+            100.0);
     const bool weakShot = xg < tuning.weakShotXG;
     const bool shootingZone =
-        advancedPhase || (attackingThird && distance <= 22.0);
+        advancedPhase || immediateFinalBallChance || (attackingThird && distance <= 22.0);
 
     double score = xgDesire(xg, tuning) * tuning.openPlayShotBaseline
         + (distanceScore - tuning.distanceScoreBaseline) * tuning.distanceScoreContribution
@@ -273,12 +300,18 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
         1.0 + (tactics.shotBias - 1.0) * tuning.tacticalShotBiasBlend,
         tuning.tacticalShotBiasMinimum,
         tuning.tacticalShotBiasMaximum);
+    if (immediateFinalBallChance && distance <= 20.0) {
+        score += tuning.receivedFinalBallShotContextBonus;
+        if (context.receivedCutback) {
+            score += tuning.receivedCutbackShotContextBonus;
+        }
+    }
     if (weakShot) {
         score *= std::clamp(
             1.0 + (tactics.weakShotBias - 1.0) * tuning.weakShotBiasBlend,
             tuning.weakShotBiasMinimum,
             tuning.weakShotBiasMaximum);
-        if (earlyPossessionShot) {
+        if (earlyPossessionShot && !immediateFinalBallChance) {
             score *= tuning.earlyActionWeakShotMultiplier;
         }
         if (context.carrierPressure >= 35.0) {
@@ -295,7 +328,9 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
         if (!attackingThird && xg < tuning.nonAttackingThirdMinimumXG) {
             score -= tuning.nonAttackingThirdLowXGPenalty;
         }
-        if (earlyPossessionShot && xg < tuning.earlyActionMinimumXG) {
+        if (earlyPossessionShot
+            && !immediateFinalBallChance
+            && xg < tuning.earlyActionMinimumXG) {
             score -= tuning.earlyActionLowXGPenalty;
         }
         if (!shootingZone && context.carrierPressure >= 35.0 && xg < tuning.pressuredShotMinimumXG) {
@@ -320,7 +355,13 @@ std::vector<ShotOption> ShotDecisionEvaluator::evaluate(
     option.pressurePenalty = pressurePenalty;
     option.shooterConfidence = shooter;
 
-    if (option.score >= tuning.optionScoreMinimum || xg >= tuning.strongChanceAlwaysIncludeXG) {
+    const bool includeFinalBallShot =
+        immediateFinalBallChance
+        && distance <= 20.0
+        && xg >= tuning.finalBallReceiverMinimumXG;
+    if (option.score >= tuning.optionScoreMinimum
+        || xg >= tuning.strongChanceAlwaysIncludeXG
+        || includeFinalBallShot) {
         output.push_back(option);
     }
     return output;

@@ -58,6 +58,13 @@ add_library(fm_core STATIC
     src/match_engine/phase/MatchPhaseModel.cpp
     src/match_engine/phase/PhaseTransitionModel.cpp
     src/match_engine/phase/SpaceContext.cpp
+    src/match_engine/offball/OffBallSupportModel.cpp
+    src/match_engine/offball/OffBallTargetResolver.cpp
+    src/match_engine/offball/OffBallEventLifecycle.cpp
+    src/match_engine/offball/RestDefenseModel.cpp
+    src/match_engine/offside/OffsideLineModel.cpp
+    src/match_engine/offside/OffsideAwarenessModel.cpp
+    src/match_engine/offside/OffsideResolver.cpp
     src/match_engine/decision/DefensiveResponsibility.cpp
     src/match_engine/decision/PlayerIntentResolver.cpp
     src/match_engine/movement/MovementResolver.cpp

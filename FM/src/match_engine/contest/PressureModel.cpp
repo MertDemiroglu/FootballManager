@@ -147,21 +147,27 @@ double zonePressureBonus(PressureDangerZone zone) {
 }
 
 double contestDistanceLimit(PressureDangerZone zone, BallCarrierActionType actionType) {
-    double limit = actionType == BallCarrierActionType::Carry ? 2.7 : 3.3;
+    double limit = 2.45;
+    if (actionType == BallCarrierActionType::Carry) {
+        limit = 1.45;
+    } else if (actionType == BallCarrierActionType::Dribble
+        || actionType == BallCarrierActionType::CutInside) {
+        limit = 2.05;
+    }
     switch (zone) {
     case PressureDangerZone::Midfield:
         break;
     case PressureDangerZone::FinalThird:
-        limit += 0.35;
+        limit += 0.25;
         break;
     case PressureDangerZone::Box:
-        limit += 0.75;
+        limit += 0.55;
         break;
     case PressureDangerZone::CentralBox:
-        limit += 1.05;
+        limit += 0.85;
         break;
     case PressureDangerZone::Goalmouth:
-        limit += 1.45;
+        limit += 1.10;
         break;
     }
     return limit;
@@ -222,7 +228,7 @@ PressureContext PressureModel::build(const PressureContextRequest& request) cons
     double nearbyPressure = 0.0;
     for (const PressurePlayer& defender : request.defenders) {
         const double distance = PitchGeometry::distance(defender.position, request.ballPosition);
-        if (defender.playerId != context.closestOutfieldDefenderId && distance <= 8.0) {
+        if (defender.playerId != context.closestOutfieldDefenderId && distance <= 5.5) {
             ++context.supportDefendersNearby;
         }
         if (distance <= 3.0) {
@@ -245,7 +251,7 @@ PressureContext PressureModel::build(const PressureContextRequest& request) cons
 
     const double laneBonus = context.defenderBetweenBallAndPath ? 12.0 : 0.0;
     const double goalSideBonus = context.defenderBetweenBallAndGoal ? 8.0 : 0.0;
-    const double supportBonus = std::min(18.0, static_cast<double>(context.supportDefendersNearby) * 6.0);
+    const double supportBonus = std::min(12.0, static_cast<double>(context.supportDefendersNearby) * 4.0);
     context.pressureStrength = clampDouble(
         nearbyPressure
             + intentPressure

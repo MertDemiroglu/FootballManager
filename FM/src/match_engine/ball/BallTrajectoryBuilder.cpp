@@ -46,7 +46,7 @@ namespace {
         case BallTrajectoryType::HighCross:
             return 9.0;
         case BallTrajectoryType::Cutback:
-            return 4.0;
+            return 3.0;
         case BallTrajectoryType::Shot:
             return 5.0;
         case BallTrajectoryType::Clearance:

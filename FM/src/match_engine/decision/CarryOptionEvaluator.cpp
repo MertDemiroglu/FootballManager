@@ -67,6 +67,7 @@ namespace {
         case CarryOptionKind::ProgressiveCarry:
             return tuning.centralProgressiveCarryMinimumGoalDistance;
         case CarryOptionKind::Dribble:
+        case CarryOptionKind::CutInside:
             return tuning.centralDribbleMinimumGoalDistance;
         }
         return tuning.centralProgressiveCarryMinimumGoalDistance;
@@ -164,6 +165,13 @@ namespace {
             || role == FormationSlotRole::RightMidfielder
             || role == FormationSlotRole::LeftWinger
             || role == FormationSlotRole::RightWinger;
+    }
+
+    bool isWingerRole(FormationSlotRole role) {
+        return role == FormationSlotRole::LeftWinger
+            || role == FormationSlotRole::RightWinger
+            || role == FormationSlotRole::LeftMidfielder
+            || role == FormationSlotRole::RightMidfielder;
     }
 
     double nearestOpponentDistance(
@@ -338,7 +346,8 @@ namespace {
         double difficulty = distance * 1.05 + pressureRisk * 0.42 - skill * 0.22;
         if (kind == CarryOptionKind::ProgressiveCarry) {
             difficulty += 7.0;
-        } else if (kind == CarryOptionKind::Dribble) {
+        } else if (kind == CarryOptionKind::Dribble
+            || kind == CarryOptionKind::CutInside) {
             difficulty += 16.0;
         } else {
             difficulty -= 5.0;
@@ -355,7 +364,8 @@ namespace {
             multiplier *= role.safeBias;
         } else if (kind == CarryOptionKind::ProgressiveCarry) {
             multiplier *= role.progressiveBias;
-        } else if (kind == CarryOptionKind::Dribble) {
+        } else if (kind == CarryOptionKind::Dribble
+            || kind == CarryOptionKind::CutInside) {
             multiplier *= role.dribbleBias;
         }
 
@@ -387,15 +397,20 @@ namespace {
         case CarryOptionKind::ProgressiveCarry:
             return tuning.progressiveCarryBaseScore;
         case CarryOptionKind::Dribble:
+        case CarryOptionKind::CutInside:
             return tuning.dribbleBaseScore;
         }
         return tuning.fallbackBaseScore;
     }
 
     BallCarrierActionType actionTypeFor(CarryOptionKind kind) {
-        return kind == CarryOptionKind::Dribble
-            ? BallCarrierActionType::Dribble
-            : BallCarrierActionType::Carry;
+        if (kind == CarryOptionKind::Dribble) {
+            return BallCarrierActionType::Dribble;
+        }
+        if (kind == CarryOptionKind::CutInside) {
+            return BallCarrierActionType::CutInside;
+        }
+        return BallCarrierActionType::Carry;
     }
 
     CarryOption makeOption(
@@ -416,6 +431,7 @@ namespace {
         }
 
         const double skill = kind == CarryOptionKind::Dribble
+                || kind == CarryOptionKind::CutInside
             ? dribbleSkill(attributes)
             : carrySkill(attributes);
         const double space = spaceScoreFor(target, context.opponentState);
@@ -448,6 +464,7 @@ namespace {
                 ? tuning.safeProgressionContribution
                 : tuning.riskProgressionContribution)
             + skill * (kind == CarryOptionKind::Dribble
+                    || kind == CarryOptionKind::CutInside
                 ? tuning.dribbleSkillContribution
                 : tuning.carrySkillContribution)
             - difficulty * tuning.difficultyPenalty
@@ -464,7 +481,8 @@ namespace {
         if (kind == CarryOptionKind::ProgressiveCarry && space >= tuning.openSpaceProgressiveThreshold) {
             score += tuning.openSpaceProgressiveBonus;
         }
-        if (kind == CarryOptionKind::Dribble
+        if ((kind == CarryOptionKind::Dribble
+                || kind == CarryOptionKind::CutInside)
             && context.carrierPressure >= tuning.highPressureDribbleThreshold) {
             score -= tuning.highPressureDribblePenalty;
         }
@@ -565,8 +583,32 @@ std::vector<CarryOption> CarryOptionEvaluator::evaluate(
             attributes,
             role,
             tactics,
-            tuning);
+                tuning);
         pushIfUseful(output, dribble, tuning.minimumDribbleScore);
+
+        if (wideCarrier
+            && isWingerRole(context.carrierRole)
+            && attackingProgress(context.ballPosition, context.attackingDirection) >= 0.66) {
+            const double lateralInside = std::clamp(
+                (PitchGeometry::WidthMeters / 2.0) - context.ballPosition.y,
+                -14.0,
+                14.0);
+            const CarryOption cutInside = makeOption(
+                CarryOptionKind::CutInside,
+                context,
+                contextAwareCarryTarget(
+                    context.ballPosition,
+                    context.attackingDirection,
+                    7.0,
+                    lateralInside,
+                    CarryOptionKind::CutInside,
+                    tuning),
+                attributes,
+                role,
+                tactics,
+                tuning);
+            pushIfUseful(output, cutInside, tuning.minimumDribbleScore);
+        }
     }
 
     std::sort(

@@ -3,7 +3,10 @@
 #include"fm/common/Types.h"
 #include"fm/match/MatchReport.h"
 #include"fm/match_engine/MatchEngineTypes.h"
+#include"fm/match_engine/ball/PassResolutionModel.h"
+#include"fm/match_engine/ball/ShotOutcomeResolver.h"
 #include"fm/match_engine/decision/PhaseDecisionContext.h"
+#include"fm/match_engine/offball/OffBallEventTypes.h"
 #include"fm/match_engine/phase/MatchPhaseTypes.h"
 
 #include<array>
@@ -295,6 +298,239 @@ struct MatchBuildUpToFinalizingQualityDiagnostics {
     double finalizingPositionChainXG = 0.0;
 };
 
+struct MatchOffBallSupportDiagnostics {
+    std::array<int, OffBallEventTypeCount> eventsCreatedByType{};
+    std::array<int, OffBallEventTypeCount> eventsCompletedByType{};
+    std::array<int, OffBallEventTypeCount> eventsExpiredByType{};
+    double activeEventDurationTotal = 0.0;
+    int activeEventDurationSamples = 0;
+    int expiredOnPossessionLoss = 0;
+    int expiredOnShot = 0;
+    int expiredOnOpponentControl = 0;
+    int expiredOnPhaseChange = 0;
+    int expiredOnTimeout = 0;
+    int completedByReachingRegion = 0;
+    int cancelledByRestDefense = 0;
+
+    std::array<std::array<int, OffBallEventTypeCount>, PhaseDecisionRoleBucketCount> eventsByRole{};
+
+    int shotsAfterSupportEvent = 0;
+    double xGAfterSupportEvent = 0.0;
+    int goalsAfterSupportEvent = 0;
+    int shotAssistsAfterSupportEvent = 0;
+    int finalBallsAfterSupportEvent = 0;
+    int cutbacksAfterSupportEvent = 0;
+    int throughBallsAfterSupportEvent = 0;
+    int wingerShotsAfterSupportEvent = 0;
+    int fullbackShotAssistsAfterSupportEvent = 0;
+    int CMShotsAfterSupportEvent = 0;
+
+    int shotsDuringActiveSupportEvent = 0;
+    int shotsImmediatelyAfterSupportCompletion = 0;
+    int shotsWithinRecentSupportWindow = 0;
+    double xGDuringActiveSupportEvent = 0.0;
+    double xGImmediatelyAfterSupportCompletion = 0.0;
+    double xGWithinRecentSupportWindow = 0.0;
+    int finalBallsDuringActiveSupportEvent = 0;
+    int finalBallsWithinRecentSupportWindow = 0;
+
+    int wingerCutInsideEvents = 0;
+    int wingerFarPostEvents = 0;
+    int wingerBoxReceptionsAfterEvent = 0;
+    int wingerHalfSpaceReceptionsAfterEvent = 0;
+    int wingerShotsAfterEvent = 0;
+    double wingerXGAfterEvent = 0.0;
+
+    int fullbackOverlapEvents = 0;
+    int fullbackUnderlapEvents = 0;
+    int fullbackAdvancedWideReceptionsAfterEvent = 0;
+    int fullbackFinalBallsAfterEvent = 0;
+    int fullbackShotAssistsAfterEvent = 0;
+    int farSideFullbackRestDefenseHolds = 0;
+
+    int restDefenseStableBeforeSupport = 0;
+    int restDefenseStableAfterSupport = 0;
+    int supportEventsRejectedByRestDefense = 0;
+    int bothFullbacksAdvancedCount = 0;
+    int restDefenseBreaksAfterSupport = 0;
+};
+
+struct MatchSupportEventMovementQualityDiagnostics {
+    int completedImmediately = 0;
+    int completedAfterActualMovement = 0;
+    double distanceMovedDuringEventTotal = 0.0;
+    int distanceMovedDuringEventSamples = 0;
+    double distanceToTargetAtCreationTotal = 0.0;
+    int distanceToTargetAtCreationSamples = 0;
+    double distanceToTargetAtCompletionTotal = 0.0;
+    int distanceToTargetAtCompletionSamples = 0;
+    int eventReachedWithoutMovement = 0;
+    int eventTimeoutBeforeMovement = 0;
+    std::array<int, OffBallEventTypeCount> completedImmediatelyByType{};
+    std::array<int, OffBallEventTypeCount> completedAfterActualMovementByType{};
+    std::array<double, OffBallEventTypeCount> distanceMovedByType{};
+    std::array<int, OffBallEventTypeCount> distanceMovedSamplesByType{};
+};
+
+struct MatchOffsideDiagnostics {
+    int offsideLineChecks = 0;
+    int offsideSnapshotsCreated = 0;
+    int attackersOffsideAtRelease = 0;
+    int offsideCalls = 0;
+    std::array<int, MatchDiagnosticActionTypeCount> offsideCallsByActionType{};
+    std::array<int, MatchDiagnosticRoleBucketCount> offsideCallsByRole{};
+    int offsideAvoidedByAwareness = 0;
+    int offsideRiskAdjustedTargets = 0;
+    double offsideLineProgressTotal = 0.0;
+    int offsideLineProgressSamples = 0;
+    double attackerDistanceToOffsideLineTotal = 0.0;
+    int attackerDistanceToOffsideLineSamples = 0;
+    int throughBallOffsideCalls = 0;
+    int farPostRunOffsideCalls = 0;
+    int counterRunOffsideCalls = 0;
+    std::array<int, MatchDiagnosticRoleBucketCount> awarenessChecksByRole{};
+    std::array<double, MatchDiagnosticRoleBucketCount> awarenessCheckIntervalTotalByRole{};
+    std::array<int, MatchDiagnosticRoleBucketCount> awarenessAdjustmentsByRole{};
+    std::array<int, MatchDiagnosticRoleBucketCount> awarenessFailedToAdjustByRole{};
+    std::array<int, MatchDiagnosticRoleBucketCount> awarenessOffsideCallsByRole{};
+};
+
+struct MatchCutbackChainDiagnostics {
+    int cutbacksAttempted = 0;
+    int cutbacksCompleted = 0;
+    std::array<int, MatchDiagnosticRoleBucketCount> cutbackReceiversByRole{};
+    int cutbackReceiverPenaltyArea = 0;
+    int cutbackReceiverEdge = 0;
+    int cutbackReceiverHalfSpace = 0;
+    int cutbackReceiverWide = 0;
+    int cutbackReceiverCentral = 0;
+    int cutbackReceiverShotCandidates = 0;
+    int cutbackReceiverShots = 0;
+    int cutbackShots = 0;
+    double cutbackXG = 0.0;
+    int cutbackTurnovers = 0;
+    int cutbackRecycled = 0;
+    int cutbackSourcePreservedToShot = 0;
+    int cutbackSourceLostReason = 0;
+    int failureNoTargetPlayer = 0;
+    int failureTargetOutOfRange = 0;
+    int failureMisplacedLoose = 0;
+    int failureIntercepted = 0;
+    int failureBlocked = 0;
+    int failureKeeperClaimed = 0;
+    int failureOffside = 0;
+    int failureReceiverControlledNoShotCandidate = 0;
+    int failureReceiverControlledShotRejected = 0;
+    int failureReceiverControlledRecycled = 0;
+    int failureSourceLostBeforeReceiverDecision = 0;
+    int failureDefenderContestWon = 0;
+    int failureDefenderDeflection = 0;
+    int failureUnknown = 0;
+};
+
+struct MatchCutbackTraceDiagnostic {
+    int minute = 0;
+    PlayerId passerPlayerId = 0;
+    FormationSlotRole passerRole = FormationSlotRole::Unknown;
+    PlayerId receiverPlayerId = 0;
+    FormationSlotRole receiverRole = FormationSlotRole::Unknown;
+    PitchPoint passStart;
+    PitchPoint intendedTarget;
+    PitchPoint actualTarget;
+    PitchPoint receiverStartPosition;
+    PitchPoint receiverArrivalPosition;
+    double receiverDistanceToArrival = 0.0;
+    double controlRange = 0.0;
+    PlayerId nearestDefenderId = 0;
+    FormationSlotRole nearestDefenderRole = FormationSlotRole::Unknown;
+    PitchPoint defenderStartPosition;
+    double defenderDistanceToLane = 0.0;
+    double defenderArrivalSeconds = 0.0;
+    double receiverArrivalSeconds = 0.0;
+    PassResolutionOutcome passOutcome = PassResolutionOutcome::MisplacedLoose;
+    BallCarrierActionType nextAction = BallCarrierActionType::Hold;
+    double shotCandidateScore = 0.0;
+    double shotXG = 0.0;
+};
+
+struct MatchMovementRealismDiagnostics {
+    bool receiverArrivalUsesAcceleration = false;
+    bool defenderArrivalUsesAcceleration = false;
+    double receiverReachableDistanceTotal = 0.0;
+    int receiverReachableDistanceSamples = 0;
+    double defenderReachableDistanceTotal = 0.0;
+    int defenderReachableDistanceSamples = 0;
+    double cutbackReceiverArrivalDeltaSecondsTotal = 0.0;
+    int cutbackReceiverArrivalDeltaSecondsSamples = 0;
+    double cutbackDefenderArrivalDeltaSecondsTotal = 0.0;
+    int cutbackDefenderArrivalDeltaSecondsSamples = 0;
+    int defenderBeforeReceiver0To025 = 0;
+    int defenderBeforeReceiver025To075 = 0;
+    int defenderBeforeReceiver075Plus = 0;
+    int receiverOutOfRangeBecauseAcceleration = 0;
+    int defenderWonBecauseAcceleration = 0;
+};
+
+struct MatchDefenderOverlapDiagnostics {
+    int defenderOverlapAtShotCount = 0;
+    int defenderOverlapAtReceptionCount = 0;
+    int multipleDefendersSameAttackerCount = 0;
+    int maxDefendersWithin1mOfShooter = 0;
+    int maxDefendersWithin2mOfShooter = 0;
+    int unmarkedAttackersInBoxWhenOverlap = 0;
+    int duplicateMarkerPairs = 0;
+    int shotsWithZeroDistanceDefender = 0;
+    int shotsWithLikelyCoordinateOverlap = 0;
+    double pressureFromRealProximity = 0.0;
+    double pressureFromOverlapCollision = 0.0;
+};
+
+struct MatchShotFreezeFrameDiagnostic {
+    int minute = 0;
+    MatchTeamPhase phase = MatchTeamPhase::BuildUp;
+    PlayerId shooterPlayerId = 0;
+    FormationSlotRole shooterRole = FormationSlotRole::Unknown;
+    PitchPoint shotLocation;
+    double shotDistance = 0.0;
+    BallCarrierActionType sourceAction = BallCarrierActionType::Hold;
+    MatchGoalSourceCategory sourceCategory = MatchGoalSourceCategory::Unknown;
+    double preShotXG = 0.0;
+    double effectiveXG = 0.0;
+    double pressure = 0.0;
+    PitchPoint goalkeeperPosition;
+    std::array<PlayerId, 5> defenderIds{};
+    std::array<FormationSlotRole, 5> defenderRoles{};
+    std::array<PitchPoint, 5> defenderPositions{};
+    std::array<double, 5> defenderDistances{};
+    std::array<double, 5> defenderLaneDistances{};
+    std::array<PlayerId, 5> teammateIds{};
+    std::array<FormationSlotRole, 5> teammateRoles{};
+    std::array<PitchPoint, 5> teammatePositions{};
+    std::array<double, 5> teammateDistances{};
+    bool shooterActiveSupport = false;
+    bool shooterRecentSupportCompletion = false;
+    double offsideLineAtRelease = 0.0;
+    PlayerId finalPassProviderId = 0;
+    FormationSlotRole finalPassProviderRole = FormationSlotRole::Unknown;
+    PitchPoint finalPassProviderPosition;
+    ShotOutcomeKind result = ShotOutcomeKind::OffTarget;
+};
+
+struct MatchOffBallEventChainDiagnostic {
+    int minute = 0;
+    MatchTeamPhase phase = MatchTeamPhase::BuildUp;
+    TeamId teamId = 0;
+    PlayerId playerId = 0;
+    OffBallEventType eventType = OffBallEventType::None;
+    SupportRegionLane targetLane = SupportRegionLane::Any;
+    SupportRegionDepth targetDepth = SupportRegionDepth::Any;
+    PitchPoint resolvedTarget;
+    OffBallEventCompletionReason completionReason = OffBallEventCompletionReason::None;
+    BallCarrierActionType nextAction = BallCarrierActionType::Hold;
+    bool producedShot = false;
+    double shotXG = 0.0;
+};
+
 struct MatchPhaseDiagnostics {
     std::array<double, MatchTeamPhaseCount> phaseTimeSeconds{};
     std::array<int, MatchTeamPhaseCount> phaseEntries{};
@@ -355,6 +591,15 @@ struct MatchPhaseDiagnostics {
     MatchFullbackSupportDiagnostics fullbackSupportDiagnostics;
     MatchFinalizingQualityDiagnostics finalizingQualityDiagnostics;
     MatchBuildUpToFinalizingQualityDiagnostics buildUpToFinalizingQualityDiagnostics;
+    MatchOffBallSupportDiagnostics offBallSupportDiagnostics;
+    MatchSupportEventMovementQualityDiagnostics supportEventMovementQualityDiagnostics;
+    MatchOffsideDiagnostics offsideDiagnostics;
+    MatchCutbackChainDiagnostics cutbackChainDiagnostics;
+    MatchMovementRealismDiagnostics movementRealismDiagnostics;
+    MatchDefenderOverlapDiagnostics defenderOverlapDiagnostics;
+    std::vector<MatchCutbackTraceDiagnostic> cutbackTraceExamples;
+    std::vector<MatchShotFreezeFrameDiagnostic> shotFreezeFrames;
+    std::vector<MatchOffBallEventChainDiagnostic> offBallEventChains;
     std::vector<MatchTeamPhaseDiagnostic> teamDiagnostics;
 };
 
